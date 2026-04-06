@@ -1,0 +1,25 @@
+{
+    "cardSources": [
+        {
+            "id": 1,
+            "name": "New Type Rising",
+             "description": "",
+             "version": 1,
+             "sourceType": 2
+         },
+         {
+            "id": 2,
+            "name": "Dual Impact",
+            "description": "",
+            "version": 2,
+            "sourceType": 2
+         },
+         {
+            "id": 3,
+            "name": "Quest Rewards",
+            "description": "",
+             "version": 3,
+             "sourceType": 2
+         }
+    ]
+}
