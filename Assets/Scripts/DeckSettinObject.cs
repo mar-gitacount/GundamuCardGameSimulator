@@ -6,6 +6,7 @@ using System.Linq;
 using TMPro;
 using System.IO;
 using System;
+using System.IO;
 
 public class DeckSettinObject : MonoBehaviour
 {
@@ -334,6 +335,24 @@ DeckSaveData jsonData(string path)
         return JsonUtility.FromJson<DeckSaveData>(json);
 
     }
+
+public void DeleteJsonFile()
+{
+    // 1. ファイルが存在するか確認
+    if (File.Exists(deckPathName))
+    {
+        // 2. 削除実行
+        File.Delete(deckPathName);
+       
+        Debug.Log($"ファイルを削除しました: {deckPathName}");
+        ClearDeckList(); // デッキリストを空にする
+        ShowFileList(); // デッキリストを更新して表示する
+    }
+    else
+    {
+        Debug.LogWarning($"削除しようとしたファイルが見つかりません: {deckPathName}");
+    }
+}
 
 // 保存されたデッキのファイル名をリスト表示する関数
 public void ShowFileList()

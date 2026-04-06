@@ -18,6 +18,8 @@ public class NewDeckMaking : MonoBehaviour
 
     [SerializeField] private Button DeckEditButton;
     
+    [SerializeField] private Button DeckDeleteButton;
+    
 
     // Start is called before the first frame update
     void Start()
@@ -27,6 +29,7 @@ public class NewDeckMaking : MonoBehaviour
         DeckEditButton.onClick.AddListener(newDeckButtonClicked);
         DeckSettinObject.Instance.isDeckEditing = false;
         DeckMakeButton.onClick.AddListener(DeckMakeButtonClicked);
+        DeckDeleteButton.onClick.AddListener(DeleteexecutionJsonFileToUseDeckSeetinObject);
     }
 
     // Update is called once per frame
@@ -35,6 +38,12 @@ public class NewDeckMaking : MonoBehaviour
         
     }
 
+    private void DeleteexecutionJsonFileToUseDeckSeetinObject()
+    {
+        // 1. ファイルが存在するか確認
+        DeckSettinObject.Instance.DeleteJsonFile();
+        
+    }
     private void newDeckButtonClicked()
     {
         
@@ -49,9 +58,9 @@ public class NewDeckMaking : MonoBehaviour
             NewDeckText.text = "NewDeck";
 
             // デッキリストを空にする
-                DeckSettinObject.Instance.ClearDeckList();
+            DeckSettinObject.Instance.ClearDeckList();
 
-                DeckSettinObject.Instance.ShowFileList();
+            DeckSettinObject.Instance.ShowFileList();
             DeckTitleInputField.text = "";
             DeckTitleInputField.gameObject.SetActive(false);
         }
