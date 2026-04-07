@@ -43,10 +43,13 @@ public class DeckSettinObject : MonoBehaviour
     public int id;
     public int count;
 }
-
-
-
-
+    public void CopyJsonFile()
+    {
+        deckPathName = "";
+        SaveDeckToJson(cardData);
+        // デッキリストを空にする
+        
+    }
 
     void Awake()
     {
