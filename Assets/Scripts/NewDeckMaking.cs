@@ -21,6 +21,10 @@ public class NewDeckMaking : MonoBehaviour
     [SerializeField] private Button DeckDeleteButton;
 
     [SerializeField] private Button DeckCopyButton;
+
+
+     // 以下押下で、デッキ一覧のどれかをクリックすると、emeryCardData にカードデータを入れる。
+    [SerializeField] private Button ButtleButton;
     
 
     // Start is called before the first frame update
@@ -33,12 +37,19 @@ public class NewDeckMaking : MonoBehaviour
         DeckMakeButton.onClick.AddListener(DeckMakeButtonClicked);
         DeckDeleteButton.onClick.AddListener(DeleteexecutionJsonFileToUseDeckSeetinObject);
         DeckCopyButton.onClick.AddListener(DeckCopyButtonClicked);
+        ButtleButton.onClick.AddListener(ButtleButtonClicked);
     }
 
     // Update is called once per frame
     void Update()
     {
         
+    }
+
+    private void ButtleButtonClicked()
+    {
+        DeckSettinObject.Instance.battleStart();
+        // Debug.Log($"バトル開始フラグ:{DeckSettinObject.Instance.BattleStartFlag}");
     }
 
     private void DeleteexecutionJsonFileToUseDeckSeetinObject()
