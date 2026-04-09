@@ -17,8 +17,13 @@ public class DeckSettinObject : MonoBehaviour
     // テキストフィールド
     [SerializeField] private TMP_InputField DeckTitleInputField;
 
+    [SerializeField] private Canvas MainCanvas;
+
 
     [SerializeField] private TMP_Text NewDeckText;
+
+    // エネミーデッキのカードデータを保存するためのフィールド
+    private Dictionary<int, int> enemyCardData = new Dictionary<int, int>();
     
 
     // 編集中のデッキの文字列
@@ -29,12 +34,22 @@ public class DeckSettinObject : MonoBehaviour
     [SerializeField] private TextMeshProUGUI CardCountText;
     [SerializeField] private GameObject DeckListPanel;
     [SerializeField] private GameObject DeckinfoPanel;
+    // バトルキャンバス
+    [SerializeField] private Canvas BattleCanvas;
+    // バトルボタン押下時に、他のデッキをエネミーデッキに入れるためのフラグ。
+    // デッキ一覧内のデッキを押下した際に、このフラグが立っている場合は、押下されたデッキをエネミーデッキに入れる。そうでない場合は、通常通り編集デッキに入れる。
+    private bool BattoleStartFlag = false;
     [Serializable]public class DeckSaveData
 {
     public string title;
     public int thumbnailId; // サムネイル用のカードID
     public List<CardSlot> cards = new List<CardSlot>();
     private Dictionary<int, CardData> cardTable = new Dictionary<int, CardData>();
+
+   
+    
+
+   
    
 }
 
@@ -134,6 +149,28 @@ public class DeckSettinObject : MonoBehaviour
             return count;
         }
         return 0;
+    }
+
+    public void ShowAllCanvasChildren(GameObject canvasObj)
+    {
+        canvasObj.gameObject.SetActive(true);
+        return;
+        foreach (Transform child in canvasObj.transform)
+       {
+        child.gameObject.SetActive(true);
+       }
+    }
+
+
+    public void HideAllCanvasChildren(GameObject canvasObj)
+    {
+        canvasObj.gameObject.SetActive(false);
+        return;
+    // canvasObjの子要素（Transform）を一つずつループ
+       foreach (Transform child in canvasObj.transform)
+      {
+        child.gameObject.SetActive(false);
+      }
     }
 
     // 編集中のデッキ→カードをクリックしてデッキに入れる処理
@@ -339,6 +376,14 @@ DeckSaveData jsonData(string path)
 
     }
 
+public void battleStart()
+{
+    // 現在の値が true なら false、false なら true に入れ替える
+    BattoleStartFlag = !BattoleStartFlag;
+    
+    Debug.Log($"バトル開始フラグ:{BattoleStartFlag}");
+}
+
 public void DeleteJsonFile()
 {
     // 1. ファイルが存在するか確認
@@ -403,6 +448,25 @@ public void ShowFileList()
         Debug.Log($"{cardData.Count}枚のカードデータを読み込みました。");
         Debug.Log($"クリックされたデッキのパス: {fullPath}");
         // NewDeckText.text = "Edit Existing Deck";
+        Debug.Log($"エネミーフラグ:{BattoleStartFlag}");
+        if(BattoleStartFlag)
+        {
+            Debug.Log("バトル開始フラグが立っているため、クリックされたデッキをエネミーデッキに入れます。");
+            enemyCardData.Clear();
+            foreach (var card in data.cards)
+            {
+                Debug.Log($"エネミーデッキに入れるカードID: {card.id}, 枚数: {card.count}");
+                enemyCardData[card.id] = card.count;
+            }
+            // バトル画面に遷移する処理をここに書く
+
+            // 元の画面のUIを消す処理
+            HideAllCanvasChildren(MainCanvas.gameObject);
+
+            // バトルキャンバスのUIを表示する処理
+            ShowAllCanvasChildren(BattleCanvas.gameObject);
+            return;
+        }
         data = jsonData(fullPath);
         DeckinfoPanel.SetActive(true);
         DeckTitleInputField.text = data.title; // タイトルを入力フィールドに表示
