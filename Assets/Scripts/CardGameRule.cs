@@ -52,4 +52,7 @@ public class CardGameRule
 
     // 現在の残り枚数を知りたい場合に便利
     public int GetRemainingCount() => deckList.Count;
+
+    // リソース関数もここに追加していく予定
+    
 }
