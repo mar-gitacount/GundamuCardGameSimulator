@@ -90,7 +90,14 @@ public class DeckSettinObject : MonoBehaviour
 
     public Dictionary<int, int> LoadDeckReturn()
     {    
+        Debug.Log($"デッキデータを返します。カードの種類数: {cardData.Count}");
         return cardData;
+    }
+
+    // 敵のデッキデータを返す関数
+    public Dictionary<int, int> LoadEnemyDeckReturn()
+    {
+        return enemyCardData;
     }
     // デッキパネル内のカードをjsonファイルに保存する処理
     public void SaveDeckToJson(Dictionary<int, int> cardData)
@@ -442,11 +449,9 @@ public void ShowFileList()
         Debug.Log(cardObj.name + " がクリックされました！");
         // ここに実行したい処理を書く
         // クリック時にcardDataにjsonのカードIDと枚数を渡す
-        cardData.Clear();
+       
         // 編集中のデッキの文字列を更新
         deckPathName = fullPath;
-        Debug.Log($"{cardData.Count}枚のカードデータを読み込みました。");
-        Debug.Log($"クリックされたデッキのパス: {fullPath}");
         // NewDeckText.text = "Edit Existing Deck";
         Debug.Log($"エネミーフラグ:{BattoleStartFlag}");
         if(BattoleStartFlag)
@@ -467,6 +472,7 @@ public void ShowFileList()
             ShowAllCanvasChildren(BattleCanvas.gameObject);
             return;
         }
+        cardData.Clear();
         data = jsonData(fullPath);
         DeckinfoPanel.SetActive(true);
         DeckTitleInputField.text = data.title; // タイトルを入力フィールドに表示
