@@ -36,6 +36,13 @@ public class DeckSettinObject : MonoBehaviour
     [SerializeField] private GameObject DeckinfoPanel;
     // バトルキャンバス
     [SerializeField] private Canvas BattleCanvas;
+    // !デッキデータを保存するクラス
+    // private DeckSaveData data = JsonUtility.FromJson<DeckSaveData>(json);
+
+    // !カードIDからカードデータを取得するためのテーブル（辞書）
+    // private Dictionary<int, CardData> cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(data => data.id);
+    
+
     // バトルボタン押下時に、他のデッキをエネミーデッキに入れるためのフラグ。
     // デッキ一覧内のデッキを押下した際に、このフラグが立っている場合は、押下されたデッキをエネミーデッキに入れる。そうでない場合は、通常通り編集デッキに入れる。
     private bool BattoleStartFlag = false;
@@ -391,6 +398,21 @@ public void battleStart()
     Debug.Log($"バトル開始フラグ:{BattoleStartFlag}");
 }
 
+
+public CardData GetCardDataById(int id)
+{
+    var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(data => data.id);
+    if (cardTable.TryGetValue(id, out CardData card))
+    {
+        Debug.Log($"ID:{id} のカードデータを取得しました。カード名: {card.cardName}");
+        return card;
+    }
+    else
+    {
+        Debug.LogError($"ID {id} のカードデータが見つかりません！");
+        return null;
+    }
+}
 public void DeleteJsonFile()
 {
     // 1. ファイルが存在するか確認
@@ -430,9 +452,10 @@ public void ShowFileList()
     // JSONファイルを更新
     DeckSaveData data = JsonUtility.FromJson<DeckSaveData>(json);
 
-    Sprite cardSprite= Resources.Load<Sprite>($"Data/Cards/{data.thumbnailId}");
+    Sprite cardSprite = Resources.Load<Sprite>($"Data/Cards/{data.thumbnailId}");
+  
     var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(data => data.id);
-
+    Debug.Log($"カードテーブルの長さ: {cardTable.Count}");
 
  
 
@@ -480,6 +503,7 @@ public void ShowFileList()
         {
             Debug.Log($"クリックされたデッキのカードID: {card.id}, 枚数: {card.count}");
             cardData[card.id] = card.count;
+
         }
     });
     }

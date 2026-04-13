@@ -31,6 +31,10 @@ public class BattleGameMain : MonoBehaviour
 
     [SerializeField]private Button EndTurnButton;
 
+    //! カード山札のパネル
+    [SerializeField] private GameObject CardImagePrefab;
+
+    [SerializeField] private Transform playerHandTransform;
     
     public enum PlayerType{Player,Enemy}
 
@@ -48,18 +52,46 @@ public class BattleGameMain : MonoBehaviour
 
         //! マリガンの後ほど実装
 
-       
-   
-      
-
 
         // プレイヤーとエネミーの山札を作成する。
         cardGameRule.CreateShuffledDeck(playerDeckData);
         // int playerCardId = cardGameRule.Draw();
         // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData);
+
+
+        
+       for(int i = 0; i < 5; i++)
+        {
+            int playerCardId = cardGameRule.Draw();
+            // ?テスト以下ではダメ！！
+
+            // Sprite cardSprite = Resources.Load<Sprite>($"Data/Cards/{playerCardId}");
+           
+
+            // !以下シングルトンからカードデータを取得。イメージデータなどもとれる文字形式で
+            // 取れるのでそれをスプライトに変換して表示するようにする。
+            // 以下を関数化する。
+            CardData playerCardData = DeckSettinObject.Instance.GetCardDataById(playerCardId);
+            Debug.Log($"イメージ: {playerCardData.imageName.name}");
+            GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
+            SpriteRenderer sr = cardImage.GetComponent<SpriteRenderer>();
+            Sprite cardSprite = Resources.Load<Sprite>($"Data/Images/{playerCardData.imageName.name}");
+            
+           
+            sr.sprite = cardSprite;
+            Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
+            // cardImage.GetComponent<Image>().sprite = cardSprite;
+            // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
+
+            int enemyCardId = enemyCardGameRule.Draw();
+            Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
+        }
+        return;
         // int enemyCardId = enemyCardGameRule.Draw();
         // Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
+
+        //  ?playerDeckData = cardGameRule.GetDeckList().GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
 
         // ターン開始フェイズに移行する。
         ChangePhase(BattlePhase.StartTurn);

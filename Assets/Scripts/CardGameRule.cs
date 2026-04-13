@@ -16,11 +16,14 @@ public class CardGameRule
         // 前回の残りを一旦クリア（念のため）
         deckList.Clear();
 
+        Debug.Log($"デッキの数: {cardData.Count}枚");
+
         // 1. データを展開する（IDを枚数分リストに追加）
         foreach (var pair in cardData)
         {
             for (int i = 0; i < pair.Value; i++)
             {
+                Debug.Log($"カードID {pair.Key} を追加");
                 deckList.Add(pair.Key);
             }
         }
@@ -32,6 +35,15 @@ public class CardGameRule
         Debug.Log($"山札を生成しました。枚数: {deckList.Count}");
     }
 
+    // 一応山札をシャッフルする関数も用意しておく
+    public void ShuffleDeck()
+    {
+        deckList = deckList.OrderBy(x => System.Guid.NewGuid()).ToList();
+        Debug.Log("山札をシャッフルしました。");
+    }
+
+    // デッキの内容を返す
+    public List<int> GetDeckList() => deckList;
     /// <summary>
     /// 山札の一番上からカードを1枚引く
     /// </summary>
