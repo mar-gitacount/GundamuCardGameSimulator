@@ -17,6 +17,8 @@ public class CardData : ScriptableObject
     public CardSourceType sourceType;
     public FilterType filterType;
     public CardColor color;
+    public Type type;
+    
 }
 
 

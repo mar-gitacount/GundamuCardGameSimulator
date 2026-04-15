@@ -34,3 +34,13 @@ public enum FilterType
     Cost,
     Level
 }
+
+public enum Type
+{
+    Unit,
+    Pilot,
+    Command,
+    Base,
+    ExResource,
+    UnitToken,
+}
