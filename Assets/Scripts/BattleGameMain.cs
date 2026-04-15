@@ -63,31 +63,17 @@ public class BattleGameMain : MonoBehaviour
         
        for(int i = 0; i < 5; i++)
         {
-            int playerCardId = cardGameRule.Draw();
-            // ?テスト以下ではダメ！！
-
-            // Sprite cardSprite = Resources.Load<Sprite>($"Data/Cards/{playerCardId}");
-           
-
-            // !以下シングルトンからカードデータを取得。イメージデータなどもとれる文字形式で
-            // 取れるのでそれをスプライトに変換して表示するようにする。
-            // 以下を関数化する。
-            CardData playerCardData = DeckSettinObject.Instance.GetCardDataById(playerCardId);
-            Debug.Log($"イメージ: {playerCardData.imageName.name}");
-            GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
-            SpriteRenderer sr = cardImage.GetComponent<SpriteRenderer>();
-            Sprite cardSprite = Resources.Load<Sprite>($"Data/Images/{playerCardData.imageName.name}");
-            
-           
-            sr.sprite = cardSprite;
-            Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
+            // ランダムで引いたカードのidを取得する。
+            // int playerCardId = cardGameRule.Draw();
+            // ランダムで引いてきたカードをプレイヤーの手札に追加する。
+            CardAddtoHand();
             // cardImage.GetComponent<Image>().sprite = cardSprite;
             // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
 
             int enemyCardId = enemyCardGameRule.Draw();
             Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
         }
-        return;
+        
         // int enemyCardId = enemyCardGameRule.Draw();
         // Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
 
@@ -100,6 +86,15 @@ public class BattleGameMain : MonoBehaviour
         EndTurnButton.onClick.AddListener(() => ChangePhase(BattlePhase.EndTurn));
 
         
+    }
+    void CardAddtoHand()
+    {
+        int cardId = cardGameRule.Draw();
+        CardData playerCardData = DeckSettinObject.Instance.GetCardDataById(cardId);
+        Debug.Log($"イメージ: {playerCardData.imageName.name}");
+        // 以下分岐してエネミーの手札にカードを追加する処理も書く。→後で
+        GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
+        cardImage.GetComponent<CardController>().SetUp(playerCardData);
     }
     public bool DecideTurnOrder()
     {
@@ -176,8 +171,9 @@ public class BattleGameMain : MonoBehaviour
             Debug.Log("プレイヤーのターン開始処理を実行します。");
             // プレイヤーのターン開始処理をここに書く
             // 例: プレイヤーの手札を引く、リソースを獲得するなど
-            int playerCardId = cardGameRule.Draw();
-            Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
+            // int playerCardId = cardGameRule.Draw();
+            CardAddtoHand();
+            
         }
         else
         {
