@@ -12008,6 +12008,7 @@ MonoBehaviour:
   EndTurnButton: {fileID: 1855877285}
   CardImagePrefab: {fileID: 8879900298904052168, guid: d98bdb98099a20743913722a130501bd, type: 3}
   playerHandTransform: {fileID: 2062625491}
+  PlayerBattleZoneTransform: {fileID: 1996484347}
   currentPlayerType: 0
 --- !u!1 &1669694370
 GameObject:
