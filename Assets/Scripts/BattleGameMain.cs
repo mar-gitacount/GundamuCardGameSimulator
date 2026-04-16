@@ -35,10 +35,17 @@ public class BattleGameMain : MonoBehaviour
     [SerializeField] private GameObject CardImagePrefab;
 
     [SerializeField] private Transform playerHandTransform;
+    [SerializeField] private Transform PlayerBattleZoneTransform;
     
     public enum PlayerType{Player,Enemy}
 
     public PlayerType currentPlayerType;
+    // バトルゾーンのカードを管理するリスト
+    private List<CardController> playerBattleZoneCards = new List<CardController>();
+    // プレイヤーの手札を管理するリスト
+    private List<CardData> playerHandCards = new List<CardData>();
+    // エネミーのバトルゾーンのカードを管理するリスト
+    private List<CardController> enemyBattleZoneCards = new List<CardController>();
      void Start()
     {
         Debug.Log("バトルゲームのメインシーン");
@@ -87,14 +94,30 @@ public class BattleGameMain : MonoBehaviour
 
         
     }
+
+    private void OnCardClicked(CardController cardController)
+    {
+        // Debug.Log($"カードがクリックされました。カード名前: {cardController.Data.cardName}");
+        Debug.Log($"カードがクリックされました。カードコスト: {cardController.Data.cost}");
+        Debug.Log("カードの親オブジェクトの名前: " + cardController.transform.parent.name);
+        Debug.Log($"バトルゾーンチェック: {PlayerBattleZoneTransform.childCount}");
+        // カードを手札→バトルゾーンに移動する処理。
+        cardController.transform.SetParent(PlayerBattleZoneTransform,false);
+        // Instantiate(CardImagePrefab, playerHandTransform);
+    }
     void CardAddtoHand()
     {
+
         int cardId = cardGameRule.Draw();
         CardData playerCardData = DeckSettinObject.Instance.GetCardDataById(cardId);
+
         Debug.Log($"イメージ: {playerCardData.imageName.name}");
         // 以下分岐してエネミーの手札にカードを追加する処理も書く。→後で
         GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
-        cardImage.GetComponent<CardController>().SetUp(playerCardData);
+        cardImage.GetComponent<CardController>().SetUp(playerCardData,OnCardClicked);
+        //! カードのデータをプレイヤーの手札のリストに追加する処理も書く。→後で
+        // !AIの処理をバックグラウンドで走らせるため、毎ターン更新する。バックグラウンド処理用
+        playerHandCards.Add(cardImage.GetComponent<CardController>().Data);
     }
     public bool DecideTurnOrder()
     {
@@ -173,6 +196,9 @@ public class BattleGameMain : MonoBehaviour
             // 例: プレイヤーの手札を引く、リソースを獲得するなど
             // int playerCardId = cardGameRule.Draw();
             CardAddtoHand();
+            // リソースポイントを増やす
+            cardGameRule.AddResourcePoints(); // 1ポイント増やす例
+            Debug.Log($"プレイヤーの現在のリソースポイント: {cardGameRule.GetResourcePoints()}");
             
         }
         else

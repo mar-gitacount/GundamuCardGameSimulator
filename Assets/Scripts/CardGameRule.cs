@@ -7,6 +7,7 @@ public class CardGameRule
 {
     // 実際に「山札」として使うリスト
     private List<int> deckList = new List<int>();
+    private int resourcePoints = 0; // プレイヤーのリソースポイントを管理する変数
 
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
@@ -60,6 +61,20 @@ public class CardGameRule
         deckList.RemoveAt(0); 
 
         return topCardId;
+    }
+
+    // リソースポイントを増やす関数
+    // デフォルトでは1ポイント増やすようにしていますが、引数で任意の値を指定できます。
+    public void AddResourcePoints(int amount=1)
+    {
+        resourcePoints += amount;
+        Debug.Log($"リソースポイントが{amount}増加しました。現在のポイント: {resourcePoints}");
+    }
+
+    // リソースポイントを取得する関数
+    public int GetResourcePoints()
+    {
+        return resourcePoints;
     }
 
     // 現在の残り枚数を知りたい場合に便利
