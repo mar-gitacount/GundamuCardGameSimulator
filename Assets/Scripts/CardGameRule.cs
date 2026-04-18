@@ -8,7 +8,7 @@ public class CardGameRule
     // 実際に「山札」として使うリスト
     private List<int> deckList = new List<int>();
     private int resourcePoints = 0; // プレイヤーのリソースポイントを管理する変数
-
+    private int resourceLevel = 0;
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
     /// </summary>
@@ -67,15 +67,38 @@ public class CardGameRule
     // デフォルトでは1ポイント増やすようにしていますが、引数で任意の値を指定できます。
     public void AddResourcePoints(int amount=1)
     {
-        resourcePoints += amount;
-        Debug.Log($"リソースポイントが{amount}増加しました。現在のポイント: {resourcePoints}");
+        resourceLevel += amount;
+        Debug.Log($"リソースレベルが{amount}増加しました。現在のレベル: {resourceLevel}");
     }
 
-    // リソースポイントを取得する関数
+    // リソースレベルを取得する関数
     public int GetResourcePoints()
     {
-        return resourcePoints;
+        return resourceLevel;
     }
+
+    // リソースレベルを代入してリセットする。デフォではレベルに応じたポイントをリセットするようにしています。
+    // シンアスカやスレッタの効果の場合は引数に1を入れて呼び出す予定。
+    public void RefreshResourcePoints()
+    {
+        resourcePoints = resourceLevel; // レベルに応じたポイントをリセット
+        Debug.Log("リソースポイントがリセットされました。");
+    }
+
+    public bool UseResourcePoints(int amount)
+    {
+        if (amount > resourcePoints)
+        {
+            Debug.LogWarning($"リソースポイントが足りません！カードのコスト: {amount}現在のポイント: {resourcePoints}");
+            return false; // 使用失敗
+        }
+
+        resourcePoints -= amount;
+        Debug.Log($"{amount}ポイント使用しました。残りのポイント: {resourcePoints}");
+        return true;
+    }
+
+    public int returnResourcePoints() => resourcePoints;
 
     // 現在の残り枚数を知りたい場合に便利
     public int GetRemainingCount() => deckList.Count;
