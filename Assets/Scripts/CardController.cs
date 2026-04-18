@@ -13,13 +13,16 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     public CardData Data { get; private set; }
     private Action<CardController> onClickCallback;
+    
+    public Sprite cardSprite{ get; private set; }
+    
 
     public void SetUp(CardData carddata,Action<CardController> callback)
     {
         this.Data = carddata;
         
         this.onClickCallback = callback;
-        Sprite cardSprite = Resources.Load<Sprite>($"Data/Images/{carddata.imageName.name}");
+        cardSprite = Resources.Load<Sprite>($"Data/Images/{carddata.imageName.name}");
         cardImage.sprite = cardSprite;
 
     }

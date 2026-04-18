@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro; // これを追加！
 
 public class BattleGameMain : MonoBehaviour
 {
@@ -36,6 +37,13 @@ public class BattleGameMain : MonoBehaviour
 
     [SerializeField] private Transform playerHandTransform;
     [SerializeField] private Transform PlayerBattleZoneTransform;
+
+    [SerializeField] private GameObject FilterPanelPrefab;
+    [SerializeField] private Canvas Filtercanvas;
+
+    [SerializeField] private TextMeshProUGUI PlayerresourcePointText; // リソースポイント表示用のテキスト
+    [SerializeField] private TextMeshProUGUI PlayerlevelText; // レベル表示用のテキスト
+    private Canvas FilterSetParentanvas;
     
     public enum PlayerType{Player,Enemy}
 
@@ -46,6 +54,8 @@ public class BattleGameMain : MonoBehaviour
     private List<CardData> playerHandCards = new List<CardData>();
     // エネミーのバトルゾーンのカードを管理するリスト
     private List<CardController> enemyBattleZoneCards = new List<CardController>();
+
+    private CardController copyCardController;
      void Start()
     {
         Debug.Log("バトルゲームのメインシーン");
@@ -98,11 +108,61 @@ public class BattleGameMain : MonoBehaviour
     private void OnCardClicked(CardController cardController)
     {
         // Debug.Log($"カードがクリックされました。カード名前: {cardController.Data.cardName}");
-        Debug.Log($"カードがクリックされました。カードコスト: {cardController.Data.cost}");
-        Debug.Log("カードの親オブジェクトの名前: " + cardController.transform.parent.name);
-        Debug.Log($"バトルゾーンチェック: {PlayerBattleZoneTransform.childCount}");
         // カードを手札→バトルゾーンに移動する処理。
-        cardController.transform.SetParent(PlayerBattleZoneTransform,false);
+        int level = cardController.Data.level;
+        int cost = cardController.Data.cost;
+
+        Sprite cardSprite = cardController.cardSprite;
+       
+        // クリック時にフィルターパネルを表示する処理
+        FilterSetParentanvas = GetComponentInParent<Canvas>().rootCanvas;
+
+        GameObject FilterPanel = Instantiate(FilterPanelPrefab, FilterSetParentanvas.transform);
+        
+        FilterPanel.SetFullSize(); // UIを親要素いっぱいに広げる（Stretch設定）
+
+        // GameObject imageOnlyObj = new GameObject("CopyImage", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        // imageOnlyObj.transform.SetParent(FilterPanel.transform, false);
+
+        // UnityEngine.UI.Image sourceImg = cardController.GetComponent<UnityEngine.UI.Image>();
+        // UnityEngine.UI.Image targetImg = imageOnlyObj.GetComponent<UnityEngine.UI.Image>();
+        
+        
+        // targetImg.sprite = sourceImg.sprite; 
+        GameObject copy = FilterPanel.CreateChildImageFrom(cardController.gameObject);
+        FilterPanel.SetActive(true);
+      
+       
+
+   
+       
+        
+        
+        if(cardGameRule.GetResourcePoints() < level)
+        {
+            Debug.Log("レベルが足りません！カードのレベル: " + level);
+            return;
+        }
+        if(cardGameRule.UseResourcePoints(cost))
+        {
+            var myButton = FilterPanel.CreateChildButton("put on the field");
+            // ボタンのサイズを整える
+            RectTransform btnRect = myButton.GetComponent<RectTransform>();
+            btnRect.sizeDelta = new Vector2(160, 50);
+           
+             // ボタンが押された時の処理
+            myButton.onClick.AddListener(() => {
+              Debug.Log("ボタンが押されました");
+             cardController.transform.SetParent(PlayerBattleZoneTransform,false);
+            Destroy(FilterPanel);
+            });
+        }
+        else
+        {
+            Debug.Log("リソースポイントが足りません！");
+            return;
+        }
+        
         // Instantiate(CardImagePrefab, playerHandTransform);
     }
     void CardAddtoHand()
@@ -198,7 +258,10 @@ public class BattleGameMain : MonoBehaviour
             CardAddtoHand();
             // リソースポイントを増やす
             cardGameRule.AddResourcePoints(); // 1ポイント増やす例
+            cardGameRule.RefreshResourcePoints(); // ターン開始時にリソースポイントをリセット
             Debug.Log($"プレイヤーの現在のリソースポイント: {cardGameRule.GetResourcePoints()}");
+                PlayerresourcePointText.text = cardGameRule.GetResourcePoints().ToString();
+                // PlayerlevelText.text = $"Level: {cardGameRule.GetResourcePoints()}";
             
         }
         else
