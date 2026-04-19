@@ -32,6 +32,11 @@ public class BattleGameMain : MonoBehaviour
 
     [SerializeField]private Button EndTurnButton;
 
+
+    // プレイヤーのフィールドパネル→これをCardGameRuleに渡して、子要素などを生成する。
+    [SerializeField] private GameObject PlayerFieldPanel;
+    [SerializeField] private GameObject EnemyPlayerFieldPanel;
+
     //! カード山札のパネル
     [SerializeField] private GameObject CardImagePrefab;
 
@@ -43,7 +48,10 @@ public class BattleGameMain : MonoBehaviour
 
     [SerializeField] private TextMeshProUGUI PlayerresourcePointText; // リソースポイント表示用のテキスト
     [SerializeField] private TextMeshProUGUI PlayerlevelText; // レベル表示用のテキスト
+    [SerializeField] private TextMeshProUGUI ExresourcePointText; // エネミーのリソースポイント表示用のテキスト
     private Canvas FilterSetParentanvas;
+
+   
     
     public enum PlayerType{Player,Enemy}
 
@@ -69,11 +77,18 @@ public class BattleGameMain : MonoBehaviour
 
         //! マリガンの後ほど実装
 
+        // cardGameRule.CreateField(PlayerFieldPanel);
+
+        // UI作成も自動でやる
 
         // プレイヤーとエネミーの山札を作成する。
+        cardGameRule.SetUp(PlayerFieldPanel);
         cardGameRule.CreateShuffledDeck(playerDeckData);
+        //! 以下もsetupの中でやる予定。
+        cardGameRule.ResourcAndLevelTextGet(PlayerresourcePointText,PlayerlevelText,ExresourcePointText);
         // int playerCardId = cardGameRule.Draw();
         // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
+        enemyCardGameRule.SetUp(EnemyPlayerFieldPanel);
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData);
 
 
@@ -131,13 +146,7 @@ public class BattleGameMain : MonoBehaviour
         // targetImg.sprite = sourceImg.sprite; 
         GameObject copy = FilterPanel.CreateChildImageFrom(cardController.gameObject);
         FilterPanel.SetActive(true);
-      
-       
-
-   
-       
-        
-        
+    
         if(cardGameRule.GetResourcePoints() < level)
         {
             Debug.Log("レベルが足りません！カードのレベル: " + level);
@@ -154,6 +163,7 @@ public class BattleGameMain : MonoBehaviour
             myButton.onClick.AddListener(() => {
               Debug.Log("ボタンが押されました");
              cardController.transform.SetParent(PlayerBattleZoneTransform,false);
+             cardGameRule.UseResourcePointsWithoutCheck(cost);
             Destroy(FilterPanel);
             });
         }
@@ -165,6 +175,7 @@ public class BattleGameMain : MonoBehaviour
         
         // Instantiate(CardImagePrefab, playerHandTransform);
     }
+    //! 以下の関数もCardGameRuleに移す予定。
     void CardAddtoHand()
     {
 
@@ -174,6 +185,7 @@ public class BattleGameMain : MonoBehaviour
         Debug.Log($"イメージ: {playerCardData.imageName.name}");
         // 以下分岐してエネミーの手札にカードを追加する処理も書く。→後で
         GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
+        // フィールドのゲームオブジェクトも渡す。
         cardImage.GetComponent<CardController>().SetUp(playerCardData,OnCardClicked);
         //! カードのデータをプレイヤーの手札のリストに追加する処理も書く。→後で
         // !AIの処理をバックグラウンドで走らせるため、毎ターン更新する。バックグラウンド処理用
@@ -260,8 +272,8 @@ public class BattleGameMain : MonoBehaviour
             cardGameRule.AddResourcePoints(); // 1ポイント増やす例
             cardGameRule.RefreshResourcePoints(); // ターン開始時にリソースポイントをリセット
             Debug.Log($"プレイヤーの現在のリソースポイント: {cardGameRule.GetResourcePoints()}");
-                PlayerresourcePointText.text = cardGameRule.GetResourcePoints().ToString();
-                // PlayerlevelText.text = $"Level: {cardGameRule.GetResourcePoints()}";
+            PlayerresourcePointText.text = cardGameRule.GetResourcePoints().ToString();
+            // PlayerlevelText.text = $"Level: {cardGameRule.GetResourcePoints()}";
             
         }
         else
