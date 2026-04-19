@@ -2,16 +2,57 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
-
+using TMPro; // これを追加！
 public class CardGameRule
 {
     // 実際に「山札」として使うリスト
     private List<int> deckList = new List<int>();
     private int resourcePoints = 0; // プレイヤーのリソースポイントを管理する変数
     private int resourceLevel = 0;
+    // Exリソースポイントを管理する変数（必要に応じて使用）
+    private int ExtraResourcePoints = 0; 
+
+    private TextMeshProUGUI extraResourcePoint; // Exリソースポイントのクラス（必要に応じて使用）
+    
+    private TextMeshProUGUI ResourcePointText; // リソースポイント表示用のテキスト
+    private TextMeshProUGUI LevelText;
+
+    private GameObject fieldPanel; // フィールドのパネルを管理する変数
+    private GameObject PlayerMainFieldPanel; // プレイヤーのフィールドパネルを管理する変数
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
     /// </summary>
+    /// 
+    private void Awake()
+    {
+        // デッキの初期化やリソースポイントの初期化など、必要なセットアップをここで行うことができます。
+        // 例えば、ゲーム開始時にリソースポイントを0に設定するなど。
+        // resourcePoints = 0;
+        // resourceLevel = 0;
+        // ExtraResourcePoints = 0;
+        // !フィールドなどを生成する処理
+
+    }
+    public void SetUp(GameObject fieldPanel)
+    {
+        this.fieldPanel = fieldPanel;
+        // プレイヤー > メイン 
+        PlayerMainFieldPanel = fieldPanel.CreateChildPanelTop("PlayerMainField", 300); // プレイヤーのフィールドパネルを生成
+        // プレイヤー > メイン > バトルフィールド
+        GameObject DeployPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployPanel", UIAnchor.TopCenter, 350, 250); // 配置パネルを生成
+        // プレイヤー > メイン > リソースフィールド
+        GameObject ResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerResourcePanel", UIAnchor.BottomCenter, 350, 50); // リソースパネルを生成
+        // プレイヤー > メイン > シールド
+        GameObject ShieldPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerShieldPanel", UIAnchor.TopLeft, 65, 300); // シールドパネルを生成
+        GameObject DeckAndTrashPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeckAndTrashPanel", UIAnchor.TopRight, 65, 300); // シールドパネルを生成
+
+        // プレイヤー > ハンド
+        GameObject HandPanel = fieldPanel.CreateChildPanelCustom("PlayerHandPanel", UIAnchor.BottomStretch, 0, 100); // プレイヤーのハンドパネルを生成
+    }
+    public void CreateField(GameObject targetPanel )
+    {
+        
+    }
     public void CreateShuffledDeck(Dictionary<int, int> cardData)
     {
         // 前回の残りを一旦クリア（念のため）
@@ -34,6 +75,14 @@ public class CardGameRule
         deckList = deckList.OrderBy(x => System.Guid.NewGuid()).ToList();
 
         Debug.Log($"山札を生成しました。枚数: {deckList.Count}");
+    }
+
+    public void ResourcAndLevelTextGet(TextMeshProUGUI resourceText, TextMeshProUGUI levelText, TextMeshProUGUI extraResourceText)
+    {
+        ResourcePointText = resourceText;
+        LevelText = levelText;
+        extraResourcePoint = extraResourceText;
+
     }
 
     // 一応山札をシャッフルする関数も用意しておく
@@ -68,7 +117,17 @@ public class CardGameRule
     public void AddResourcePoints(int amount=1)
     {
         resourceLevel += amount;
+        LevelText.text = resourceLevel.ToString(); // レベルテキストを更新";
         Debug.Log($"リソースレベルが{amount}増加しました。現在のレベル: {resourceLevel}");
+    }
+
+    public void AddExtraResourcePoints(int amount)
+    {
+        ExtraResourcePoints += amount;
+        extraResourcePoint.text = ExtraResourcePoints.ToString(); // Exリソースポイントテキストを更新
+        // Exポイントの増加に応じてリソースレベルも増加させる
+        AddResourcePoints(amount); 
+        Debug.Log($"Exリソースポイントが{amount}増加しました。現在のExポイント: {ExtraResourcePoints}");
     }
 
     // リソースレベルを取得する関数
@@ -82,6 +141,7 @@ public class CardGameRule
     public void RefreshResourcePoints()
     {
         resourcePoints = resourceLevel; // レベルに応じたポイントをリセット
+        ResourcePointText.text = resourcePoints.ToString(); // リソースポイントテキストを更新
         Debug.Log("リソースポイントがリセットされました。");
     }
 
@@ -93,9 +153,17 @@ public class CardGameRule
             return false; // 使用失敗
         }
 
-        resourcePoints -= amount;
-        Debug.Log($"{amount}ポイント使用しました。残りのポイント: {resourcePoints}");
+        // resourcePoints -= amount;
+        // ResourcePointText.text = resourcePoints.ToString(); // リソースポイントテキストを更新
+        // Debug.Log($"{amount}ポイント使用しました。残りのポイント: {resourcePoints}");
         return true;
+    }
+
+    public void UseResourcePointsWithoutCheck(int amount)
+    {
+        resourcePoints -= amount;
+        ResourcePointText.text = resourcePoints.ToString(); // リソースポイントテキストを更新
+        Debug.Log($"{amount}ポイント使用しました。残りのポイント: {resourcePoints}");
     }
 
     public int returnResourcePoints() => resourcePoints;
