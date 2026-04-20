@@ -27,6 +27,21 @@ public class BattleGameMain : MonoBehaviour
     private CardGameRule cardGameRule = new CardGameRule();
     private CardGameRule enemyCardGameRule = new CardGameRule();
 
+    private CardGameRule CurrentPlayerCardGameRule
+    {
+        get
+        {
+            if (currentPlayerType == PlayerType.Player)
+            {
+                return cardGameRule;
+            }
+            else
+            {
+                return enemyCardGameRule;
+            }
+        }
+    }
+
     //true = プレイヤー false =    エネミー
     public bool currentPlayer;
 
@@ -89,6 +104,7 @@ public class BattleGameMain : MonoBehaviour
         // int playerCardId = cardGameRule.Draw();
         // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
         enemyCardGameRule.SetUp(EnemyPlayerFieldPanel);
+        enemyCardGameRule.PlayerFieldPanel.SetRotation(180f);
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData);
 
 
@@ -99,11 +115,14 @@ public class BattleGameMain : MonoBehaviour
             // int playerCardId = cardGameRule.Draw();
             // ランダムで引いてきたカードをプレイヤーの手札に追加する。
             CardAddtoHand();
+            // ?ターンを交代するあとでリファクト予定。
+            currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
+            CardAddtoHand();
             // cardImage.GetComponent<Image>().sprite = cardSprite;
             // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
 
-            int enemyCardId = enemyCardGameRule.Draw();
-            Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
+
+          
         }
         
         // int enemyCardId = enemyCardGameRule.Draw();
@@ -147,12 +166,12 @@ public class BattleGameMain : MonoBehaviour
         GameObject copy = FilterPanel.CreateChildImageFrom(cardController.gameObject);
         FilterPanel.SetActive(true);
     
-        if(cardGameRule.GetResourcePoints() < level)
+        if(CurrentPlayerCardGameRule.GetResourcePoints() < level)
         {
             Debug.Log("レベルが足りません！カードのレベル: " + level);
             return;
         }
-        if(cardGameRule.UseResourcePoints(cost))
+        if(CurrentPlayerCardGameRule.UseResourcePoints(cost))
         {
             var myButton = FilterPanel.CreateChildButton("put on the field");
             // ボタンのサイズを整える
@@ -162,7 +181,8 @@ public class BattleGameMain : MonoBehaviour
              // ボタンが押された時の処理
             myButton.onClick.AddListener(() => {
               Debug.Log("ボタンが押されました");
-             cardController.transform.SetParent(PlayerBattleZoneTransform,false);
+            //  cardController.transform.SetParent(PlayerBattleZoneTransform,false);
+             cardController.transform.SetParent(CurrentPlayerCardGameRule.PlayerFieldPanel,false);
              cardGameRule.UseResourcePointsWithoutCheck(cost);
             Destroy(FilterPanel);
             });
@@ -178,13 +198,16 @@ public class BattleGameMain : MonoBehaviour
     //! 以下の関数もCardGameRuleに移す予定。
     void CardAddtoHand()
     {
-
-        int cardId = cardGameRule.Draw();
+        //現在のターンプレイヤーのドロー
+        int cardId = CurrentPlayerCardGameRule.Draw();
+        //?テスト 以下のコードで、列挙型を変更することで、敵味方関係なくカードIDからカードデータを取得できるようにする。
+        // CurrentPlayerCardGameRule.StartTurn(); // これで、プレイヤーとエネミーのターン開始処理を共通化できるはず。
+      
         CardData playerCardData = DeckSettinObject.Instance.GetCardDataById(cardId);
 
-        Debug.Log($"イメージ: {playerCardData.imageName.name}");
         // 以下分岐してエネミーの手札にカードを追加する処理も書く。→後で
-        GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
+        // GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
+        GameObject cardImage = Instantiate(CardImagePrefab, CurrentPlayerCardGameRule.HandScrollContent);
         // フィールドのゲームオブジェクトも渡す。
         cardImage.GetComponent<CardController>().SetUp(playerCardData,OnCardClicked);
         //! カードのデータをプレイヤーの手札のリストに追加する処理も書く。→後で
