@@ -12,6 +12,7 @@ using TMPro;
         TopLeft,
         TopRight,
         BottomCenter,
+        FullSize
     }
 public static class UIExtensions
 {
@@ -23,6 +24,20 @@ public static class UIExtensions
 {
     switch (anchor)
     {
+        case UIAnchor.FullSize:
+        // アンカーを「全方向ストレッチ」にする
+    rect.anchorMin = Vector2.zero; // (0, 0)
+    rect.anchorMax = Vector2.one;  // (1, 1)
+
+    // 余白（Left, Right, Top, Bottom）をすべて 0 にする
+    rect.offsetMin = Vector2.zero; // Left, Bottom
+    rect.offsetMax = Vector2.zero; // Right, Top
+    break;
+        case UIAnchor.CenterStretch:
+            rect.anchorMin = new Vector2(0, 0.5f);
+            rect.anchorMax = new Vector2(1, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            break;
         case UIAnchor.TopStretch:
             rect.anchorMin = new Vector2(0, 1);
             rect.anchorMax = new Vector2(1, 1);
@@ -61,6 +76,66 @@ public static class UIExtensions
 
     }
 }
+    public static GameObject CreateGridScrollView(this GameObject parent, int width, int height)
+    {
+        // --- 1. Root (ScrollView本体) ---
+        GameObject scrollRoot = new GameObject("GridScrollView", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(ScrollRect));
+        scrollRoot.transform.SetParent(parent.transform, false);
+        var rootRect = scrollRoot.GetComponent<RectTransform>();
+        // rootRect.sizeDelta = new Vector2(width, height);
+        rootRect.SetAnchor(UIAnchor.FullSize); // 中央上に配置
+        scrollRoot.GetComponent<Image>().color = new Color32(255, 255, 255, 100);
+
+        // --- 2. Viewport (表示窓) ---
+        GameObject viewport = new GameObject("Viewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+        viewport.transform.SetParent(scrollRoot.transform, false);
+        var viewRect = viewport.GetComponent<RectTransform>();
+        viewRect.anchorMin = Vector2.zero;
+        viewRect.anchorMax = Vector2.one;
+        viewRect.sizeDelta = Vector2.zero;
+        viewRect.pivot = new Vector2(0.5f, 1f);
+        viewport.GetComponent<Mask>().showMaskGraphic = false;
+
+        // --- 3. Content (中身) ---
+        GameObject content = new GameObject("Content", typeof(RectTransform));
+        content.transform.SetParent(viewport.transform, false);
+        var contentRect = content.GetComponent<RectTransform>();
+
+        // 【設定】Top Stretch (横幅は親に合わせる)
+        contentRect.anchorMin = new Vector2(0, 1);
+        contentRect.anchorMax = new Vector2(1, 1);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.anchoredPosition = Vector2.zero;
+        contentRect.sizeDelta = new Vector2(0, 0); // 高さはFitterに任せる
+
+        // --- 4. GridLayoutGroup の追加と設定 ---
+        var grid = content.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(100, 100); // 【設定】セルサイズ 100x100
+        grid.spacing = new Vector2(10, 10);     // 任意の隙間
+        grid.padding = new RectOffset(10, 10, 10, 10); // 外側の余白
+        grid.childAlignment = TextAnchor.UpperLeft;    // 左上から並べる
+        grid.startAxis = GridLayoutGroup.Axis.Horizontal; // 横方向に並べていく
+
+        // --- 5. 自動高さ調整 (ContentSizeFitter) ---
+        // これを入れないと、アイテムが増えてもスクロールしません
+        var fitter = content.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // --- 6. ScrollRect の紐付け ---
+        ScrollRect sr = scrollRoot.GetComponent<ScrollRect>();
+        sr.viewport = viewRect;
+        sr.content = contentRect;
+        sr.horizontal = false; // 縦スクロールのみ
+        sr.vertical = true;
+
+        return scrollRoot;
+    }
+
+
+    public static void SetRotation(this RectTransform rect, float angleZ)
+    {
+        rect.localRotation = Quaternion.Euler(0, 0, angleZ);
+    }
 
 
     public static void SetFullSize(this RectTransform rect)

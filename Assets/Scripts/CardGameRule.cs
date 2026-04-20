@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using TMPro; // これを追加！
+using UnityEngine.UI;
 public class CardGameRule
 {
     // 実際に「山札」として使うリスト
@@ -19,6 +20,9 @@ public class CardGameRule
 
     private GameObject fieldPanel; // フィールドのパネルを管理する変数
     private GameObject PlayerMainFieldPanel; // プレイヤーのフィールドパネルを管理する変数
+    private GameObject HandPanel;
+
+    private GameObject ScrollPanel;
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
     /// </summary>
@@ -33,9 +37,9 @@ public class CardGameRule
         // !フィールドなどを生成する処理
 
     }
-    public void SetUp(GameObject fieldPanel)
+    public void SetUp(GameObject getfieldPanel)
     {
-        this.fieldPanel = fieldPanel;
+        this.fieldPanel = getfieldPanel;
         // プレイヤー > メイン 
         PlayerMainFieldPanel = fieldPanel.CreateChildPanelTop("PlayerMainField", 300); // プレイヤーのフィールドパネルを生成
         // プレイヤー > メイン > バトルフィールド
@@ -44,10 +48,14 @@ public class CardGameRule
         GameObject ResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerResourcePanel", UIAnchor.BottomCenter, 350, 50); // リソースパネルを生成
         // プレイヤー > メイン > シールド
         GameObject ShieldPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerShieldPanel", UIAnchor.TopLeft, 65, 300); // シールドパネルを生成
+        //  プレイヤー > デッキ＆トラッシュ
         GameObject DeckAndTrashPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeckAndTrashPanel", UIAnchor.TopRight, 65, 300); // シールドパネルを生成
 
         // プレイヤー > ハンド
-        GameObject HandPanel = fieldPanel.CreateChildPanelCustom("PlayerHandPanel", UIAnchor.BottomStretch, 0, 100); // プレイヤーのハンドパネルを生成
+         HandPanel = fieldPanel.CreateChildPanelCustom("PlayerHandPanel", UIAnchor.BottomStretch, 0, 100); // プレイヤーのハンドパネルを生成
+        // プレイヤー > ハンド　> スクロール
+        ScrollPanel = HandPanel.CreateGridScrollView(600,400);
+
     }
     public void CreateField(GameObject targetPanel )
     {
@@ -111,6 +119,15 @@ public class CardGameRule
 
         return topCardId;
     }
+    public void StartTurn()
+    {
+        // ターン開始時の処理をここに書きます。
+        // 例えば、リソースポイントのリセットやカードのドローなど。
+        // RefreshResourcePoints(); // ターン開始時にリソースポイントをリセット
+        int drawnCardId = Draw(); // ターン開始時にカードを1枚引く（必要に応じて枚数を増やすこともできます）
+        CardData drawnCardData = DeckSettinObject.Instance.GetCardDataById(drawnCardId);
+        Debug.Log($"ターン開始！引いたカードID: {drawnCardId}, カード名: {drawnCardData.cardName}");
+    }
 
     // リソースポイントを増やす関数
     // デフォルトでは1ポイント増やすようにしていますが、引数で任意の値を指定できます。
@@ -120,6 +137,10 @@ public class CardGameRule
         LevelText.text = resourceLevel.ToString(); // レベルテキストを更新";
         Debug.Log($"リソースレベルが{amount}増加しました。現在のレベル: {resourceLevel}");
     }
+
+   public RectTransform PlayerFieldPanel => fieldPanel.GetComponent<RectTransform>();
+//    public RectTransform PlayerHandPanel => HandPanel.GetComponent<RectTransform>();
+   public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
 
     public void AddExtraResourcePoints(int amount)
     {
