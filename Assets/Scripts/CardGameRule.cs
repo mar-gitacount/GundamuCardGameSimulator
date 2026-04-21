@@ -8,6 +8,7 @@ public class CardGameRule
 {
     // 実際に「山札」として使うリスト
     private List<int> deckList = new List<int>();
+    private List<int> trashList = new List<int>();
     private int resourcePoints = 0; // プレイヤーのリソースポイントを管理する変数
     private int resourceLevel = 0;
     // Exリソースポイントを管理する変数（必要に応じて使用）
@@ -18,11 +19,23 @@ public class CardGameRule
     private TextMeshProUGUI ResourcePointText; // リソースポイント表示用のテキスト
     private TextMeshProUGUI LevelText;
 
+    private TMPro.TextMeshProUGUI levelText;
+
+    private TextMeshProUGUI LvText;
+
+    private TextMeshProUGUI ResourceText;
+    
+    private GameObject LvObj;
+
     private GameObject fieldPanel; // フィールドのパネルを管理する変数
     private GameObject PlayerMainFieldPanel; // プレイヤーのフィールドパネルを管理する変数
     private GameObject HandPanel;
 
     private GameObject ScrollPanel;
+    private GameObject deckObjectPanel;
+    private GameObject trashAreaPanel;
+    private TextMeshProUGUI deckCountText;
+    private TextMeshProUGUI trashCountText;
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
     /// </summary>
@@ -43,18 +56,48 @@ public class CardGameRule
         // プレイヤー > メイン 
         PlayerMainFieldPanel = fieldPanel.CreateChildPanelTop("PlayerMainField", 300); // プレイヤーのフィールドパネルを生成
         // プレイヤー > メイン > バトルフィールド
-        GameObject DeployPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployPanel", UIAnchor.TopCenter, 350, 250); // 配置パネルを生成
+        // GameObject DeployPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployPanel", UIAnchor.TopCenter, 350, 250); // 配置パネルを生成
+        GameObject DeployAndResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployResourcePanel", UIAnchor.TopCenter, 350, 300); // 配置パネルを生成
+        GameObject DeployPanel = DeployAndResourcePanel.CreateChildPanelCustom("PlayerDeployPanel",UIAnchor.TopCenter, 350, 250);
+        GameObject ResourcePanel = DeployAndResourcePanel.CreateGridScrollView(350,50,UIAnchor.BottomCenter);
         // プレイヤー > メイン > リソースフィールド
-        GameObject ResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerResourcePanel", UIAnchor.BottomCenter, 350, 50); // リソースパネルを生成
+        // GameObject ResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerResourcePanel", UIAnchor.BottomCenter, 350, 50); // リソースパネルを生成
+        // GameObject ResourcePanel = PlayerMainFieldPanel.CreateGridScrollView(350, 50,UIAnchor.TopCenter);
+        // プレイヤー > メイン > リソースフィールド > レベルテキスト
+        // LvText = ResourcePanel.CreateChildPanelCustom("LevelText", UIAnchor.TopLeft, 30, 30);
+        LvText = ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("LevelText",UIAnchor.TopLeft,50 ,50);
+        LvText.text = "LV:0";
+        ResourceText =  ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("ResourceText",UIAnchor.TopLeft,50 ,50);
+        
+        ResourceText.text = "Resource:0";
+
+
+        // ScrollPanel = HandPanel.CreateGridScrollView(600,400);
+        //public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
+
+
+       
+       
+        // LvObj = new GameObject("testLvText");
+        // LvObj.transform.SetParent(ResourcePanel.transform, false);
+        // levelText = LvObj.AddComponent<TMPro.TextMeshProUGUI>();
+        // levelText.text = "1";
+        
+        
+        // var test = LvText.AddComponent<TextMeshProUGUI>();
+        // test.text = "test";
+        
         // プレイヤー > メイン > シールド
         GameObject ShieldPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerShieldPanel", UIAnchor.TopLeft, 65, 300); // シールドパネルを生成
         //  プレイヤー > デッキ＆トラッシュ
         GameObject DeckAndTrashPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeckAndTrashPanel", UIAnchor.TopRight, 65, 300); // シールドパネルを生成
+        CreateDeckAndTrashArea(DeckAndTrashPanel);
 
         // プレイヤー > ハンド
-         HandPanel = fieldPanel.CreateChildPanelCustom("PlayerHandPanel", UIAnchor.BottomStretch, 0, 100); // プレイヤーのハンドパネルを生成
+        HandPanel = fieldPanel.CreateChildPanelCustom("PlayerHandPanel", UIAnchor.BottomStretch, 0, 100); // プレイヤーのハンドパネルを生成
         // プレイヤー > ハンド　> スクロール
         ScrollPanel = HandPanel.CreateGridScrollView(600,400);
+        ScrollPanel.ConfigureGridCellFromViewportHeight(0.75f, 64f);
 
     }
     public void CreateField(GameObject targetPanel )
@@ -65,6 +108,7 @@ public class CardGameRule
     {
         // 前回の残りを一旦クリア（念のため）
         deckList.Clear();
+        trashList.Clear();
 
         Debug.Log($"デッキの数: {cardData.Count}枚");
 
@@ -83,6 +127,7 @@ public class CardGameRule
         deckList = deckList.OrderBy(x => System.Guid.NewGuid()).ToList();
 
         Debug.Log($"山札を生成しました。枚数: {deckList.Count}");
+        UpdateDeckAndTrashTexts();
     }
 
     public void ResourcAndLevelTextGet(TextMeshProUGUI resourceText, TextMeshProUGUI levelText, TextMeshProUGUI extraResourceText)
@@ -116,6 +161,7 @@ public class CardGameRule
         // 一番上のカードを取得して、リストから消す
         int topCardId = deckList[0];
         deckList.RemoveAt(0); 
+        UpdateDeckAndTrashTexts();
 
         return topCardId;
     }
@@ -134,13 +180,80 @@ public class CardGameRule
     public void AddResourcePoints(int amount=1)
     {
         resourceLevel += amount;
-        LevelText.text = resourceLevel.ToString(); // レベルテキストを更新";
+        // LevelText.text = resourceLevel.ToString(); // レベルテキストを更新";
+        LvText.text = "LV:"+resourceLevel.ToString();
         Debug.Log($"リソースレベルが{amount}増加しました。現在のレベル: {resourceLevel}");
     }
 
    public RectTransform PlayerFieldPanel => fieldPanel.GetComponent<RectTransform>();
-//    public RectTransform PlayerHandPanel => HandPanel.GetComponent<RectTransform>();
+   public RectTransform PlayerHandPanel => HandPanel.GetComponent<RectTransform>();
    public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
+
+    public void SetHandScrollRightPadding(int rightPadding)
+    {
+        if (ScrollPanel == null)
+        {
+            return;
+        }
+
+        ScrollRect scrollRect = ScrollPanel.GetComponent<ScrollRect>();
+        if (scrollRect == null || scrollRect.content == null)
+        {
+            return;
+        }
+
+        GridLayoutGroup grid = scrollRect.content.GetComponent<GridLayoutGroup>();
+        if (grid == null)
+        {
+            return;
+        }
+
+        int safePadding = Mathf.Max(0, rightPadding);
+        grid.padding = new RectOffset(grid.padding.left, safePadding, grid.padding.top, grid.padding.bottom);
+    }
+
+    public void SetHandScrollRightMargin(float rightMargin)
+    {
+        if (ScrollPanel == null)
+        {
+            return;
+        }
+
+        RectTransform scrollRect = ScrollPanel.GetComponent<RectTransform>();
+        if (scrollRect == null)
+        {
+            return;
+        }
+
+        float safeMargin = Mathf.Max(0f, rightMargin);
+        Vector2 offsetMax = scrollRect.offsetMax;
+        offsetMax.x = -safeMargin;
+        scrollRect.offsetMax = offsetMax;
+    }
+
+    public float GetHandMinimumWidthForVisibleCards(int visibleCardCount)
+    {
+        if (visibleCardCount <= 0 || ScrollPanel == null)
+        {
+            return 0f;
+        }
+
+        ScrollRect scrollRect = ScrollPanel.GetComponent<ScrollRect>();
+        if (scrollRect == null || scrollRect.content == null)
+        {
+            return 0f;
+        }
+
+        GridLayoutGroup grid = scrollRect.content.GetComponent<GridLayoutGroup>();
+        if (grid == null)
+        {
+            return 0f;
+        }
+
+        float cellWidth = grid.cellSize.x;
+        float spacingX = grid.spacing.x;
+        return grid.padding.left + grid.padding.right + (cellWidth * visibleCardCount) + (spacingX * (visibleCardCount - 1));
+    }
 
     public void AddExtraResourcePoints(int amount)
     {
@@ -163,6 +276,7 @@ public class CardGameRule
     {
         resourcePoints = resourceLevel; // レベルに応じたポイントをリセット
         ResourcePointText.text = resourcePoints.ToString(); // リソースポイントテキストを更新
+        ResourceText.text = $"Resource:{resourcePoints.ToString()}";
         Debug.Log("リソースポイントがリセットされました。");
     }
 
@@ -189,9 +303,79 @@ public class CardGameRule
 
     public int returnResourcePoints() => resourcePoints;
 
+    public void AddCardToTrash(int cardId)
+    {
+        if (cardId < 0)
+        {
+            return;
+        }
+
+        trashList.Add(cardId);
+        UpdateDeckAndTrashTexts();
+    }
+
+    /// <summary>
+    /// 外部のルールエンジンで確定したレベル/リソースを、このクラスの表示値へ同期する。
+    /// </summary>
+    public void ApplyExternalResourceState(int level, int resource)
+    {
+        resourceLevel = Mathf.Max(0, level);
+        resourcePoints = Mathf.Max(0, resource);
+
+        if (LvText != null)
+        {
+            LvText.text = $"LV:{resourceLevel}";
+        }
+
+        if (ResourceText != null)
+        {
+            ResourceText.text = $"Resource:{resourcePoints}";
+        }
+
+        if (ResourcePointText != null)
+        {
+            ResourcePointText.text = resourcePoints.ToString();
+        }
+
+        if (LevelText != null)
+        {
+            LevelText.text = $"LV:{resourceLevel}";
+        }
+    }
+
     // 現在の残り枚数を知りたい場合に便利
     public int GetRemainingCount() => deckList.Count;
+    public int GetTrashCount() => trashList.Count;
 
     // リソース関数もここに追加していく予定
-    
+
+    private void CreateDeckAndTrashArea(GameObject deckAndTrashPanel)
+    {
+        // 上側: デッキ
+        deckObjectPanel = deckAndTrashPanel.CreateChildPanelCustom("DeckObjectPanel", UIAnchor.TopCenter, 60, 140);
+        var deckLabel = deckObjectPanel.CreateChildTextCustom("DeckLabel", UIAnchor.TopCenter, 60, 30);
+        deckLabel.text = "DECK";
+        deckCountText = deckObjectPanel.CreateChildTextCustom("DeckCountText", UIAnchor.BottomCenter, 60, 30);
+        deckCountText.text = "0";
+
+        // 下側: トラッシュ
+        trashAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("TrashAreaPanel", UIAnchor.BottomCenter, 60, 140);
+        var trashLabel = trashAreaPanel.CreateChildTextCustom("TrashLabel", UIAnchor.TopCenter, 60, 30);
+        trashLabel.text = "TRASH";
+        trashCountText = trashAreaPanel.CreateChildTextCustom("TrashCountText", UIAnchor.BottomCenter, 60, 30);
+        trashCountText.text = "0";
+    }
+
+    private void UpdateDeckAndTrashTexts()
+    {
+        if (deckCountText != null)
+        {
+            deckCountText.text = deckList.Count.ToString();
+        }
+
+        if (trashCountText != null)
+        {
+            trashCountText.text = trashList.Count.ToString();
+        }
+    }
 }
