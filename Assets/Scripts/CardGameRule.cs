@@ -29,6 +29,7 @@ public class CardGameRule
 
     private GameObject fieldPanel; // フィールドのパネルを管理する変数
     private GameObject PlayerMainFieldPanel; // プレイヤーのフィールドパネルを管理する変数
+    private GameObject playerDeployPanel;
     private GameObject HandPanel;
 
     private GameObject ScrollPanel;
@@ -58,7 +59,14 @@ public class CardGameRule
         // プレイヤー > メイン > バトルフィールド
         // GameObject DeployPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployPanel", UIAnchor.TopCenter, 350, 250); // 配置パネルを生成
         GameObject DeployAndResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployResourcePanel", UIAnchor.TopCenter, 350, 300); // 配置パネルを生成
-        GameObject DeployPanel = DeployAndResourcePanel.CreateChildPanelCustom("PlayerDeployPanel",UIAnchor.TopCenter, 350, 250);
+        playerDeployPanel = DeployAndResourcePanel.CreateChildPanelCustom("PlayerDeployPanel",UIAnchor.TopCenter, 350, 250);
+        var deployGrid = playerDeployPanel.AddComponent<GridLayoutGroup>();
+        deployGrid.cellSize = new Vector2(100, 100);
+        deployGrid.spacing = new Vector2(10, 10);
+        deployGrid.padding = new RectOffset(10, 10, 10, 10);
+        deployGrid.childAlignment = TextAnchor.UpperLeft;
+        deployGrid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        deployGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
         GameObject ResourcePanel = DeployAndResourcePanel.CreateGridScrollView(350,50,UIAnchor.BottomCenter);
         // プレイヤー > メイン > リソースフィールド
         // GameObject ResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerResourcePanel", UIAnchor.BottomCenter, 350, 50); // リソースパネルを生成
@@ -67,9 +75,11 @@ public class CardGameRule
         // LvText = ResourcePanel.CreateChildPanelCustom("LevelText", UIAnchor.TopLeft, 30, 30);
         LvText = ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("LevelText",UIAnchor.TopLeft,50 ,50);
         LvText.text = "LV:0";
+        LvText.color = Color.black;
         ResourceText =  ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("ResourceText",UIAnchor.TopLeft,50 ,50);
         
         ResourceText.text = "Resource:0";
+        ResourceText.color = Color.black;
 
 
         // ScrollPanel = HandPanel.CreateGridScrollView(600,400);
@@ -135,6 +145,9 @@ public class CardGameRule
         ResourcePointText = resourceText;
         LevelText = levelText;
         extraResourcePoint = extraResourceText;
+        if (ResourcePointText != null) ResourcePointText.color = Color.black;
+        if (LevelText != null) LevelText.color = Color.black;
+        if (extraResourcePoint != null) extraResourcePoint.color = Color.black;
 
     }
 
@@ -186,6 +199,7 @@ public class CardGameRule
     }
 
    public RectTransform PlayerFieldPanel => fieldPanel.GetComponent<RectTransform>();
+   public RectTransform PlayerDeployPanel => playerDeployPanel != null ? playerDeployPanel.GetComponent<RectTransform>() : fieldPanel.GetComponent<RectTransform>();
    public RectTransform PlayerHandPanel => HandPanel.GetComponent<RectTransform>();
    public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
 
@@ -325,21 +339,25 @@ public class CardGameRule
         if (LvText != null)
         {
             LvText.text = $"LV:{resourceLevel}";
+            LvText.color = Color.black;
         }
 
         if (ResourceText != null)
         {
             ResourceText.text = $"Resource:{resourcePoints}";
+            ResourceText.color = Color.black;
         }
 
         if (ResourcePointText != null)
         {
             ResourcePointText.text = resourcePoints.ToString();
+            ResourcePointText.color = Color.black;
         }
 
         if (LevelText != null)
         {
             LevelText.text = $"LV:{resourceLevel}";
+            LevelText.color = Color.black;
         }
     }
 
@@ -355,15 +373,19 @@ public class CardGameRule
         deckObjectPanel = deckAndTrashPanel.CreateChildPanelCustom("DeckObjectPanel", UIAnchor.TopCenter, 60, 140);
         var deckLabel = deckObjectPanel.CreateChildTextCustom("DeckLabel", UIAnchor.TopCenter, 60, 30);
         deckLabel.text = "DECK";
+        deckLabel.color = Color.black;
         deckCountText = deckObjectPanel.CreateChildTextCustom("DeckCountText", UIAnchor.BottomCenter, 60, 30);
         deckCountText.text = "0";
+        deckCountText.color = Color.black;
 
         // 下側: トラッシュ
         trashAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("TrashAreaPanel", UIAnchor.BottomCenter, 60, 140);
         var trashLabel = trashAreaPanel.CreateChildTextCustom("TrashLabel", UIAnchor.TopCenter, 60, 30);
         trashLabel.text = "TRASH";
+        trashLabel.color = Color.black;
         trashCountText = trashAreaPanel.CreateChildTextCustom("TrashCountText", UIAnchor.BottomCenter, 60, 30);
         trashCountText.text = "0";
+        trashCountText.color = Color.black;
     }
 
     private void UpdateDeckAndTrashTexts()
@@ -371,11 +393,13 @@ public class CardGameRule
         if (deckCountText != null)
         {
             deckCountText.text = deckList.Count.ToString();
+            deckCountText.color = Color.black;
         }
 
         if (trashCountText != null)
         {
             trashCountText.text = trashList.Count.ToString();
+            trashCountText.color = Color.black;
         }
     }
 }
