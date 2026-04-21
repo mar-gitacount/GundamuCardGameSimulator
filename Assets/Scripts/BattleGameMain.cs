@@ -168,7 +168,7 @@ public class BattleGameMain : MonoBehaviour
         CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerSide ownerSide = ToRuleSide(ownerType);
         bool isInHand = cardController.transform.IsChildOf(ownerRule.HandScrollContent);
-        bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerFieldPanel);
+        bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel);
        
         // クリック時にフィルターパネルを表示する処理
         FilterSetParentanvas = GetComponentInParent<Canvas>().rootCanvas;
@@ -187,6 +187,13 @@ public class BattleGameMain : MonoBehaviour
         // targetImg.sprite = sourceImg.sprite; 
         GameObject copy = FilterPanel.CreateChildImageFrom(cardController.gameObject);
         FilterPanel.SetActive(true);
+
+        // どのケースでも閉じられるようにする
+        var closeButton = FilterPanel.CreateChildButton("close");
+        RectTransform closeBtnRect = closeButton.GetComponent<RectTransform>();
+        closeBtnRect.sizeDelta = new Vector2(140, 44);
+        closeBtnRect.anchoredPosition = new Vector2(0, -130);
+        closeButton.onClick.AddListener(() => Destroy(FilterPanel));
     
         // 場のカードはトラッシュ送り操作を可能にする。
         if (isOnField)
@@ -234,7 +241,7 @@ public class BattleGameMain : MonoBehaviour
         if (currentResource < cost)
         {
             Debug.Log("リソースポイントが足りません！");
-            Destroy(FilterPanel);
+            // パネルは表示したままにして、内容確認できるようにする
             return;
         }
 
@@ -248,7 +255,6 @@ public class BattleGameMain : MonoBehaviour
             if (!gundamRule.TryConsumeResource(ownerSide, cost))
             {
                 Debug.Log("リソースポイントが足りません！");
-                Destroy(FilterPanel);
                 return;
             }
 
@@ -508,7 +514,7 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        cardController.transform.SetParent(ownerRule.PlayerFieldPanel, false);
+        cardController.transform.SetParent(ownerRule.PlayerDeployPanel, false);
 
         if (ownerType == PlayerType.Player)
         {
@@ -535,12 +541,12 @@ public class BattleGameMain : MonoBehaviour
             return currentPlayerType;
         }
 
-        if (cardTransform.IsChildOf(cardGameRule.PlayerFieldPanel) || cardTransform.IsChildOf(cardGameRule.HandScrollContent))
+        if (cardTransform.IsChildOf(cardGameRule.PlayerDeployPanel) || cardTransform.IsChildOf(cardGameRule.HandScrollContent))
         {
             return PlayerType.Player;
         }
 
-        if (cardTransform.IsChildOf(enemyCardGameRule.PlayerFieldPanel) || cardTransform.IsChildOf(enemyCardGameRule.HandScrollContent))
+        if (cardTransform.IsChildOf(enemyCardGameRule.PlayerDeployPanel) || cardTransform.IsChildOf(enemyCardGameRule.HandScrollContent))
         {
             return PlayerType.Enemy;
         }
