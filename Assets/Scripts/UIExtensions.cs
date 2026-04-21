@@ -76,14 +76,14 @@ public static class UIExtensions
 
     }
 }
-    public static GameObject CreateGridScrollView(this GameObject parent, int width, int height)
+    public static GameObject CreateGridScrollView(this GameObject parent, int width, int height,UIAnchor anchor = UIAnchor.FullSize )
     {
         // --- 1. Root (ScrollView本体) ---
         GameObject scrollRoot = new GameObject("GridScrollView", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(ScrollRect));
         scrollRoot.transform.SetParent(parent.transform, false);
         var rootRect = scrollRoot.GetComponent<RectTransform>();
-        // rootRect.sizeDelta = new Vector2(width, height);
-        rootRect.SetAnchor(UIAnchor.FullSize); // 中央上に配置
+        rootRect.sizeDelta = new Vector2(width, height);
+        rootRect.SetAnchor(anchor); // 中央上に配置
         scrollRoot.GetComponent<Image>().color = new Color32(255, 255, 255, 100);
 
         // --- 2. Viewport (表示窓) ---
@@ -131,6 +131,35 @@ public static class UIExtensions
         return scrollRoot;
     }
 
+    /// <summary>
+    /// ScrollView内のGridセルを、表示エリアの高さ基準で設定する。
+    /// </summary>
+    public static void ConfigureGridCellFromViewportHeight(this GameObject scrollRoot, float heightRatio = 0.8f, float minCellSize = 48f)
+    {
+        if (scrollRoot == null)
+        {
+            return;
+        }
+
+        ScrollRect sr = scrollRoot.GetComponent<ScrollRect>();
+        if (sr == null || sr.content == null || sr.viewport == null)
+        {
+            return;
+        }
+
+        GridLayoutGroup grid = sr.content.GetComponent<GridLayoutGroup>();
+        if (grid == null)
+        {
+            return;
+        }
+
+        float viewportHeight = sr.viewport.rect.height;
+        float availableHeight = Mathf.Max(0f, viewportHeight - grid.padding.top - grid.padding.bottom);
+        float ratio = Mathf.Clamp01(heightRatio);
+        float cell = Mathf.Max(minCellSize, availableHeight * ratio);
+        grid.cellSize = new Vector2(cell, cell);
+    }
+
 
     public static void SetRotation(this RectTransform rect, float angleZ)
     {
@@ -170,6 +199,30 @@ public static class UIExtensions
 
     // UIExtensions.cs に追加
 
+    // public static GameObject SetChildPanel(this GameObject parent, this GameObject child ,UIAnchor anchor)
+    // {
+        
+    // }
+    public static TextMeshProUGUI CreateChildTextCustom(this GameObject parent, string name, UIAnchor anchor, int width, int height)
+    {
+        // 1. オブジェクト生成 (Imageは含めない)
+        GameObject textObj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        textObj.transform.SetParent(parent.transform, false);
+
+        // 2. TextMeshProUGUI コンポーネントの取得と初期設定
+        var tmp = textObj.GetComponent<TextMeshProUGUI>();
+        tmp.text = "New Text";
+        tmp.fontSize = 24;
+        tmp.color = Color.white;
+        tmp.alignment = TextAlignmentOptions.Center; // デフォルトで中央揃え
+
+        // 3. RectTransform の設定
+        var rect = textObj.GetComponent<RectTransform>();
+        rect.SetAnchor(anchor);
+        rect.sizeDelta = new Vector2(width, height);
+
+        return tmp;
+    }
     public static GameObject CreateChildPanelCustom(this GameObject parent, string name, UIAnchor anchor, int width, int height)
 {
     // 1. オブジェクト生成

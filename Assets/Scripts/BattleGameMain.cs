@@ -6,6 +6,8 @@ using TMPro; // これを追加！
 
 public class BattleGameMain : MonoBehaviour
 {
+    private const float MinEndTurnAreaWidth = 90f;
+    private const float MaxEndTurnAreaWidth = 180f;
     // Start is called before the first frame update
     public bool isFirstPlayer;
 
@@ -26,6 +28,7 @@ public class BattleGameMain : MonoBehaviour
     private Dictionary<int,int> enemyDeckData = new Dictionary<int, int>();
     private CardGameRule cardGameRule = new CardGameRule();
     private CardGameRule enemyCardGameRule = new CardGameRule();
+    private Gundam2024RuleScript gundamRule = new Gundam2024RuleScript();
 
     private CardGameRule CurrentPlayerCardGameRule
     {
@@ -75,6 +78,8 @@ public class BattleGameMain : MonoBehaviour
     private List<CardController> playerBattleZoneCards = new List<CardController>();
     // プレイヤーの手札を管理するリスト
     private List<CardData> playerHandCards = new List<CardData>();
+    // エネミーの手札を管理するリスト
+    private List<CardData> enemyHandCards = new List<CardData>();
     // エネミーのバトルゾーンのカードを管理するリスト
     private List<CardController> enemyBattleZoneCards = new List<CardController>();
 
@@ -107,6 +112,13 @@ public class BattleGameMain : MonoBehaviour
         enemyCardGameRule.PlayerFieldPanel.SetRotation(180f);
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData);
 
+        // 2024ルールエンジン初期化
+        gundamRule.InitializeGame(
+            cardGameRule.GetRemainingCount(),
+            enemyCardGameRule.GetRemainingCount(),
+            ToRuleSide(currentPlayerType));
+        SyncAllResourceViewsFromRule();
+
 
         
        for(int i = 0; i < 5; i++)
@@ -114,10 +126,10 @@ public class BattleGameMain : MonoBehaviour
             // ランダムで引いたカードのidを取得する。
             // int playerCardId = cardGameRule.Draw();
             // ランダムで引いてきたカードをプレイヤーの手札に追加する。
-            CardAddtoHand();
+            CardAddtoHand(CurrentPlayerCardGameRule, currentPlayerType);
             // ?ターンを交代するあとでリファクト予定。
             currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
-            CardAddtoHand();
+            CardAddtoHand(CurrentPlayerCardGameRule, currentPlayerType);
             // cardImage.GetComponent<Image>().sprite = cardSprite;
             // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
 
@@ -134,19 +146,29 @@ public class BattleGameMain : MonoBehaviour
         ChangePhase(BattlePhase.StartTurn);
 
         //! エンドフェイズはボタンを押下したときに呼び出すようにする予定。
-        EndTurnButton.onClick.AddListener(() => ChangePhase(BattlePhase.EndTurn));
+        ConfigureEndTurnButtonInHandPanel();
+        if (EndTurnButton != null)
+        {
+            EndTurnButton.onClick.RemoveAllListeners();
+            EndTurnButton.onClick.AddListener(() => ChangePhase(BattlePhase.EndTurn));
+        }
+        UpdateEndTurnButtonVisibility();
 
         
     }
 
     private void OnCardClicked(CardController cardController)
     {
-        // Debug.Log($"カードがクリックされました。カード名前: {cardController.Data.cardName}");
-        // カードを手札→バトルゾーンに移動する処理。
-        int level = cardController.Data.level;
-        int cost = cardController.Data.cost;
+        if (cardController == null || cardController.Data == null)
+        {
+            return;
+        }
 
-        Sprite cardSprite = cardController.cardSprite;
+        PlayerType ownerType = ResolveCardOwner(cardController.transform);
+        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        Gundam2024RuleScript.PlayerSide ownerSide = ToRuleSide(ownerType);
+        bool isInHand = cardController.transform.IsChildOf(ownerRule.HandScrollContent);
+        bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerFieldPanel);
        
         // クリック時にフィルターパネルを表示する処理
         FilterSetParentanvas = GetComponentInParent<Canvas>().rootCanvas;
@@ -166,53 +188,107 @@ public class BattleGameMain : MonoBehaviour
         GameObject copy = FilterPanel.CreateChildImageFrom(cardController.gameObject);
         FilterPanel.SetActive(true);
     
-        if(CurrentPlayerCardGameRule.GetResourcePoints() < level)
+        // 場のカードはトラッシュ送り操作を可能にする。
+        if (isOnField)
         {
-            Debug.Log("レベルが足りません！カードのレベル: " + level);
+            var trashButton = FilterPanel.CreateChildButton("send to trash");
+            RectTransform trashBtnRect = trashButton.GetComponent<RectTransform>();
+            trashBtnRect.sizeDelta = new Vector2(180, 50);
+            trashBtnRect.anchoredPosition = new Vector2(0, -70);
+
+            trashButton.onClick.AddListener(() =>
+            {
+                SendCardToTrash(cardController, ownerType);
+                Destroy(FilterPanel);
+            });
             return;
         }
-        if(CurrentPlayerCardGameRule.UseResourcePoints(cost))
+
+        // 手札以外(不明な位置)は処理しない。
+        if (!isInHand)
         {
-            var myButton = FilterPanel.CreateChildButton("put on the field");
-            // ボタンのサイズを整える
-            RectTransform btnRect = myButton.GetComponent<RectTransform>();
-            btnRect.sizeDelta = new Vector2(160, 50);
-           
-             // ボタンが押された時の処理
-            myButton.onClick.AddListener(() => {
-              Debug.Log("ボタンが押されました");
-            //  cardController.transform.SetParent(PlayerBattleZoneTransform,false);
-             cardController.transform.SetParent(CurrentPlayerCardGameRule.PlayerFieldPanel,false);
-             cardGameRule.UseResourcePointsWithoutCheck(cost);
+            Debug.Log("このカードは操作対象外のエリアにあります。");
             Destroy(FilterPanel);
-            });
+            return;
         }
-        else
+
+        // 相手ターン中に相手手札を操作させない。
+        if (ownerType != currentPlayerType)
+        {
+            Debug.Log("現在のターンプレイヤーの手札ではありません。");
+            Destroy(FilterPanel);
+            return;
+        }
+
+        int cost = cardController.Data.cost;
+        int currentLevel = ownerSide == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player.level : gundamRule.Enemy.level;
+        int currentResource = ownerSide == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player.resource : gundamRule.Enemy.resource;
+
+        if (currentLevel < cardController.Data.level)
+        {
+            Debug.Log("レベルが足りません。");
+            Destroy(FilterPanel);
+            return;
+        }
+
+        if (currentResource < cost)
         {
             Debug.Log("リソースポイントが足りません！");
+            Destroy(FilterPanel);
             return;
         }
+
+        var playButton = FilterPanel.CreateChildButton("send to field");
+        RectTransform btnRect = playButton.GetComponent<RectTransform>();
+        btnRect.sizeDelta = new Vector2(180, 50);
+        btnRect.anchoredPosition = new Vector2(0, -10);
+
+        playButton.onClick.AddListener(() =>
+        {
+            if (!gundamRule.TryConsumeResource(ownerSide, cost))
+            {
+                Debug.Log("リソースポイントが足りません！");
+                Destroy(FilterPanel);
+                return;
+            }
+
+            SendCardToField(cardController, ownerType, ownerRule);
+
+            SyncResourceViewsFromRule(ownerSide);
+            Destroy(FilterPanel);
+        });
         
         // Instantiate(CardImagePrefab, playerHandTransform);
     }
     //! 以下の関数もCardGameRuleに移す予定。
-    void CardAddtoHand()
+    void CardAddtoHand(CardGameRule targetRule, PlayerType targetType)
     {
-        //現在のターンプレイヤーのドロー
-        int cardId = CurrentPlayerCardGameRule.Draw();
+        int cardId = targetRule.Draw();
+        if (cardId < 0)
+        {
+            Debug.LogWarning("山札切れでドローできませんでした。");
+            return;
+        }
         //?テスト 以下のコードで、列挙型を変更することで、敵味方関係なくカードIDからカードデータを取得できるようにする。
         // CurrentPlayerCardGameRule.StartTurn(); // これで、プレイヤーとエネミーのターン開始処理を共通化できるはず。
       
-        CardData playerCardData = DeckSettinObject.Instance.GetCardDataById(cardId);
+        CardData drawCardData = DeckSettinObject.Instance.GetCardDataById(cardId);
 
         // 以下分岐してエネミーの手札にカードを追加する処理も書く。→後で
         // GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
-        GameObject cardImage = Instantiate(CardImagePrefab, CurrentPlayerCardGameRule.HandScrollContent);
+        GameObject cardImage = Instantiate(CardImagePrefab, targetRule.HandScrollContent);
         // フィールドのゲームオブジェクトも渡す。
-        cardImage.GetComponent<CardController>().SetUp(playerCardData,OnCardClicked);
+        cardImage.GetComponent<CardController>().SetUp(drawCardData,OnCardClicked);
         //! カードのデータをプレイヤーの手札のリストに追加する処理も書く。→後で
         // !AIの処理をバックグラウンドで走らせるため、毎ターン更新する。バックグラウンド処理用
-        playerHandCards.Add(cardImage.GetComponent<CardController>().Data);
+        if (targetType == PlayerType.Player)
+        {
+            playerHandCards.Add(cardImage.GetComponent<CardController>().Data);
+        }
+        else
+        {
+            enemyHandCards.Add(cardImage.GetComponent<CardController>().Data);
+        }
     }
     public bool DecideTurnOrder()
     {
@@ -243,6 +319,7 @@ public class BattleGameMain : MonoBehaviour
     public void ChangePhase(BattlePhase nextPhase)
     {
         currentPhase = nextPhase;
+        UpdateEndTurnButtonVisibility();
         switch (currentPhase)
         {
             case BattlePhase.StartTurn:
@@ -290,12 +367,11 @@ public class BattleGameMain : MonoBehaviour
             // プレイヤーのターン開始処理をここに書く
             // 例: プレイヤーの手札を引く、リソースを獲得するなど
             // int playerCardId = cardGameRule.Draw();
-            CardAddtoHand();
-            // リソースポイントを増やす
-            cardGameRule.AddResourcePoints(); // 1ポイント増やす例
-            cardGameRule.RefreshResourcePoints(); // ターン開始時にリソースポイントをリセット
-            Debug.Log($"プレイヤーの現在のリソースポイント: {cardGameRule.GetResourcePoints()}");
-            PlayerresourcePointText.text = cardGameRule.GetResourcePoints().ToString();
+            CardAddtoHand(cardGameRule, PlayerType.Player);
+            gundamRule.BeginTurn();
+            SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
+            Debug.Log($"プレイヤーの現在のリソースポイント: {gundamRule.Player.resource}");
+            PlayerresourcePointText.text = gundamRule.Player.resource.ToString();
             // PlayerlevelText.text = $"Level: {cardGameRule.GetResourcePoints()}";
             
         }
@@ -304,8 +380,9 @@ public class BattleGameMain : MonoBehaviour
             Debug.Log("エネミーのターン開始処理を実行します。");
             // エネミーのターン開始処理をここに書く
             // 例: エネミーの手札を引く、リソースを獲得するなど
-            int enemyCardId = enemyCardGameRule.Draw();
-            Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
+            CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+            gundamRule.BeginTurn();
+            SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Enemy);
         }
         // メインフェイズに移行する
         ChangePhase(BattlePhase.MainPhase);
@@ -354,6 +431,8 @@ public class BattleGameMain : MonoBehaviour
     {
         // プレイヤーとエネミーのターンを切り替える
         currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
+        AdvanceRuleToNextTurnStart();
+        UpdateEndTurnButtonVisibility();
 
         Debug.Log("エンドフェイズの処理を実行します。");
         ChangePhase(BattlePhase.StartTurn);
@@ -364,5 +443,178 @@ public class BattleGameMain : MonoBehaviour
     void Update()
     {
         
+    }
+
+    private Gundam2024RuleScript.PlayerSide ToRuleSide(PlayerType type)
+    {
+        return type == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Player
+            : Gundam2024RuleScript.PlayerSide.Enemy;
+    }
+
+    private void SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide side)
+    {
+        CardGameRule targetRule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
+        Gundam2024RuleScript.PlayerState state = side == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player : gundamRule.Enemy;
+        targetRule.ApplyExternalResourceState(state.level, state.resource);
+
+        if (side == Gundam2024RuleScript.PlayerSide.Player)
+        {
+            PlayerlevelText.text = $"LV:{state.level}";
+            PlayerresourcePointText.text = state.resource.ToString();
+        }
+    }
+
+    private void AdvanceRuleToNextTurnStart()
+    {
+        // どのフェイズ状態からでも安全に次ターン開始へ進める。
+        for (int i = 0; i < 6; i++)
+        {
+            gundamRule.AdvancePhase();
+            if (gundamRule.CurrentPhase == Gundam2024RuleScript.TurnPhase.Start)
+            {
+                break;
+            }
+        }
+    }
+
+    private void SyncAllResourceViewsFromRule()
+    {
+        SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
+        SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Enemy);
+    }
+
+    private void SendCardToTrash(CardController cardController, PlayerType ownerType)
+    {
+        if (cardController == null || cardController.Data == null)
+        {
+            return;
+        }
+
+        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        ownerRule.AddCardToTrash(cardController.Data.id);
+
+        playerBattleZoneCards.Remove(cardController);
+        enemyBattleZoneCards.Remove(cardController);
+        playerHandCards.Remove(cardController.Data);
+        enemyHandCards.Remove(cardController.Data);
+        Destroy(cardController.gameObject);
+    }
+
+    private void SendCardToField(CardController cardController, PlayerType ownerType, CardGameRule ownerRule)
+    {
+        if (cardController == null || ownerRule == null)
+        {
+            return;
+        }
+
+        cardController.transform.SetParent(ownerRule.PlayerFieldPanel, false);
+
+        if (ownerType == PlayerType.Player)
+        {
+            playerHandCards.Remove(cardController.Data);
+            if (!playerBattleZoneCards.Contains(cardController))
+            {
+                playerBattleZoneCards.Add(cardController);
+            }
+        }
+        else
+        {
+            enemyHandCards.Remove(cardController.Data);
+            if (!enemyBattleZoneCards.Contains(cardController))
+            {
+                enemyBattleZoneCards.Add(cardController);
+            }
+        }
+    }
+
+    private PlayerType ResolveCardOwner(Transform cardTransform)
+    {
+        if (cardTransform == null)
+        {
+            return currentPlayerType;
+        }
+
+        if (cardTransform.IsChildOf(cardGameRule.PlayerFieldPanel) || cardTransform.IsChildOf(cardGameRule.HandScrollContent))
+        {
+            return PlayerType.Player;
+        }
+
+        if (cardTransform.IsChildOf(enemyCardGameRule.PlayerFieldPanel) || cardTransform.IsChildOf(enemyCardGameRule.HandScrollContent))
+        {
+            return PlayerType.Enemy;
+        }
+
+        return currentPlayerType;
+    }
+
+    private void ConfigureEndTurnButtonInHandPanel()
+    {
+        if (EndTurnButton == null)
+        {
+            return;
+        }
+
+        RectTransform handPanel = cardGameRule.PlayerHandPanel;
+        if (handPanel == null)
+        {
+            return;
+        }
+
+        RectTransform btnRect = EndTurnButton.GetComponent<RectTransform>();
+        if (btnRect == null)
+        {
+            return;
+        }
+
+        EndTurnButton.transform.SetParent(handPanel, false);
+        EndTurnButton.transform.SetAsLastSibling();
+
+        Canvas.ForceUpdateCanvases();
+        float handWidth = handPanel.rect.width;
+        float minWidthForFiveCards = cardGameRule.GetHandMinimumWidthForVisibleCards(5);
+        float extraWidth = Mathf.Max(0f, handWidth - minWidthForFiveCards);
+        float endTurnAreaWidth = Mathf.Clamp(extraWidth, MinEndTurnAreaWidth, MaxEndTurnAreaWidth);
+        if (extraWidth < MinEndTurnAreaWidth)
+        {
+            endTurnAreaWidth = Mathf.Max(70f, extraWidth);
+        }
+
+        btnRect.anchorMin = new Vector2(1f, 0f);
+        btnRect.anchorMax = new Vector2(1f, 0f);
+        btnRect.pivot = new Vector2(1f, 0f);
+        btnRect.anchoredPosition = new Vector2(-10f, 10f);
+        btnRect.sizeDelta = new Vector2(Mathf.Max(68f, endTurnAreaWidth - 16f), 44f);
+
+        // 5枚が最低並ぶ幅を優先し、余剰幅ぶんだけ右側をボタン領域として確保する。
+        cardGameRule.SetHandScrollRightMargin(endTurnAreaWidth);
+    }
+
+    private void UpdateEndTurnButtonVisibility()
+    {
+        if (EndTurnButton == null)
+        {
+            return;
+        }
+
+        bool isMyTurn = currentPlayerType == PlayerType.Player;
+        EndTurnButton.gameObject.SetActive(true);
+        EndTurnButton.interactable = isMyTurn;
+
+        Image buttonImage = EndTurnButton.GetComponent<Image>();
+        if (buttonImage != null)
+        {
+            buttonImage.color = isMyTurn
+                ? new Color32(255, 255, 255, 255)
+                : new Color32(150, 150, 150, 255);
+        }
+
+        TextMeshProUGUI label = EndTurnButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+        {
+            label.color = isMyTurn
+                ? new Color32(20, 20, 20, 255)
+                : new Color32(90, 90, 90, 255);
+        }
     }
 }
