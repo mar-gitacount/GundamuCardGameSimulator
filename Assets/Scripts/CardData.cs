@@ -18,7 +18,10 @@ public class CardData : ScriptableObject
     public FilterType filterType;
     public CardColor color;
     public Type type;
-    
+    /// <summary>ユニット（Type.Unit）向け。アセット上の既定値。実行時は CardController で上書き。</summary>
+    [Tooltip("ユニットのみ有効。配備時は False、自分ターン開始で True に更新（BattleGameMain）。")]
+    public AttackFlg attackFlg = AttackFlg.False;
+
 }
 
 

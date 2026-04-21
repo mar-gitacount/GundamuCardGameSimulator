@@ -44,3 +44,13 @@ public enum Type
     ExResource,
     UnitToken,
 }
+
+/// <summary>
+/// ユニットの攻撃可能状態（ルールブックの「アタック可否」追跡用）。
+/// 配備直後は False、自分ターン開始時に True にリフレッシュする想定。
+/// </summary>
+public enum AttackFlg
+{
+    False = 0,
+    True = 1,
+}
