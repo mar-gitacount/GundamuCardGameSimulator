@@ -89,6 +89,8 @@ public class BattleGameMain : MonoBehaviour
         Debug.Log("バトルゲームのメインシーン");
         // 先攻後攻を決める。
         isFirstPlayer = DecideTurnOrder();
+        // 初期手札ドロー中に currentPlayerType が変わらないよう、先攻を保持する
+        PlayerType firstPlayerThisGame = currentPlayerType;
 
         playerDeckData = DeckSettinObject.Instance.LoadDeckReturn();
         enemyDeckData = DeckSettinObject.Instance.LoadEnemyDeckReturn();
@@ -116,26 +118,27 @@ public class BattleGameMain : MonoBehaviour
         gundamRule.InitializeGame(
             cardGameRule.GetRemainingCount(),
             enemyCardGameRule.GetRemainingCount(),
-            ToRuleSide(currentPlayerType));
-        SyncAllResourceViewsFromRule();
+            ToRuleSide(firstPlayerThisGame));
 
-
-        
-       for(int i = 0; i < 5; i++)
+        // ルール: 開戦時に双方とも手札を5枚引く（先攻・後攻共通）
+        const int openingHandSize = 5;
+        for (int i = 0; i < openingHandSize; i++)
         {
-            // ランダムで引いたカードのidを取得する。
-            // int playerCardId = cardGameRule.Draw();
-            // ランダムで引いてきたカードをプレイヤーの手札に追加する。
-            CardAddtoHand(CurrentPlayerCardGameRule, currentPlayerType);
-            // ?ターンを交代するあとでリファクト予定。
-            currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
-            CardAddtoHand(CurrentPlayerCardGameRule, currentPlayerType);
-            // cardImage.GetComponent<Image>().sprite = cardSprite;
-            // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
-
-
-          
+            CardAddtoHand(cardGameRule, PlayerType.Player);
         }
+        for (int i = 0; i < openingHandSize; i++)
+        {
+            CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+        }
+        currentPlayerType = firstPlayerThisGame;
+        gundamRule.SyncOpeningHandState(
+            openingHandSize,
+            cardGameRule.GetRemainingCount(),
+            openingHandSize,
+            enemyCardGameRule.GetRemainingCount());
+        Debug.Log($"[ドロー] 初期手札: プレイヤー{openingHandSize}枚、エネミー{openingHandSize}枚を引きました。");
+
+        SyncAllResourceViewsFromRule();
         
         // int enemyCardId = enemyCardGameRule.Draw();
         // Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
@@ -370,25 +373,25 @@ public class BattleGameMain : MonoBehaviour
         if(currentPlayerType == PlayerType.Player)
         {
             Debug.Log("プレイヤーのターン開始処理を実行します。");
-            // プレイヤーのターン開始処理をここに書く
-            // 例: プレイヤーの手札を引く、リソースを獲得するなど
-            // int playerCardId = cardGameRule.Draw();
-            CardAddtoHand(cardGameRule, PlayerType.Player);
+            // 先攻・後攻に関わらずレベル+1・リソースをレベルに同期してから、ドロー1枚
+            gundamRule.SetCurrentTurnPlayer(Gundam2024RuleScript.PlayerSide.Player);
             gundamRule.BeginTurn();
+            CardAddtoHand(cardGameRule, PlayerType.Player);
             SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
+            Debug.Log($"[ドロー] プレイヤーのターン開始ドロー1枚。LV:{gundamRule.Player.level} Resource:{gundamRule.Player.resource}");
             Debug.Log($"プレイヤーの現在のリソースポイント: {gundamRule.Player.resource}");
             PlayerresourcePointText.text = gundamRule.Player.resource.ToString();
-            // PlayerlevelText.text = $"Level: {cardGameRule.GetResourcePoints()}";
-            
+            ApplyTurnStartAttackFlgForCurrentPlayer();
         }
         else
         {
             Debug.Log("エネミーのターン開始処理を実行します。");
-            // エネミーのターン開始処理をここに書く
-            // 例: エネミーの手札を引く、リソースを獲得するなど
-            CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+            gundamRule.SetCurrentTurnPlayer(Gundam2024RuleScript.PlayerSide.Enemy);
             gundamRule.BeginTurn();
+            CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
             SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Enemy);
+            Debug.Log($"[ドロー] エネミーのターン開始ドロー1枚。LV:{gundamRule.Enemy.level} Resource:{gundamRule.Enemy.resource}");
+            ApplyTurnStartAttackFlgForCurrentPlayer();
         }
         // メインフェイズに移行する
         ChangePhase(BattlePhase.MainPhase);
@@ -530,6 +533,41 @@ public class BattleGameMain : MonoBehaviour
             if (!enemyBattleZoneCards.Contains(cardController))
             {
                 enemyBattleZoneCards.Add(cardController);
+            }
+        }
+
+        // ユニット配備直後は攻撃不可（次の自分ターン開始で True）
+        if (cardController.Data.type == Type.Unit)
+        {
+            cardController.SetAttackFlg(AttackFlg.False);
+        }
+    }
+
+    /// <summary>
+    /// 自分ターン開始時：場の自軍ユニットの AttackFlg を True にリフレッシュ（ルールブック準拠の追跡用）。
+    /// </summary>
+    private void ApplyTurnStartAttackFlgForCurrentPlayer()
+    {
+        if (currentPlayerType == PlayerType.Player)
+        {
+            Debug.Log("[AttackFlg] プレイヤーターン開始：場のユニットを True に設定");
+            foreach (var c in playerBattleZoneCards)
+            {
+                if (c != null && c.Data != null && c.Data.type == Type.Unit)
+                {
+                    c.SetAttackFlg(AttackFlg.True);
+                }
+            }
+        }
+        else
+        {
+            Debug.Log("[AttackFlg] エネミーターン開始：場のユニットを True に設定");
+            foreach (var c in enemyBattleZoneCards)
+            {
+                if (c != null && c.Data != null && c.Data.type == Type.Unit)
+                {
+                    c.SetAttackFlg(AttackFlg.True);
+                }
             }
         }
     }

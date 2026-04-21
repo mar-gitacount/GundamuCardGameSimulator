@@ -15,7 +15,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     private Action<CardController> onClickCallback;
     
     public Sprite cardSprite{ get; private set; }
-    
+
+    /// <summary>ランタイムの攻撃フラグ（カードデータのアセットは変更しない）。</summary>
+    private AttackFlg _attackFlg = AttackFlg.False;
+    public AttackFlg AttackFlgState => _attackFlg;
 
     public void SetUp(CardData carddata,Action<CardController> callback)
     {
@@ -25,6 +28,17 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         cardSprite = Resources.Load<Sprite>($"Data/Images/{carddata.imageName.name}");
         cardImage.sprite = cardSprite;
 
+        // 手札・新規生成時は常に False（ユニット以外は攻撃フラグを使わない）
+        _attackFlg = AttackFlg.False;
+    }
+
+    /// <summary>攻撃フラグを設定し、デバッグログを出す。</summary>
+    public void SetAttackFlg(AttackFlg value)
+    {
+        _attackFlg = value;
+        string name = Data != null ? Data.cardName : "?";
+        int id = Data != null ? Data.id : -1;
+        Debug.Log($"[AttackFlg] {name} (id:{id}) => {_attackFlg}");
     }
     public void OnPointerClick(PointerEventData eventData)
     {

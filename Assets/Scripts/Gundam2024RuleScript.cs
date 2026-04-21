@@ -27,8 +27,10 @@ public class Gundam2024RuleScript
     {
         public int maxLevel = 10;
         public int startingShield = 6;
-        public int startingHand = 5;
+        /// <summary>初期手札は BattleGameMain で物理ドローするため 0。オープニング後に SyncOpeningHandState で同期。</summary>
+        public int startingHand = 0;
         public int drawPerTurn = 1;
+        /// <summary>先攻・後攻に関わらずターン開始時にレベルへ加算（リソースはレベルに合わせてリフレッシュ）。</summary>
         public int levelGainPerTurn = 1;
     }
 
@@ -67,6 +69,21 @@ public class Gundam2024RuleScript
         CurrentPhase = TurnPhase.Start;
         Player.ResetForGameStart(Config, playerDeckCount);
         Enemy.ResetForGameStart(Config, enemyDeckCount);
+    }
+
+    /// <summary>現在のターンプレイヤーをバトル側と一致させる（BeginTurn の対象判定用）。</summary>
+    public void SetCurrentTurnPlayer(PlayerSide side)
+    {
+        CurrentTurnPlayer = side;
+    }
+
+    /// <summary>初期5枚ドロー後に、手札枚数・残り山札を実物に合わせる。</summary>
+    public void SyncOpeningHandState(int playerHandCount, int playerDeckRemain, int enemyHandCount, int enemyDeckRemain)
+    {
+        Player.handCount = Mathf.Max(0, playerHandCount);
+        Player.deckCount = Mathf.Max(0, playerDeckRemain);
+        Enemy.handCount = Mathf.Max(0, enemyHandCount);
+        Enemy.deckCount = Mathf.Max(0, enemyDeckRemain);
     }
 
     public void BeginTurn()
