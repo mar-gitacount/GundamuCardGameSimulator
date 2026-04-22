@@ -26,7 +26,8 @@ public class Gundam2024RuleScript
     public class RuleConfig
     {
         public int maxLevel = 10;
-        public int startingShield = 6;
+        /// <summary>初期シールド枚数は山札から5枚をシールドエリアに置く処理で上書きする。</summary>
+        public int startingShield = 0;
         /// <summary>初期手札は BattleGameMain で物理ドローするため 0。オープニング後に SyncOpeningHandState で同期。</summary>
         public int startingHand = 0;
         public int drawPerTurn = 1;
@@ -39,7 +40,10 @@ public class Gundam2024RuleScript
     {
         public int level;
         public int resource;
+        /// <summary>シールド枚数（山札からシールドエリアに置いたカード数と同期させる想定）。</summary>
         public int shield;
+        /// <summary>EXベース（ルール上のカウンター。初期値はマリガン後のセットアップで設定）。</summary>
+        public int exBase;
         public int handCount;
         public int deckCount;
 
@@ -47,7 +51,8 @@ public class Gundam2024RuleScript
         {
             level = 0;
             resource = 0;
-            shield = config.startingShield;
+            shield = 0;
+            exBase = 0;
             handCount = config.startingHand;
             deckCount = initialDeckCount;
         }
@@ -84,6 +89,17 @@ public class Gundam2024RuleScript
         Player.deckCount = Mathf.Max(0, playerDeckRemain);
         Enemy.handCount = Mathf.Max(0, enemyHandCount);
         Enemy.deckCount = Mathf.Max(0, enemyDeckRemain);
+    }
+
+    /// <summary>
+    /// マリガン後：EXベースを設定し、山札からシールド用に引いた枚数分デッキを減らしシールド枚数を設定する。
+    /// </summary>
+    public void ApplyExBaseAndShieldAfterMulligan(PlayerSide side, int exBasePoints, int shieldCardCount, int deckRemainAfterShieldDraw)
+    {
+        PlayerState state = GetState(side);
+        state.exBase = Mathf.Max(0, exBasePoints);
+        state.shield = Mathf.Max(0, shieldCardCount);
+        state.deckCount = Mathf.Max(0, deckRemainAfterShieldDraw);
     }
 
     public void BeginTurn()
