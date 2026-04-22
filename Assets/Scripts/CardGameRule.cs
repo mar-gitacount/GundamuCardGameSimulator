@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 using System.Linq;
+using UnityEngine;
 using TMPro; // これを追加！
 using UnityEngine.UI;
 public class CardGameRule
@@ -37,6 +37,12 @@ public class CardGameRule
     private GameObject trashAreaPanel;
     private TextMeshProUGUI deckCountText;
     private TextMeshProUGUI trashCountText;
+
+    private GameObject shieldPanelRoot;
+    private RectTransform shieldCardsContent;
+    private GridLayoutGroup shieldGrid;
+    private TextMeshProUGUI exBaseDisplayText;
+    private readonly List<int> shieldCardIds = new List<int>();
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
     /// </summary>
@@ -97,8 +103,8 @@ public class CardGameRule
         // var test = LvText.AddComponent<TextMeshProUGUI>();
         // test.text = "test";
         
-        // プレイヤー > メイン > シールド
-        GameObject ShieldPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerShieldPanel", UIAnchor.TopLeft, 65, 300); // シールドパネルを生成
+        // プレイヤー > メイン > シールド（EXベース表示＋シールド用カード5枚並び）
+        BuildShieldPanel();
         //  プレイヤー > デッキ＆トラッシュ
         GameObject DeckAndTrashPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeckAndTrashPanel", UIAnchor.TopRight, 65, 300); // シールドパネルを生成
         CreateDeckAndTrashArea(DeckAndTrashPanel);
@@ -158,6 +164,27 @@ public class CardGameRule
         Debug.Log("山札をシャッフルしました。");
     }
 
+    /// <summary>
+    /// マリガン：手札として持っていたカードIDを山札に戻し、シャッフルする（ルール上は手札を山札に戻して再構築）。
+    /// </summary>
+    public void ReturnCardIdsToDeckAndShuffle(IReadOnlyList<int> cardIds)
+    {
+        if (cardIds == null || cardIds.Count == 0)
+        {
+            ShuffleDeck();
+            UpdateDeckAndTrashTexts();
+            return;
+        }
+
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            deckList.Add(cardIds[i]);
+        }
+
+        ShuffleDeck();
+        UpdateDeckAndTrashTexts();
+    }
+
     // デッキの内容を返す
     public List<int> GetDeckList() => deckList;
     /// <summary>
@@ -202,6 +229,90 @@ public class CardGameRule
    public RectTransform PlayerDeployPanel => playerDeployPanel != null ? playerDeployPanel.GetComponent<RectTransform>() : fieldPanel.GetComponent<RectTransform>();
    public RectTransform PlayerHandPanel => HandPanel.GetComponent<RectTransform>();
    public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
+    public RectTransform ShieldCardsContent => shieldCardsContent;
+
+    /// <summary>
+    /// マリガン完了後：EXベース表示を更新し、山札上から指定枚数をシールドエリアに並べる（手札には加えない）。
+    /// </summary>
+    public void SetupShieldFromDeckAfterMulligan(GameObject cardPrefab, System.Action<CardController> onShieldCardClicked, int shieldCardCount, int exBasePoints)
+    {
+        shieldCardIds.Clear();
+        if (shieldCardsContent == null || cardPrefab == null)
+        {
+            Debug.LogWarning("シールド設置: コンテナまたはカードプレハブがありません。");
+            return;
+        }
+
+        for (int i = shieldCardsContent.childCount - 1; i >= 0; i--)
+        {
+            Object.Destroy(shieldCardsContent.GetChild(i).gameObject);
+        }
+
+        SetExBaseDisplay(exBasePoints);
+
+        for (int i = 0; i < shieldCardCount; i++)
+        {
+            int id = Draw();
+            if (id < 0)
+            {
+                Debug.LogWarning("シールド設置: 山札が不足しました。");
+                break;
+            }
+            shieldCardIds.Add(id);
+            CardData data = DeckSettinObject.Instance.GetCardDataById(id);
+            GameObject go = Object.Instantiate(cardPrefab, shieldCardsContent);
+            CardController cc = go.GetComponent<CardController>();
+            if (cc != null)
+            {
+                cc.SetUp(data, onShieldCardClicked);
+                RectTransform cardRect = go.GetComponent<RectTransform>();
+                if (cardRect != null && shieldGrid != null)
+                {
+                    // ShieldCardsRow のサイズを変えず、カード側をセルに合わせて確実に収める
+                    cardRect.localScale = Vector3.one;
+                    cardRect.sizeDelta = shieldGrid.cellSize;
+                }
+            }
+        }
+    }
+
+    public IReadOnlyList<int> GetShieldCardIds() => shieldCardIds;
+
+    public void SetExBaseDisplay(int points)
+    {
+        if (exBaseDisplayText != null)
+        {
+            exBaseDisplayText.text = $"EX Base:{points}";
+        }
+    }
+
+    private void BuildShieldPanel()
+    {
+        shieldPanelRoot = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerShieldPanel", UIAnchor.TopLeft,65, 300);
+        exBaseDisplayText = shieldPanelRoot.CreateChildTextCustom("ExBaseText", UIAnchor.TopCenter, 65, 32);
+        exBaseDisplayText.text = "EX Base:0";
+        exBaseDisplayText.color = Color.black;
+        exBaseDisplayText.fontSize = 20;
+
+        // GameObject shieldRow = new GameObject("ShieldCardsRow", typeof(RectTransform));
+        GameObject shieldRow = shieldPanelRoot.CreateChildPanelCustom("ShieldCardsRow", UIAnchor.BottomStretch, 65, 270);
+        // shieldRow.transform.SetParent(shieldPanelRoot.transform, false);
+        shieldCardsContent = shieldRow.GetComponent<RectTransform>();
+        shieldCardsContent.anchorMin = new Vector2(0f, 0f);
+        shieldCardsContent.anchorMax = new Vector2(1f, 0.82f);
+        shieldCardsContent.pivot = new Vector2(0.5f, 0.5f);
+        shieldCardsContent.offsetMin = new Vector2(6f, 8f);
+        shieldCardsContent.offsetMax = new Vector2(-6f, -40f);
+
+        shieldGrid = shieldRow.AddComponent<GridLayoutGroup>();
+        shieldGrid.cellSize = new Vector2(46f, 26f);
+        shieldGrid.spacing = new Vector2(0f, 2f);
+        shieldGrid.padding = new RectOffset(0, 0, 0, 0);
+        shieldGrid.childAlignment = TextAnchor.UpperCenter;
+        shieldGrid.constraint = GridLayoutGroup.Constraint.FixedRowCount;
+        shieldGrid.constraintCount = 5;
+        shieldGrid.startAxis = GridLayoutGroup.Axis.Vertical; 
+    }
 
     public void SetHandScrollRightPadding(int rightPadding)
     {

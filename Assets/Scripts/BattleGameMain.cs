@@ -69,8 +69,16 @@ public class BattleGameMain : MonoBehaviour
     [SerializeField] private TextMeshProUGUI ExresourcePointText; // エネミーのリソースポイント表示用のテキスト
     private Canvas FilterSetParentanvas;
 
-   
-    
+    [Header("先攻・後攻アラート")]
+    [Tooltip("未指定時はシーン内の Canvas を自動検索します。")]
+    [SerializeField] private Canvas turnOrderAlertCanvas;
+    [SerializeField] private float turnOrderAlertDurationSeconds = 1f;
+
+    [Header("オープニング・シールド")]
+    [Tooltip("未指定時は EX ベース 3 として扱います。Gundam_Rules.pdf に準拠。")]
+    [SerializeField] private ExBaseData exBaseData;
+    private const int OpeningShieldCardCount = 5;
+
     public enum PlayerType{Player,Enemy}
 
     public PlayerType currentPlayerType;
@@ -84,43 +92,36 @@ public class BattleGameMain : MonoBehaviour
     private List<CardController> enemyBattleZoneCards = new List<CardController>();
 
     private CardController copyCardController;
-     void Start()
+
+    private void Start()
+    {
+        StartCoroutine(BattleSetupCoroutine());
+    }
+
+    /// <summary>
+    /// デッキ構築・初期5枚・マリガン・ゲーム開始まで（コルーチンでUI待機を挟む）。
+    /// </summary>
+    private IEnumerator BattleSetupCoroutine()
     {
         Debug.Log("バトルゲームのメインシーン");
-        // 先攻後攻を決める。
         isFirstPlayer = DecideTurnOrder();
-        // 初期手札ドロー中に currentPlayerType が変わらないよう、先攻を保持する
         PlayerType firstPlayerThisGame = currentPlayerType;
 
         playerDeckData = DeckSettinObject.Instance.LoadDeckReturn();
         enemyDeckData = DeckSettinObject.Instance.LoadEnemyDeckReturn();
 
-        //! プレイヤーが先行、後攻の場合、なにがしかのアラートを後ほど実装。
-
-        //! マリガンの後ほど実装
-
-        // cardGameRule.CreateField(PlayerFieldPanel);
-
-        // UI作成も自動でやる
-
-        // プレイヤーとエネミーの山札を作成する。
         cardGameRule.SetUp(PlayerFieldPanel);
         cardGameRule.CreateShuffledDeck(playerDeckData);
-        //! 以下もsetupの中でやる予定。
-        cardGameRule.ResourcAndLevelTextGet(PlayerresourcePointText,PlayerlevelText,ExresourcePointText);
-        // int playerCardId = cardGameRule.Draw();
-        // Debug.Log($"プレイヤーが引いたカードID: {playerCardId}");
+        cardGameRule.ResourcAndLevelTextGet(PlayerresourcePointText, PlayerlevelText, ExresourcePointText);
         enemyCardGameRule.SetUp(EnemyPlayerFieldPanel);
         enemyCardGameRule.PlayerFieldPanel.SetRotation(180f);
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData);
 
-        // 2024ルールエンジン初期化
         gundamRule.InitializeGame(
             cardGameRule.GetRemainingCount(),
             enemyCardGameRule.GetRemainingCount(),
             ToRuleSide(firstPlayerThisGame));
 
-        // ルール: 開戦時に双方とも手札を5枚引く（先攻・後攻共通）
         const int openingHandSize = 5;
         for (int i = 0; i < openingHandSize; i++)
         {
@@ -138,17 +139,66 @@ public class BattleGameMain : MonoBehaviour
             enemyCardGameRule.GetRemainingCount());
         Debug.Log($"[ドロー] 初期手札: プレイヤー{openingHandSize}枚、エネミー{openingHandSize}枚を引きました。");
 
+        // マリガン：プレイヤーは Yes/No、エネミーは 1/2
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas != null)
+        {
+            bool? playerChoice = null;
+            yield return MulliganPromptCoroutine(
+                canvas,
+                "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)",
+                value => playerChoice = value);
+
+            if (playerChoice == true)
+            {
+                PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
+                Debug.Log("[マリガン] プレイヤー：実行（手札を山札に戻しシャッフル後、5枚ドロー）。");
+            }
+            else
+            {
+                Debug.Log("[マリガン] プレイヤー：見送り。");
+            }
+
+            if (Random.value < 0.5f)
+            {
+                PerformMulligan(enemyCardGameRule, enemyHandCards, openingHandSize, PlayerType.Enemy);
+                Debug.Log("[マリガン] エネミー：実行（確率 1/2）。");
+            }
+            else
+            {
+                Debug.Log("[マリガン] エネミー：見送り（確率 1/2）。");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[マリガン] Canvas が見つからないため、マリガンをスキップしました。");
+        }
+
+        gundamRule.SyncOpeningHandState(
+            openingHandSize,
+            cardGameRule.GetRemainingCount(),
+            openingHandSize,
+            enemyCardGameRule.GetRemainingCount());
+
+        int exBasePoints = exBaseData != null ? exBaseData.startingPoints : 3;
+        cardGameRule.SetupShieldFromDeckAfterMulligan(CardImagePrefab, OnCardClicked, OpeningShieldCardCount, exBasePoints);
+        enemyCardGameRule.SetupShieldFromDeckAfterMulligan(CardImagePrefab, OnCardClicked, OpeningShieldCardCount, exBasePoints);
+
+        gundamRule.ApplyExBaseAndShieldAfterMulligan(
+            Gundam2024RuleScript.PlayerSide.Player,
+            exBasePoints,
+            cardGameRule.GetShieldCardIds().Count,
+            cardGameRule.GetRemainingCount());
+        gundamRule.ApplyExBaseAndShieldAfterMulligan(
+            Gundam2024RuleScript.PlayerSide.Enemy,
+            exBasePoints,
+            enemyCardGameRule.GetShieldCardIds().Count,
+            enemyCardGameRule.GetRemainingCount());
+
         SyncAllResourceViewsFromRule();
-        
-        // int enemyCardId = enemyCardGameRule.Draw();
-        // Debug.Log($"エネミーが引いたカードID: {enemyCardId}");
 
-        //  ?playerDeckData = cardGameRule.GetDeckList().GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
-
-        // ターン開始フェイズに移行する。
         ChangePhase(BattlePhase.StartTurn);
 
-        //! エンドフェイズはボタンを押下したときに呼び出すようにする予定。
         ConfigureEndTurnButtonInHandPanel();
         if (EndTurnButton != null)
         {
@@ -157,7 +207,181 @@ public class BattleGameMain : MonoBehaviour
         }
         UpdateEndTurnButtonVisibility();
 
-        
+        ShowTurnOrderAlert(firstPlayerThisGame);
+    }
+
+    /// <summary>先攻アラート・マリガンで共通利用する Canvas を取得する。</summary>
+    private Canvas ResolveBattleCanvas()
+    {
+        if (turnOrderAlertCanvas != null)
+        {
+            return turnOrderAlertCanvas;
+        }
+        Canvas canvas = GetComponentInParent<Canvas>()?.rootCanvas;
+        if (canvas == null && Filtercanvas != null)
+        {
+            canvas = Filtercanvas;
+        }
+        if (canvas == null)
+        {
+            canvas = Object.FindObjectOfType<Canvas>();
+        }
+        return canvas;
+    }
+
+    /// <summary>手札のカードを山札に戻しシャッフルして、指定枚数ドローし直す。</summary>
+    private void PerformMulligan(CardGameRule rule, List<CardData> handList, int drawCount, PlayerType playerType)
+    {
+        List<int> ids = CollectHandCardIdsFromHandContent(rule);
+        ClearHandVisuals(rule, handList);
+        rule.ReturnCardIdsToDeckAndShuffle(ids);
+        for (int i = 0; i < drawCount; i++)
+        {
+            CardAddtoHand(rule, playerType);
+        }
+    }
+
+    private static List<int> CollectHandCardIdsFromHandContent(CardGameRule rule)
+    {
+        var ids = new List<int>();
+        RectTransform content = rule.HandScrollContent;
+        if (content == null)
+        {
+            return ids;
+        }
+        for (int i = 0; i < content.childCount; i++)
+        {
+            CardController cc = content.GetChild(i).GetComponent<CardController>();
+            if (cc != null && cc.Data != null)
+            {
+                ids.Add(cc.Data.id);
+            }
+        }
+        return ids;
+    }
+
+    private void ClearHandVisuals(CardGameRule rule, List<CardData> handList)
+    {
+        RectTransform content = rule.HandScrollContent;
+        if (content == null)
+        {
+            return;
+        }
+        for (int i = content.childCount - 1; i >= 0; i--)
+        {
+            Destroy(content.GetChild(i).gameObject);
+        }
+        handList.Clear();
+    }
+
+    /// <summary>マリガン Yes/No を表示し、選択が入るまで待つ。</summary>
+    private IEnumerator MulliganPromptCoroutine(Canvas canvas, string message, System.Action<bool> onChosen)
+    {
+        GameObject root = new GameObject("MulliganPrompt", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        RectTransform rootRect = root.GetComponent<RectTransform>();
+        rootRect.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        GameObject panel = new GameObject("MulliganPanel", typeof(RectTransform), typeof(Image));
+        panel.transform.SetParent(root.transform, false);
+        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(520f, 220f);
+        panelRect.anchoredPosition = Vector2.zero;
+        panel.GetComponent<Image>().color = new Color32(240, 240, 240, 255);
+
+        GameObject titleObj = new GameObject("Title", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        titleObj.transform.SetParent(panel.transform, false);
+        TextMeshProUGUI titleTmp = titleObj.GetComponent<TextMeshProUGUI>();
+        titleTmp.text = message;
+        titleTmp.fontSize = 22;
+        titleTmp.alignment = TextAlignmentOptions.Center;
+        titleTmp.color = Color.black;
+        RectTransform titleRt = titleObj.GetComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 0.55f);
+        titleRt.anchorMax = new Vector2(1f, 1f);
+        titleRt.offsetMin = new Vector2(16f, 0f);
+        titleRt.offsetMax = new Vector2(-16f, -12f);
+
+        Button yesButton = panel.CreateChildButton("Yes");
+        RectTransform yesRt = yesButton.GetComponent<RectTransform>();
+        yesRt.anchorMin = new Vector2(0.15f, 0.12f);
+        yesRt.anchorMax = new Vector2(0.45f, 0.42f);
+        yesRt.offsetMin = Vector2.zero;
+        yesRt.offsetMax = Vector2.zero;
+
+        Button noButton = panel.CreateChildButton("No");
+        RectTransform noRt = noButton.GetComponent<RectTransform>();
+        noRt.anchorMin = new Vector2(0.55f, 0.12f);
+        noRt.anchorMax = new Vector2(0.85f, 0.42f);
+        noRt.offsetMin = Vector2.zero;
+        noRt.offsetMax = Vector2.zero;
+
+        bool finished = false;
+        yesButton.onClick.AddListener(() =>
+        {
+            finished = true;
+            onChosen?.Invoke(true);
+        });
+        noButton.onClick.AddListener(() =>
+        {
+            finished = true;
+            onChosen?.Invoke(false);
+        });
+
+        yield return new WaitUntil(() => finished);
+        Destroy(root);
+    }
+
+    /// <summary>
+    /// ゲーム開始時の先攻／後攻を画面中央に短時間表示する（TMPro使用）。
+    /// </summary>
+    private void ShowTurnOrderAlert(PlayerType firstPlayer)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            Debug.LogWarning("先攻アラート: Canvas が見つかりません。Inspector で Turn Order Alert Canvas を指定してください。");
+            return;
+        }
+
+        string message = firstPlayer == PlayerType.Player
+            ? "your turn first"
+            : "opponent turn first";
+        StartCoroutine(TurnOrderAlertCoroutine(canvas, message, turnOrderAlertDurationSeconds));
+    }
+
+    private IEnumerator TurnOrderAlertCoroutine(Canvas canvas, string message, float duration)
+    {
+        GameObject root = new GameObject("TurnOrderAlert", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        RectTransform rootRect = root.GetComponent<RectTransform>();
+        rootRect.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.5f);
+        dim.raycastTarget = false;
+
+        GameObject textObj = new GameObject("TurnOrderAlertText", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        textObj.transform.SetParent(root.transform, false);
+        TextMeshProUGUI tmp = textObj.GetComponent<TextMeshProUGUI>();
+        tmp.text = message;
+        tmp.fontSize = 38;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        textObj.GetComponent<RectTransform>().SetFullSize();
+
+        yield return new WaitForSeconds(duration);
+        if (root != null)
+        {
+            Object.Destroy(root);
+        }
     }
 
     private void OnCardClicked(CardController cardController)
@@ -172,7 +396,9 @@ public class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerSide ownerSide = ToRuleSide(ownerType);
         bool isInHand = cardController.transform.IsChildOf(ownerRule.HandScrollContent);
         bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel);
-       
+        bool isInShield = ownerRule.ShieldCardsContent != null
+            && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
+
         // クリック時にフィルターパネルを表示する処理
         FilterSetParentanvas = GetComponentInParent<Canvas>().rootCanvas;
 
@@ -211,6 +437,12 @@ public class BattleGameMain : MonoBehaviour
                 SendCardToTrash(cardController, ownerType);
                 Destroy(FilterPanel);
             });
+            return;
+        }
+
+        // シールドエリア：詳細表示のみ（場・手札と同様にフィルターで閲覧）
+        if (isInShield)
+        {
             return;
         }
 
@@ -301,28 +533,20 @@ public class BattleGameMain : MonoBehaviour
     }
     public bool DecideTurnOrder()
     {
-        // 0か1をランダムに取得 (Rangeの第2引数は未満なので、0か1が出る)
-        int result = Random.Range(0, 2);
+        // 先攻後攻は1回の乱数で決定（isFirstPlayer / currentPlayerType / currentPlayer を矛盾なく同期）
+        bool playerGoesFirst = Random.value < 0.5f;
+        isFirstPlayer = playerGoesFirst;
+        currentPlayerType = playerGoesFirst ? PlayerType.Player : PlayerType.Enemy;
+        currentPlayer = playerGoesFirst;
 
-        isFirstPlayer = (result == 0);
-        // 先攻後攻をランダムに決める
-        currentPlayerType = (Random.value < 0.5f) ? PlayerType.Player : PlayerType.Enemy;
-        
-        
-        // !以下不要
-        if (isFirstPlayer)
+        if (playerGoesFirst)
         {
-            
-            Debug.Log("あなたが先攻です。");
-            currentPlayer = true; // プレイヤーが先攻の場合はtrue
+            Debug.Log("your turn first");
             return true;
         }
-        else
-        {
-            currentPlayer = false; // エネミーが先攻の場合はfalse
-            Debug.Log("相手が先攻です。");
-            return false;
-        }
+
+        Debug.Log("opponent turn first");
+        return false;
     }
 
     public void ChangePhase(BattlePhase nextPhase)
@@ -466,6 +690,7 @@ public class BattleGameMain : MonoBehaviour
         CardGameRule targetRule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerState state = side == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player : gundamRule.Enemy;
         targetRule.ApplyExternalResourceState(state.level, state.resource);
+        targetRule.SetExBaseDisplay(state.exBase);
 
         if (side == Gundam2024RuleScript.PlayerSide.Player)
         {
@@ -579,12 +804,16 @@ public class BattleGameMain : MonoBehaviour
             return currentPlayerType;
         }
 
-        if (cardTransform.IsChildOf(cardGameRule.PlayerDeployPanel) || cardTransform.IsChildOf(cardGameRule.HandScrollContent))
+        if (cardTransform.IsChildOf(cardGameRule.PlayerDeployPanel)
+            || cardTransform.IsChildOf(cardGameRule.HandScrollContent)
+            || (cardGameRule.ShieldCardsContent != null && cardTransform.IsChildOf(cardGameRule.ShieldCardsContent)))
         {
             return PlayerType.Player;
         }
 
-        if (cardTransform.IsChildOf(enemyCardGameRule.PlayerDeployPanel) || cardTransform.IsChildOf(enemyCardGameRule.HandScrollContent))
+        if (cardTransform.IsChildOf(enemyCardGameRule.PlayerDeployPanel)
+            || cardTransform.IsChildOf(enemyCardGameRule.HandScrollContent)
+            || (enemyCardGameRule.ShieldCardsContent != null && cardTransform.IsChildOf(enemyCardGameRule.ShieldCardsContent)))
         {
             return PlayerType.Enemy;
         }
