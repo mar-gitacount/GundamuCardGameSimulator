@@ -375,7 +375,7 @@ public class CardGameRule
         shieldGrid.padding = new RectOffset(0, 0, 0, 0);
         shieldGrid.childAlignment = TextAnchor.UpperCenter;
         shieldGrid.constraint = GridLayoutGroup.Constraint.FixedRowCount;
-        shieldGrid.constraintCount = 5;
+        shieldGrid.constraintCount = 6;
         shieldGrid.startAxis = GridLayoutGroup.Axis.Vertical; 
     }
 

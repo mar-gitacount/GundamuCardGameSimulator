@@ -13,3 +13,8 @@
 *.csproj
 *.sln
 *.unitypackage
+
+# Local environment files
+.env
+.env.*
+tools/.env

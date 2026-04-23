@@ -88,7 +88,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
         Image img = shieldFaceCoverRoot.GetComponent<Image>();
-        img.color = new Color(0.12f, 0.14f, 0.22f, 1f);
+        // シールドの裏面表示は視認しやすい青にする
+        img.color = new Color(0.20f, 0.45f, 0.95f, 1f);
         img.raycastTarget = true;
     }
 
