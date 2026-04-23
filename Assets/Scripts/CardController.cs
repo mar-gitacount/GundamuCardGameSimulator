@@ -27,6 +27,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     /// <summary>ランタイムの攻撃フラグ（カードデータのアセットは変更しない）。</summary>
     private AttackFlg _attackFlg = AttackFlg.False;
     public AttackFlg AttackFlgState => _attackFlg;
+    public bool IsRestState { get; private set; }
 
     public void SetUp(CardData carddata,Action<CardController> callback)
     {
@@ -110,6 +111,28 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         string name = Data != null ? Data.cardName : "?";
         int id = Data != null ? Data.id : -1;
         Debug.Log($"[AttackFlg] {name} (id:{id}) => {_attackFlg}");
+    }
+
+    /// <summary>
+    /// ユニットの表示状態を更新する。
+    /// isRest=true: レスト（横向き） / false: アクティブ（起き）
+    /// </summary>
+    public void SetUnitRestVisual(bool isRest)
+    {
+        if (Data == null || Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        RectTransform rt = transform as RectTransform;
+        if (rt == null)
+        {
+            return;
+        }
+
+        IsRestState = isRest;
+        float z = isRest ? -90f : 0f;
+        rt.localRotation = Quaternion.Euler(0f, 0f, z);
     }
     public void OnPointerClick(PointerEventData eventData)
     {

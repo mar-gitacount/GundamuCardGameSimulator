@@ -499,18 +499,21 @@ public class BattleGameMain : MonoBehaviour
                     });
                 }
 
-                var unitAttackBtn = FilterPanel.CreateChildButton("Attack Unit (tap enemy unit on field)");
-                RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
-                unitAtkRect.sizeDelta = new Vector2(320, 50);
-                unitAtkRect.anchoredPosition = new Vector2(0, -70);
-                unitAttackBtn.onClick.AddListener(() =>
+                if (cardController.IsRestState)
                 {
-                    pendingUnitAttackAttacker = cardController;
-                    Debug.Log("Tap an enemy unit on the field to attack. Tap the same unit again to cancel.");
-                    Destroy(FilterPanel);
-                });
+                    var unitAttackBtn = FilterPanel.CreateChildButton("Attack Unit (tap enemy unit on field)");
+                    RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
+                    unitAtkRect.sizeDelta = new Vector2(320, 50);
+                    unitAtkRect.anchoredPosition = new Vector2(0, -70);
+                    unitAttackBtn.onClick.AddListener(() =>
+                    {
+                        pendingUnitAttackAttacker = cardController;
+                        Debug.Log("Tap an enemy unit on the field to attack. Tap the same unit again to cancel.");
+                        Destroy(FilterPanel);
+                    });
 
-                closeBtnRect.anchoredPosition = new Vector2(0, -200);
+                    closeBtnRect.anchoredPosition = new Vector2(0, -200);
+                }
             }
 
             var trashButton = FilterPanel.CreateChildButton("send to trash");
@@ -849,38 +852,43 @@ public class BattleGameMain : MonoBehaviour
             }
         }
 
-        // ユニット配備直後は攻撃不可（次の自分ターン開始で True）
+        // ユニット配備直後はアクティブ（起き状態）で配置する。
         if (cardController.Data.type == Type.Unit)
         {
             cardController.ResetRuntimeStatsFromData();
+            // 配備ターン: 見た目はアクティブ(起き)だが、攻撃フラグは false
             cardController.SetAttackFlg(AttackFlg.False);
+            cardController.SetUnitRestVisual(false);
         }
     }
 
     /// <summary>
-    /// 自分ターン開始時：場の自軍ユニットの AttackFlg を True にリフレッシュ（ルールブック準拠の追跡用）。
+    /// 自分ターン開始時：場の自軍ユニットをアクティブ(True)へ更新。
+    /// 表示は起き状態になり、この状態で攻撃可能。
     /// </summary>
     private void ApplyTurnStartAttackFlgForCurrentPlayer()
     {
         if (currentPlayerType == PlayerType.Player)
         {
-            Debug.Log("[AttackFlg] プレイヤーターン開始：場のユニットを True に設定");
+            Debug.Log("[AttackFlg] プレイヤーターン開始：場のユニットをアクティブ(True)に設定");
             foreach (var c in playerBattleZoneCards)
             {
                 if (c != null && c.Data != null && c.Data.type == Type.Unit)
                 {
                     c.SetAttackFlg(AttackFlg.True);
+                    c.SetUnitRestVisual(false);
                 }
             }
         }
         else
         {
-            Debug.Log("[AttackFlg] エネミーターン開始：場のユニットを True に設定");
+            Debug.Log("[AttackFlg] エネミーターン開始：場のユニットをアクティブ(True)に設定");
             foreach (var c in enemyBattleZoneCards)
             {
                 if (c != null && c.Data != null && c.Data.type == Type.Unit)
                 {
                     c.SetAttackFlg(AttackFlg.True);
+                    c.SetUnitRestVisual(false);
                 }
             }
         }
@@ -1072,6 +1080,7 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // シールド攻撃は攻撃可能フラグ(True)のみで判定する。
         if (attacker.AttackFlgState != AttackFlg.True)
         {
             Debug.Log("This unit cannot attack.");
@@ -1104,6 +1113,7 @@ public class BattleGameMain : MonoBehaviour
         }
 
         attacker.SetAttackFlg(AttackFlg.False);
+        attacker.SetUnitRestVisual(true);
         if (exBaseBefore > 0)
         {
             Debug.Log($"[Attack] Dealt {attacker.Data.power} to EX Base. EX Base is now {defender.exBase}.");
@@ -1134,7 +1144,8 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (attacker.AttackFlgState != AttackFlg.True)
+        // レスト状態のユニットのみ攻撃可能（将来、アクティブを攻撃できる例外効果を追加予定）
+        if (!attacker.IsRestState)
         {
             Debug.Log("This unit cannot attack.");
             return;
@@ -1143,6 +1154,7 @@ public class BattleGameMain : MonoBehaviour
         defender.ApplyDamage(attacker.Data.power);
         attacker.ApplyDamage(defender.Data.power);
         attacker.SetAttackFlg(AttackFlg.False);
+        attacker.SetUnitRestVisual(true);
 
         if (defender.CurrentHp <= 0)
         {
