@@ -434,6 +434,9 @@ public class BattleGameMain : MonoBehaviour
         bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel);
         bool isInShield = ownerRule.ShieldCardsContent != null
             && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
+        bool isOnAnyDeployField =
+            cardController.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
+            || cardController.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel);
 
         if (isInShield && cardController.IsShieldFaceHidden)
         {
@@ -458,6 +461,17 @@ public class BattleGameMain : MonoBehaviour
         // targetImg.sprite = sourceImg.sprite; 
         GameObject copy = FilterPanel.CreateChildImageFrom(cardController.gameObject);
         FilterPanel.SetActive(true);
+
+        if (isOnAnyDeployField && cardController.Data != null)
+        {
+            TextMeshProUGUI battleStatText = FilterPanel.CreateChildTextCustom("BattleStatText", UIAnchor.TopCenter, 320, 44);
+            battleStatText.text = $"AP:{cardController.Data.power}  HP:{cardController.CurrentHp}";
+            battleStatText.fontSize = 28;
+            battleStatText.color = Color.black;
+            RectTransform statRt = battleStatText.GetComponent<RectTransform>();
+            statRt.anchoredPosition = new Vector2(0f, -30f);
+            battleStatText.transform.SetAsLastSibling();
+        }
 
         // どのケースでも閉じられるようにする
         var closeButton = FilterPanel.CreateChildButton("close");
