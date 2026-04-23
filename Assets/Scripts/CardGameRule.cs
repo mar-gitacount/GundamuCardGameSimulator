@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,6 +44,7 @@ public class CardGameRule
     private GridLayoutGroup shieldGrid;
     private TextMeshProUGUI exBaseDisplayText;
     private readonly List<int> shieldCardIds = new List<int>();
+    private readonly List<CardController> shieldControllersInDrawOrder = new List<CardController>();
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
     /// </summary>
@@ -237,6 +239,7 @@ public class CardGameRule
     public void SetupShieldFromDeckAfterMulligan(GameObject cardPrefab, System.Action<CardController> onShieldCardClicked, int shieldCardCount, int exBasePoints)
     {
         shieldCardIds.Clear();
+        shieldControllersInDrawOrder.Clear();
         if (shieldCardsContent == null || cardPrefab == null)
         {
             Debug.LogWarning("シールド設置: コンテナまたはカードプレハブがありません。");
@@ -245,7 +248,7 @@ public class CardGameRule
 
         for (int i = shieldCardsContent.childCount - 1; i >= 0; i--)
         {
-            Object.Destroy(shieldCardsContent.GetChild(i).gameObject);
+            UnityEngine.Object.Destroy(shieldCardsContent.GetChild(i).gameObject);
         }
 
         SetExBaseDisplay(exBasePoints);
@@ -260,7 +263,7 @@ public class CardGameRule
             }
             shieldCardIds.Add(id);
             CardData data = DeckSettinObject.Instance.GetCardDataById(id);
-            GameObject go = Object.Instantiate(cardPrefab, shieldCardsContent);
+            GameObject go = UnityEngine.Object.Instantiate(cardPrefab, shieldCardsContent);
             CardController cc = go.GetComponent<CardController>();
             if (cc != null)
             {
@@ -272,11 +275,73 @@ public class CardGameRule
                     cardRect.localScale = Vector3.one;
                     cardRect.sizeDelta = shieldGrid.cellSize;
                 }
+
+                shieldControllersInDrawOrder.Add(cc);
+                cc.SetShieldFaceHidden(true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// シールドが破壊された枚数ぶん、先頭からカードをトラッシュへ送り UI から取り除く（<see cref="Gundam2024RuleScript.DamageShield"/> と連動）。
+    /// </summary>
+    public void MoveTopShieldCardsToTrash(int count)
+    {
+        if (count <= 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (shieldControllersInDrawOrder.Count == 0 || shieldCardIds.Count == 0)
+            {
+                break;
+            }
+
+            CardController cc = shieldControllersInDrawOrder[0];
+            int id = shieldCardIds[0];
+            shieldControllersInDrawOrder.RemoveAt(0);
+            shieldCardIds.RemoveAt(0);
+            AddCardToTrash(id);
+            if (cc != null)
+            {
+                UnityEngine.Object.Destroy(cc.gameObject);
             }
         }
     }
 
     public IReadOnlyList<int> GetShieldCardIds() => shieldCardIds;
+
+    public IReadOnlyList<int> GetTrashCardIds() => trashList;
+
+    /// <summary>トラッシュエリアクリックで一覧を開くためのリスナーを登録する。</summary>
+    public void BindTrashAreaClick(Action onClick)
+    {
+        if (trashAreaPanel == null || onClick == null)
+        {
+            return;
+        }
+
+        Image bg = trashAreaPanel.GetComponent<Image>();
+        if (bg == null)
+        {
+            bg = trashAreaPanel.AddComponent<Image>();
+            bg.color = new Color(1f, 1f, 1f, 0.04f);
+        }
+
+        bg.raycastTarget = true;
+
+        Button btn = trashAreaPanel.GetComponent<Button>();
+        if (btn == null)
+        {
+            btn = trashAreaPanel.AddComponent<Button>();
+        }
+
+        btn.transition = Selectable.Transition.None;
+        btn.onClick.RemoveAllListeners();
+        btn.onClick.AddListener(() => onClick());
+    }
 
     public void SetExBaseDisplay(int points)
     {
