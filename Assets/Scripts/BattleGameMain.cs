@@ -77,7 +77,7 @@ public class BattleGameMain : MonoBehaviour
     [Header("オープニング・シールド")]
     [Tooltip("未指定時は EX ベース 3 として扱います。Gundam_Rules.pdf に準拠。")]
     [SerializeField] private ExBaseData exBaseData;
-    private const int OpeningShieldCardCount = 5;
+    private const int OpeningShieldCardCount = 6;
 
     public enum PlayerType{Player,Enemy}
 
