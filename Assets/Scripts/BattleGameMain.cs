@@ -499,21 +499,18 @@ public class BattleGameMain : MonoBehaviour
                     });
                 }
 
-                if (cardController.IsRestState)
+                var unitAttackBtn = FilterPanel.CreateChildButton("Attack Unit (tap enemy REST unit)");
+                RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
+                unitAtkRect.sizeDelta = new Vector2(320, 50);
+                unitAtkRect.anchoredPosition = new Vector2(0, -70);
+                unitAttackBtn.onClick.AddListener(() =>
                 {
-                    var unitAttackBtn = FilterPanel.CreateChildButton("Attack Unit (tap enemy unit on field)");
-                    RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
-                    unitAtkRect.sizeDelta = new Vector2(320, 50);
-                    unitAtkRect.anchoredPosition = new Vector2(0, -70);
-                    unitAttackBtn.onClick.AddListener(() =>
-                    {
-                        pendingUnitAttackAttacker = cardController;
-                        Debug.Log("Tap an enemy unit on the field to attack. Tap the same unit again to cancel.");
-                        Destroy(FilterPanel);
-                    });
+                    pendingUnitAttackAttacker = cardController;
+                    Debug.Log("Tap an enemy REST unit to attack. Tap the same unit again to cancel.");
+                    Destroy(FilterPanel);
+                });
 
-                    closeBtnRect.anchoredPosition = new Vector2(0, -200);
-                }
+                closeBtnRect.anchoredPosition = new Vector2(0, -200);
             }
 
             var trashButton = FilterPanel.CreateChildButton("send to trash");
@@ -742,11 +739,99 @@ public class BattleGameMain : MonoBehaviour
     {
 
         Debug.Log("エネミーの行動を開始します。");
-        // エネミーの行動をシミュレートするために、数秒待つ
-        yield return new WaitForSeconds(2f);
-        Debug.Log("エネミーの行動が終了しました。");
+        yield return new WaitForSeconds(0.8f);
+
+        bool deployed = TryEnemyDeployUnitFromHand();
+        if (deployed)
+        {
+            yield return new WaitForSeconds(0.6f);
+        }
+
+        int attacked = TryEnemyShieldAttacks();
+        if (attacked > 0)
+        {
+            yield return new WaitForSeconds(0.6f);
+        }
+
+        Debug.Log($"エネミーの行動が終了しました。deploy:{deployed} shieldAttack:{attacked}");
         // エンドフェイズに移行する
         ChangePhase(BattlePhase.EndTurn);
+    }
+
+    /// <summary>
+    /// エネミー手札から、現在のレベル/リソースで出せる最初のユニットを1体だけ配備する。
+    /// </summary>
+    private bool TryEnemyDeployUnitFromHand()
+    {
+        RectTransform hand = enemyCardGameRule.HandScrollContent;
+        if (hand == null)
+        {
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Enemy;
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController cc = hand.GetChild(i).GetComponent<CardController>();
+            if (cc == null || cc.Data == null || cc.Data.type != Type.Unit)
+            {
+                continue;
+            }
+
+            if (!gundamRule.CanPlayCard(side, cc.Data))
+            {
+                continue;
+            }
+
+            if (!gundamRule.TryConsumeResource(side, cc.Data.cost))
+            {
+                continue;
+            }
+
+            SendCardToField(cc, PlayerType.Enemy, enemyCardGameRule);
+            SyncResourceViewsFromRule(side);
+            Debug.Log($"[Enemy] ユニット配備: {cc.Data.cardName}");
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 攻撃可能なエネミーユニットで、可能な限りシールドへ攻撃する（簡易AI）。
+    /// </summary>
+    private int TryEnemyShieldAttacks()
+    {
+        int count = 0;
+        // 攻撃中に状態が変化するためスナップショットで回す。
+        List<CardController> snapshot = new List<CardController>(enemyBattleZoneCards);
+        foreach (CardController unit in snapshot)
+        {
+            if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+            {
+                continue;
+            }
+
+            if (unit.AttackFlgState != AttackFlg.True)
+            {
+                continue;
+            }
+
+            if (!gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.Data.power))
+            {
+                continue;
+            }
+
+            TryUnitShieldAttackFromUnit(unit);
+            count++;
+
+            if (gundamRule.IsGameOver(out Gundam2024RuleScript.PlayerSide _))
+            {
+                break;
+            }
+        }
+
+        return count;
     }
 
     void ExcueteEndTurn()
@@ -1018,6 +1103,34 @@ public class BattleGameMain : MonoBehaviour
         return zone.Contains(c) && c.CurrentHp > 0;
     }
 
+    private bool IsRestEnemyUnitTarget(CardController target, PlayerType attackerOwner)
+    {
+        if (target == null || target.Data == null || target.Data.type != Type.Unit)
+        {
+            return false;
+        }
+
+        bool inPlayerField = target.transform.IsChildOf(cardGameRule.PlayerDeployPanel);
+        bool inEnemyField = target.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel);
+        if (!inPlayerField && !inEnemyField)
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = inPlayerField ? PlayerType.Player : PlayerType.Enemy;
+        if (targetOwner == attackerOwner)
+        {
+            return false;
+        }
+
+        if (!target.IsRestState)
+        {
+            return false;
+        }
+
+        return IsUnitAliveOnField(target);
+    }
+
     /// <summary>「相手ユニットを攻撃」後のターゲット解決。true のときは以降のフィルター処理を行わない。</summary>
     private bool TryHandlePendingUnitAttackTarget(CardController clicked)
     {
@@ -1045,23 +1158,28 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        PlayerType clickedOwner = ResolveCardOwner(clicked.transform);
-        bool clickedOnField = IsOnDeployPanel(clicked, clickedOwner);
+        bool clickedOnAnyField = clicked != null
+            && (clicked.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
+                || clicked.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel));
 
-        if (clicked == pendingUnitAttackAttacker && clickedOnField)
+        if (clicked == pendingUnitAttackAttacker && clickedOnAnyField)
         {
             pendingUnitAttackAttacker = null;
             Debug.Log("Unit attack canceled.");
             return true;
         }
 
-        if (clickedOnField
-            && clickedOwner != attackerOwner
-            && clicked.Data != null
-            && clicked.Data.type == Type.Unit)
+        if (IsRestEnemyUnitTarget(clicked, attackerOwner))
         {
-            TryUnitVsUnitAttack(pendingUnitAttackAttacker, clicked, attackerOwner, clickedOwner);
+            PlayerType defenderOwner = ResolveCardOwner(clicked.transform);
+            TryUnitVsUnitAttack(pendingUnitAttackAttacker, clicked, attackerOwner, defenderOwner);
             pendingUnitAttackAttacker = null;
+            return true;
+        }
+
+        if (clickedOnAnyField)
+        {
+            Debug.Log("Only REST enemy units can be selected as attack targets.");
             return true;
         }
 
@@ -1144,8 +1262,15 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // レスト状態のユニットのみ攻撃可能（将来、アクティブを攻撃できる例外効果を追加予定）
-        if (!attacker.IsRestState)
+        // 基本ルール: ユニットはレスト状態の相手ユニットのみ攻撃できる。
+        if (!defender.IsRestState)
+        {
+            Debug.Log("Only REST units can be attacked.");
+            return;
+        }
+
+        // 攻撃側は攻撃可能フラグ(True)で判定する。
+        if (attacker.AttackFlgState != AttackFlg.True)
         {
             Debug.Log("This unit cannot attack.");
             return;
