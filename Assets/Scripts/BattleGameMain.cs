@@ -93,6 +93,34 @@ public class BattleGameMain : MonoBehaviour
 
     private CardController copyCardController;
 
+    /// <summary>「相手ユニットを攻撃」選択後、次にタップする相手ユニット。</summary>
+    private CardController pendingUnitAttackAttacker;
+
+    private void Awake()
+    {
+        gundamRule.OnShieldDamaged += OnGundamShieldDamaged;
+    }
+
+    private void OnDestroy()
+    {
+        if (gundamRule != null)
+        {
+            gundamRule.OnShieldDamaged -= OnGundamShieldDamaged;
+        }
+    }
+
+    private void OnGundamShieldDamaged(Gundam2024RuleScript.PlayerSide side, int oldShield, int newShield)
+    {
+        int broken = oldShield - newShield;
+        if (broken <= 0)
+        {
+            return;
+        }
+
+        CardGameRule rule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
+        rule.MoveTopShieldCardsToTrash(broken);
+    }
+
     private void Start()
     {
         StartCoroutine(BattleSetupCoroutine());
@@ -116,6 +144,9 @@ public class BattleGameMain : MonoBehaviour
         enemyCardGameRule.SetUp(EnemyPlayerFieldPanel);
         enemyCardGameRule.PlayerFieldPanel.SetRotation(180f);
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData);
+
+        cardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(cardGameRule));
+        enemyCardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(enemyCardGameRule));
 
         gundamRule.InitializeGame(
             cardGameRule.GetRemainingCount(),
@@ -391,6 +422,11 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (TryHandlePendingUnitAttackTarget(cardController))
+        {
+            return;
+        }
+
         PlayerType ownerType = ResolveCardOwner(cardController.transform);
         CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerSide ownerSide = ToRuleSide(ownerType);
@@ -398,6 +434,12 @@ public class BattleGameMain : MonoBehaviour
         bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel);
         bool isInShield = ownerRule.ShieldCardsContent != null
             && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
+
+        if (isInShield && cardController.IsShieldFaceHidden)
+        {
+            Debug.Log("シールドは裏向きです。破壊されると中身が表示されます。");
+            return;
+        }
 
         // クリック時にフィルターパネルを表示する処理
         FilterSetParentanvas = GetComponentInParent<Canvas>().rootCanvas;
@@ -427,10 +469,54 @@ public class BattleGameMain : MonoBehaviour
         // 場のカードはトラッシュ送り操作を可能にする。
         if (isOnField)
         {
+            bool canShowUnitAttackMenu = currentPhase == BattlePhase.MainPhase
+                && ownerType == currentPlayerType
+                && cardController.Data.type == Type.Unit
+                && cardController.AttackFlgState == AttackFlg.True;
+
+            if (canShowUnitAttackMenu)
+            {
+                Gundam2024RuleScript.PlayerState opponentState = ownerType == PlayerType.Player
+                    ? gundamRule.Enemy
+                    : gundamRule.Player;
+                bool showShieldAttack = gundamRule.CanShowUnitShieldAttackOption(
+                    opponentState,
+                    cardController.Data.power);
+
+                if (showShieldAttack)
+                {
+                    string shieldLabel = opponentState.exBase > 0
+                        ? $"Attack Shield (deal {cardController.Data.power} to EX Base)"
+                        : "Attack Shield (break 1)";
+                    var shieldAttackBtn = FilterPanel.CreateChildButton(shieldLabel);
+                    RectTransform shieldRect = shieldAttackBtn.GetComponent<RectTransform>();
+                    shieldRect.sizeDelta = new Vector2(320, 50);
+                    shieldRect.anchoredPosition = new Vector2(0, -10);
+                    shieldAttackBtn.onClick.AddListener(() =>
+                    {
+                        TryUnitShieldAttackFromUnit(cardController);
+                        Destroy(FilterPanel);
+                    });
+                }
+
+                var unitAttackBtn = FilterPanel.CreateChildButton("Attack Unit (tap enemy unit on field)");
+                RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
+                unitAtkRect.sizeDelta = new Vector2(320, 50);
+                unitAtkRect.anchoredPosition = new Vector2(0, -70);
+                unitAttackBtn.onClick.AddListener(() =>
+                {
+                    pendingUnitAttackAttacker = cardController;
+                    Debug.Log("Tap an enemy unit on the field to attack. Tap the same unit again to cancel.");
+                    Destroy(FilterPanel);
+                });
+
+                closeBtnRect.anchoredPosition = new Vector2(0, -200);
+            }
+
             var trashButton = FilterPanel.CreateChildButton("send to trash");
             RectTransform trashBtnRect = trashButton.GetComponent<RectTransform>();
             trashBtnRect.sizeDelta = new Vector2(180, 50);
-            trashBtnRect.anchoredPosition = new Vector2(0, -70);
+            trashBtnRect.anchoredPosition = new Vector2(0, canShowUnitAttackMenu ? -130 : -70);
 
             trashButton.onClick.AddListener(() =>
             {
@@ -662,6 +748,8 @@ public class BattleGameMain : MonoBehaviour
 
     void ExcueteEndTurn()
     {
+        pendingUnitAttackAttacker = null;
+
         // プレイヤーとエネミーのターンを切り替える
         currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
         AdvanceRuleToNextTurnStart();
@@ -764,6 +852,7 @@ public class BattleGameMain : MonoBehaviour
         // ユニット配備直後は攻撃不可（次の自分ターン開始で True）
         if (cardController.Data.type == Type.Unit)
         {
+            cardController.ResetRuntimeStatsFromData();
             cardController.SetAttackFlg(AttackFlg.False);
         }
     }
@@ -819,6 +908,258 @@ public class BattleGameMain : MonoBehaviour
         }
 
         return currentPlayerType;
+    }
+
+    /// <summary>トラッシュエリアクリックで、トラッシュに入ったカードを一覧表示する。</summary>
+    private void OpenTrashInspectionPanel(CardGameRule rule)
+    {
+        if (rule == null || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        GameObject root = new GameObject("TrashInspectRoot", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("TrashTitle", UIAnchor.TopCenter, 520, 48);
+        title.text = "トラッシュ一覧";
+        title.fontSize = 28;
+        title.color = Color.white;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        GameObject scrollGo = root.CreateGridScrollView(560, 360, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -88f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.75f, 56f);
+
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+        if (content != null)
+        {
+            IReadOnlyList<int> ids = rule.GetTrashCardIds();
+            if (ids.Count == 0)
+            {
+                TextMeshProUGUI empty = content.gameObject.CreateChildTextCustom("EmptyTrash", UIAnchor.TopCenter, 480, 40);
+                empty.text = "（トラッシュは空です）";
+                empty.fontSize = 22;
+                empty.color = new Color(0.9f, 0.9f, 0.9f, 1f);
+                empty.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+            }
+            else
+            {
+                foreach (int id in ids)
+                {
+                    CardData data = DeckSettinObject.Instance.GetCardDataById(id);
+                    if (data == null)
+                    {
+                        continue;
+                    }
+
+                    GameObject go = Instantiate(CardImagePrefab, content);
+                    CardController cc = go.GetComponent<CardController>();
+                    if (cc != null)
+                    {
+                        cc.SetUp(data, _ => { });
+                        go.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
+                    }
+                }
+            }
+        }
+
+        Button closeBtn = root.CreateChildButton("Close");
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(160f, 44f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(0f, 36f);
+        closeBtn.onClick.AddListener(() => Destroy(root));
+    }
+
+    private bool IsOnDeployPanel(CardController c, PlayerType owner)
+    {
+        if (c == null)
+        {
+            return false;
+        }
+
+        CardGameRule rule = owner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        return c.transform.IsChildOf(rule.PlayerDeployPanel);
+    }
+
+    private bool IsUnitAliveOnField(CardController c)
+    {
+        if (c == null || c.Data == null || c.Data.type != Type.Unit)
+        {
+            return false;
+        }
+
+        PlayerType o = ResolveCardOwner(c.transform);
+        List<CardController> zone = o == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        return zone.Contains(c) && c.CurrentHp > 0;
+    }
+
+    /// <summary>「相手ユニットを攻撃」後のターゲット解決。true のときは以降のフィルター処理を行わない。</summary>
+    private bool TryHandlePendingUnitAttackTarget(CardController clicked)
+    {
+        if (pendingUnitAttackAttacker == null)
+        {
+            return false;
+        }
+
+        if (currentPhase != BattlePhase.MainPhase)
+        {
+            pendingUnitAttackAttacker = null;
+            return false;
+        }
+
+        PlayerType attackerOwner = ResolveCardOwner(pendingUnitAttackAttacker.transform);
+        if (attackerOwner != currentPlayerType)
+        {
+            pendingUnitAttackAttacker = null;
+            return false;
+        }
+
+        if (!IsUnitAliveOnField(pendingUnitAttackAttacker))
+        {
+            pendingUnitAttackAttacker = null;
+            return false;
+        }
+
+        PlayerType clickedOwner = ResolveCardOwner(clicked.transform);
+        bool clickedOnField = IsOnDeployPanel(clicked, clickedOwner);
+
+        if (clicked == pendingUnitAttackAttacker && clickedOnField)
+        {
+            pendingUnitAttackAttacker = null;
+            Debug.Log("Unit attack canceled.");
+            return true;
+        }
+
+        if (clickedOnField
+            && clickedOwner != attackerOwner
+            && clicked.Data != null
+            && clicked.Data.type == Type.Unit)
+        {
+            TryUnitVsUnitAttack(pendingUnitAttackAttacker, clicked, attackerOwner, clickedOwner);
+            pendingUnitAttackAttacker = null;
+            return true;
+        }
+
+        pendingUnitAttackAttacker = null;
+        Debug.Log("Attack target selection canceled.");
+        return false;
+    }
+
+    /// <summary>
+    /// シールド攻撃。EXベースありなら power を EX ベースに与え、無いならシールド 1 枚のみ破壊（<see cref="Gundam2024RuleScript.TryApplyUnitShieldAttack"/>）。
+    /// </summary>
+    private void TryUnitShieldAttackFromUnit(CardController attacker)
+    {
+        if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        if (attacker.AttackFlgState != AttackFlg.True)
+        {
+            Debug.Log("This unit cannot attack.");
+            return;
+        }
+
+        if (currentPhase != BattlePhase.MainPhase)
+        {
+            return;
+        }
+
+        PlayerType attackerOwner = ResolveCardOwner(attacker.transform);
+        if (attackerOwner != currentPlayerType)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+
+        int exBaseBefore = defender.exBase;
+        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.Data.power))
+        {
+            Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
+            return;
+        }
+
+        attacker.SetAttackFlg(AttackFlg.False);
+        if (exBaseBefore > 0)
+        {
+            Debug.Log($"[Attack] Dealt {attacker.Data.power} to EX Base. EX Base is now {defender.exBase}.");
+        }
+        else
+        {
+            Debug.Log("[Attack] Broke 1 shield (no EX Base).");
+        }
+
+        SyncAllResourceViewsFromRule();
+
+        if (gundamRule.IsGameOver(out Gundam2024RuleScript.PlayerSide winner))
+        {
+            Debug.Log($"Game over. Winner: {winner}");
+        }
+    }
+
+    private void TryUnitVsUnitAttack(CardController attacker, CardController defender, PlayerType attackerOwner, PlayerType defenderOwner)
+    {
+        if (currentPhase != BattlePhase.MainPhase || attackerOwner != currentPlayerType)
+        {
+            return;
+        }
+
+        if (attacker.Data.type != Type.Unit || defender.Data.type != Type.Unit)
+        {
+            Debug.Log("Only units can attack each other.");
+            return;
+        }
+
+        if (attacker.AttackFlgState != AttackFlg.True)
+        {
+            Debug.Log("This unit cannot attack.");
+            return;
+        }
+
+        defender.ApplyDamage(attacker.Data.power);
+        attacker.ApplyDamage(defender.Data.power);
+        attacker.SetAttackFlg(AttackFlg.False);
+
+        if (defender.CurrentHp <= 0)
+        {
+            SendCardToTrash(defender, defenderOwner);
+        }
+
+        if (attacker.CurrentHp <= 0)
+        {
+            SendCardToTrash(attacker, attackerOwner);
+        }
+
+        SyncAllResourceViewsFromRule();
+
+        if (gundamRule.IsGameOver(out Gundam2024RuleScript.PlayerSide winner))
+        {
+            Debug.Log($"ゲーム終了 勝者: {winner}");
+        }
     }
 
     private void ConfigureEndTurnButtonInHandPanel()

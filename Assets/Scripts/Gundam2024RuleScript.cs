@@ -67,6 +67,8 @@ public class Gundam2024RuleScript
 
     public event Action<PlayerSide, TurnPhase> OnPhaseChanged;
     public event Action<PlayerSide> OnTurnChanged;
+    /// <summary>第2引数: 減少前のシールド枚数、第3引数: 減少後。</summary>
+    public event Action<PlayerSide, int, int> OnShieldDamaged;
 
     public void InitializeGame(int playerDeckCount, int enemyDeckCount, PlayerSide firstPlayer)
     {
@@ -168,7 +170,54 @@ public class Gundam2024RuleScript
         }
 
         PlayerState target = GetState(targetSide);
+        int before = target.shield;
         target.shield = Mathf.Max(0, target.shield - amount);
+        OnShieldDamaged?.Invoke(targetSide, before, target.shield);
+    }
+
+    /// <summary>
+    /// ユニットのシールド攻撃。EXベースが1以上なら power 分を EX ベースに与える（シールド枚数は減らない）。
+    /// EXベースが無い（0以下）なら、power に関わらずシールドを 1 枚だけ破壊する。
+    /// </summary>
+    public bool TryApplyUnitShieldAttack(PlayerSide defenderSide, int attackerPower)
+    {
+        PlayerState defender = GetState(defenderSide);
+        if (defender.shield <= 0)
+        {
+            return false;
+        }
+
+        int p = Mathf.Max(0, attackerPower);
+
+        if (defender.exBase > 0)
+        {
+            if (p <= 0)
+            {
+                return false;
+            }
+
+            defender.exBase = Mathf.Max(0, defender.exBase - p);
+            return true;
+        }
+
+        DamageShield(defenderSide, 1);
+        return true;
+    }
+
+    /// <summary>シールド攻撃ボタンを出すか（シールドが残っていること、EXベースあり時は power 必須）。</summary>
+    public bool CanShowUnitShieldAttackOption(PlayerState defender, int attackerPower)
+    {
+        if (defender == null || defender.shield <= 0)
+        {
+            return false;
+        }
+
+        if (defender.exBase > 0)
+        {
+            return attackerPower > 0;
+        }
+
+        return true;
     }
 
     public bool IsDefeated(PlayerSide side)
