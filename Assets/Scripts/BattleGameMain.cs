@@ -92,6 +92,7 @@ public class BattleGameMain : MonoBehaviour
     private List<CardController> enemyBattleZoneCards = new List<CardController>();
 
     private CardController copyCardController;
+    private bool isMatchFinished;
 
     /// <summary>「相手ユニットを攻撃」選択後、次にタップする相手ユニット。</summary>
     private CardController pendingUnitAttackAttacker;
@@ -417,6 +418,11 @@ public class BattleGameMain : MonoBehaviour
 
     private void OnCardClicked(CardController cardController)
     {
+        if (isMatchFinished)
+        {
+            return;
+        }
+
         if (cardController == null || cardController.Data == null)
         {
             return;
@@ -496,12 +502,15 @@ public class BattleGameMain : MonoBehaviour
                 bool showShieldAttack = gundamRule.CanShowUnitShieldAttackOption(
                     opponentState,
                     cardController.Data.power);
+                bool showDirectAttack = opponentState.shield <= 0;
 
-                if (showShieldAttack)
+                if (showShieldAttack || showDirectAttack)
                 {
-                    string shieldLabel = opponentState.exBase > 0
-                        ? $"Attack Shield (deal {cardController.Data.power} to EX Base)"
-                        : "Attack Shield (break 1)";
+                    string shieldLabel = showDirectAttack
+                        ? "Direct Attack"
+                        : opponentState.exBase > 0
+                            ? $"Attack Shield (deal {cardController.Data.power} to EX Base)"
+                            : "Attack Shield (break 1)";
                     var shieldAttackBtn = FilterPanel.CreateChildButton(shieldLabel);
                     RectTransform shieldRect = shieldAttackBtn.GetComponent<RectTransform>();
                     shieldRect.sizeDelta = new Vector2(320, 50);
@@ -651,6 +660,11 @@ public class BattleGameMain : MonoBehaviour
 
     public void ChangePhase(BattlePhase nextPhase)
     {
+        if (isMatchFinished)
+        {
+            return;
+        }
+
         currentPhase = nextPhase;
         UpdateEndTurnButtonVisibility();
         switch (currentPhase)
@@ -751,6 +765,10 @@ public class BattleGameMain : MonoBehaviour
     }
     IEnumerator EnemyActionCoroutine()
     {
+        if (isMatchFinished)
+        {
+            yield break;
+        }
 
         Debug.Log("エネミーの行動を開始します。");
         yield return new WaitForSeconds(0.8f);
@@ -816,6 +834,11 @@ public class BattleGameMain : MonoBehaviour
     /// </summary>
     private int TryEnemyShieldAttacks()
     {
+        if (isMatchFinished)
+        {
+            return 0;
+        }
+
         int count = 0;
         // 攻撃中に状態が変化するためスナップショットで回す。
         List<CardController> snapshot = new List<CardController>(enemyBattleZoneCards);
@@ -831,18 +854,16 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.Data.power))
+            bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.Data.power);
+            bool canDirectAttack = gundamRule.Player.shield <= 0;
+            if (!canAttackShield && !canDirectAttack)
             {
                 continue;
             }
 
             TryUnitShieldAttackFromUnit(unit);
             count++;
-
-            if (gundamRule.IsGameOver(out Gundam2024RuleScript.PlayerSide _))
-            {
-                break;
-            }
+            if (isMatchFinished) break;
         }
 
         return count;
@@ -1105,16 +1126,16 @@ public class BattleGameMain : MonoBehaviour
         return c.transform.IsChildOf(rule.PlayerDeployPanel);
     }
 
-    private bool IsUnitAliveOnField(CardController c)
+    private bool IsUnitAliveOnAnyDeployField(CardController c)
     {
         if (c == null || c.Data == null || c.Data.type != Type.Unit)
         {
             return false;
         }
 
-        PlayerType o = ResolveCardOwner(c.transform);
-        List<CardController> zone = o == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
-        return zone.Contains(c) && c.CurrentHp > 0;
+        bool onField = c.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
+            || c.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel);
+        return onField && c.CurrentHp > 0;
     }
 
     private bool IsRestEnemyUnitTarget(CardController target, PlayerType attackerOwner)
@@ -1142,7 +1163,7 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        return IsUnitAliveOnField(target);
+        return IsUnitAliveOnAnyDeployField(target);
     }
 
     /// <summary>「相手ユニットを攻撃」後のターゲット解決。true のときは以降のフィルター処理を行わない。</summary>
@@ -1166,7 +1187,7 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (!IsUnitAliveOnField(pendingUnitAttackAttacker))
+        if (!IsUnitAliveOnAnyDeployField(pendingUnitAttackAttacker))
         {
             pendingUnitAttackAttacker = null;
             return false;
@@ -1237,6 +1258,14 @@ public class BattleGameMain : MonoBehaviour
             ? gundamRule.Player
             : gundamRule.Enemy;
 
+        if (defender.shield <= 0)
+        {
+            attacker.SetAttackFlg(AttackFlg.False);
+            attacker.SetUnitRestVisual(true);
+            HandleDirectAttackWinLose(attackerOwner);
+            return;
+        }
+
         int exBaseBefore = defender.exBase;
         if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.Data.power))
         {
@@ -1256,11 +1285,6 @@ public class BattleGameMain : MonoBehaviour
         }
 
         SyncAllResourceViewsFromRule();
-
-        if (gundamRule.IsGameOver(out Gundam2024RuleScript.PlayerSide winner))
-        {
-            Debug.Log($"Game over. Winner: {winner}");
-        }
     }
 
     private void TryUnitVsUnitAttack(CardController attacker, CardController defender, PlayerType attackerOwner, PlayerType defenderOwner)
@@ -1306,11 +1330,54 @@ public class BattleGameMain : MonoBehaviour
         }
 
         SyncAllResourceViewsFromRule();
+    }
 
-        if (gundamRule.IsGameOver(out Gundam2024RuleScript.PlayerSide winner))
+    private void HandleDirectAttackWinLose(PlayerType attackerOwner)
+    {
+        if (isMatchFinished)
         {
-            Debug.Log($"ゲーム終了 勝者: {winner}");
+            return;
         }
+
+        isMatchFinished = true;
+        bool playerWin = attackerOwner == PlayerType.Player;
+        ShowResultOverlay(playerWin ? "WIN" : "LOSE");
+    }
+
+    private void ShowResultOverlay(string resultText)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            Debug.Log($"[Result] {resultText}");
+            return;
+        }
+
+        GameObject root = new GameObject("BattleResultOverlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+
+        Image bg = root.GetComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.65f);
+        bg.raycastTarget = true;
+
+        TextMeshProUGUI result = root.CreateChildTextCustom("ResultText", UIAnchor.TopCenter, 420, 120);
+        result.text = resultText;
+        result.fontSize = 72;
+        result.alignment = TextAlignmentOptions.Center;
+        result.color = resultText == "WIN" ? new Color32(255, 230, 80, 255) : new Color32(255, 120, 120, 255);
+        RectTransform resultRt = result.GetComponent<RectTransform>();
+        resultRt.anchoredPosition = new Vector2(0f, -220f);
+
+        Button close = root.CreateChildButton("Close");
+        RectTransform closeRt = close.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(180f, 52f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(0f, 60f);
+        close.onClick.AddListener(() => Destroy(root));
     }
 
     private void ConfigureEndTurnButtonInHandPanel()
