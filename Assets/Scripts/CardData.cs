@@ -21,6 +21,8 @@ public class CardData : ScriptableObject
     /// <summary>ユニット（Type.Unit）向け。アセット上の既定値。実行時は CardController で上書き。</summary>
     [Tooltip("ユニットのみ有効。配備時は False、自分ターン開始で True に更新（BattleGameMain）。")]
     public AttackFlg attackFlg = AttackFlg.False;
+    [Tooltip("カード効果定義（タイミング別）。")]
+    public List<TimedEffectData> timedEffects = new List<TimedEffectData>();
 
 }
 
