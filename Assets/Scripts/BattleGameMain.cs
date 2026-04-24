@@ -227,6 +227,11 @@ public class BattleGameMain : MonoBehaviour
             enemyCardGameRule.GetShieldCardIds().Count,
             enemyCardGameRule.GetRemainingCount());
 
+        Gundam2024RuleScript.PlayerSide secondPlayerSide = firstPlayerThisGame == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        gundamRule.AddExResource(secondPlayerSide, 1);
+
         SyncAllResourceViewsFromRule();
 
         ChangePhase(BattlePhase.StartTurn);
@@ -572,8 +577,11 @@ public class BattleGameMain : MonoBehaviour
         }
 
         int cost = cardController.Data.cost;
-        int currentLevel = ownerSide == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player.level : gundamRule.Enemy.level;
-        int currentResource = ownerSide == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player.resource : gundamRule.Enemy.resource;
+        Gundam2024RuleScript.PlayerState ownerState = ownerSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int currentLevel = ownerState.TotalLevel;
+        int currentResource = ownerState.resource;
 
         if (currentLevel < cardController.Data.level)
         {
@@ -584,26 +592,59 @@ public class BattleGameMain : MonoBehaviour
 
         if (currentResource < cost)
         {
-            Debug.Log("リソースポイントが足りません！");
-            // パネルは表示したままにして、内容確認できるようにする
+            int requiredEx = cost - currentResource;
+            if (ownerState.exResource < requiredEx)
+            {
+                Debug.Log("リソースポイントが足りません。EXリソースを含めても不足しています。");
+                return;
+            }
+
+            var exUseLabel = FilterPanel.CreateChildTextCustom("UseExPrompt", UIAnchor.TopCenter, 380, 60);
+            exUseLabel.text = $"Resource が {requiredEx} 足りません。EXリソースを利用しますか？";
+            exUseLabel.fontSize = 20;
+            exUseLabel.alignment = TextAlignmentOptions.Center;
+            exUseLabel.color = Color.black;
+            exUseLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
+
+            var yesBtn = FilterPanel.CreateChildButton($"Yes (Use EX:{requiredEx})");
+            RectTransform yesRt = yesBtn.GetComponent<RectTransform>();
+            yesRt.sizeDelta = new Vector2(220f, 50f);
+            yesRt.anchoredPosition = new Vector2(-125f, -90f);
+            yesBtn.onClick.AddListener(() =>
+            {
+                if (!gundamRule.TryConsumeResource(ownerSide, cost, requiredEx))
+                {
+                    Debug.Log("EX/リソースが不足しているため配備できません。");
+                    return;
+                }
+
+                SendCardToField(cardController, ownerType, ownerRule);
+                SyncResourceViewsFromRule(ownerSide);
+                Destroy(FilterPanel);
+            });
+
+            var noBtn = FilterPanel.CreateChildButton("No");
+            RectTransform noRt = noBtn.GetComponent<RectTransform>();
+            noRt.sizeDelta = new Vector2(220f, 50f);
+            noRt.anchoredPosition = new Vector2(125f, -90f);
+            noBtn.onClick.AddListener(() => Destroy(FilterPanel));
             return;
         }
 
         var playButton = FilterPanel.CreateChildButton("send to field");
         RectTransform btnRect = playButton.GetComponent<RectTransform>();
-        btnRect.sizeDelta = new Vector2(180, 50);
+        btnRect.sizeDelta = new Vector2(240, 50);
         btnRect.anchoredPosition = new Vector2(0, -10);
 
         playButton.onClick.AddListener(() =>
         {
-            if (!gundamRule.TryConsumeResource(ownerSide, cost))
+            if (!gundamRule.TryConsumeResource(ownerSide, cost, 0))
             {
                 Debug.Log("リソースポイントが足りません！");
                 return;
             }
 
             SendCardToField(cardController, ownerType, ownerRule);
-
             SyncResourceViewsFromRule(ownerSide);
             Destroy(FilterPanel);
         });
@@ -900,13 +941,17 @@ public class BattleGameMain : MonoBehaviour
     {
         CardGameRule targetRule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerState state = side == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player : gundamRule.Enemy;
-        targetRule.ApplyExternalResourceState(state.level, state.resource);
+        targetRule.ApplyExternalResourceState(state.TotalLevel, state.resource, state.exResource);
         targetRule.SetExBaseDisplay(state.exBase);
 
         if (side == Gundam2024RuleScript.PlayerSide.Player)
         {
-            PlayerlevelText.text = $"LV:{state.level}";
+            PlayerlevelText.text = $"LV:{state.TotalLevel}";
             PlayerresourcePointText.text = state.resource.ToString();
+            if (ExresourcePointText != null)
+            {
+                ExresourcePointText.text = state.exResource.ToString();
+            }
         }
     }
 
@@ -927,6 +972,25 @@ public class BattleGameMain : MonoBehaviour
     {
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Enemy);
+    }
+
+    /// <summary>
+    /// カード効果の共通入口: EXリソース増減を適用してUIを同期する。
+    /// amount が正なら増加、負なら減少。
+    /// </summary>
+    public void ApplyCardEffectExResourceDelta(PlayerType target, int amount)
+    {
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(target);
+        if (amount > 0)
+        {
+            gundamRule.AddExResource(side, amount);
+        }
+        else if (amount < 0)
+        {
+            gundamRule.AddExResource(side, amount);
+        }
+
+        SyncResourceViewsFromRule(side);
     }
 
     private void SendCardToTrash(CardController cardController, PlayerType ownerType)
@@ -1260,6 +1324,7 @@ public class BattleGameMain : MonoBehaviour
 
         if (defender.shield <= 0)
         {
+            Debug.Log("[DirectAttack] Shield is 0. Resolving direct attack.");
             attacker.SetAttackFlg(AttackFlg.False);
             attacker.SetUnitRestVisual(true);
             HandleDirectAttackWinLose(attackerOwner);
@@ -1362,21 +1427,25 @@ public class BattleGameMain : MonoBehaviour
         bg.color = new Color(0f, 0f, 0f, 0.65f);
         bg.raycastTarget = true;
 
-        TextMeshProUGUI result = root.CreateChildTextCustom("ResultText", UIAnchor.TopCenter, 420, 120);
+        TextMeshProUGUI result = root.CreateChildTextCustom("ResultText", UIAnchor.FullSize, 420, 120);
         result.text = resultText;
         result.fontSize = 72;
         result.alignment = TextAlignmentOptions.Center;
         result.color = resultText == "WIN" ? new Color32(255, 230, 80, 255) : new Color32(255, 120, 120, 255);
         RectTransform resultRt = result.GetComponent<RectTransform>();
-        resultRt.anchoredPosition = new Vector2(0f, -220f);
+        resultRt.anchorMin = new Vector2(0.5f, 0.5f);
+        resultRt.anchorMax = new Vector2(0.5f, 0.5f);
+        resultRt.pivot = new Vector2(0.5f, 0.5f);
+        resultRt.sizeDelta = new Vector2(420f, 120f);
+        resultRt.anchoredPosition = new Vector2(0f, 40f);
 
         Button close = root.CreateChildButton("Close");
         RectTransform closeRt = close.GetComponent<RectTransform>();
         closeRt.sizeDelta = new Vector2(180f, 52f);
-        closeRt.anchorMin = new Vector2(0.5f, 0f);
-        closeRt.anchorMax = new Vector2(0.5f, 0f);
-        closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(0f, 60f);
+        closeRt.anchorMin = new Vector2(0.5f, 0.5f);
+        closeRt.anchorMax = new Vector2(0.5f, 0.5f);
+        closeRt.pivot = new Vector2(0.5f, 0.5f);
+        closeRt.anchoredPosition = new Vector2(0f, -60f);
         close.onClick.AddListener(() => Destroy(root));
     }
 

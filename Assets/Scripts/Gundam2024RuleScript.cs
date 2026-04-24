@@ -40,17 +40,20 @@ public class Gundam2024RuleScript
     {
         public int level;
         public int resource;
+        public int exResource;
         /// <summary>シールド枚数（山札からシールドエリアに置いたカード数と同期させる想定）。</summary>
         public int shield;
         /// <summary>EXベース（ルール上のカウンター。初期値はマリガン後のセットアップで設定）。</summary>
         public int exBase;
         public int handCount;
         public int deckCount;
+        public int TotalLevel => level + exResource;
 
         public void ResetForGameStart(RuleConfig config, int initialDeckCount)
         {
             level = 0;
             resource = 0;
+            exResource = 0;
             shield = 0;
             exBase = 0;
             handCount = config.startingHand;
@@ -136,16 +139,39 @@ public class Gundam2024RuleScript
 
     public bool CanPlayCard(PlayerSide side, CardData card)
     {
+        return CanPlayCard(side, card, 0);
+    }
+
+    public bool CanPlayCard(PlayerSide side, CardData card, int exToUse)
+    {
         if (card == null)
         {
             return false;
         }
 
         PlayerState state = GetState(side);
-        return state.level >= card.level && state.resource >= card.cost;
+        int useEx = Mathf.Max(0, exToUse);
+        if (useEx > state.exResource)
+        {
+            return false;
+        }
+
+        int levelAfterExUse = state.TotalLevel - useEx;
+        int resourceFromNormal = card.cost - useEx;
+        if (resourceFromNormal < 0)
+        {
+            resourceFromNormal = 0;
+        }
+
+        return levelAfterExUse >= card.level && state.resource >= resourceFromNormal;
     }
 
     public bool TryConsumeResource(PlayerSide side, int cost)
+    {
+        return TryConsumeResource(side, cost, 0);
+    }
+
+    public bool TryConsumeResource(PlayerSide side, int cost, int exToUse)
     {
         if (cost < 0)
         {
@@ -153,12 +179,82 @@ public class Gundam2024RuleScript
         }
 
         PlayerState state = GetState(side);
-        if (state.resource < cost)
+        int useEx = Mathf.Max(0, exToUse);
+        if (useEx > state.exResource)
         {
             return false;
         }
 
-        state.resource -= cost;
+        int resourceFromNormal = cost - useEx;
+        if (resourceFromNormal < 0)
+        {
+            resourceFromNormal = 0;
+        }
+
+        if (state.resource < resourceFromNormal)
+        {
+            return false;
+        }
+
+        if (state.TotalLevel - useEx < 0)
+        {
+            return false;
+        }
+
+        state.resource -= resourceFromNormal;
+        if (useEx > 0)
+        {
+            state.exResource -= useEx;
+            state.level = Mathf.Max(0, state.level);
+            state.resource = Mathf.Min(state.resource, state.TotalLevel);
+        }
+        return true;
+    }
+
+    public void AddExResource(PlayerSide side, int amount)
+    {
+        if (amount == 0)
+        {
+            return;
+        }
+
+        PlayerState state = GetState(side);
+        state.exResource = Mathf.Max(0, state.exResource + amount);
+        state.resource = Mathf.Min(state.resource, state.TotalLevel);
+    }
+
+    /// <summary>
+    /// EXを消費して通常リソースへ変換する（任意起動用）。
+    /// EXが減るため、同時に TotalLevel も下がる。
+    /// </summary>
+    public bool TryConvertExToResource(PlayerSide side, int amount = 1)
+    {
+        PlayerState state = GetState(side);
+        int convert = Mathf.Max(0, amount);
+        if (convert <= 0 || state.exResource < convert)
+        {
+            return false;
+        }
+
+        state.exResource -= convert;
+        state.resource += convert;
+        return true;
+    }
+
+    /// <summary>
+    /// 誤操作の戻し用に、通常リソースをEXへ戻す。
+    /// </summary>
+    public bool TryConvertResourceToEx(PlayerSide side, int amount = 1)
+    {
+        PlayerState state = GetState(side);
+        int convert = Mathf.Max(0, amount);
+        if (convert <= 0 || state.resource < convert)
+        {
+            return false;
+        }
+
+        state.resource -= convert;
+        state.exResource += convert;
         return true;
     }
 
@@ -252,6 +348,7 @@ public class Gundam2024RuleScript
     private void GainLevelAndRefreshResource(PlayerState state)
     {
         state.level = Mathf.Min(Config.maxLevel, state.level + Config.levelGainPerTurn);
+        // EXは自動でResourceに加算しない。必要時にボタン等で変換して使う。
         state.resource = state.level;
     }
 
