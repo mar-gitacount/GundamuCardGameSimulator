@@ -25,6 +25,7 @@ public class CardGameRule
     private TextMeshProUGUI LvText;
 
     private TextMeshProUGUI ResourceText;
+    private TextMeshProUGUI ExResourceText;
     
     private GameObject LvObj;
 
@@ -85,9 +86,13 @@ public class CardGameRule
         LvText.text = "LV:0";
         LvText.color = Color.black;
         ResourceText =  ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("ResourceText",UIAnchor.TopLeft,50 ,50);
-        
+        ExResourceText = ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("ExResourceText", UIAnchor.TopLeft, 50, 50);
+
         ResourceText.text = "Resource:0";
         ResourceText.color = Color.black;
+        ExResourceText.text = "EX:0";
+        ExResourceText.color = Color.black;
+        ExResourceText.GetComponent<RectTransform>().anchoredPosition = new Vector2(110f, 0f);
 
 
         // ScrollPanel = HandPanel.CreateGridScrollView(600,400);
@@ -507,10 +512,11 @@ public class CardGameRule
     /// <summary>
     /// 外部のルールエンジンで確定したレベル/リソースを、このクラスの表示値へ同期する。
     /// </summary>
-    public void ApplyExternalResourceState(int level, int resource)
+    public void ApplyExternalResourceState(int level, int resource, int exResource)
     {
         resourceLevel = Mathf.Max(0, level);
         resourcePoints = Mathf.Max(0, resource);
+        ExtraResourcePoints = Mathf.Max(0, exResource);
 
         if (LvText != null)
         {
@@ -524,6 +530,12 @@ public class CardGameRule
             ResourceText.color = Color.black;
         }
 
+        if (ExResourceText != null)
+        {
+            ExResourceText.text = $"EX:{ExtraResourcePoints}";
+            ExResourceText.color = Color.black;
+        }
+
         if (ResourcePointText != null)
         {
             ResourcePointText.text = resourcePoints.ToString();
@@ -534,6 +546,12 @@ public class CardGameRule
         {
             LevelText.text = $"LV:{resourceLevel}";
             LevelText.color = Color.black;
+        }
+
+        if (extraResourcePoint != null)
+        {
+            extraResourcePoint.text = ExtraResourcePoints.ToString();
+            extraResourcePoint.color = Color.black;
         }
     }
 
