@@ -45,6 +45,13 @@ public enum EffectStatTarget
     Both
 }
 
+public enum EffectDuration
+{
+    Permanent,
+    UntilEndOfTurn,
+    UntilEndOfBattle
+}
+
 [Serializable]
 public class EffectData
 {
@@ -53,6 +60,7 @@ public class EffectData
     public TargetType target;
     public EffectSelectionMode selectionMode = EffectSelectionMode.AttackedTargetOnly;
     public EffectStatTarget statTarget = EffectStatTarget.Both;
+    public EffectDuration duration = EffectDuration.Permanent;
 }
 
 [Serializable]

@@ -97,6 +97,9 @@ public class BattleGameMain : MonoBehaviour
     /// <summary>「相手ユニットを攻撃」選択後、次にタップする相手ユニット。</summary>
     private CardController pendingUnitAttackAttacker;
     private CardController pendingOnAttackEffectResolvedAttacker;
+    private bool isEndTurnFlowRunning;
+    private bool isOnActionPopupOpen;
+    private GameObject activeOnActionPopupRoot;
 
     private void Awake()
     {
@@ -547,7 +550,7 @@ public class BattleGameMain : MonoBehaviour
                 unitAttackBtn.onClick.AddListener(() =>
                 {
                     pendingUnitAttackAttacker = cardController;
-                    Debug.Log("Tap an enemy REST unit to attack. Tap the same unit again to cancel.");
+                    OpenEnemyUnitAttackTargetSelectionUI(cardController, ownerType);
                     Destroy(FilterPanel);
                 });
 
@@ -881,9 +884,30 @@ public class BattleGameMain : MonoBehaviour
             yield return new WaitForSeconds(0.6f);
         }
 
-        int attacked = TryEnemyShieldAttacks();
-        if (attacked > 0)
+        int attacked = 0;
+        while (true)
         {
+            int attackedNow = TryEnemyShieldAttacks();
+            if (attackedNow <= 0)
+            {
+                if (isOnActionPopupOpen)
+                {
+                    // Close 後に onClose コールバックで攻撃が実行されるため、完了まで待って再評価する。
+                    yield return new WaitUntil(() => !isOnActionPopupOpen);
+                    yield return new WaitForSeconds(0.15f);
+                    continue;
+                }
+                break;
+            }
+
+            attacked += attackedNow;
+            if (isOnActionPopupOpen)
+            {
+                // アクションステップの Close まで次の攻撃に進ませない。
+                yield return new WaitUntil(() => !isOnActionPopupOpen);
+            }
+
+            // 1回攻撃ごとに間隔を入れて、連続攻撃が速すぎる体感を防ぐ。
             yield return new WaitForSeconds(0.6f);
         }
 
@@ -941,8 +965,7 @@ public class BattleGameMain : MonoBehaviour
             return 0;
         }
 
-        int count = 0;
-        // 攻撃中に状態が変化するためスナップショットで回す。
+        // 1回の呼び出しで最大1回だけ攻撃する。
         List<CardController> snapshot = new List<CardController>(enemyBattleZoneCards);
         foreach (CardController unit in snapshot)
         {
@@ -963,21 +986,65 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            AttackFlg before = unit.AttackFlgState;
             TryUnitShieldAttackFromUnit(unit);
-            count++;
-            if (isMatchFinished) break;
+            // 攻撃が成立した時だけカウント（OnAction待機で未成立なら数えない）。
+            if (before == AttackFlg.True && unit.AttackFlgState == AttackFlg.False)
+            {
+                return 1;
+            }
+            if (isMatchFinished)
+            {
+                return 0;
+            }
+            if (isOnActionPopupOpen)
+            {
+                return 0;
+            }
         }
 
-        return count;
+        return 0;
     }
 
     void ExcueteEndTurn()
     {
+        if (isEndTurnFlowRunning)
+        {
+            return;
+        }
+
+        StartCoroutine(ExecuteEndTurnCoroutine());
+    }
+
+    private IEnumerator ExecuteEndTurnCoroutine()
+    {
+        isEndTurnFlowRunning = true;
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = currentPlayerType;
-        LogHandOnActionCandidates(endingTurnSide, "turn end");
+        bool waitingForClose = false;
+        bool showPopup = endingTurnSide == PlayerType.Player;
+        bool shown = LogHandOnActionCandidates(
+            endingTurnSide,
+            "turn end",
+            showPopup,
+            () => waitingForClose = false);
+        if (!showPopup && shown)
+        {
+            Debug.Log($"[OnActionStep] side:{endingTurnSide} context:turn end skipped for background AI.");
+        }
+        if (shown)
+        {
+            if (showPopup)
+            {
+                waitingForClose = true;
+                yield return new WaitUntil(() => !waitingForClose);
+            }
+        }
+
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
+        // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
+        ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfTurn);
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
 
         // プレイヤーとエネミーのターンを切り替える
@@ -987,7 +1054,7 @@ public class BattleGameMain : MonoBehaviour
 
         Debug.Log("エンドフェイズの処理を実行します。");
         ChangePhase(BattlePhase.StartTurn);
-
+        isEndTurnFlowRunning = false;
     }
 
     // Update is called once per frame
@@ -1445,20 +1512,8 @@ public class BattleGameMain : MonoBehaviour
 
         if (IsRestEnemyUnitTarget(clicked, attackerOwner))
         {
-            if (pendingOnAttackEffectResolvedAttacker != pendingUnitAttackAttacker)
-            {
-                if (TryOpenOnAttackEnemySelectionPanel(pendingUnitAttackAttacker, attackerOwner, clicked))
-                {
-                    return true;
-                }
-
-                pendingOnAttackEffectResolvedAttacker = pendingUnitAttackAttacker;
-            }
-
             PlayerType defenderOwner = ResolveCardOwner(clicked.transform);
             TryUnitVsUnitAttack(pendingUnitAttackAttacker, clicked, attackerOwner, defenderOwner);
-            pendingUnitAttackAttacker = null;
-            pendingOnAttackEffectResolvedAttacker = null;
             return true;
         }
 
@@ -1474,50 +1529,188 @@ public class BattleGameMain : MonoBehaviour
         return false;
     }
 
-    private bool TryOpenOnAttackEnemySelectionPanel(CardController attacker, PlayerType attackerOwner, CardController attackedTarget)
+    private void OpenEnemyUnitAttackTargetSelectionUI(CardController attacker, PlayerType attackerOwner)
     {
-        if (attacker == null || attacker.Data == null || attacker.Data.timedEffects == null)
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
         {
-            return false;
+            Debug.Log("Battle canvas is not available.");
+            return;
         }
 
-        for (int i = 0; i < attacker.Data.timedEffects.Count; i++)
+        List<CardController> enemyUnits = GetAliveEnemyUnits(attackerOwner);
+        if (enemyUnits.Count == 0)
         {
-            TimedEffectData timed = attacker.Data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnAttack || timed.effects == null)
+            Debug.Log("No enemy units to attack.");
+            return;
+        }
+
+        GameObject root = new GameObject("AttackEnemySelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image bg = root.GetComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.5f);
+        bg.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("AttackEnemyTitle", UIAnchor.TopCenter, 620, 48);
+        title.text = "Select enemy unit to attack";
+        title.color = Color.white;
+        title.fontSize = 24;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        GameObject scrollGo = root.CreateGridScrollView(620, 420, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -80f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+        if (content == null)
+        {
+            Destroy(root);
+            return;
+        }
+
+        for (int i = 0; i < enemyUnits.Count; i++)
+        {
+            CardController unit = enemyUnits[i];
+            if (unit == null || unit.Data == null)
             {
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            GameObject cardItem = Instantiate(CardImagePrefab, content);
+            CardController itemCc = cardItem.GetComponent<CardController>();
+            if (itemCc != null)
             {
-                EffectData effect = timed.effects[j];
-                if (effect == null)
+                itemCc.SetUp(unit.Data, _ => { });
+            }
+
+            GameObject statBg = new GameObject("StatBg", typeof(RectTransform), typeof(Image));
+            statBg.transform.SetParent(cardItem.transform, false);
+            RectTransform statBgRt = statBg.GetComponent<RectTransform>();
+            statBgRt.anchorMin = new Vector2(0f, 0f);
+            statBgRt.anchorMax = new Vector2(1f, 0f);
+            statBgRt.pivot = new Vector2(0.5f, 0f);
+            statBgRt.sizeDelta = new Vector2(0f, 28f);
+            statBgRt.anchoredPosition = new Vector2(0f, 0f);
+            Image statBgImg = statBg.GetComponent<Image>();
+            statBgImg.color = new Color(0f, 0f, 0f, 0.55f);
+            statBgImg.raycastTarget = false;
+
+            TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
+            statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}";
+            statText.fontSize = 14;
+            statText.color = Color.white;
+            statText.alignment = TextAlignmentOptions.Center;
+
+            Button btn = cardItem.GetComponent<Button>();
+            if (btn == null)
+            {
+                btn = cardItem.AddComponent<Button>();
+            }
+
+            CardController selectedUnit = unit;
+            btn.onClick.AddListener(() =>
+            {
+                pendingUnitAttackAttacker = attacker;
+                Destroy(root);
+
+                PlayerType defenderOwner = ResolveCardOwner(selectedUnit.transform);
+                if (TryOpenOnAttackEnemySelectionPanel(
+                    attacker,
+                    attackerOwner,
+                    selectedUnit,
+                    () =>
+                    {
+                        pendingOnAttackEffectResolvedAttacker = attacker;
+                        TryUnitVsUnitAttack(attacker, selectedUnit, attackerOwner, defenderOwner);
+                    }))
+                {
+                    return;
+                }
+
+                // デバフ対象選択UIが不要な場合のみ、即攻撃解決へ進む。
+                pendingOnAttackEffectResolvedAttacker = attacker;
+                TryUnitVsUnitAttack(attacker, selectedUnit, attackerOwner, defenderOwner);
+            });
+        }
+
+        Button cancel = root.CreateChildButton("Cancel");
+        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(180f, 46f);
+        cancelRt.anchoredPosition = new Vector2(0f, 48f);
+        cancel.onClick.AddListener(() =>
+        {
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            Destroy(root);
+        });
+    }
+
+    private bool TryOpenOnAttackEnemySelectionPanel(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController attackedTarget,
+        System.Action onResolved = null)
+    {
+        if (attacker == null || attacker.Data == null)
+        {
+            return false;
+        }
+
+        List<CardController> effectSources = new List<CardController> { attacker };
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            effectSources.Add(attacker.MountedPilot);
+        }
+
+        for (int sourceIndex = 0; sourceIndex < effectSources.Count; sourceIndex++)
+        {
+            CardController sourceCard = effectSources[sourceIndex];
+            if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+            {
+                continue;
+            }
+
+            for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+            {
+                TimedEffectData timed = sourceCard.Data.timedEffects[i];
+                if (timed == null || timed.timing != EffectTiming.OnAttack || timed.effects == null)
                 {
                     continue;
                 }
 
-                bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
-                if (!enemyUnitTarget)
+                for (int j = 0; j < timed.effects.Count; j++)
                 {
-                    continue;
-                }
+                    EffectData effect = timed.effects[j];
+                    if (effect == null)
+                    {
+                        continue;
+                    }
 
-                if (effect.selectionMode == EffectSelectionMode.AttackedTargetOnly)
-                {
-                    List<CardController> singleTarget = new List<CardController> { attackedTarget };
-                    ApplyEffectToSpecificTargets(attacker, attackerOwner, effect, singleTarget);
-                    continue;
-                }
+                    bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
+                    if (!enemyUnitTarget)
+                    {
+                        continue;
+                    }
 
-                List<CardController> enemyUnits = GetAliveEnemyUnits(attackerOwner);
-                if (enemyUnits.Count == 0)
-                {
-                    return false;
-                }
+                    if (effect.selectionMode == EffectSelectionMode.AttackedTargetOnly)
+                    {
+                        List<CardController> singleTarget = new List<CardController> { attackedTarget };
+                        ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
+                        continue;
+                    }
 
-                OpenEnemyUnitEffectSelectionUI(attacker, attackerOwner, effect, enemyUnits);
-                return true;
+                    List<CardController> enemyUnits = GetAliveEnemyUnits(attackerOwner);
+                    if (enemyUnits.Count == 0)
+                    {
+                        return false;
+                    }
+
+                    OpenEnemyUnitEffectSelectionUI(sourceCard, attackerOwner, effect, enemyUnits, onResolved);
+                    return true;
+                }
             }
         }
 
@@ -1528,7 +1721,8 @@ public class BattleGameMain : MonoBehaviour
         CardController attacker,
         PlayerType attackerOwner,
         EffectData effect,
-        List<CardController> enemyUnits)
+        List<CardController> enemyUnits,
+        System.Action onResolved = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
@@ -1545,8 +1739,8 @@ public class BattleGameMain : MonoBehaviour
         bg.color = new Color(0f, 0f, 0f, 0.5f);
         bg.raycastTarget = true;
 
-        TextMeshProUGUI title = root.CreateChildTextCustom("EffectSelectTitle", UIAnchor.TopCenter, 560, 48);
-        title.text = $"OnAttack {effect.type}: target enemy units";
+        TextMeshProUGUI title = root.CreateChildTextCustom("EffectSelectTitle", UIAnchor.TopCenter, 620, 48);
+        title.text = "Select debuff target unit";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -1569,10 +1763,6 @@ public class BattleGameMain : MonoBehaviour
 
             GameObject cardItem = Instantiate(CardImagePrefab, content);
             CardController itemCc = cardItem.GetComponent<CardController>();
-            if (itemCc != null && unit.Data != null)
-            {
-                itemCc.SetUp(unit.Data, _ => { });
-            }
 
             GameObject statBg = new GameObject("StatBg", typeof(RectTransform), typeof(Image));
             statBg.transform.SetParent(cardItem.transform, false);
@@ -1586,9 +1776,9 @@ public class BattleGameMain : MonoBehaviour
             statBgImg.color = new Color(0f, 0f, 0f, 0.55f);
             statBgImg.raycastTarget = false;
 
-            TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 100, 24);
-            statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp}";
-            statText.fontSize = 16;
+            TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
+            statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}";
+            statText.fontSize = 14;
             statText.color = Color.white;
             statText.alignment = TextAlignmentOptions.Center;
 
@@ -1600,14 +1790,22 @@ public class BattleGameMain : MonoBehaviour
 
             Image baseImage = cardItem.GetComponent<Image>();
             Color original = baseImage != null ? baseImage.color : Color.white;
-            btn.onClick.AddListener(() =>
+            bool consumed = false;
+            UnityEngine.Events.UnityAction handleSelect = () =>
             {
+                if (consumed)
+                {
+                    return;
+                }
+
                 if (effect.selectionMode == EffectSelectionMode.SelectSingleEnemyUnit)
                 {
+                    consumed = true;
                     ApplyEffectToSpecificTargets(attacker, attackerOwner, effect, new List<CardController> { unit });
-                    pendingOnAttackEffectResolvedAttacker = pendingUnitAttackAttacker;
+                    pendingOnAttackEffectResolvedAttacker = attacker;
                     Debug.Log("OnAttack effect target selected. Now select attack target.");
                     Destroy(root);
+                    onResolved?.Invoke();
                     return;
                 }
 
@@ -1627,7 +1825,15 @@ public class BattleGameMain : MonoBehaviour
                         baseImage.color = new Color(0.7f, 1f, 0.7f, 1f);
                     }
                 }
-            });
+            };
+
+            if (itemCc != null && unit.Data != null)
+            {
+                itemCc.SetUp(unit.Data, _ => handleSelect());
+            }
+
+            btn.targetGraphic = baseImage;
+            btn.onClick.AddListener(handleSelect);
         }
 
         if (effect.selectionMode == EffectSelectionMode.SelectMultipleEnemyUnits)
@@ -1644,9 +1850,10 @@ public class BattleGameMain : MonoBehaviour
                     return;
                 }
                 ApplyEffectToSpecificTargets(attacker, attackerOwner, effect, selected);
-                pendingOnAttackEffectResolvedAttacker = pendingUnitAttackAttacker;
+                pendingOnAttackEffectResolvedAttacker = attacker;
                 Debug.Log("OnAttack effect targets selected. Now select attack target.");
                 Destroy(root);
+                onResolved?.Invoke();
             });
         }
 
@@ -1679,8 +1886,8 @@ public class BattleGameMain : MonoBehaviour
 
     private void ApplyEffectToSpecificTargets(CardController sourceCard, PlayerType ownerType, EffectData effect, List<CardController> targets)
     {
-        int value = Mathf.Max(0, effect.value);
-        if (value == 0)
+        int magnitude = Mathf.Abs(effect.value);
+        if (magnitude == 0)
         {
             return;
         }
@@ -1688,7 +1895,7 @@ public class BattleGameMain : MonoBehaviour
         if (effect.type == EffectType.Draw)
         {
             CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
-            for (int i = 0; i < value; i++)
+            for (int i = 0; i < magnitude; i++)
             {
                 CardAddtoHand(rule, ownerType);
             }
@@ -1706,17 +1913,17 @@ public class BattleGameMain : MonoBehaviour
             switch (effect.type)
             {
                 case EffectType.Damage:
-                    t.ApplyDamage(value);
+                    t.ApplyDamage(magnitude);
                     if (t.CurrentHp <= 0)
                     {
                         SendCardToTrash(t, ResolveCardOwner(t.transform));
                     }
                     break;
                 case EffectType.Buff:
-                    ApplyStatEffect(t, value, effect.statTarget);
+                    ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration);
                     break;
                 case EffectType.Debuff:
-                    ApplyStatEffect(t, -value, effect.statTarget);
+                    ApplyStatEffect(t, -magnitude, effect.statTarget, effect.duration);
                     break;
             }
         }
@@ -1727,7 +1934,7 @@ public class BattleGameMain : MonoBehaviour
     /// <summary>
     /// シールド攻撃。EXベースありなら power を EX ベースに与え、無いならシールド 1 枚のみ破壊（<see cref="Gundam2024RuleScript.TryApplyUnitShieldAttack"/>）。
     /// </summary>
-    private void TryUnitShieldAttackFromUnit(CardController attacker)
+    private void TryUnitShieldAttackFromUnit(CardController attacker, bool skipOnActionPause = false, bool skipOnAttackSelection = false)
     {
         if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
         {
@@ -1752,7 +1959,29 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        LogHandOnActionCandidates(attackerOwner, "attack");
+        // シールド攻撃時も OnAttack の対象選択効果を先に解決する。
+        if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
+        {
+            if (TryOpenOnAttackEnemySelectionPanel(
+                attacker,
+                attackerOwner,
+                null,
+                () => TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true)))
+            {
+                return;
+            }
+
+            pendingOnAttackEffectResolvedAttacker = attacker;
+        }
+
+        if (!skipOnActionPause
+            && TryRunAttackActionSteps(
+                attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+                attackerOwner,
+                () => TryUnitShieldAttackFromUnit(attacker, true, true)))
+        {
+            return;
+        }
 
         Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
             ? Gundam2024RuleScript.PlayerSide.Enemy
@@ -1766,6 +1995,8 @@ public class BattleGameMain : MonoBehaviour
             Debug.Log("[DirectAttack] Shield is 0. Resolving direct attack.");
             attacker.SetAttackFlg(AttackFlg.False);
             attacker.SetUnitRestVisual(true);
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
             HandleDirectAttackWinLose(attackerOwner);
             return;
         }
@@ -1788,12 +2019,16 @@ public class BattleGameMain : MonoBehaviour
             Debug.Log("[Attack] Broke 1 shield (no EX Base).");
         }
         TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
+        TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
         SyncAllResourceViewsFromRule();
     }
 
-    private void TryUnitVsUnitAttack(CardController attacker, CardController defender, PlayerType attackerOwner, PlayerType defenderOwner)
+    private void TryUnitVsUnitAttack(CardController attacker, CardController defender, PlayerType attackerOwner, PlayerType defenderOwner, bool skipOnActionPause = false)
     {
         if (currentPhase != BattlePhase.MainPhase || attackerOwner != currentPlayerType)
         {
@@ -1806,7 +2041,29 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        LogHandOnActionCandidates(attackerOwner, "attack");
+        // 攻撃対象確定後に、OnAttackの対象選択(デバフ等)を行う。
+        if (pendingOnAttackEffectResolvedAttacker != attacker)
+        {
+            if (TryOpenOnAttackEnemySelectionPanel(
+                attacker,
+                attackerOwner,
+                defender,
+                () => TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause)))
+            {
+                return;
+            }
+
+            pendingOnAttackEffectResolvedAttacker = attacker;
+        }
+
+        if (!skipOnActionPause
+            && TryRunAttackActionSteps(
+                defenderOwner,
+                attackerOwner,
+                () => TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, true)))
+        {
+            return;
+        }
 
         // 基本ルール: ユニットはレスト状態の相手ユニットのみ攻撃できる。
         if (!defender.IsRestState)
@@ -1822,8 +2079,24 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        defender.ApplyDamage(attacker.CurrentPower);
-        attacker.ApplyDamage(defender.CurrentPower);
+        // OnAttack 効果（ユニット本体＋搭乗パイロット）を「この防御対象(defender)」に確実適用してから戦闘値を確定する。
+        int defenderPowerBeforeEffects = defender.CurrentPower;
+        ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
+        int attackerPowerForCombat = attacker.CurrentPower;
+        int defenderPowerForCombat = defender.CurrentPower;
+        if (defenderPowerForCombat == defenderPowerBeforeEffects)
+        {
+            int fallbackApDelta = ComputeOnAttackApDeltaToDefender(attacker);
+            if (fallbackApDelta != 0)
+            {
+                defenderPowerForCombat = Mathf.Max(0, defenderPowerForCombat + fallbackApDelta);
+                Debug.Log($"[OnAttackFallback] apply AP delta:{fallbackApDelta} to defender combat power.");
+            }
+        }
+        Debug.Log($"[CombatPower] attacker:{attackerPowerForCombat} defender:{defenderPowerForCombat}");
+
+        defender.ApplyDamage(attackerPowerForCombat);
+        attacker.ApplyDamage(defenderPowerForCombat);
         attacker.SetAttackFlg(AttackFlg.False);
         attacker.SetUnitRestVisual(true);
 
@@ -1837,9 +2110,183 @@ public class BattleGameMain : MonoBehaviour
             SendCardToTrash(attacker, attackerOwner);
         }
 
-        TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
+    }
+
+    private void ApplyOnAttackEffectsForCombatPair(CardController attacker, PlayerType attackerOwner, CardController defender)
+    {
+        if (attacker == null || attacker.Data == null || defender == null || defender.Data == null)
+        {
+            return;
+        }
+
+        ApplyOnAttackEffectsFromSourceToDefender(attacker, attackerOwner, attacker.Data, defender);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            ApplyOnAttackEffectsFromSourceToDefender(attacker.MountedPilot, attackerOwner, attacker.MountedPilot.Data, defender);
+        }
+    }
+
+    private void ApplyOnAttackEffectsFromSourceToDefender(CardController sourceCard, PlayerType ownerType, CardData data, CardController defender)
+    {
+        List<EffectData> effects = GetEffectsByTiming(data, EffectTiming.OnAttack);
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.target == TargetType.EnemyUnit)
+            {
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { defender });
+                continue;
+            }
+
+            if (effect.target == TargetType.EnemyAllUnits)
+            {
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, GetAliveEnemyUnits(ownerType));
+                continue;
+            }
+
+            ApplyEffect(sourceCard, ownerType, effect);
+        }
+    }
+
+    private int ComputeOnAttackApDeltaToDefender(CardController attacker)
+    {
+        int delta = 0;
+        if (attacker == null)
+        {
+            return 0;
+        }
+
+        delta += ComputeOnAttackApDeltaFromData(attacker.Data);
+        if (attacker.MountedPilot != null)
+        {
+            delta += ComputeOnAttackApDeltaFromData(attacker.MountedPilot.Data);
+        }
+        return delta;
+    }
+
+    private static int ComputeOnAttackApDeltaFromData(CardData data)
+    {
+        if (data == null || data.timedEffects == null)
+        {
+            return 0;
+        }
+
+        int delta = 0;
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || timed.effects == null)
+            {
+                continue;
+            }
+
+            for (int j = 0; j < timed.effects.Count; j++)
+            {
+                EffectData effect = timed.effects[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                bool targetEnemyUnit = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
+                bool affectsAp = effect.statTarget == EffectStatTarget.AP || effect.statTarget == EffectStatTarget.Both;
+                if (!targetEnemyUnit || !affectsAp)
+                {
+                    continue;
+                }
+
+                int magnitude = Mathf.Abs(effect.value);
+                if (magnitude == 0)
+                {
+                    continue;
+                }
+
+                if (effect.type == EffectType.Debuff)
+                {
+                    delta -= magnitude;
+                }
+                else if (effect.type == EffectType.Buff)
+                {
+                    delta += magnitude;
+                }
+            }
+        }
+
+        return delta;
+    }
+
+    private void TriggerMountedPilotOnAttackEffects(CardController attacker, PlayerType attackerOwner)
+    {
+        if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        CardController pilot = attacker.MountedPilot;
+        if (pilot == null || pilot.Data == null)
+        {
+            return;
+        }
+
+        TriggerCardEffects(pilot, attackerOwner, EffectTiming.OnAttack);
+    }
+
+    private void ApplyOnAttackAutoTargetEffects(CardController attacker, PlayerType attackerOwner, CardController defender)
+    {
+        if (attacker == null || attacker.Data == null || defender == null || defender.Data == null)
+        {
+            return;
+        }
+
+        ApplyOnAttackAutoTargetEffectsFromData(attacker, attackerOwner, attacker.Data, defender);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            ApplyOnAttackAutoTargetEffectsFromData(attacker.MountedPilot, attackerOwner, attacker.MountedPilot.Data, defender);
+        }
+    }
+
+    private void ApplyOnAttackAutoTargetEffectsFromData(CardController sourceCard, PlayerType ownerType, CardData data, CardController defender)
+    {
+        if (data == null || data.timedEffects == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || timed.effects == null)
+            {
+                continue;
+            }
+
+            for (int j = 0; j < timed.effects.Count; j++)
+            {
+                EffectData effect = timed.effects[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
+                if (!enemyUnitTarget || effect.selectionMode != EffectSelectionMode.AttackedTargetOnly)
+                {
+                    continue;
+                }
+
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { defender });
+            }
+        }
     }
 
     private void DumpTurnResourceUsageLogs(PlayerType side, string context)
@@ -1923,8 +2370,8 @@ public class BattleGameMain : MonoBehaviour
 
     private void ApplyEffect(CardController sourceCard, PlayerType ownerType, EffectData effect)
     {
-        int value = Mathf.Max(0, effect.value);
-        if (value == 0)
+        int magnitude = Mathf.Abs(effect.value);
+        if (magnitude == 0)
         {
             return;
         }
@@ -1934,17 +2381,17 @@ public class BattleGameMain : MonoBehaviour
         {
             case EffectType.Draw:
                 CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
-                for (int i = 0; i < value; i++)
+                for (int i = 0; i < magnitude; i++)
                 {
                     CardAddtoHand(rule, ownerType);
                 }
-                Debug.Log($"[Effect] Draw x{value} by cardId:{sourceCard.Data.id}");
+                Debug.Log($"[Effect] Draw x{magnitude} by cardId:{sourceCard.Data.id}");
                 break;
 
             case EffectType.Damage:
                 for (int i = 0; i < targets.Count; i++)
                 {
-                    targets[i].ApplyDamage(value);
+                    targets[i].ApplyDamage(magnitude);
                     PlayerType targetOwner = ResolveCardOwner(targets[i].transform);
                     if (targets[i].CurrentHp <= 0)
                     {
@@ -1956,27 +2403,27 @@ public class BattleGameMain : MonoBehaviour
                     Gundam2024RuleScript.PlayerSide targetSide = effect.target == TargetType.EnemyPlayer
                         ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
                         : ToRuleSide(ownerType);
-                    gundamRule.DamageShield(targetSide, value);
+                    gundamRule.DamageShield(targetSide, magnitude);
                 }
-                Debug.Log($"[Effect] Damage {value} target:{effect.target} by cardId:{sourceCard.Data.id}");
+                Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");
                 break;
 
             case EffectType.Buff:
             case EffectType.Debuff:
                 int sign = effect.type == EffectType.Buff ? 1 : -1;
-                int signedValue = sign * value;
+                int signedValue = sign * magnitude;
                 for (int i = 0; i < targets.Count; i++)
                 {
-                    ApplyStatEffect(targets[i], signedValue, effect.statTarget);
+                    ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration);
                 }
-                Debug.Log($"[Effect] {effect.type} {value} target:{effect.target} stat:{effect.statTarget} by cardId:{sourceCard.Data.id}");
+                Debug.Log($"[Effect] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} by cardId:{sourceCard.Data.id}");
                 break;
         }
 
         SyncAllResourceViewsFromRule();
     }
 
-    private static void ApplyStatEffect(CardController target, int signedValue, EffectStatTarget statTarget)
+    private static void ApplyStatEffect(CardController target, int signedValue, EffectStatTarget statTarget, EffectDuration duration)
     {
         int powerDelta = 0;
         int hpDelta = 0;
@@ -1993,7 +2440,7 @@ public class BattleGameMain : MonoBehaviour
                 hpDelta = signedValue;
                 break;
         }
-        target.AddEffectStatBonus(powerDelta, hpDelta);
+        target.AddEffectStatBonus(powerDelta, hpDelta, duration);
     }
 
     private List<CardController> ResolveEffectTargets(CardController sourceCard, PlayerType ownerType, TargetType targetType)
@@ -2052,17 +2499,42 @@ public class BattleGameMain : MonoBehaviour
         }
     }
 
-    private void LogHandOnActionCandidates(PlayerType ownerType, string context)
+    private void ClearTimedPowerModifiersForSide(PlayerType side, EffectDuration duration)
+    {
+        List<CardController> source = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController c = source[i];
+            if (c != null && c.Data != null && c.Data.type == Type.Unit)
+            {
+                c.ClearPowerModifiersByDuration(duration);
+            }
+        }
+    }
+
+    private void ClearTimedPowerModifiersForAllBattleUnits(EffectDuration duration)
+    {
+        ClearTimedPowerModifiersForSide(PlayerType.Player, duration);
+        ClearTimedPowerModifiersForSide(PlayerType.Enemy, duration);
+    }
+
+    private bool LogHandOnActionCandidates(PlayerType ownerType, string context, System.Action onClose = null)
+    {
+        return LogHandOnActionCandidates(ownerType, context, true, onClose);
+    }
+
+    private bool LogHandOnActionCandidates(PlayerType ownerType, string context, bool showPopup, System.Action onClose = null)
     {
         RectTransform hand = ownerType == PlayerType.Player
             ? cardGameRule.HandScrollContent
             : enemyCardGameRule.HandScrollContent;
         if (hand == null)
         {
-            return;
+            return false;
         }
 
         List<string> candidates = new List<string>();
+        List<CardData> cards = new List<CardData>();
         for (int i = 0; i < hand.childCount; i++)
         {
             CardController cc = hand.GetChild(i).GetComponent<CardController>();
@@ -2071,19 +2543,329 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (HasEffectTiming(cc.Data, EffectTiming.OnAction))
+            if (HasEffectTiming(cc.Data, EffectTiming.OnAction) && CanExecuteOnActionCardNow(ownerType, cc.Data))
             {
                 candidates.Add($"{cc.Data.id}:{cc.Data.cardName}");
+                cards.Add(cc.Data);
             }
         }
 
         if (candidates.Count == 0)
         {
             Debug.Log($"[OnActionCandidates] context:{context} side:{ownerType} none");
-            return;
+            return false;
         }
 
         Debug.Log($"[OnActionCandidates] context:{context} side:{ownerType} cards:{string.Join(", ", candidates)}");
+        if (showPopup)
+        {
+            ShowOnActionHandCandidatesPopup(ownerType, context, cards, onClose);
+        }
+        return true;
+    }
+
+    private bool TryRunAttackActionSteps(PlayerType defenderSide, PlayerType attackerSide, System.Action onComplete)
+    {
+        if (TryHandleSingleSideOnActionStep(defenderSide, "attack:defender", () =>
+        {
+            if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete))
+            {
+                return;
+            }
+            onComplete?.Invoke();
+        }))
+        {
+            return true;
+        }
+
+        if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete))
+        {
+            return true;
+        }
+
+        onComplete?.Invoke();
+        return false;
+    }
+
+    private bool TryHandleSingleSideOnActionStep(PlayerType side, string context, System.Action onStepDone)
+    {
+        // 敵側は将来AI実装予定のため、現時点ではバックグラウンドスキップ（停止UIを出さない）。
+        if (side == PlayerType.Enemy)
+        {
+            bool hasEnemyCandidates = LogHandOnActionCandidates(side, context, false);
+            if (hasEnemyCandidates)
+            {
+                Debug.Log($"[OnActionStep] side:{side} context:{context} skipped for background AI.");
+            }
+            return false;
+        }
+
+        return TryOpenOnActionCommandSelection(side, context, onStepDone);
+    }
+
+    private bool TryOpenOnActionCommandSelection(PlayerType side, string context, System.Action onStepDone)
+    {
+        RectTransform hand = side == PlayerType.Player ? cardGameRule.HandScrollContent : enemyCardGameRule.HandScrollContent;
+        if (hand == null || CardImagePrefab == null)
+        {
+            return false;
+        }
+
+        List<CardController> commandCards = new List<CardController>();
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController cc = hand.GetChild(i).GetComponent<CardController>();
+            if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+            {
+                continue;
+            }
+            if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(side, cc.Data))
+            {
+                continue;
+            }
+            commandCards.Add(cc);
+        }
+
+        if (commandCards.Count == 0)
+        {
+            Debug.Log($"[OnActionCandidates] context:{context} side:{side} none");
+            return false;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return false;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject("OnActionCommandSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, 720, 48);
+        title.text = $"OnAction Command Select ({side}) [{context}]";
+        title.color = Color.white;
+        title.fontSize = 24;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        GameObject scrollGo = root.CreateGridScrollView(680, 410, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -86f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        for (int i = 0; i < commandCards.Count; i++)
+        {
+            CardController command = commandCards[i];
+            if (content == null || command == null || command.Data == null)
+            {
+                continue;
+            }
+
+            GameObject go = Instantiate(CardImagePrefab, content);
+            CardController cc = go.GetComponent<CardController>();
+            if (cc != null)
+            {
+                cc.SetUp(command.Data, _ => { });
+            }
+
+            Button btn = go.GetComponent<Button>();
+            if (btn == null)
+            {
+                btn = go.AddComponent<Button>();
+            }
+
+            btn.onClick.AddListener(() =>
+            {
+                TryExecuteOnActionCommand(side, command, () =>
+                {
+                    isOnActionPopupOpen = false;
+                    activeOnActionPopupRoot = null;
+                    Destroy(root);
+                    onStepDone?.Invoke();
+                });
+            });
+        }
+
+        Button closeBtn = root.CreateChildButton("Close");
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(180f, 48f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(0f, 36f);
+        closeBtn.onClick.AddListener(() =>
+        {
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+            onStepDone?.Invoke();
+        });
+
+        return true;
+    }
+
+    private void TryExecuteOnActionCommand(PlayerType side, CardController command, System.Action onDone)
+    {
+        if (command == null || command.Data == null)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        if (onActionEffects.Count == 0)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target == TargetType.EnemyUnit);
+        if (enemyTargetEffect != null)
+        {
+            OpenOnActionEnemyTargetSelection(side, command, enemyTargetEffect, onDone);
+            return;
+        }
+
+        if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.Data.cost, 0, command.Data.id))
+        {
+            Debug.Log("OnAction: リソース不足で実行できません。");
+            onDone?.Invoke();
+            return;
+        }
+
+        ApplyEffect(command, side, onActionEffects[0]);
+        SendUsedCommandToTrash(command, side);
+        onDone?.Invoke();
+    }
+
+    private void OpenOnActionEnemyTargetSelection(PlayerType side, CardController command, EffectData effect, System.Action onDone)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        List<CardController> enemyUnits = GetAliveEnemyUnits(side);
+        if (enemyUnits.Count == 0)
+        {
+            Debug.Log("OnAction: 対象となる敵ユニットがいません。");
+            onDone?.Invoke();
+            return;
+        }
+
+        GameObject root = new GameObject("OnActionTargetSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionTargetTitle", UIAnchor.TopCenter, 640, 48);
+        title.text = "OnAction Target Select";
+        title.color = Color.white;
+        title.fontSize = 24;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        for (int i = 0; i < enemyUnits.Count; i++)
+        {
+            CardController t = enemyUnits[i];
+            Button btn = root.CreateChildButton($"{t.Data.cardName} AP:{t.CurrentPower} HP:{t.CurrentHp}");
+            RectTransform rt = btn.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(420f, 44f);
+            rt.anchoredPosition = new Vector2(0f, -100f - (i * 52f));
+            btn.onClick.AddListener(() =>
+            {
+                if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.Data.cost, 0, command.Data.id))
+                {
+                    Debug.Log("OnAction: リソース不足で実行できません。");
+                    Destroy(root);
+                    onDone?.Invoke();
+                    return;
+                }
+
+                ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { t });
+                SendUsedCommandToTrash(command, side);
+                Destroy(root);
+                onDone?.Invoke();
+            });
+        }
+
+        Button close = root.CreateChildButton("Close");
+        RectTransform closeRt = close.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(180f, 46f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(0f, 34f);
+        close.onClick.AddListener(() =>
+        {
+            Destroy(root);
+            onDone?.Invoke();
+        });
+    }
+
+    private static List<EffectData> GetEffectsByTiming(CardData data, EffectTiming timing)
+    {
+        List<EffectData> result = new List<EffectData>();
+        if (data == null || data.timedEffects == null)
+        {
+            return result;
+        }
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != timing || timed.effects == null)
+            {
+                continue;
+            }
+            for (int j = 0; j < timed.effects.Count; j++)
+            {
+                if (timed.effects[j] != null)
+                {
+                    result.Add(timed.effects[j]);
+                }
+            }
+        }
+        return result;
+    }
+
+    private void SendUsedCommandToTrash(CardController command, PlayerType ownerType)
+    {
+        if (command == null || command.Data == null)
+        {
+            return;
+        }
+
+        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        ownerRule.AddCardToTrash(command.Data.id);
+        playerHandCards.Remove(command.Data);
+        enemyHandCards.Remove(command.Data);
+        Destroy(command.gameObject);
+    }
+
+    private bool CanExecuteOnActionCardNow(PlayerType ownerType, CardData card)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerState state = ownerType == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        return state.TotalLevel >= card.level && state.resource >= card.cost;
     }
 
     private static bool HasEffectTiming(CardData data, EffectTiming timing)
@@ -2103,6 +2885,94 @@ public class BattleGameMain : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void ShowOnActionHandCandidatesPopup(PlayerType ownerType, string context, List<CardData> cards, System.Action onClose = null)
+    {
+        if (cards == null || cards.Count == 0 || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject("OnActionCandidatesPopup", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionTitle", UIAnchor.TopCenter, 640, 48);
+        title.text = $"OnAction candidates ({ownerType}) [{context}]";
+        title.fontSize = 24;
+        title.color = Color.white;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        GameObject scrollGo = root.CreateGridScrollView(640, 400, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -88f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+        if (content != null)
+        {
+            for (int i = 0; i < cards.Count; i++)
+            {
+                CardData data = cards[i];
+                if (data == null)
+                {
+                    continue;
+                }
+
+                GameObject go = Instantiate(CardImagePrefab, content);
+                CardController cc = go.GetComponent<CardController>();
+                if (cc != null)
+                {
+                    cc.SetUp(data, _ => { });
+                }
+
+                TextMeshProUGUI info = go.CreateChildTextCustom("OnActionCardInfo", UIAnchor.BottomCenter, 120, 24);
+                info.text = $"ID:{data.id}";
+                info.fontSize = 14;
+                info.color = Color.white;
+                info.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 2f);
+            }
+        }
+
+        Button closeBtn = root.CreateChildButton("Close");
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(180f, 48f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(0f, 36f);
+        closeBtn.onClick.AddListener(() =>
+        {
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+            onClose?.Invoke();
+        });
+    }
+
+    private void DestroyActiveOnActionPopupIfAny()
+    {
+        if (activeOnActionPopupRoot != null)
+        {
+            Destroy(activeOnActionPopupRoot);
+            activeOnActionPopupRoot = null;
+            isOnActionPopupOpen = false;
+        }
     }
 
     private void ShowResultOverlay(string resultText)

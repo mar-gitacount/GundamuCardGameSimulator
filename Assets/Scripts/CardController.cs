@@ -6,6 +6,13 @@ using UnityEngine.EventSystems;
 using System;
 public class CardController : MonoBehaviour,IPointerClickHandler
 {
+    [Serializable]
+    private struct PowerModifier
+    {
+        public int value;
+        public EffectDuration duration;
+    }
+
     [SerializeField] private Image cardImage;
     
 
@@ -18,7 +25,19 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     /// <summary>ユニットの現在 HP（配備・ドロー時に Data.hp で初期化）。</summary>
     public int CurrentHp { get; private set; }
-    public int CurrentPower => Mathf.Max(0, (Data != null ? Data.power : 0) + pilotPowerBonus + effectPowerBonus);
+    public int CurrentPower
+    {
+        get
+        {
+            int basePower = Data != null ? Data.power : 0;
+            int modified = basePower + pilotPowerBonus;
+            for (int i = 0; i < powerModifiers.Count; i++)
+            {
+                modified += powerModifiers[i].value;
+            }
+            return Mathf.Max(0, modified);
+        }
+    }
     public CardController MountedPilot { get; private set; }
     public CardController MountedUnit { get; private set; }
 
@@ -27,7 +46,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     private GameObject shieldFaceCoverRoot;
     private int pilotPowerBonus;
-    private int effectPowerBonus;
+    private readonly List<PowerModifier> powerModifiers = new List<PowerModifier>();
     private static readonly Vector2 PilotOffset = new Vector2(0f, -18f);
     private Image unitFaceTopLayer;
 
@@ -60,7 +79,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
         CurrentHp = Mathf.Max(0, Data.hp);
         pilotPowerBonus = 0;
-        effectPowerBonus = 0;
+        powerModifiers.Clear();
         MountedPilot = null;
         MountedUnit = null;
     }
@@ -158,12 +177,31 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         return Data.cost;
     }
 
-    public void AddEffectStatBonus(int powerDelta, int hpDelta)
+    public void AddEffectStatBonus(int powerDelta, int hpDelta, EffectDuration duration = EffectDuration.Permanent)
     {
-        effectPowerBonus += powerDelta;
+        if (powerDelta != 0)
+        {
+            powerModifiers.Add(new PowerModifier
+            {
+                value = powerDelta,
+                duration = duration
+            });
+        }
+
         if (hpDelta != 0)
         {
             CurrentHp = Mathf.Max(0, CurrentHp + hpDelta);
+        }
+    }
+
+    public void ClearPowerModifiersByDuration(EffectDuration duration)
+    {
+        for (int i = powerModifiers.Count - 1; i >= 0; i--)
+        {
+            if (powerModifiers[i].duration == duration)
+            {
+                powerModifiers.RemoveAt(i);
+            }
         }
     }
 
