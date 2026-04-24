@@ -12,15 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
   m_Name: New Card Data 19
   m_EditorClassIdentifier: 
-  id: 18
-  cardName: "\u30B9\u30C8\u30E9\u30A4\u30AF\u30EB\u30FC\u30B8\u30E5"
-  cost: 2
-  level: 3
-  power: 3
-  hp: 2
-  imageName: {fileID: 21300000, guid: 22aac9c8b29204244b6fae8a02f8bc13, type: 3}
+  id: 19
+  cardName: "\u30B2\u30EB\u30B0\u30B0"
+  cost: 4
+  level: 4
+  power: 4
+  hp: 3
+  imageName: {fileID: 21300000, guid: 2b946764bf3b8584f835522931a29920, type: 3}
   image: {fileID: 0}
   version: 1
   sourceType: 1
   filterType: 0
   color: 5
+  type: 0
+  attackFlg: 0
+  timedEffects: []

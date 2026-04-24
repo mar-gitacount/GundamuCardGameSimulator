@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -7,6 +8,16 @@ using UnityEngine;
 /// </summary>
 public class Gundam2024RuleScript
 {
+    [Serializable]
+    public struct ResourceUsageLog
+    {
+        public int turnIndex;
+        public PlayerSide side;
+        public int cardId;
+        public int resourceUsed;
+        public int exUsed;
+    }
+
     public enum TurnPhase
     {
         Start,
@@ -67,6 +78,10 @@ public class Gundam2024RuleScript
 
     public PlayerState Player { get; } = new PlayerState();
     public PlayerState Enemy { get; } = new PlayerState();
+    public int TurnIndex { get; private set; }
+
+    private readonly List<ResourceUsageLog> playerCurrentTurnResourceUsageLogs = new List<ResourceUsageLog>();
+    private readonly List<ResourceUsageLog> enemyCurrentTurnResourceUsageLogs = new List<ResourceUsageLog>();
 
     public event Action<PlayerSide, TurnPhase> OnPhaseChanged;
     public event Action<PlayerSide> OnTurnChanged;
@@ -77,8 +92,11 @@ public class Gundam2024RuleScript
     {
         CurrentTurnPlayer = firstPlayer;
         CurrentPhase = TurnPhase.Start;
+        TurnIndex = 0;
         Player.ResetForGameStart(Config, playerDeckCount);
         Enemy.ResetForGameStart(Config, enemyDeckCount);
+        playerCurrentTurnResourceUsageLogs.Clear();
+        enemyCurrentTurnResourceUsageLogs.Clear();
     }
 
     /// <summary>現在のターンプレイヤーをバトル側と一致させる（BeginTurn の対象判定用）。</summary>
@@ -110,7 +128,9 @@ public class Gundam2024RuleScript
     public void BeginTurn()
     {
         CurrentPhase = TurnPhase.Start;
+        TurnIndex++;
         PlayerState state = GetState(CurrentTurnPlayer);
+        GetCurrentTurnUsageLogs(CurrentTurnPlayer).Clear();
         GainLevelAndRefreshResource(state);
         DrawCards(state, Config.drawPerTurn);
         OnPhaseChanged?.Invoke(CurrentTurnPlayer, CurrentPhase);
@@ -168,10 +188,15 @@ public class Gundam2024RuleScript
 
     public bool TryConsumeResource(PlayerSide side, int cost)
     {
-        return TryConsumeResource(side, cost, 0);
+        return TryConsumeResource(side, cost, 0, -1);
     }
 
     public bool TryConsumeResource(PlayerSide side, int cost, int exToUse)
+    {
+        return TryConsumeResource(side, cost, exToUse, -1);
+    }
+
+    public bool TryConsumeResource(PlayerSide side, int cost, int exToUse, int cardId)
     {
         if (cost < 0)
         {
@@ -208,7 +233,28 @@ public class Gundam2024RuleScript
             state.level = Mathf.Max(0, state.level);
             state.resource = Mathf.Min(state.resource, state.TotalLevel);
         }
+
+        int normalUsed = resourceFromNormal;
+        if (normalUsed > 0 || useEx > 0)
+        {
+            ResourceUsageLog log = new ResourceUsageLog
+            {
+                turnIndex = TurnIndex,
+                side = side,
+                cardId = cardId,
+                resourceUsed = normalUsed,
+                exUsed = useEx
+            };
+            GetCurrentTurnUsageLogs(side).Add(log);
+            Debug.Log($"[ResourceUsage] turn:{log.turnIndex} side:{log.side} cardId:{log.cardId} resourceUsed:{log.resourceUsed} exUsed:{log.exUsed}");
+        }
+
         return true;
+    }
+
+    public IReadOnlyList<ResourceUsageLog> GetCurrentTurnResourceUsageLogs(PlayerSide side)
+    {
+        return GetCurrentTurnUsageLogs(side);
     }
 
     public void AddExResource(PlayerSide side, int amount)
@@ -363,5 +409,12 @@ public class Gundam2024RuleScript
     private PlayerState GetState(PlayerSide side)
     {
         return side == PlayerSide.Player ? Player : Enemy;
+    }
+
+    private List<ResourceUsageLog> GetCurrentTurnUsageLogs(PlayerSide side)
+    {
+        return side == PlayerSide.Player
+            ? playerCurrentTurnResourceUsageLogs
+            : enemyCurrentTurnResourceUsageLogs;
     }
 }

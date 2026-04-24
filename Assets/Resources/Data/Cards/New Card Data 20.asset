@@ -10,27 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: New Card Data 6
+  m_Name: New Card Data 20
   m_EditorClassIdentifier: 
-  id: 6
-  cardName: "\u30AD\u30E9\u30E4\u30DE\u30C8"
-  cost: 1
+  id: 19
+  cardName: "\u30B2\u30EB\u30B0\u30B0"
+  cost: 4
   level: 4
-  power: 2
-  hp: 1
-  imageName: {fileID: 21300000, guid: 529114f185431124eb16131d3ec65c74, type: 3}
+  power: 4
+  hp: 3
+  imageName: {fileID: 21300000, guid: 2b946764bf3b8584f835522931a29920, type: 3}
   image: {fileID: 0}
   version: 1
-  sourceType: 2
+  sourceType: 1
   filterType: 0
   color: 5
-  type: 1
+  type: 0
   attackFlg: 0
-  timedEffects:
-  - timing: 3
-    effects:
-    - type: 3
-      value: 2
-      target: 2
-      selectionMode: 2
-      statTarget: 0
+  timedEffects: []
