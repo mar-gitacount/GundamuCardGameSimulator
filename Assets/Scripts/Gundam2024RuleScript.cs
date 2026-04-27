@@ -318,10 +318,15 @@ public class Gundam2024RuleScript
     }
 
     /// <summary>
-    /// ユニットのシールド攻撃。EXベースが1以上なら power 分を EX ベースに与える（シールド枚数は減らない）。
-    /// EXベースが無い（0以下）なら、power に関わらずシールドを 1 枚だけ破壊する。
+    /// ユニットのシールド攻撃。AP（攻撃力）が 1 未満のときは失敗し、シールドも EX ベースも変化しない。
+    /// EXベースが1以上なら power 分を EX ベースに与える（シールド枚数は減らない）。
+    /// EXベースが無い（0以下）なら、power が 1 以上のときのみシールドを 1 枚破壊する。
     /// </summary>
-    public bool TryApplyUnitShieldAttack(PlayerSide defenderSide, int attackerPower)
+    /// <param name="hadExBaseLayerAtShieldAttackStart">
+    /// このシールド攻撃の解決開始時点で EX ベースが存在していた場合 true。
+    /// OnAction 等で EX が 0 になった後にここへ来たとき、シールド破壊に落とさない（攻撃は成立扱いで消費のみ）。
+    /// </param>
+    public bool TryApplyUnitShieldAttack(PlayerSide defenderSide, int attackerPower, bool hadExBaseLayerAtShieldAttackStart = false)
     {
         PlayerState defender = GetState(defenderSide);
         if (defender.shield <= 0)
@@ -330,15 +335,20 @@ public class Gundam2024RuleScript
         }
 
         int p = Mathf.Max(0, attackerPower);
+        if (p <= 0)
+        {
+            return false;
+        }
 
         if (defender.exBase > 0)
         {
-            if (p <= 0)
-            {
-                return false;
-            }
-
             defender.exBase = Mathf.Max(0, defender.exBase - p);
+            return true;
+        }
+
+        if (hadExBaseLayerAtShieldAttackStart)
+        {
+            // EX レイヤーがあったターン内シールド攻撃では、EX が先に 0 になった場合でもシールドは割らない。
             return true;
         }
 
@@ -368,7 +378,26 @@ public class Gundam2024RuleScript
         DamageShield(targetSide, amount);
     }
 
-    /// <summary>シールド攻撃ボタンを出すか（シールドが残っていること、EXベースあり時は power 必須）。</summary>
+    /// <summary>
+    /// EXベースにのみダメージを与える。シールドには流さない。
+    /// </summary>
+    public void DamageExBaseOnly(PlayerSide targetSide, int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        PlayerState target = GetState(targetSide);
+        if (target.exBase <= 0)
+        {
+            return;
+        }
+
+        target.exBase = Mathf.Max(0, target.exBase - amount);
+    }
+
+    /// <summary>シールド攻撃ボタンを出すか（シールドが残っていること、AP が 1 以上必須）。</summary>
     public bool CanShowUnitShieldAttackOption(PlayerState defender, int attackerPower)
     {
         if (defender == null || defender.shield <= 0)
@@ -376,12 +405,7 @@ public class Gundam2024RuleScript
             return false;
         }
 
-        if (defender.exBase > 0)
-        {
-            return attackerPower > 0;
-        }
-
-        return true;
+        return attackerPower > 0;
     }
 
     public bool IsDefeated(PlayerSide side)
