@@ -2268,6 +2268,16 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (attacker.CurrentHp <= 0)
+        {
+            Debug.Log("[ShieldAttack] HP is 0 — consume attack and set REST.");
+            attacker.SetAttackFlg(AttackFlg.False);
+            attacker.SetUnitRestVisual(true);
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            return;
+        }
+
         Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
             ? Gundam2024RuleScript.PlayerSide.Enemy
             : Gundam2024RuleScript.PlayerSide.Player;
@@ -2377,6 +2387,16 @@ public class BattleGameMain : MonoBehaviour
         if (attacker.Data.type != Type.Unit || defender.Data.type != Type.Unit)
         {
             Debug.Log("Only units can attack each other.");
+            return;
+        }
+
+        if (attacker.CurrentHp <= 0)
+        {
+            Debug.Log("[UnitAttack] Attacker HP is 0 — consume attack and set REST.");
+            attacker.SetAttackFlg(AttackFlg.False);
+            attacker.SetUnitRestVisual(true);
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
             return;
         }
 
@@ -3063,6 +3083,7 @@ public class BattleGameMain : MonoBehaviour
             }
         }
 
+        List<CardController> selectedCommands = new List<CardController>();
         for (int i = 0; i < commandCards.Count; i++)
         {
             CardController command = commandCards[i];
@@ -3084,18 +3105,60 @@ public class BattleGameMain : MonoBehaviour
                 btn = go.AddComponent<Button>();
             }
 
-            bool isAttackContext = showAttackHighlight;
+            Image baseImage = go.GetComponent<Image>();
+            Color originalColor = baseImage != null ? baseImage.color : Color.white;
+            CardController selectedCommand = command;
             btn.onClick.AddListener(() =>
             {
-                TryExecuteOnActionCommand(side, command, isAttackContext, attackingUnitForUiHighlight, () =>
+                if (selectedCommands.Contains(selectedCommand))
+                {
+                    selectedCommands.Remove(selectedCommand);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = originalColor;
+                    }
+                }
+                else
+                {
+                    selectedCommands.Add(selectedCommand);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = new Color(0.7f, 1f, 0.7f, 1f);
+                    }
+                }
+            });
+        }
+
+        Button confirmBtn = root.CreateChildButton("Confirm");
+        RectTransform confirmRt = confirmBtn.GetComponent<RectTransform>();
+        confirmRt.sizeDelta = new Vector2(180f, 48f);
+        confirmRt.anchorMin = new Vector2(0.5f, 0f);
+        confirmRt.anchorMax = new Vector2(0.5f, 0f);
+        confirmRt.pivot = new Vector2(0.5f, 0f);
+        confirmRt.anchoredPosition = new Vector2(-100f, 36f);
+        confirmBtn.onClick.AddListener(() =>
+        {
+            if (selectedCommands.Count == 0)
+            {
+                Debug.Log("OnAction: カードを1枚以上選択してください。");
+                return;
+            }
+
+            bool isAttackContext = showAttackHighlight;
+            ExecuteOnActionCommandQueue(
+                side,
+                selectedCommands,
+                0,
+                isAttackContext,
+                attackingUnitForUiHighlight,
+                () =>
                 {
                     isOnActionPopupOpen = false;
                     activeOnActionPopupRoot = null;
                     Destroy(root);
                     onStepDone?.Invoke();
                 });
-            });
-        }
+        });
 
         Button closeBtn = root.CreateChildButton("Close");
         RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
@@ -3103,7 +3166,7 @@ public class BattleGameMain : MonoBehaviour
         closeRt.anchorMin = new Vector2(0.5f, 0f);
         closeRt.anchorMax = new Vector2(0.5f, 0f);
         closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(0f, 36f);
+        closeRt.anchoredPosition = new Vector2(100f, 36f);
         closeBtn.onClick.AddListener(() =>
         {
             isOnActionPopupOpen = false;
@@ -3113,6 +3176,35 @@ public class BattleGameMain : MonoBehaviour
         });
 
         return true;
+    }
+
+    private void ExecuteOnActionCommandQueue(
+        PlayerType side,
+        List<CardController> selectedCommands,
+        int index,
+        bool isAttackContext,
+        CardController attackingUnitForUiHighlight,
+        System.Action onAllDone)
+    {
+        if (selectedCommands == null || index >= selectedCommands.Count)
+        {
+            onAllDone?.Invoke();
+            return;
+        }
+
+        CardController command = selectedCommands[index];
+        TryExecuteOnActionCommand(
+            side,
+            command,
+            isAttackContext,
+            attackingUnitForUiHighlight,
+            () => ExecuteOnActionCommandQueue(
+                side,
+                selectedCommands,
+                index + 1,
+                isAttackContext,
+                attackingUnitForUiHighlight,
+                onAllDone));
     }
 
     private void TryExecuteOnActionCommand(
