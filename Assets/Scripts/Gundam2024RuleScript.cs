@@ -346,6 +346,28 @@ public class Gundam2024RuleScript
         return true;
     }
 
+    /// <summary>
+    /// プレイヤー領域へのダメージを適用する。
+    /// EXベースが残っている間はEXベースのみ減少し、シールドは減らさない。
+    /// EXベースが0のときのみシールドを減少させる（オーバーフローしない）。
+    /// </summary>
+    public void DamagePlayerArea(PlayerSide targetSide, int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        PlayerState target = GetState(targetSide);
+        if (target.exBase > 0)
+        {
+            target.exBase = Mathf.Max(0, target.exBase - amount);
+            return;
+        }
+
+        DamageShield(targetSide, amount);
+    }
+
     /// <summary>シールド攻撃ボタンを出すか（シールドが残っていること、EXベースあり時は power 必須）。</summary>
     public bool CanShowUnitShieldAttackOption(PlayerState defender, int attackerPower)
     {

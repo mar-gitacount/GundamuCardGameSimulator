@@ -956,7 +956,7 @@ public class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
-    /// 攻撃可能なエネミーユニットで、可能な限りシールドへ攻撃する（簡易AI）。
+    /// 攻撃可能なエネミーユニットで、シールド攻撃かRESTユニット攻撃かを簡易評価して1回攻撃する。
     /// </summary>
     private int TryEnemyShieldAttacks()
     {
@@ -981,13 +981,32 @@ public class BattleGameMain : MonoBehaviour
 
             bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.CurrentPower);
             bool canDirectAttack = gundamRule.Player.shield <= 0;
-            if (!canAttackShield && !canDirectAttack)
+            List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
+            bool canAttackUnit = restTargets.Count > 0;
+            if (!canAttackShield && !canDirectAttack && !canAttackUnit)
             {
                 continue;
             }
 
             AttackFlg before = unit.AttackFlgState;
-            TryUnitShieldAttackFromUnit(unit);
+            bool attackShield = ShouldEnemyAiPreferShieldAttack(unit, canAttackShield || canDirectAttack, canAttackUnit, restTargets);
+            if (attackShield)
+            {
+                TryUnitShieldAttackFromUnit(unit);
+                Debug.Log($"[EnemyAI] {unit.Data.cardName} chose shield attack.");
+            }
+            else
+            {
+                CardController target = SelectEnemyAiUnitAttackTarget(restTargets);
+                if (target == null)
+                {
+                    continue;
+                }
+
+                TryUnitVsUnitAttack(unit, target, PlayerType.Enemy, PlayerType.Player);
+                Debug.Log($"[EnemyAI] {unit.Data.cardName} chose unit attack target:{target.Data.cardName}");
+            }
+
             // 攻撃が成立した時だけカウント（OnAction待機で未成立なら数えない）。
             if (before == AttackFlg.True && unit.AttackFlgState == AttackFlg.False)
             {
@@ -1004,6 +1023,86 @@ public class BattleGameMain : MonoBehaviour
         }
 
         return 0;
+    }
+
+    private List<CardController> GetEnemyAiRestTargets(PlayerType attackerOwner)
+    {
+        List<CardController> enemies = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> rest = new List<CardController>();
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            CardController c = enemies[i];
+            if (c != null && c.IsRestState)
+            {
+                rest.Add(c);
+            }
+        }
+        return rest;
+    }
+
+    private bool ShouldEnemyAiPreferShieldAttack(
+        CardController attacker,
+        bool canShieldAttack,
+        bool canUnitAttack,
+        List<CardController> restTargets)
+    {
+        if (!canShieldAttack && canUnitAttack)
+        {
+            return false;
+        }
+        if (canShieldAttack && !canUnitAttack)
+        {
+            return true;
+        }
+        if (!canShieldAttack && !canUnitAttack)
+        {
+            return false;
+        }
+
+        int shieldScore = gundamRule.Player.shield <= 1 ? 100 : 35;
+        if (gundamRule.Player.exBase > 0)
+        {
+            shieldScore += Mathf.Clamp(attacker.CurrentPower, 0, 20);
+        }
+        else
+        {
+            shieldScore += 12;
+        }
+
+        CardController bestUnitTarget = SelectEnemyAiUnitAttackTarget(restTargets);
+        int unitScore = 30;
+        if (bestUnitTarget != null)
+        {
+            unitScore += Mathf.Clamp(bestUnitTarget.CurrentPower, 0, 20);
+            if (attacker.CurrentPower >= bestUnitTarget.CurrentHp)
+            {
+                unitScore += 18;
+            }
+        }
+
+        return shieldScore >= unitScore;
+    }
+
+    private CardController SelectEnemyAiUnitAttackTarget(List<CardController> restTargets)
+    {
+        CardController best = null;
+        int bestScore = int.MinValue;
+        for (int i = 0; i < restTargets.Count; i++)
+        {
+            CardController t = restTargets[i];
+            if (t == null || t.Data == null)
+            {
+                continue;
+            }
+
+            int score = t.CurrentPower * 2 - t.CurrentHp;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = t;
+            }
+        }
+        return best;
     }
 
     void ExcueteEndTurn()
@@ -2403,7 +2502,7 @@ public class BattleGameMain : MonoBehaviour
                     Gundam2024RuleScript.PlayerSide targetSide = effect.target == TargetType.EnemyPlayer
                         ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
                         : ToRuleSide(ownerType);
-                    gundamRule.DamageShield(targetSide, magnitude);
+                    gundamRule.DamagePlayerArea(targetSide, magnitude);
                 }
                 Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");
                 break;

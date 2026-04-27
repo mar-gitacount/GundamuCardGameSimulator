@@ -32,5 +32,6 @@ MonoBehaviour:
     - type: 3
       value: 2
       target: 2
-      selectionMode: 2
+      selectionMode: 1
       statTarget: 0
+      duration: 2
