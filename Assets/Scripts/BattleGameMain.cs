@@ -2289,6 +2289,11 @@ public class BattleGameMain : MonoBehaviour
         if (attacker.CurrentPower <= 0)
         {
             Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or damage EX Base.");
+            // 攻撃宣言は成立しているため、ダメージが0でも攻撃権は消費してRESTにする。
+            attacker.SetAttackFlg(AttackFlg.False);
+            attacker.SetUnitRestVisual(true);
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
             return;
         }
 
