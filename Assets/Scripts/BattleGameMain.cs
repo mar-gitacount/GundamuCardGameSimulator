@@ -73,6 +73,10 @@ public class BattleGameMain : MonoBehaviour
     [Tooltip("未指定時はシーン内の Canvas を自動検索します。")]
     [SerializeField] private Canvas turnOrderAlertCanvas;
     [SerializeField] private float turnOrderAlertDurationSeconds = 1f;
+    [Header("フェイズ表示")]
+    [SerializeField] private float phasePauseDurationSeconds = 0.9f;
+    [Header("敵アタック通知")]
+    [SerializeField] private float enemyAttackNoticeSeconds = 1.0f;
 
     [Header("オープニング・シールド")]
     [Tooltip("未指定時は EX ベース 3 として扱います。Gundam_Rules.pdf に準拠。")]
@@ -100,6 +104,9 @@ public class BattleGameMain : MonoBehaviour
     private bool isEndTurnFlowRunning;
     private bool isOnActionPopupOpen;
     private GameObject activeOnActionPopupRoot;
+    private bool isTurnPhaseSequenceRunning;
+    private bool blockShieldFlowDuringShieldAttack;
+    private Gundam2024RuleScript.PlayerSide blockedShieldFlowSide;
 
     private void Awake()
     {
@@ -140,8 +147,13 @@ public class BattleGameMain : MonoBehaviour
         isFirstPlayer = DecideTurnOrder();
         PlayerType firstPlayerThisGame = currentPlayerType;
 
+        const int openingHandSize = 5;
+        int minDeckTotalForOpening = openingHandSize + OpeningShieldCardCount;
+
         playerDeckData = DeckSettinObject.Instance.LoadDeckReturn();
         enemyDeckData = DeckSettinObject.Instance.LoadEnemyDeckReturn();
+        enemyDeckData = EnsureDeckHasMinimumCardsForOpening(enemyDeckData, playerDeckData, minDeckTotalForOpening, "Enemy");
+        playerDeckData = EnsureDeckHasMinimumCardsForOpening(playerDeckData, enemyDeckData, minDeckTotalForOpening, "Player");
 
         cardGameRule.SetUp(PlayerFieldPanel);
         cardGameRule.CreateShuffledDeck(playerDeckData);
@@ -158,7 +170,6 @@ public class BattleGameMain : MonoBehaviour
             enemyCardGameRule.GetRemainingCount(),
             ToRuleSide(firstPlayerThisGame));
 
-        const int openingHandSize = 5;
         for (int i = 0; i < openingHandSize; i++)
         {
             CardAddtoHand(cardGameRule, PlayerType.Player);
@@ -249,6 +260,81 @@ public class BattleGameMain : MonoBehaviour
         UpdateEndTurnButtonVisibility();
 
         ShowTurnOrderAlert(firstPlayerThisGame);
+    }
+
+    /// <summary>
+    /// 初期手札とオープニング・シールドは山札から引くため、総枚数が不足するとシールドが規定枚数に届かない。
+    /// 最低必要枚数まで、既存デッキ内のカードIDを複製して埋める（相手デッキからIDを借りることもある）。
+    /// </summary>
+    private static Dictionary<int, int> EnsureDeckHasMinimumCardsForOpening(
+        Dictionary<int, int> deck,
+        Dictionary<int, int> fallbackForPadId,
+        int minimumTotalCards,
+        string deckLabelForLog)
+    {
+        var result = new Dictionary<int, int>();
+        if (deck != null)
+        {
+            foreach (KeyValuePair<int, int> kv in deck)
+            {
+                if (kv.Value > 0)
+                {
+                    result[kv.Key] = kv.Value;
+                }
+            }
+        }
+
+        int total = 0;
+        foreach (KeyValuePair<int, int> kv in result)
+        {
+            total += kv.Value;
+        }
+
+        int? padId = FirstPositiveCountCardId(result) ?? FirstPositiveCountCardId(fallbackForPadId);
+        if (!padId.HasValue)
+        {
+            Debug.LogWarning($"[Deck:{deckLabelForLog}] パッド用のカードIDが取得できません（デッキが空の可能性）。");
+            return result;
+        }
+
+        int id = padId.Value;
+        int added = 0;
+        while (total < minimumTotalCards)
+        {
+            if (!result.ContainsKey(id))
+            {
+                result[id] = 0;
+            }
+
+            result[id]++;
+            total++;
+            added++;
+        }
+
+        if (added > 0)
+        {
+            Debug.Log($"[Deck:{deckLabelForLog}] オープニング要件のため山札を {added} 枚パッドしました（合計 {total} 枚、最低 {minimumTotalCards} 枚）。");
+        }
+
+        return result;
+    }
+
+    private static int? FirstPositiveCountCardId(Dictionary<int, int> deck)
+    {
+        if (deck == null)
+        {
+            return null;
+        }
+
+        foreach (KeyValuePair<int, int> kv in deck)
+        {
+            if (kv.Value > 0)
+            {
+                return kv.Key;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>先攻アラート・マリガンで共通利用する Canvas を取得する。</summary>
@@ -768,37 +854,41 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        currentPhase = nextPhase;
-        UpdateEndTurnButtonVisibility();
-        switch (currentPhase)
+        switch (nextPhase)
         {
             case BattlePhase.StartTurn:
-                Debug.Log("ターン開始フェイズに入りました。");
-                // ターン開始フェイズの処理をここに書く
-                ExcuteStartTurn();
+                if (!isTurnPhaseSequenceRunning)
+                {
+                    StartCoroutine(ExecuteTurnPhaseSequenceCoroutine());
+                }
                 break;
             case BattlePhase.ActivePhase:
+                currentPhase = BattlePhase.ActivePhase;
+                UpdateEndTurnButtonVisibility();
                 Debug.Log("アクティブフェイズに入りました。");
                 // アクティブフェイズの処理をここに書く
                 break;
             case BattlePhase.DrawPhase:
+                currentPhase = BattlePhase.DrawPhase;
+                UpdateEndTurnButtonVisibility();
                 Debug.Log("ドローフェイズに入りました。");
                 // ドローフェイズの処理をここに書く
                 break;
             case BattlePhase.ResourcePhase:
+                currentPhase = BattlePhase.ResourcePhase;
+                UpdateEndTurnButtonVisibility();
                 Debug.Log("リソースフェイズに入りました。");
                 // リソースフェイズの処理をここに書く
                 break;
             case BattlePhase.MainPhase:
+                currentPhase = BattlePhase.MainPhase;
+                UpdateEndTurnButtonVisibility();
                 Debug.Log("メインフェイズに入りました。");
                 // メインフェイズの処理をここに書く
                 ExcuteMainPhase();
                 break;
             case BattlePhase.EndTurn:
-                Debug.Log("エンドフェイズに入りました。");
-                // エンドフェイズの処理をここに書く
-                // currentPlayer = !currentPlayer; // ターン終了時にプレイヤーを切り替える
-                ExcueteEndTurn();
+                StartCoroutine(ExecuteEndTurnWithPhasePauseCoroutine());
                 break;
             case BattlePhase.OpponentTurn:
                 Debug.Log("相手のターンに入りました。");
@@ -806,7 +896,90 @@ public class BattleGameMain : MonoBehaviour
         }
         
     }
-    void ExcuteStartTurn()
+
+    private IEnumerator ExecuteTurnPhaseSequenceCoroutine()
+    {
+        if (isTurnPhaseSequenceRunning)
+        {
+            yield break;
+        }
+
+        isTurnPhaseSequenceRunning = true;
+        yield return ShowPhasePauseCoroutine(currentPlayerType == PlayerType.Player ? "Player Turn" : "Enemy Turn");
+        currentPhase = BattlePhase.DrawPhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Draw Phase");
+
+        currentPhase = BattlePhase.ResourcePhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Resource Phase");
+
+        currentPhase = BattlePhase.ActivePhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Card & Resource Active");
+
+        ExecuteTurnStartCore();
+
+        currentPhase = BattlePhase.MainPhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Main Phase");
+        ExcuteMainPhase();
+
+        isTurnPhaseSequenceRunning = false;
+    }
+
+    private IEnumerator ExecuteEndTurnWithPhasePauseCoroutine()
+    {
+        currentPhase = BattlePhase.EndTurn;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("End Phase");
+        ExcueteEndTurn();
+    }
+
+    private IEnumerator ShowPhasePauseCoroutine(string phaseLabel)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            yield return new WaitForSeconds(0.2f);
+            yield break;
+        }
+
+        GameObject root = new GameObject("PhasePauseOverlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+
+        Image bg = root.GetComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.55f);
+        bg.raycastTarget = true;
+
+        TextMeshProUGUI phaseText = root.CreateChildTextCustom("PhasePauseText", UIAnchor.TopCenter, 680, 120);
+        phaseText.text = phaseLabel;
+        phaseText.fontSize = 44;
+        if (phaseLabel == "Enemy Turn")
+        {
+            phaseText.color = new Color32(255, 90, 90, 255);
+        }
+        else if (phaseLabel == "Player Turn")
+        {
+            phaseText.color = new Color32(40, 110, 255, 255);
+        }
+        else
+        {
+            phaseText.color = Color.white;
+        }
+        phaseText.alignment = TextAlignmentOptions.Center;
+        phaseText.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -180f);
+
+        float wait = Mathf.Max(0.1f, phasePauseDurationSeconds);
+        yield return new WaitForSeconds(wait);
+        if (root != null)
+        {
+            Destroy(root);
+        }
+    }
+    void ExecuteTurnStartCore()
     {
         Debug.Log("ターン開始フェイズの処理を実行します。");
         // ターン開始フェイズの具体的な処理をここに書く
@@ -836,8 +1009,6 @@ public class BattleGameMain : MonoBehaviour
             ApplyTurnStartAttackFlgForCurrentPlayer();
             TriggerAllTimedEffectsForSide(PlayerType.Enemy, EffectTiming.OnTurnStart);
         }
-        // メインフェイズに移行する
-        ChangePhase(BattlePhase.MainPhase);
     }
 
     void ExcuteMainPhase()
@@ -994,6 +1165,7 @@ public class BattleGameMain : MonoBehaviour
             {
                 TryUnitShieldAttackFromUnit(unit);
                 Debug.Log($"[EnemyAI] {unit.Data.cardName} chose shield attack.");
+                ShowEnemyAttackDecisionNotice($"{unit.Data.cardName} attacks SHIELD");
             }
             else
             {
@@ -1005,6 +1177,7 @@ public class BattleGameMain : MonoBehaviour
 
                 TryUnitVsUnitAttack(unit, target, PlayerType.Enemy, PlayerType.Player);
                 Debug.Log($"[EnemyAI] {unit.Data.cardName} chose unit attack target:{target.Data.cardName}");
+                ShowEnemyAttackDecisionNotice($"{unit.Data.cardName} attacks UNIT: {target.Data.cardName}");
             }
 
             // 攻撃が成立した時だけカウント（OnAction待機で未成立なら数えない）。
@@ -1023,6 +1196,51 @@ public class BattleGameMain : MonoBehaviour
         }
 
         return 0;
+    }
+
+    private void ShowEnemyAttackDecisionNotice(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        Transform existing = canvas.transform.Find("EnemyAttackNotice");
+        if (existing != null)
+        {
+            Destroy(existing.gameObject);
+        }
+
+        GameObject root = new GameObject("EnemyAttackNotice", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+
+        RectTransform rt = root.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(760f, 86f);
+        rt.anchoredPosition = new Vector2(0f, 160f);
+
+        Image bg = root.GetComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.72f);
+        bg.raycastTarget = false;
+
+        TextMeshProUGUI text = root.CreateChildTextCustom("EnemyAttackNoticeText", UIAnchor.FullSize, 740, 80);
+        text.text = message;
+        text.fontSize = 34;
+        text.color = new Color32(255, 110, 110, 255);
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+
+        float life = Mathf.Max(0.2f, enemyAttackNoticeSeconds);
+        Destroy(root, life);
     }
 
     private List<CardController> GetEnemyAiRestTargets(PlayerType attackerOwner)
@@ -1122,23 +1340,14 @@ public class BattleGameMain : MonoBehaviour
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = currentPlayerType;
         bool waitingForClose = false;
-        bool showPopup = endingTurnSide == PlayerType.Player;
-        bool shown = LogHandOnActionCandidates(
+        bool startedOnActionStep = TryHandleSingleSideOnActionStep(
             endingTurnSide,
             "turn end",
-            showPopup,
             () => waitingForClose = false);
-        if (!showPopup && shown)
+        if (startedOnActionStep)
         {
-            Debug.Log($"[OnActionStep] side:{endingTurnSide} context:turn end skipped for background AI.");
-        }
-        if (shown)
-        {
-            if (showPopup)
-            {
-                waitingForClose = true;
-                yield return new WaitUntil(() => !waitingForClose);
-            }
+            waitingForClose = true;
+            yield return new WaitUntil(() => !waitingForClose);
         }
 
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
@@ -2031,7 +2240,8 @@ public class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
-    /// シールド攻撃。EXベースありなら power を EX ベースに与え、無いならシールド 1 枚のみ破壊（<see cref="Gundam2024RuleScript.TryApplyUnitShieldAttack"/>）。
+    /// シールド攻撃。AP が 1 未満のときは何もしない。
+    /// EXベースありなら power を EX ベースに与え、無いならシールド 1 枚のみ破壊（<see cref="Gundam2024RuleScript.TryApplyUnitShieldAttack"/>）。
     /// </summary>
     private void TryUnitShieldAttackFromUnit(CardController attacker, bool skipOnActionPause = false, bool skipOnAttackSelection = false)
     {
@@ -2058,30 +2268,6 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // シールド攻撃時も OnAttack の対象選択効果を先に解決する。
-        if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
-        {
-            if (TryOpenOnAttackEnemySelectionPanel(
-                attacker,
-                attackerOwner,
-                null,
-                () => TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true)))
-            {
-                return;
-            }
-
-            pendingOnAttackEffectResolvedAttacker = attacker;
-        }
-
-        if (!skipOnActionPause
-            && TryRunAttackActionSteps(
-                attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
-                attackerOwner,
-                () => TryUnitShieldAttackFromUnit(attacker, true, true)))
-        {
-            return;
-        }
-
         Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
             ? Gundam2024RuleScript.PlayerSide.Enemy
             : Gundam2024RuleScript.PlayerSide.Player;
@@ -2100,31 +2286,79 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        int exBaseBefore = defender.exBase;
-        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.CurrentPower))
+        if (attacker.CurrentPower <= 0)
         {
-            Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
+            Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or damage EX Base.");
             return;
         }
 
-        attacker.SetAttackFlg(AttackFlg.False);
-        attacker.SetUnitRestVisual(true);
-        if (exBaseBefore > 0)
+        // OnAction より前の時点で EX ベースがあったかを固定する（OnAction で EX が 0 になった後にシールドが割れるのを防ぐ）。
+        bool hadExBaseLayerAtShieldAttackStart = defender.exBase > 0;
+        if (hadExBaseLayerAtShieldAttackStart)
         {
-            Debug.Log($"[Attack] Dealt {attacker.CurrentPower} to EX Base. EX Base is now {defender.exBase}.");
+            blockShieldFlowDuringShieldAttack = true;
+            blockedShieldFlowSide = targetSide;
         }
-        else
-        {
-            Debug.Log("[Attack] Broke 1 shield (no EX Base).");
-        }
-        TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
-        TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
-        pendingUnitAttackAttacker = null;
-        pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfBattle);
-        DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
-        SyncAllResourceViewsFromRule();
+        try
+        {
+            // シールド攻撃時も OnAttack の対象選択効果を先に解決する。
+            if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
+            {
+                if (TryOpenOnAttackEnemySelectionPanel(
+                    attacker,
+                    attackerOwner,
+                    null,
+                    () => TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true)))
+                {
+                    return;
+                }
+
+                pendingOnAttackEffectResolvedAttacker = attacker;
+            }
+
+            if (!skipOnActionPause
+                && TryRunAttackActionSteps(
+                    attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+                    attackerOwner,
+                    () => TryUnitShieldAttackFromUnit(attacker, true, true)))
+            {
+                return;
+            }
+
+            if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.CurrentPower, hadExBaseLayerAtShieldAttackStart))
+            {
+                Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
+                return;
+            }
+
+            attacker.SetAttackFlg(AttackFlg.False);
+            attacker.SetUnitRestVisual(true);
+            if (hadExBaseLayerAtShieldAttackStart)
+            {
+                Debug.Log($"[Attack] Shield attack vs EX layer. EX Base is now {defender.exBase}.");
+            }
+            else
+            {
+                Debug.Log("[Attack] Broke 1 shield (no EX Base).");
+            }
+
+            TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
+            TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfBattle);
+            DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
+
+            SyncAllResourceViewsFromRule();
+        }
+        finally
+        {
+            if (hadExBaseLayerAtShieldAttackStart)
+            {
+                blockShieldFlowDuringShieldAttack = false;
+            }
+        }
     }
 
     private void TryUnitVsUnitAttack(CardController attacker, CardController defender, PlayerType attackerOwner, PlayerType defenderOwner, bool skipOnActionPause = false)
@@ -2502,7 +2736,14 @@ public class BattleGameMain : MonoBehaviour
                     Gundam2024RuleScript.PlayerSide targetSide = effect.target == TargetType.EnemyPlayer
                         ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
                         : ToRuleSide(ownerType);
-                    gundamRule.DamagePlayerArea(targetSide, magnitude);
+                    if (blockShieldFlowDuringShieldAttack && targetSide == blockedShieldFlowSide)
+                    {
+                        gundamRule.DamageExBaseOnly(targetSide, magnitude);
+                    }
+                    else
+                    {
+                        gundamRule.DamagePlayerArea(targetSide, magnitude);
+                    }
                 }
                 Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");
                 break;
