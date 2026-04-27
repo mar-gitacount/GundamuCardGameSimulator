@@ -2321,7 +2321,8 @@ public class BattleGameMain : MonoBehaviour
                 && TryRunAttackActionSteps(
                     attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
                     attackerOwner,
-                    () => TryUnitShieldAttackFromUnit(attacker, true, true)))
+                    () => TryUnitShieldAttackFromUnit(attacker, true, true),
+                    attacker))
             {
                 return;
             }
@@ -2393,7 +2394,8 @@ public class BattleGameMain : MonoBehaviour
             && TryRunAttackActionSteps(
                 defenderOwner,
                 attackerOwner,
-                () => TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, true)))
+                () => TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, true),
+                attacker))
         {
             return;
         }
@@ -2904,21 +2906,25 @@ public class BattleGameMain : MonoBehaviour
         return true;
     }
 
-    private bool TryRunAttackActionSteps(PlayerType defenderSide, PlayerType attackerSide, System.Action onComplete)
+    private bool TryRunAttackActionSteps(
+        PlayerType defenderSide,
+        PlayerType attackerSide,
+        System.Action onComplete,
+        CardController attackingUnitForUiHighlight = null)
     {
         if (TryHandleSingleSideOnActionStep(defenderSide, "attack:defender", () =>
         {
-            if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete))
+            if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete, attackingUnitForUiHighlight))
             {
                 return;
             }
             onComplete?.Invoke();
-        }))
+        }, attackingUnitForUiHighlight))
         {
             return true;
         }
 
-        if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete))
+        if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete, attackingUnitForUiHighlight))
         {
             return true;
         }
@@ -2927,7 +2933,11 @@ public class BattleGameMain : MonoBehaviour
         return false;
     }
 
-    private bool TryHandleSingleSideOnActionStep(PlayerType side, string context, System.Action onStepDone)
+    private bool TryHandleSingleSideOnActionStep(
+        PlayerType side,
+        string context,
+        System.Action onStepDone,
+        CardController attackingUnitForUiHighlight = null)
     {
         // 敵側は将来AI実装予定のため、現時点ではバックグラウンドスキップ（停止UIを出さない）。
         if (side == PlayerType.Enemy)
@@ -2940,10 +2950,14 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        return TryOpenOnActionCommandSelection(side, context, onStepDone);
+        return TryOpenOnActionCommandSelection(side, context, onStepDone, attackingUnitForUiHighlight);
     }
 
-    private bool TryOpenOnActionCommandSelection(PlayerType side, string context, System.Action onStepDone)
+    private bool TryOpenOnActionCommandSelection(
+        PlayerType side,
+        string context,
+        System.Action onStepDone,
+        CardController attackingUnitForUiHighlight = null)
     {
         RectTransform hand = side == PlayerType.Player ? cardGameRule.HandScrollContent : enemyCardGameRule.HandScrollContent;
         if (hand == null || CardImagePrefab == null)
@@ -2995,12 +3009,54 @@ public class BattleGameMain : MonoBehaviour
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
+        bool showAttackHighlight = attackingUnitForUiHighlight != null
+            && attackingUnitForUiHighlight.Data != null
+            && !string.IsNullOrEmpty(context)
+            && context.Contains("attack");
+
         GameObject scrollGo = root.CreateGridScrollView(680, 410, UIAnchor.TopCenter);
         RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
-        scrollRt.anchoredPosition = new Vector2(0f, -86f);
+        scrollRt.anchoredPosition = new Vector2(0f, showAttackHighlight ? -98f : -86f);
         scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
         ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
         RectTransform content = sr != null ? sr.content : null;
+
+        if (showAttackHighlight && content != null)
+        {
+            GameObject highlightRow = Instantiate(CardImagePrefab, content);
+            highlightRow.transform.SetAsFirstSibling();
+
+            GameObject statBg = new GameObject("AttackerHighlightStatBg", typeof(RectTransform), typeof(Image));
+            statBg.transform.SetParent(highlightRow.transform, false);
+            RectTransform statBgRt = statBg.GetComponent<RectTransform>();
+            statBgRt.anchorMin = new Vector2(0f, 0f);
+            statBgRt.anchorMax = new Vector2(1f, 0f);
+            statBgRt.pivot = new Vector2(0.5f, 0f);
+            statBgRt.sizeDelta = new Vector2(0f, 28f);
+            statBgRt.anchoredPosition = new Vector2(0f, 0f);
+            Image statBgImg = statBg.GetComponent<Image>();
+            statBgImg.color = new Color(0f, 0f, 0f, 0.55f);
+            statBgImg.raycastTarget = false;
+
+            TextMeshProUGUI statText = statBg.CreateChildTextCustom("AttackerHighlightText", UIAnchor.FullSize, 200, 24);
+            statText.text =
+                $"攻撃中: {attackingUnitForUiHighlight.Data.cardName}  AP:{attackingUnitForUiHighlight.CurrentPower}  HP:{attackingUnitForUiHighlight.CurrentHp}";
+            statText.fontSize = 14;
+            statText.color = new Color(1f, 0.22f, 0.22f, 1f);
+            statText.alignment = TextAlignmentOptions.Center;
+
+            CardController hcc = highlightRow.GetComponent<CardController>();
+            if (hcc != null)
+            {
+                hcc.SetUp(attackingUnitForUiHighlight.Data, _ => { });
+            }
+
+            Button hbtn = highlightRow.GetComponent<Button>();
+            if (hbtn != null)
+            {
+                hbtn.interactable = false;
+            }
+        }
 
         for (int i = 0; i < commandCards.Count; i++)
         {
@@ -3023,9 +3079,10 @@ public class BattleGameMain : MonoBehaviour
                 btn = go.AddComponent<Button>();
             }
 
+            bool isAttackContext = showAttackHighlight;
             btn.onClick.AddListener(() =>
             {
-                TryExecuteOnActionCommand(side, command, () =>
+                TryExecuteOnActionCommand(side, command, isAttackContext, attackingUnitForUiHighlight, () =>
                 {
                     isOnActionPopupOpen = false;
                     activeOnActionPopupRoot = null;
@@ -3053,7 +3110,12 @@ public class BattleGameMain : MonoBehaviour
         return true;
     }
 
-    private void TryExecuteOnActionCommand(PlayerType side, CardController command, System.Action onDone)
+    private void TryExecuteOnActionCommand(
+        PlayerType side,
+        CardController command,
+        bool isAttackContext,
+        CardController attackingUnitForUiHighlight,
+        System.Action onDone)
     {
         if (command == null || command.Data == null)
         {
@@ -3071,7 +3133,7 @@ public class BattleGameMain : MonoBehaviour
         EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target == TargetType.EnemyUnit);
         if (enemyTargetEffect != null)
         {
-            OpenOnActionEnemyTargetSelection(side, command, enemyTargetEffect, onDone);
+            OpenOnActionEnemyTargetSelection(side, command, enemyTargetEffect, isAttackContext, attackingUnitForUiHighlight, onDone);
             return;
         }
 
@@ -3087,7 +3149,13 @@ public class BattleGameMain : MonoBehaviour
         onDone?.Invoke();
     }
 
-    private void OpenOnActionEnemyTargetSelection(PlayerType side, CardController command, EffectData effect, System.Action onDone)
+    private void OpenOnActionEnemyTargetSelection(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        bool isAttackContext,
+        CardController attackingUnitForUiHighlight,
+        System.Action onDone)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
@@ -3122,6 +3190,17 @@ public class BattleGameMain : MonoBehaviour
         {
             CardController t = enemyUnits[i];
             Button btn = root.CreateChildButton($"{t.Data.cardName} AP:{t.CurrentPower} HP:{t.CurrentHp}");
+            bool isAttackingCardButton = isAttackContext
+                && attackingUnitForUiHighlight != null
+                && t == attackingUnitForUiHighlight;
+            if (isAttackingCardButton)
+            {
+                TextMeshProUGUI btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnText != null)
+                {
+                    btnText.color = Color.red;
+                }
+            }
             RectTransform rt = btn.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(420f, 44f);
             rt.anchoredPosition = new Vector2(0f, -100f - (i * 52f));
