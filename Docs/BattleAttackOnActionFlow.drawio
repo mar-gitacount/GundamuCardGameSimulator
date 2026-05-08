@@ -1,0 +1,141 @@
+<mxfile host="app.diagrams.net" modified="2026-05-06T00:00:00.000Z" agent="Cursor" version="22.1.0" type="device">
+  <diagram id="attack-onaction-flow" name="ユニット攻撃〜OnAction〜解決">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="e1" value="入口&#xa;TryHandlePendingUnitAttackTarget&#xa;OpenEnemyUnitAttackTargetSelectionUI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="TryUnitVsUnitAttack" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="220" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="TryOpenOnAttackEnemySelectionPanel&#xa;（要る場合・コールバックで再入）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="210" width="220" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="TryRunAttackActionSteps&#xa;onComplete → TryUnitVsUnitAttack(..., true)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="290" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="TryHandleSingleSideOnActionStep&#xa;attack:defender（防御側）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="TryOpenOnActionCommandSelection&#xa;（場ユニット→手札コマンドの順で一覧）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="430" width="280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="ユーザー: Close または行クリック" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="70" y="500" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="TryExecuteOnActionCommand" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="360" y="510" width="200" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="EnemyUnit 指定あり？&#xa;OpenOnActionEnemyTargetSelection" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="340" y="580" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="TryConsumeResource&#xa;ApplyEffect / ApplyEffectToSpecificTargets&#xa;FinalizeOnActionSourceCard（Commandのみtrash）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="330" y="700" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="TryHandleSingleSideOnActionStep&#xa;attack:attacker（攻撃側）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="620" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="onComplete.Invoke&#xa;→ TryUnitVsUnitAttack(..., skip:true)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="戦闘解決（skip後）&#xa;ApplyOnAttackEffectsForCombatPair&#xa;→ ApplyDamage ×2&#xa;→ SendCardToTrash・Clear・Sync" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="780" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="edg1" edge="1" parent="1" source="e1" target="e2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg2" edge="1" parent="1" source="e2" target="e3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg3" edge="1" parent="1" source="e3" target="e2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="238" />
+              <mxPoint x="320" y="238" />
+              <mxPoint x="320" y="162" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl3" value="パネル表示でreturn後" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edg3">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edg4" edge="1" parent="1" source="e2" target="e4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg5" edge="1" parent="1" source="e4" target="e5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg6" edge="1" parent="1" source="e5" target="e6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg7" edge="1" parent="1" source="e6" target="e7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge8" value="クリック" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="e7" target="e8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg9" edge="1" parent="1" source="e8" target="e9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg10" edge="1" parent="1" source="e9" target="e10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg11" edge="1" parent="1" source="e10" target="e6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="800" />
+              <mxPoint x="620" y="800" />
+              <mxPoint x="620" y="455" />
+              <mxPoint x="360" y="455" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl11" value="onDone（効果済）" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edg11">
+          <mxGeometry x="-0.3" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edg12" value="Close" edge="1" parent="1" source="e7" target="e11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg13" edge="1" parent="1" source="e11" target="e12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edg14" edge="1" parent="1" source="e12" target="e2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="725" />
+              <mxPoint x="20" y="162" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl14" value="再入場" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edg14">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint x="-35" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edg15" edge="1" parent="1" source="e2" target="e13">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="162" as="sourcePoint" />
+            <Array as="points">
+              <mxPoint x="400" y="162" />
+              <mxPoint x="400" y="820" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl15" value="skipOnActionPause が true で&#xa;TryRunAttackActionSteps スキップ後" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edg15">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint x="15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="note1" value="シールド攻撃: TryUnitShieldAttackFromUnit が同様に&#xa;TryRunAttackActionSteps → onComplete で再入場後&#xa;TryApplyUnitShieldAttack（相互ApplyDamageなし）" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#ffffc0;strokeColor=#ff9900;align=left;spacingLeft=6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="40" width="320" height="90" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
