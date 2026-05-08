@@ -9,7 +9,8 @@ public enum EffectTiming
     OnAttack,       // 攻撃する時
     OnAction,       // 任意アクション（攻撃時/ターン終了時に手札から実行可能）
     OnDestroyed,    // 破壊された時
-    OnEndOfGame     // ゲーム終了時
+    OnEndOfGame,    // ゲーム終了時
+    OnEnemyAttack   // 敵が攻撃してきた時（防御リアクション用）
 }
 
 public enum EffectType
@@ -17,7 +18,8 @@ public enum EffectType
     Damage,
     Draw,
     Buff,
-    Debuff
+    Debuff,
+    BlockRedirect
 }
 
 public enum TargetType
