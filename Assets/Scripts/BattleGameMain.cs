@@ -106,6 +106,10 @@ public class BattleGameMain : MonoBehaviour
     private GameObject activeOnActionPopupRoot;
     private GameObject activeAttackFlowDebugPanelRoot;
     private bool isAttackedSidePanelOpen;
+    /// <summary>攻撃フロー中のテスト用「actionthink」表示中。true の間は進行を止める。</summary>
+    private bool isActionThinkPauseOpen;
+    /// <summary>攻撃後 OnAction の「プレイヤー手前」に actionthink を挟むテスト用フラグ。</summary>
+    [SerializeField] private bool enableAttackFlowActionThinkTest = true;
     [SerializeField] private bool enableShieldAttackFlowDebugLog = true;
     private bool isShieldAttackResolving;
     private bool isTurnPhaseSequenceRunning;
@@ -1069,13 +1073,20 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            if (isActionThinkPauseOpen)
+            {
+                yield return new WaitUntil(() => !isActionThinkPauseOpen);
+                yield return new WaitForSeconds(0.1f);
+                continue;
+            }
+
             int attackedNow = TryEnemyShieldAttacks();
             if (attackedNow <= 0)
             {
-                if (isOnActionPopupOpen)
+                if (isOnActionPopupOpen || isActionThinkPauseOpen)
                 {
                     // Close 後に onClose コールバックで攻撃が実行されるため、完了まで待って再評価する。
-                    yield return new WaitUntil(() => !isOnActionPopupOpen);
+                    yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen);
                     yield return new WaitForSeconds(0.15f);
                     continue;
                 }
@@ -1083,10 +1094,10 @@ public class BattleGameMain : MonoBehaviour
             }
 
             attacked += attackedNow;
-            if (isOnActionPopupOpen)
+            if (isOnActionPopupOpen || isActionThinkPauseOpen)
             {
                 // アクションステップの Close まで次の攻撃に進ませない。
-                yield return new WaitUntil(() => !isOnActionPopupOpen);
+                yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen);
             }
 
             // 1回攻撃ごとに間隔を入れて、連続攻撃が速すぎる体感を防ぐ。
@@ -1143,6 +1154,11 @@ public class BattleGameMain : MonoBehaviour
     private int TryEnemyShieldAttacks()
     {
         if (isAttackedSidePanelOpen)
+        {
+            return 0;
+        }
+
+        if (isActionThinkPauseOpen)
         {
             return 0;
         }
@@ -1205,7 +1221,7 @@ public class BattleGameMain : MonoBehaviour
             {
                 return 0;
             }
-            if (isOnActionPopupOpen)
+            if (isOnActionPopupOpen || isActionThinkPauseOpen)
             {
                 return 0;
             }
@@ -1342,7 +1358,7 @@ public class BattleGameMain : MonoBehaviour
 
     void ExcueteEndTurn()
     {
-        if (isEndTurnFlowRunning || isAttackedSidePanelOpen)
+        if (isEndTurnFlowRunning || isAttackedSidePanelOpen || isActionThinkPauseOpen)
         {
             return;
         }
@@ -2282,6 +2298,11 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
+        {
+            return;
+        }
+
         if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
         {
             return;
@@ -2321,25 +2342,6 @@ public class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
-
-        if (defender.shield <= 0)
-        {
-            Debug.Log("[DirectAttack] Shield is 0. Resolving direct attack.");
-            attacker.SetAttackFlg(AttackFlg.False);
-            attacker.SetUnitRestVisual(true);
-            pendingUnitAttackAttacker = null;
-            pendingOnAttackEffectResolvedAttacker = null;
-            HandleDirectAttackWinLose(attackerOwner);
-            return;
-        }
-
-        if (attacker.CurrentPower <= 0)
-        {
-            Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or damage EX Base.");
-            attacker.SetAttackFlg(AttackFlg.False);
-            attacker.SetUnitRestVisual(true);
-            return;
-        }
 
         // OnAction より前の時点で EX ベースがあったかを固定する（OnAction で EX が 0 になった後にシールドが割れるのを防ぐ）。
         bool hadExBaseLayerAtShieldAttackStart = defender.exBase > 0;
@@ -2427,6 +2429,27 @@ public class BattleGameMain : MonoBehaviour
                 return;
             }
 
+            if (attacker.CurrentPower <= 0)
+            {
+                Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or direct attack.");
+                attacker.SetAttackFlg(AttackFlg.False);
+                attacker.SetUnitRestVisual(true);
+                pendingUnitAttackAttacker = null;
+                pendingOnAttackEffectResolvedAttacker = null;
+                return;
+            }
+
+            if (defender.shield <= 0)
+            {
+                Debug.Log($"[DirectAttack] Shield is 0. Resolving direct attack. attackPower:{attacker.CurrentPower}");
+                attacker.SetAttackFlg(AttackFlg.False);
+                attacker.SetUnitRestVisual(true);
+                pendingUnitAttackAttacker = null;
+                pendingOnAttackEffectResolvedAttacker = null;
+                HandleDirectAttackWinLose(attackerOwner);
+                return;
+            }
+
             if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.CurrentPower, hadExBaseLayerAtShieldAttackStart))
             {
                 Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
@@ -2472,6 +2495,11 @@ public class BattleGameMain : MonoBehaviour
         bool skipAttackedSidePanelPause = false)
     {
         if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
+        {
+            return;
+        }
+
+        if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
         {
             return;
         }
@@ -3394,22 +3422,157 @@ public class BattleGameMain : MonoBehaviour
         return true;
     }
 
-
-    private bool TryRunAttackBlockSteps(PlayerType defenderside,PlayerType attackerside,System.Action onComplete,CardController attackingUnitInAttackFlow = null)
+    /// <summary>
+    /// エネミー OnAction：手札の利用可能なコマンドカードをログ出力し、一覧ポップアップを出す。候補があるとき true（Close まで攻撃フロー待機）。
+    /// </summary>
+    private bool TryShowEnemyOnActionCommandCandidatesPopup(string context, System.Action onStepDone)
     {
-        if (TryHandleSingleSideOnActionStep(defenderside, "attack:defender", () =>
+        RectTransform hand = enemyCardGameRule != null ? enemyCardGameRule.HandScrollContent : null;
+        List<CardData> commandCards = new List<CardData>();
+        List<string> logLines = new List<string>();
+        if (hand != null)
         {
-            if (TryHandleSingleSideOnActionStep(attackerside, "attack:attacker", onComplete, attackingUnitInAttackFlow))
+            for (int i = 0; i < hand.childCount; i++)
+            {
+                CardController cc = hand.GetChild(i).GetComponent<CardController>();
+                if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+                {
+                    continue;
+                }
+
+                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc.Data))
+                {
+                    continue;
+                }
+
+                commandCards.Add(cc.Data);
+                logLines.Add($"{cc.Data.cardName} (id:{cc.Data.id}, cost:{cc.Data.cost}, lv:{cc.Data.level})");
+            }
+        }
+
+        if (commandCards.Count == 0)
+        {
+            Debug.Log($"[EnemyOnActionCommands] context:{context} (none)");
+            return false;
+        }
+
+        Debug.Log(
+            $"[EnemyOnActionCommands] context:{context} count:{commandCards.Count} → {string.Join(" | ", logLines)}");
+
+        if (CardImagePrefab == null || ResolveBattleCanvas() == null)
+        {
+            Debug.LogWarning("[EnemyOnActionCommands] CardImagePrefab or canvas missing — skip popup.");
+            onStepDone?.Invoke();
+            return false;
+        }
+
+        ShowOnActionHandCandidatesPopup(PlayerType.Enemy, $"{context} [commands]", commandCards, onStepDone);
+        return true;
+    }
+
+
+    private bool TryRunAttackBlockSteps(PlayerType defenderSide, PlayerType attackerSide, System.Action onComplete, CardController attackingUnitInAttackFlow = null)
+    {
+        return TryRunAttackActionSteps(defenderSide, attackerSide, onComplete, attackingUnitInAttackFlow);
+    }
+
+    /// <summary>
+    /// 攻撃フロー後半：呼び出し元で「アタック宣言〜ブロック可否」まで済んだあとの OnAction 順序。
+    /// 敵アクション →（テスト）actionthink → プレイヤーアクション。
+    /// </summary>
+    private bool TryRunAttackOnActionPhasesAfterBlock(System.Action onComplete, CardController attackingUnitInAttackFlow = null)
+    {
+        void runPlayerOnActionOrFinish()
+        {
+            if (TryHandleSingleSideOnActionStep(PlayerType.Player, "attack:player-action", onComplete, attackingUnitInAttackFlow))
             {
                 return;
             }
-        }, attackingUnitInAttackFlow))
+
+            onComplete?.Invoke();
+        }
+
+        void afterEnemyOnAction()
+        {
+            if (enableAttackFlowActionThinkTest && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
+            {
+                return;
+            }
+
+            runPlayerOnActionOrFinish();
+        }
+
+        if (TryHandleSingleSideOnActionStep(PlayerType.Enemy, "attack:enemy-action", afterEnemyOnAction, attackingUnitInAttackFlow))
         {
             return true;
         }
+
+        if (enableAttackFlowActionThinkTest && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
+        {
+            return true;
+        }
+
+        if (TryHandleSingleSideOnActionStep(PlayerType.Player, "attack:player-action", onComplete, attackingUnitInAttackFlow))
+        {
+            return true;
+        }
+
+        onComplete?.Invoke();
         return false;
     }
 
+    /// <summary>
+    /// テスト用：プレイヤー OnAction の直前。表示中は <see cref="isActionThinkPauseOpen"/> で進行停止。
+    /// 戻り値 true のときコールバックは Continue 後に呼ばれる。
+    /// </summary>
+    private bool TryOpenActionThinkTestPause(System.Action onContinue)
+    {
+        if (!enableAttackFlowActionThinkTest || onContinue == null)
+        {
+            return false;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return false;
+        }
+
+        Debug.Log("actionthink");
+
+        isActionThinkPauseOpen = true;
+        GameObject root = new GameObject("ActionThinkTestPause", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.45f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ActionThinkTitle", UIAnchor.TopCenter, 720, 56);
+        title.text = "actionthink";
+        title.color = new Color(1f, 0.95f, 0.2f, 1f);
+        title.fontSize = 26;
+        title.alignment = TextAlignmentOptions.Center;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
+
+        Button cont = root.CreateChildButton("Continue");
+        RectTransform crt = cont.GetComponent<RectTransform>();
+        crt.sizeDelta = new Vector2(220f, 50f);
+        crt.anchorMin = new Vector2(0.5f, 0.5f);
+        crt.anchorMax = new Vector2(0.5f, 0.5f);
+        crt.pivot = new Vector2(0.5f, 0.5f);
+        crt.anchoredPosition = new Vector2(0f, -40f);
+
+        cont.onClick.AddListener(() =>
+        {
+            isActionThinkPauseOpen = false;
+            Destroy(root);
+            onContinue.Invoke();
+        });
+
+        return true;
+    }
 
     private bool TryRunAttackActionSteps(
         PlayerType defenderSide,
@@ -3422,25 +3585,13 @@ public class BattleGameMain : MonoBehaviour
             return true;
         }
 
-        if (TryHandleSingleSideOnActionStep(defenderSide, "attack:defender", () =>
+        if (enableShieldAttackFlowDebugLog)
         {
-            if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete, attackingUnitInAttackFlow))
-            {
-                return;
-            }
-            onComplete?.Invoke();
-        }, attackingUnitInAttackFlow))
-        {
-            return true;
+            Debug.Log(
+                $"[AttackFlow] OnAction order: enemy → actionthink? → player (defender:{defenderSide} attacker:{attackerSide})");
         }
 
-        if (TryHandleSingleSideOnActionStep(attackerSide, "attack:attacker", onComplete, attackingUnitInAttackFlow))
-        {
-            return true;
-        }
-
-        onComplete?.Invoke();
-        return false;
+        return TryRunAttackOnActionPhasesAfterBlock(onComplete, attackingUnitInAttackFlow);
     }
 
     private bool TryHandleSingleSideOnActionStep(
@@ -3449,15 +3600,9 @@ public class BattleGameMain : MonoBehaviour
         System.Action onStepDone,
         CardController attackingUnitInAttackFlow = null)
     {
-        // 敵側は将来AI実装予定のため、現時点ではバックグラウンドスキップ（停止UIを出さない）。
         if (side == PlayerType.Enemy)
         {
-            bool hasEnemyCandidates = LogHandOnActionCandidates(side, context, false);
-            if (hasEnemyCandidates)
-            {
-                Debug.Log($"[OnActionStep] side:{side} context:{context} skipped for background AI.");
-            }
-            return false;
+            return TryShowEnemyOnActionCommandCandidatesPopup(context, onStepDone);
         }
 
         return TryOpenOnActionCommandSelection(side, context, onStepDone, attackingUnitInAttackFlow);
