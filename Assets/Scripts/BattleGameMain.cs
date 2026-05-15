@@ -116,6 +116,161 @@ public class BattleGameMain : MonoBehaviour
     private bool blockShieldFlowDuringShieldAttack;
     private Gundam2024RuleScript.PlayerSide blockedShieldFlowSide;
 
+    private enum AttackFlowStrikeKind
+    {
+        None,
+        Shield,
+        UnitVsUnit,
+    }
+
+    /// <summary>OnAction ログ用：直近の攻撃フロー（シールド／ユニット先／ブロックリダイレクト）。</summary>
+    private AttackFlowStrikeKind attackFlowStrikeKind;
+    private CardController attackFlowAttackerUnit;
+    private PlayerType attackFlowAttackerOwner;
+    private CardController attackFlowDeclaredDefenderUnit;
+    private CardController attackFlowBlockRedirectUnit;
+    private int attackFlowDefenderShieldCountAtStrike = -1;
+
+    private void ClearAttackFlowContext()
+    {
+        attackFlowStrikeKind = AttackFlowStrikeKind.None;
+        attackFlowAttackerUnit = null;
+        attackFlowAttackerOwner = PlayerType.Player;
+        attackFlowDeclaredDefenderUnit = null;
+        attackFlowBlockRedirectUnit = null;
+        attackFlowDefenderShieldCountAtStrike = -1;
+    }
+
+    private void RegisterAttackFlowContextForOnAction(
+        CardController attacker,
+        PlayerType attackerOwner,
+        AttackFlowStrikeKind strike,
+        CardController declaredDefenderOrNull,
+        CardController blockRedirectUnitOrNull)
+    {
+        attackFlowStrikeKind = strike;
+        attackFlowAttackerUnit = attacker;
+        attackFlowAttackerOwner = attackerOwner;
+        attackFlowDeclaredDefenderUnit = declaredDefenderOrNull;
+        attackFlowBlockRedirectUnit = blockRedirectUnitOrNull;
+        attackFlowDefenderShieldCountAtStrike = -1;
+        if (strike == AttackFlowStrikeKind.Shield && gundamRule != null)
+        {
+            Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
+                ? Gundam2024RuleScript.PlayerSide.Enemy
+                : Gundam2024RuleScript.PlayerSide.Player;
+            Gundam2024RuleScript.PlayerState st = targetSide == Gundam2024RuleScript.PlayerSide.Player
+                ? gundamRule.Player
+                : gundamRule.Enemy;
+            attackFlowDefenderShieldCountAtStrike = st.shield;
+        }
+    }
+
+    private void AppendAttackFlowContextToSnapshot(System.Text.StringBuilder sb, PlayerType snapshotActiveSide)
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            sb.AppendLine("  === AttackContext === (none)");
+            return;
+        }
+
+        sb.AppendLine("  === AttackContext (OnAction付近) ===");
+        sb.Append("  strike:").Append(attackFlowStrikeKind);
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield && attackFlowDefenderShieldCountAtStrike >= 0)
+        {
+            sb.Append(" | defenderShieldCountAtOnAction:").Append(attackFlowDefenderShieldCountAtStrike);
+        }
+
+        sb.AppendLine();
+        AppendAttackFlowUnitLine(sb, "  Attacker(攻撃元ユニット)", attackFlowAttackerUnit, attackFlowAttackerOwner);
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield)
+        {
+            sb.AppendLine("  AttackDestination: 相手シールド（シールド攻撃）");
+        }
+        else if (attackFlowStrikeKind == AttackFlowStrikeKind.UnitVsUnit)
+        {
+            PlayerType defOwner = attackFlowDeclaredDefenderUnit != null
+                ? ResolveCardOwner(attackFlowDeclaredDefenderUnit.transform)
+                : PlayerType.Player;
+            AppendAttackFlowUnitLine(sb, "  AttackDestination(攻撃先RESTユニット)", attackFlowDeclaredDefenderUnit, defOwner);
+        }
+
+        if (attackFlowBlockRedirectUnit != null && attackFlowBlockRedirectUnit.Data != null)
+        {
+            PlayerType bo = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+            AppendAttackFlowUnitLine(sb, "  BlockRedirectUnit(ブロック/リダイレクト)", attackFlowBlockRedirectUnit, bo);
+        }
+        else
+        {
+            sb.AppendLine("  BlockRedirectUnit: (none)");
+        }
+
+        AppendBlockRedirectProbeLines(sb, snapshotActiveSide);
+    }
+
+    /// <summary>
+    /// スナップショット閲覧者（OnAction の commandOwner / activeSide）から見たユニット・ブロック／リダイレクトの有無。
+    /// </summary>
+    private void AppendBlockRedirectProbeLines(System.Text.StringBuilder sb, PlayerType viewerSide)
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return;
+        }
+
+        bool unitRedirectActive = attackFlowBlockRedirectUnit != null && attackFlowBlockRedirectUnit.Data != null;
+        sb.Append("  BlockRedirectProbe: unitRedirectActive:").Append(unitRedirectActive);
+        if (unitRedirectActive)
+        {
+            PlayerType bo = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+            int slot = TryGetUnitBattleZoneSlotIndex(attackFlowBlockRedirectUnit);
+            sb.Append(" blockUnitOwner:").Append(bo).Append(" blockUnit:").Append(attackFlowBlockRedirectUnit.Data.cardName).Append("(id:")
+                .Append(attackFlowBlockRedirectUnit.Data.id).Append(") zoneSlotIndex:#").Append(slot);
+        }
+
+        sb.AppendLine();
+        bool opponentHostsBlocker = unitRedirectActive
+            && ResolveCardOwner(attackFlowBlockRedirectUnit.transform) != viewerSide;
+        bool selfHostsBlocker = unitRedirectActive
+            && ResolveCardOwner(attackFlowBlockRedirectUnit.transform) == viewerSide;
+        sb.Append("  FromViewer(viewerSide:").Append(viewerSide).Append("): opponentIsBlockingWithUnitRedirect:")
+            .Append(opponentHostsBlocker).Append(" selfFieldHostsBlockRedirectUnit:").Append(selfHostsBlocker).AppendLine();
+    }
+
+    /// <summary>仮想／ヘッダ用の 1 行ブロック状態。</summary>
+    private string FormatBlockRedirectProbeInline(PlayerType viewerSide)
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return "blockProbe:attackContextNone";
+        }
+
+        bool unitRedirectActive = attackFlowBlockRedirectUnit != null && attackFlowBlockRedirectUnit.Data != null;
+        if (!unitRedirectActive)
+        {
+            return "blockProbe:unitRedirectActive:False opponentIsBlockingWithUnitRedirect:False selfFieldHostsBlockRedirectUnit:False";
+        }
+
+        PlayerType bo = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+        bool opponentHosts = bo != viewerSide;
+        return "blockProbe:unitRedirectActive:True blockUnitOwner:" + bo + " opponentIsBlockingWithUnitRedirect:" + opponentHosts
+            + " selfFieldHostsBlockRedirectUnit:" + !opponentHosts;
+    }
+
+    private static void AppendAttackFlowUnitLine(System.Text.StringBuilder sb, string label, CardController unit, PlayerType owner)
+    {
+        sb.Append(label).Append(": ");
+        if (unit == null || unit.Data == null)
+        {
+            sb.AppendLine("(none)");
+            return;
+        }
+
+        sb.Append(unit.Data.cardName).Append("(id:").Append(unit.Data.id).Append(") AP=").Append(unit.CurrentPower).Append(" HP=").Append(unit.CurrentHp)
+            .Append(" REST:").Append(unit.IsRestState).Append(" owner:").Append(owner).AppendLine();
+    }
+
     private void Awake()
     {
         gundamRule.OnShieldDamaged += OnGundamShieldDamaged;
@@ -1191,8 +1346,25 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            List<CardController> eligibleEnemyHand = CollectEligibleEnemyHandCommandsForEnemyAiSim();
+            if (canAttackUnit && restTargets.Count > 0)
+            {
+                LogEnemyAiPreAttackUnitAttackSimulation(unit, restTargets, eligibleEnemyHand);
+            }
+
+            if (canAttackShield || canDirectAttack)
+            {
+                LogEnemyAiPreShieldAttackSimulation(unit, eligibleEnemyHand);
+                LogEnemyAiShieldAttackRedirectScenariosPick(unit, restTargets, eligibleEnemyHand);
+            }
+
             AttackFlg before = unit.AttackFlgState;
-            bool attackShield = ShouldEnemyAiPreferShieldAttack(unit, canAttackShield || canDirectAttack, canAttackUnit, restTargets);
+            bool attackShield = ShouldEnemyAiPreferShieldAttack(
+                unit,
+                canAttackShield || canDirectAttack,
+                canAttackUnit,
+                restTargets,
+                eligibleEnemyHand);
             if (attackShield)
             {
                 TryUnitShieldAttackFromUnit(unit);
@@ -1201,7 +1373,12 @@ public class BattleGameMain : MonoBehaviour
             }
             else
             {
-                CardController target = SelectEnemyAiUnitAttackTarget(restTargets);
+                CardController target = SelectEnemyAiUnitAttackTarget(
+                    unit,
+                    restTargets,
+                    logResult: true,
+                    verbosePerTargetLines: true,
+                    eligibleCommandsCache: eligibleEnemyHand);
                 if (target == null)
                 {
                     continue;
@@ -1295,7 +1472,8 @@ public class BattleGameMain : MonoBehaviour
         CardController attacker,
         bool canShieldAttack,
         bool canUnitAttack,
-        List<CardController> restTargets)
+        List<CardController> restTargets,
+        List<CardController> eligibleCommandsCache)
     {
         if (!canShieldAttack && canUnitAttack)
         {
@@ -1310,17 +1488,14 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        int shieldScore = gundamRule.Player.shield <= 1 ? 100 : 35;
-        if (gundamRule.Player.exBase > 0)
-        {
-            shieldScore += Mathf.Clamp(attacker.CurrentPower, 0, 20);
-        }
-        else
-        {
-            shieldScore += 12;
-        }
+        int shieldScore = ComputeEnemyAiShieldAttackHeuristicScoreForCompare(attacker);
 
-        CardController bestUnitTarget = SelectEnemyAiUnitAttackTarget(restTargets);
+        CardController bestUnitTarget = SelectEnemyAiUnitAttackTarget(
+            attacker,
+            restTargets,
+            logResult: false,
+            verbosePerTargetLines: false,
+            eligibleCommandsCache: eligibleCommandsCache);
         int unitScore = 30;
         if (bestUnitTarget != null)
         {
@@ -1334,10 +1509,660 @@ public class BattleGameMain : MonoBehaviour
         return shieldScore >= unitScore;
     }
 
-    private CardController SelectEnemyAiUnitAttackTarget(List<CardController> restTargets)
+    private const int EnemyAiAttackScoreBonusRawKillPlayer = 55;
+    private const int EnemyAiAttackScorePenaltyOneSidedEnemyDeath = 95;
+    private const int EnemyAiAttackScorePenaltyCannotKillAfterHandSim = 85;
+    private const int EnemyAiAttackScorePenaltyCannotKillNoHandCommands = 50;
+
+    private List<CardController> CollectEligibleEnemyHandCommandsForEnemyAiSim()
     {
+        List<CardController> list = new List<CardController>();
+        RectTransform hand = enemyCardGameRule != null ? enemyCardGameRule.HandScrollContent : null;
+        if (hand == null)
+        {
+            return list;
+        }
+
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController cc = hand.GetChild(i).GetComponent<CardController>();
+            if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+            {
+                continue;
+            }
+
+            if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc.Data))
+            {
+                continue;
+            }
+
+            list.Add(cc);
+        }
+
+        return list;
+    }
+
+    private void ApplyEnemyOnActionVirtualChainToBattleSnaps(
+        List<VirtualBattleUnitSnap> working,
+        CardController command,
+        PlayerType commandOwnerSide)
+    {
+        if (working == null || command == null || command.Data == null)
+        {
+            return;
+        }
+
+        List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        if (onActionEffects == null)
+        {
+            return;
+        }
+
+        for (int ei = 0; ei < onActionEffects.Count; ei++)
+        {
+            EffectData eff = onActionEffects[ei];
+            if (eff == null)
+            {
+                continue;
+            }
+
+            if (eff.type == EffectType.Draw || eff.type == EffectType.BlockRedirect)
+            {
+                continue;
+            }
+
+            int magnitude = Mathf.Abs(eff.value);
+            if (magnitude == 0)
+            {
+                continue;
+            }
+
+            List<CardController> targets = ResolveEffectTargets(command, commandOwnerSide, eff.target);
+            if (targets == null || targets.Count == 0)
+            {
+                continue;
+            }
+
+            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets);
+        }
+    }
+
+    private List<CardController> GetPlayerUnitsForShieldAttackReactionPanel()
+    {
+        List<CardController> defenderUnits = GetAliveEnemyUnits(PlayerType.Enemy);
+        List<CardController> reactionCandidates = new List<CardController>();
+        for (int i = 0; i < defenderUnits.Count; i++)
+        {
+            CardController unit = defenderUnits[i];
+            if (unit == null || unit.Data == null)
+            {
+                continue;
+            }
+
+            if (!HasEffectTiming(unit.Data, EffectTiming.OnEnemyAttack))
+            {
+                continue;
+            }
+
+            reactionCandidates.Add(unit);
+        }
+
+        return reactionCandidates;
+    }
+
+    private static bool CouldPlayerUnitRedirectShieldAttackToUnitCombat(CardController playerUnit)
+    {
+        if (playerUnit == null || playerUnit.Data == null)
+        {
+            return false;
+        }
+
+        if (!HasEffectTiming(playerUnit.Data, EffectTiming.OnEnemyAttack))
+        {
+            return false;
+        }
+
+        if (!HasBlockRedirectOnEnemyAttack(playerUnit.Data))
+        {
+            return false;
+        }
+
+        bool cannotSelectBecauseBlockRedirectWhileRest = HasBlockRedirectOnEnemyAttack(playerUnit.Data) && playerUnit.IsRestState;
+        return !cannotSelectBecauseBlockRedirectWhileRest;
+    }
+
+    private int ComputeEnemyAiShieldAttackHeuristicScoreForCompare(CardController attacker)
+    {
+        Gundam2024RuleScript.PlayerState p = gundamRule.Player;
+        int shieldScore = p.shield <= 1 ? 100 : 35;
+        if (p.exBase > 0)
+        {
+            shieldScore += Mathf.Clamp(attacker.CurrentPower, 0, 20);
+        }
+        else
+        {
+            shieldScore += 12;
+        }
+
+        return shieldScore;
+    }
+
+    private void AppendEnemyAiVirtualHandCmdGlobalProbeLines(
+        System.Text.StringBuilder sb,
+        string indent,
+        List<CardController> eligibleHandCommands)
+    {
+        List<CardController> eligible = eligibleHandCommands ?? new List<CardController>();
+        if (eligible.Count == 0)
+        {
+            sb.Append(indent).AppendLine("(no eligible OnAction hand commands — skip global per-command virtual rows)");
+            return;
+        }
+
+        for (int ci = 0; ci < eligible.Count; ci++)
+        {
+            CardController cmd = eligible[ci];
+            if (cmd == null || cmd.Data == null)
+            {
+                continue;
+            }
+
+            List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(BuildFullBattleVirtualSnapshot());
+            ApplyEnemyOnActionVirtualChainToBattleSnaps(work, cmd, PlayerType.Enemy);
+            sb.Append(indent).Append("cmd[").Append(ci).Append("]:").Append(cmd.Data.cardName).Append("(id:").Append(cmd.Data.id)
+                .Append(") afterVirtualField:").Append(FormatVirtualBattleFieldLine(work)).AppendLine();
+        }
+    }
+
+    private void AppendEnemyAiVirtualExchangeProbeForAttackerVsPlayerUnit(
+        System.Text.StringBuilder sb,
+        string indent,
+        CardController enemyAttacker,
+        CardController playerUnit,
+        List<CardController> eligibleHandCommands)
+    {
+        if (enemyAttacker == null || enemyAttacker.Data == null || playerUnit == null || playerUnit.Data == null)
+        {
+            return;
+        }
+
+        List<CardController> eligible = eligibleHandCommands ?? new List<CardController>();
+        int rawPlayerHpAfter = Mathf.Max(0, playerUnit.CurrentHp - enemyAttacker.CurrentPower);
+        int rawEnemyHpAfter = Mathf.Max(0, enemyAttacker.CurrentHp - playerUnit.CurrentPower);
+        bool rawKillPlayer = rawPlayerHpAfter <= 0;
+        bool oneSidedEnemyDie = rawEnemyHpAfter <= 0 && !rawKillPlayer;
+        sb.Append(indent).Append("rawExchange(noHandCmd): playerHpAfter=").Append(rawPlayerHpAfter).Append(" enemyHpAfter=").Append(rawEnemyHpAfter)
+            .Append(rawKillPlayer ? " PLAYER_UNIT_DEAD" : "").Append(oneSidedEnemyDie ? " ENEMY_ONLY_DEAD" : "").AppendLine();
+
+        if (eligible.Count == 0)
+        {
+            sb.Append(indent).AppendLine("(no eligible OnAction hand commands — skip per-command virtual rows for this pair)");
+            return;
+        }
+
+        for (int ci = 0; ci < eligible.Count; ci++)
+        {
+            CardController cmd = eligible[ci];
+            if (cmd == null || cmd.Data == null)
+            {
+                continue;
+            }
+
+            List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(BuildFullBattleVirtualSnapshot());
+            ApplyEnemyOnActionVirtualChainToBattleSnaps(work, cmd, PlayerType.Enemy);
+            VirtualBattleUnitSnap ats = FindBattleVirtualSnap(work, enemyAttacker);
+            VirtualBattleUnitSnap pts = FindBattleVirtualSnap(work, playerUnit);
+            sb.Append(indent).Append("cmd[").Append(ci).Append("]:").Append(cmd.Data.cardName).Append("(id:").Append(cmd.Data.id).Append(") afterVirtualField:")
+                .Append(FormatVirtualBattleFieldLine(work));
+            if (ats == null || pts == null)
+            {
+                sb.AppendLine(" | postCmdExchange: (attacker or target missing from virtual snap)");
+                continue;
+            }
+
+            int playerHpAfterEx = Mathf.Max(0, pts.Hp - ats.Ap);
+            bool killPlayerAfter = playerHpAfterEx <= 0;
+            sb.Append(" | virtualAttacker AP=").Append(ats.Ap).Append(" HP=").Append(ats.Hp).Append(" virtualTarget AP=").Append(pts.Ap).Append(" HP=")
+                .Append(pts.Hp).Append(" => playerHpAfterExchange=").Append(playerHpAfterEx).Append(" killPlayer:").Append(killPlayerAfter).AppendLine();
+        }
+    }
+
+    /// <summary>
+    /// 敵ユニット攻撃の <see cref="TryUnitVsUnitAttack"/> より前に、候補ごとの素の交換と手札 OnAction 仮想適用後の盤面をログする（本番状態は変更しない）。
+    /// </summary>
+    private void LogEnemyAiPreAttackUnitAttackSimulation(
+        CardController attacker,
+        List<CardController> restTargets,
+        List<CardController> eligibleHandCommands)
+    {
+        if (attacker == null || attacker.Data == null || restTargets == null)
+        {
+            return;
+        }
+
+        List<CardController> eligible = eligibleHandCommands ?? new List<CardController>();
+        List<VirtualBattleUnitSnap> baselineSnaps = BuildFullBattleVirtualSnapshot();
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(2048);
+        sb.AppendLine(
+            "[EnemyAiPreAttackSim] phase:BeforeTryUnitVsUnitAttack note:仮想シミュのみ。直後の [EnemyAiUnitAttackPick] がスコア確定→実攻撃。");
+        sb.Append("  attacker:").Append(attacker.Data.cardName).Append("(id:").Append(attacker.Data.id).Append(") AP=").Append(attacker.CurrentPower)
+            .Append(" HP=").Append(attacker.CurrentHp).Append(" eligibleOnActionHandCmds:").Append(eligible.Count).AppendLine();
+        sb.Append("  baselineVirtualField: ").Append(FormatVirtualBattleFieldLine(baselineSnaps)).AppendLine();
+
+        for (int ti = 0; ti < restTargets.Count; ti++)
+        {
+            CardController target = restTargets[ti];
+            if (target == null || target.Data == null)
+            {
+                continue;
+            }
+
+            sb.Append("  --- candidateTarget:").Append(target.Data.cardName).Append("(id:").Append(target.Data.id).Append(") AP=")
+                .Append(target.CurrentPower).Append(" HP=").Append(target.CurrentHp).AppendLine();
+            AppendEnemyAiVirtualExchangeProbeForAttackerVsPlayerUnit(sb, "    ", attacker, target, eligible);
+        }
+
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// 敵シールド攻撃の <see cref="TryUnitShieldAttackFromUnit"/> より前に、手札 OnAction の仮想適用と
+    /// プレイヤー側「シールドでブロック→ユニット戦」になり得る反応ユニットごとの仮想交換をログする。
+    /// </summary>
+    private void LogEnemyAiPreShieldAttackSimulation(CardController enemyAttacker, List<CardController> eligibleHandCommands)
+    {
+        if (enemyAttacker == null || enemyAttacker.Data == null)
+        {
+            return;
+        }
+
+        List<CardController> eligible = eligibleHandCommands ?? new List<CardController>();
+        List<VirtualBattleUnitSnap> baselineSnaps = BuildFullBattleVirtualSnapshot();
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(2048);
+        sb.AppendLine(
+            "[EnemyAiPreShieldAttackSim] phase:BeforeTryUnitShieldAttack note:仮想シミュのみ。プレイヤーが BlockRedirect 可能ならユニット戦に移行し得る。直後に [EnemyAiShieldAttackPick]。");
+        sb.Append("  attacker:").Append(enemyAttacker.Data.cardName).Append("(id:").Append(enemyAttacker.Data.id).Append(") AP=").Append(enemyAttacker.CurrentPower)
+            .Append(" HP=").Append(enemyAttacker.CurrentHp).Append(" eligibleOnActionHandCmds:").Append(eligible.Count).AppendLine();
+        sb.Append("  defenderPlayer shield:").Append(gundamRule.Player.shield).Append(" exBase:").Append(gundamRule.Player.exBase).AppendLine();
+        sb.Append("  baselineVirtualField: ").Append(FormatVirtualBattleFieldLine(baselineSnaps)).AppendLine();
+        sb.AppendLine("  --- globalHandCmdVirtual (盤面全体・対象ペアなし) ---");
+        AppendEnemyAiVirtualHandCmdGlobalProbeLines(sb, "  ", eligible);
+
+        List<CardController> reactionUnits = GetPlayerUnitsForShieldAttackReactionPanel();
+        sb.AppendLine("  --- playerReactionUnits (シールド攻撃パネルと同型。BlockRedirect+REST だとユニット戦へ誘導不可) ---");
+        if (reactionUnits.Count == 0)
+        {
+            sb.AppendLine("  (no player units with OnEnemyAttack timing)");
+        }
+
+        for (int ri = 0; ri < reactionUnits.Count; ri++)
+        {
+            CardController ru = reactionUnits[ri];
+            if (ru == null || ru.Data == null)
+            {
+                continue;
+            }
+
+            bool canRedirectUnitCombat = CouldPlayerUnitRedirectShieldAttackToUnitCombat(ru);
+            sb.Append("  --- reactionUnit:").Append(ru.Data.cardName).Append("(id:").Append(ru.Data.id).Append(") REST:").Append(ru.IsRestState)
+                .Append(" hasBlockRedirectOnEnemyAttack:").Append(HasBlockRedirectOnEnemyAttack(ru.Data))
+                .Append(" couldRedirectToUnitCombat:").Append(canRedirectUnitCombat).AppendLine();
+            if (!canRedirectUnitCombat)
+            {
+                sb.AppendLine("    (skip pair exchange probe — シールド継続 or 効果のみ想定)");
+                continue;
+            }
+
+            AppendEnemyAiVirtualExchangeProbeForAttackerVsPlayerUnit(sb, "    ", enemyAttacker, ru, eligible);
+        }
+
+        Debug.Log(sb.ToString());
+    }
+
+    private void LogEnemyAiShieldAttackRedirectScenariosPick(
+        CardController enemyAttacker,
+        List<CardController> restTargets,
+        List<CardController> eligibleHandCommands)
+    {
+        if (enemyAttacker == null || enemyAttacker.Data == null)
+        {
+            return;
+        }
+
+        List<CardController> eligible = eligibleHandCommands ?? new List<CardController>();
+        const string tag = "[EnemyAiShieldAttackPick]";
+        int shieldHeuristic = ComputeEnemyAiShieldAttackHeuristicScoreForCompare(enemyAttacker);
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(1200);
+        sb.Append(tag).Append(" phase:BeforeTryUnitShieldAttack_DecisionAid shieldHeuristicScore:").Append(shieldHeuristic).AppendLine();
+
+        CardController bestRestPick = null;
+        int bestRestScore = int.MinValue;
+        if (restTargets != null && restTargets.Count > 0)
+        {
+            bestRestPick = SelectEnemyAiUnitAttackTarget(
+                enemyAttacker,
+                restTargets,
+                logResult: false,
+                verbosePerTargetLines: false,
+                eligibleCommandsCache: eligible);
+            if (bestRestPick != null)
+            {
+                bestRestScore = ScoreEnemyAttackPlayerUnitTarget(enemyAttacker, bestRestPick, eligible, out string brLine);
+                sb.Append("  restUnitAttackBestIfChosenInstead: ").Append(brLine).AppendLine();
+            }
+            else
+            {
+                sb.AppendLine("  restUnitAttackBestIfChosenInstead: (no REST player target)");
+            }
+        }
+        else
+        {
+            sb.AppendLine("  restUnitAttackBestIfChosenInstead: (no REST player targets)");
+        }
+
+        List<CardController> reactionUnits = GetPlayerUnitsForShieldAttackReactionPanel();
+        CardController bestBlock = null;
+        int bestBlockScore = int.MinValue;
+        bool bestBlockRawKill = false;
+        int bestBlockThreat = int.MinValue;
+        int bestBlockIndex = int.MaxValue;
+        CardController worstBlock = null;
+        int worstBlockScore = int.MaxValue;
+        bool worstBlockRawKill = false;
+        int worstBlockThreat = int.MaxValue;
+        int worstBlockIndex = int.MinValue;
+        int redirectIndex = 0;
+        sb.AppendLine("  --- scores if shield is BLOCKED→unit combat (player picks each redirect-capable unit) ---");
+
+        for (int ri = 0; ri < reactionUnits.Count; ri++)
+        {
+            CardController ru = reactionUnits[ri];
+            if (ru == null || ru.Data == null)
+            {
+                continue;
+            }
+
+            if (!CouldPlayerUnitRedirectShieldAttackToUnitCombat(ru))
+            {
+                sb.Append("  skipScore redirectNotAvailable:").Append(ru.Data.cardName).Append("(id:").Append(ru.Data.id).AppendLine(")");
+                continue;
+            }
+
+            int sc = ScoreEnemyAttackPlayerUnitTarget(enemyAttacker, ru, eligible, out string line);
+            sb.Append("  ").Append(line).AppendLine();
+            int rawPlayerHpAfter = Mathf.Max(0, ru.CurrentHp - enemyAttacker.CurrentPower);
+            bool rawKill = rawPlayerHpAfter <= 0;
+            int threat = ru.CurrentPower * 2 - ru.CurrentHp;
+            if (bestBlock == null
+                || IsBetterEnemyAiAttackPick(sc, rawKill, threat, redirectIndex, bestBlockScore, bestBlockRawKill, bestBlockThreat, bestBlockIndex))
+            {
+                bestBlock = ru;
+                bestBlockScore = sc;
+                bestBlockRawKill = rawKill;
+                bestBlockThreat = threat;
+                bestBlockIndex = redirectIndex;
+            }
+
+            if (worstBlock == null
+                || IsStrictlyWorseEnemyAiAttackPick(sc, rawKill, threat, redirectIndex, worstBlockScore, worstBlockRawKill, worstBlockThreat, worstBlockIndex))
+            {
+                worstBlock = ru;
+                worstBlockScore = sc;
+                worstBlockRawKill = rawKill;
+                worstBlockThreat = threat;
+                worstBlockIndex = redirectIndex;
+            }
+
+            redirectIndex++;
+        }
+
+        if (bestBlock != null)
+        {
+            sb.Append("  bestMoveIfBlockedToUnit:").Append(bestBlock.Data.cardName).Append("(id:").Append(bestBlock.Data.id).Append(") score:")
+                .Append(bestBlockScore).AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("  bestMoveIfBlockedToUnit:(none — no redirect-capable blocker)");
+        }
+
+        if (worstBlock != null)
+        {
+            sb.Append("  worstMoveIfBlockedToUnit:").Append(worstBlock.Data.cardName).Append("(id:").Append(worstBlock.Data.id).Append(") score:")
+                .Append(worstBlockScore).AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("  worstMoveIfBlockedToUnit:(none)");
+        }
+
+        if (bestBlock != null && worstBlock != null && ReferenceEquals(bestBlock, worstBlock))
+        {
+            sb.AppendLine(
+                "  note:blockedBest==blockedWorst は正常。BlockRedirect かつパネルで選べる反応ユニットが 1 体しかいないため、ベストもワーストもそのユニット。");
+        }
+        else if (bestBlock != null && worstBlock != null && bestBlockScore == worstBlockScore)
+        {
+            sb.AppendLine(
+                "  note:blocked スコア同値で別ユニット。ScoreEnemyAttackPlayerUnitTarget が同じになり得る（同型の AP/HP と手札シミュ結果）。");
+        }
+
+        if (bestBlock != null && worstBlock != null)
+        {
+            sb.Insert(
+                tag.Length,
+                " summaryLine: shieldHeuristic=" + shieldHeuristic + " | blockedBest:" + bestBlock.Data.cardName + "(id:" + bestBlock.Data.id + ") score:"
+                + bestBlockScore + " | blockedWorst:" + worstBlock.Data.cardName + "(id:" + worstBlock.Data.id + ") score:" + worstBlockScore);
+        }
+        else if (bestBlock != null)
+        {
+            sb.Insert(
+                tag.Length,
+                " summaryLine: shieldHeuristic=" + shieldHeuristic + " | blockedBest:" + bestBlock.Data.cardName + "(id:" + bestBlock.Data.id + ") score:" + bestBlockScore
+                + " | blockedWorst:(none)");
+        }
+        else
+        {
+            sb.Insert(tag.Length, " summaryLine: shieldHeuristic=" + shieldHeuristic + " | blockedBest:(none) | blockedWorst:(none)");
+        }
+
+        sb.Append("  note:shieldPath vs RESTユニット直攻は ShouldEnemyAiPreferShieldAttack で比較。ここはブロック時のユニット戦のみ worst/best。").AppendLine();
+        Debug.Log(sb.ToString());
+    }
+
+    private bool EnemyAiAnyHandCommandSimAllowsKillPlayerUnit(
+        CardController enemyAttacker,
+        CardController playerTarget,
+        List<CardController> eligibleCommands,
+        out string simDetail)
+    {
+        simDetail = "";
+        if (enemyAttacker == null || playerTarget == null || eligibleCommands == null || eligibleCommands.Count == 0)
+        {
+            return false;
+        }
+
+        for (int ci = 0; ci < eligibleCommands.Count; ci++)
+        {
+            CardController cmd = eligibleCommands[ci];
+            if (cmd == null || cmd.Data == null)
+            {
+                continue;
+            }
+
+            List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(BuildFullBattleVirtualSnapshot());
+            ApplyEnemyOnActionVirtualChainToBattleSnaps(work, cmd, PlayerType.Enemy);
+            VirtualBattleUnitSnap ats = FindBattleVirtualSnap(work, enemyAttacker);
+            VirtualBattleUnitSnap pts = FindBattleVirtualSnap(work, playerTarget);
+            if (ats == null || pts == null)
+            {
+                continue;
+            }
+
+            int playerHpAfterExchange = Mathf.Max(0, pts.Hp - ats.Ap);
+            if (playerHpAfterExchange <= 0)
+            {
+                simDetail = "cmd:" + cmd.Data.cardName + "(id:" + cmd.Data.id + ")";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int ScoreEnemyAttackPlayerUnitTarget(
+        CardController attacker,
+        CardController playerTarget,
+        List<CardController> eligibleHandCommands,
+        out string scoreLine)
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(256);
+        if (playerTarget == null || playerTarget.Data == null || attacker == null || attacker.Data == null)
+        {
+            scoreLine = "(invalid target)";
+            return int.MinValue;
+        }
+
+        int basePart = playerTarget.CurrentPower * 2 - playerTarget.CurrentHp;
+        int score = basePart;
+        int rawPlayerHpAfter = Mathf.Max(0, playerTarget.CurrentHp - attacker.CurrentPower);
+        int rawEnemyHpAfter = Mathf.Max(0, attacker.CurrentHp - playerTarget.CurrentPower);
+        bool rawKill = rawPlayerHpAfter <= 0;
+        bool rawOneSidedEnemyDeath = rawEnemyHpAfter <= 0 && !rawKill;
+
+        sb.Append("target:").Append(playerTarget.Data.cardName).Append("(id:").Append(playerTarget.Data.id).Append(") base:")
+            .Append(basePart);
+
+        if (rawKill)
+        {
+            score += EnemyAiAttackScoreBonusRawKillPlayer;
+            sb.Append(" +rawKillPlayer:").Append(EnemyAiAttackScoreBonusRawKillPlayer);
+        }
+
+        if (rawOneSidedEnemyDeath)
+        {
+            score -= EnemyAiAttackScorePenaltyOneSidedEnemyDeath;
+            sb.Append(" -oneSidedEnemyDie:").Append(EnemyAiAttackScorePenaltyOneSidedEnemyDeath);
+        }
+
+        if (!rawKill)
+        {
+            bool handKill = EnemyAiAnyHandCommandSimAllowsKillPlayerUnit(
+                attacker,
+                playerTarget,
+                eligibleHandCommands,
+                out string handDetail);
+            if (!handKill)
+            {
+                int pen = eligibleHandCommands != null && eligibleHandCommands.Count > 0
+                    ? EnemyAiAttackScorePenaltyCannotKillAfterHandSim
+                    : EnemyAiAttackScorePenaltyCannotKillNoHandCommands;
+                score -= pen;
+                sb.Append(" -cannotKillPlayer:").Append(pen).Append(eligibleHandCommands != null && eligibleHandCommands.Count > 0
+                    ? "(afterHandSim)"
+                    : "(noOnActionHand)");
+            }
+            else
+            {
+                sb.Append(" +handSimKill(").Append(handDetail).Append(')');
+            }
+        }
+
+        sb.Append(" total:").Append(score);
+        scoreLine = sb.ToString();
+        return score;
+    }
+
+    private static bool IsBetterEnemyAiAttackPick(
+        int newScore,
+        bool newRawKill,
+        int newThreat,
+        int newIndex,
+        int bestScore,
+        bool bestRawKill,
+        int bestThreat,
+        int bestIndex)
+    {
+        if (newScore != bestScore)
+        {
+            return newScore > bestScore;
+        }
+
+        if (newRawKill != bestRawKill)
+        {
+            return newRawKill;
+        }
+
+        if (newThreat != bestThreat)
+        {
+            return newThreat > bestThreat;
+        }
+
+        return newIndex < bestIndex;
+    }
+
+    private static bool IsStrictlyWorseEnemyAiAttackPick(
+        int newScore,
+        bool newRawKill,
+        int newThreat,
+        int newIndex,
+        int worstScore,
+        bool worstRawKill,
+        int worstThreat,
+        int worstIndex)
+    {
+        if (newScore != worstScore)
+        {
+            return newScore < worstScore;
+        }
+
+        if (newRawKill != worstRawKill)
+        {
+            return !newRawKill && worstRawKill;
+        }
+
+        if (newThreat != worstThreat)
+        {
+            return newThreat < worstThreat;
+        }
+
+        return newIndex > worstIndex;
+    }
+
+    private CardController SelectEnemyAiUnitAttackTarget(
+        CardController attacker,
+        List<CardController> restTargets,
+        bool logResult = true,
+        bool verbosePerTargetLines = true,
+        List<CardController> eligibleCommandsCache = null)
+    {
+        if (attacker == null || restTargets == null || restTargets.Count == 0)
+        {
+            return null;
+        }
+
+        List<CardController> eligibleCommands = eligibleCommandsCache ?? CollectEligibleEnemyHandCommandsForEnemyAiSim();
         CardController best = null;
         int bestScore = int.MinValue;
+        bool bestRawKill = false;
+        int bestThreat = int.MinValue;
+        int bestIndex = int.MaxValue;
+        CardController worst = null;
+        int worstScore = int.MaxValue;
+        bool worstRawKill = false;
+        int worstThreat = int.MaxValue;
+        int worstIndex = int.MinValue;
+        const string enemyAiUnitAttackPickLogTag = "[EnemyAiUnitAttackPick]";
+        System.Text.StringBuilder pickLog = new System.Text.StringBuilder(restTargets.Count * 200);
+        pickLog.Append(enemyAiUnitAttackPickLogTag).Append(" phase:AfterPreAttackSim_DecisionLog");
+        if (!verbosePerTargetLines)
+        {
+            pickLog.Append(" mode:summaryForShieldCompare");
+        }
+
+        pickLog.Append(" attacker:").Append(attacker.Data.cardName).Append("(id:").Append(attacker.Data.id).Append(") eligibleOnActionHandCmds:")
+            .Append(eligibleCommands.Count).AppendLine();
+
         for (int i = 0; i < restTargets.Count; i++)
         {
             CardController t = restTargets[i];
@@ -1346,13 +2171,96 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            int score = t.CurrentPower * 2 - t.CurrentHp;
-            if (score > bestScore)
+            int sc = ScoreEnemyAttackPlayerUnitTarget(attacker, t, eligibleCommands, out string line);
+            if (verbosePerTargetLines)
             {
-                bestScore = score;
+                pickLog.Append("  ").Append(line).AppendLine();
+            }
+
+            int rawPlayerHpAfter = Mathf.Max(0, t.CurrentHp - attacker.CurrentPower);
+            bool rawKill = rawPlayerHpAfter <= 0;
+            int threat = t.CurrentPower * 2 - t.CurrentHp;
+            if (best == null
+                || IsBetterEnemyAiAttackPick(sc, rawKill, threat, i, bestScore, bestRawKill, bestThreat, bestIndex))
+            {
                 best = t;
+                bestScore = sc;
+                bestRawKill = rawKill;
+                bestThreat = threat;
+                bestIndex = i;
+            }
+
+            if (worst == null
+                || IsStrictlyWorseEnemyAiAttackPick(sc, rawKill, threat, i, worstScore, worstRawKill, worstThreat, worstIndex))
+            {
+                worst = t;
+                worstScore = sc;
+                worstRawKill = rawKill;
+                worstThreat = threat;
+                worstIndex = i;
             }
         }
+
+        if (best != null)
+        {
+            pickLog.Append("  bestMove:").Append(best.Data.cardName).Append("(id:").Append(best.Data.id).Append(") score:")
+                .Append(bestScore).AppendLine();
+        }
+        else
+        {
+            pickLog.AppendLine("  bestMove:(none)");
+        }
+
+        if (worst != null)
+        {
+            pickLog.Append("  worstMove:").Append(worst.Data.cardName).Append("(id:").Append(worst.Data.id).Append(") score:")
+                .Append(worstScore).AppendLine();
+        }
+        else
+        {
+            pickLog.AppendLine("  worstMove:(none)");
+        }
+
+        if (best != null && worst != null && ReferenceEquals(best, worst))
+        {
+            pickLog.AppendLine(
+                "  note:bestMove と worstMove が同一スコア・同一カードなのは、REST 攻撃候補が 1 体しかないため（ベストもワーストもその 1 体）。");
+        }
+        else if (best != null && worst != null && bestScore == worstScore)
+        {
+            pickLog.AppendLine(
+                "  note:スコア同値で別カード。タイブレーク: best=有利側ルール→同点なら若いスロット index、worst=不利側→同点なら遅い index。");
+        }
+
+        if (best != null)
+        {
+            pickLog.Append("  => chosen(sameAsBestMove):").Append(best.Data.cardName).Append("(id:").Append(best.Data.id).Append(") bestScore:")
+                .Append(bestScore).AppendLine();
+        }
+        else
+        {
+            pickLog.AppendLine("  => chosen:(none)");
+        }
+
+        if (best != null && worst != null)
+        {
+            pickLog.Insert(
+                enemyAiUnitAttackPickLogTag.Length,
+                " summaryLine: bestMove:" + best.Data.cardName + "(id:" + best.Data.id + ") score:" + bestScore + " | worstMove:"
+                + worst.Data.cardName + "(id:" + worst.Data.id + ") score:" + worstScore);
+        }
+        else if (best != null)
+        {
+            pickLog.Insert(
+                enemyAiUnitAttackPickLogTag.Length,
+                " summaryLine: bestMove:" + best.Data.cardName + "(id:" + best.Data.id + ") score:" + bestScore + " | worstMove:(none)");
+        }
+
+        if (logResult)
+        {
+            Debug.Log(pickLog.ToString());
+        }
+
         return best;
     }
 
@@ -2401,6 +3309,7 @@ public class BattleGameMain : MonoBehaviour
                             {
                                 selectedDefenderFromShieldPanel.SetUnitRestVisual(true);
                                 Debug.Log($"[ShieldToUnit] redirect to unit battle defender:{selectedDefenderFromShieldPanel.Data.cardName}");
+                                attackFlowBlockRedirectUnit = selectedDefenderFromShieldPanel;
                                 TryUnitVsUnitAttack(
                                     attacker,
                                     selectedDefenderFromShieldPanel,
@@ -2419,6 +3328,13 @@ public class BattleGameMain : MonoBehaviour
             }
             
 
+            RegisterAttackFlowContextForOnAction(
+                attacker,
+                attackerOwner,
+                AttackFlowStrikeKind.Shield,
+                null,
+                null);
+
             if (!skipOnActionPause
                 && TryRunAttackActionSteps(
                     attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
@@ -2436,6 +3352,7 @@ public class BattleGameMain : MonoBehaviour
                 attacker.SetUnitRestVisual(true);
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
+                ClearAttackFlowContext();
                 return;
             }
 
@@ -2447,12 +3364,14 @@ public class BattleGameMain : MonoBehaviour
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
                 HandleDirectAttackWinLose(attackerOwner);
+                ClearAttackFlowContext();
                 return;
             }
 
             if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.CurrentPower, hadExBaseLayerAtShieldAttackStart))
             {
                 Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
+                ClearAttackFlowContext();
                 return;
             }
 
@@ -2475,6 +3394,7 @@ public class BattleGameMain : MonoBehaviour
             DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
             SyncAllResourceViewsFromRule();
+            ClearAttackFlowContext();
         }
         finally
         {
@@ -2556,6 +3476,7 @@ public class BattleGameMain : MonoBehaviour
                             selectedDefenderOwner);
                         if (shouldRedirect)
                         {
+                            attackFlowBlockRedirectUnit = selected;
                             selected.SetUnitRestVisual(true);
                         }
                         defender = selected;
@@ -2565,6 +3486,13 @@ public class BattleGameMain : MonoBehaviour
         {
             return;
         }
+
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            defender,
+            attackFlowBlockRedirectUnit);
 
         if (!skipOnActionPause
             && TryRunAttackActionSteps(
@@ -2586,6 +3514,7 @@ public class BattleGameMain : MonoBehaviour
         if (!defender.IsRestState)
         {
             Debug.Log("Only REST units can be attacked.");
+            ClearAttackFlowContext();
             return;
         }
 
@@ -2593,6 +3522,7 @@ public class BattleGameMain : MonoBehaviour
         if (attacker.AttackFlgState != AttackFlg.True)
         {
             Debug.Log("This unit cannot attack.");
+            ClearAttackFlowContext();
             return;
         }
 
@@ -2612,8 +3542,13 @@ public class BattleGameMain : MonoBehaviour
         }
         Debug.Log($"[CombatPower] attacker:{attackerPowerForCombat} defender:{defenderPowerForCombat}");
 
+        int defenderHpBeforeExchange = defender.CurrentHp;
+        int attackerHpBeforeExchange = attacker.CurrentHp;
+
         defender.ApplyDamage(attackerPowerForCombat);
         attacker.ApplyDamage(defenderPowerForCombat);
+        int defenderHpAfterExchange = defender.CurrentHp;
+        int attackerHpAfterExchange = attacker.CurrentHp;
         attacker.SetAttackFlg(AttackFlg.False);
         attacker.SetUnitRestVisual(true);
 
@@ -2632,6 +3567,73 @@ public class BattleGameMain : MonoBehaviour
         ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
+        if (attackFlowBlockRedirectUnit != null && defender == attackFlowBlockRedirectUnit)
+        {
+            LogUnitAttackBlockedExchangeCalc(
+                attacker,
+                defender,
+                attackerOwner,
+                attackerPowerForCombat,
+                defenderPowerForCombat,
+                attackerHpBeforeExchange,
+                defenderHpBeforeExchange,
+                attackerHpAfterExchange,
+                defenderHpAfterExchange);
+        }
+
+        LogAttackPostBattleFieldCompact(attacker, attackerOwner);
+        ClearAttackFlowContext();
+    }
+
+    /// <summary>ユニット対ユニット攻防の処理が終わった直後の味方・敵フィールド 1 行ずつ（<c>[AttackPostBattle]</c>）。</summary>
+    private void LogAttackPostBattleFieldCompact(CardController attacker, PlayerType attackerOwner)
+    {
+        CardController highlight = attacker != null && attacker.gameObject != null ? attacker : null;
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(640);
+        sb.Append("[AttackPostBattle] phase:AfterUnitVsUnitExchange attackerOwner:").Append(attackerOwner).AppendLine();
+        sb.AppendLine("  === Field_AP_HP_afterUnitVsUnitBattle (攻撃中=[ユニットナウ] / ブロック中=[ブロックナウ] は場に残っている場合のみ付与) ===");
+        CardController blockHighlight = attackFlowBlockRedirectUnit != null && attackFlowBlockRedirectUnit.gameObject != null
+            ? attackFlowBlockRedirectUnit
+            : null;
+        AppendCompactSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, highlight, blockHighlight);
+        AppendCompactSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, highlight, blockHighlight);
+
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// ブロック（防御側ユニットへのリダイレクト）でユニット同士の交換が行われたとき、OnAction とは別に交換計算式を 1 本ログする。
+    /// </summary>
+    private void LogUnitAttackBlockedExchangeCalc(
+        CardController attacker,
+        CardController blockUnit,
+        PlayerType attackerOwner,
+        int attackerApCombat,
+        int blockApCombat,
+        int attackerHpBeforeExchange,
+        int blockHpBeforeExchange,
+        int attackerHpAfterExchange,
+        int blockHpAfterExchange)
+    {
+        if (attacker == null || attacker.Data == null || blockUnit == null || blockUnit.Data == null)
+        {
+            return;
+        }
+
+        int rawBlockHpMinusAttackAp = blockHpBeforeExchange - attackerApCombat;
+        int rawAttackHpMinusBlockAp = attackerHpBeforeExchange - blockApCombat;
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(768);
+        sb.AppendLine(
+            "[UnitAttackBlockedExchangeCalc] note:ブロック(リダイレクト)時のユニット同士交換。AP は OnAttack 効果適用後の戦闘値。HP は ApplyDamage 直前/直後（トラッシュ前）。OnAction コマンドログとは別。");
+        sb.Append("  attackerOwner:").Append(attackerOwner).Append(" attackNow:").Append(attacker.Data.cardName).Append("(id:").Append(attacker.Data.id)
+            .Append(") blockNow:").Append(blockUnit.Data.cardName).Append("(id:").Append(blockUnit.Data.id).AppendLine(")");
+        sb.Append("  戦闘確定AP  attackNow:").Append(attackerApCombat).Append("  blockNow:").Append(blockApCombat).AppendLine();
+        sb.Append("  交換前HP  attackNow:").Append(attackerHpBeforeExchange).Append("  blockNow:").Append(blockHpBeforeExchange).AppendLine();
+        sb.Append("  ブロックナウHP-アタックナウAP: ").Append(blockHpBeforeExchange).Append('-').Append(attackerApCombat).Append('=').Append(rawBlockHpMinusAttackAp)
+            .Append(" -> 交換後HP:").Append(blockHpAfterExchange).AppendLine();
+        sb.Append("  アタックナウHP-ブロックナウAP: ").Append(attackerHpBeforeExchange).Append('-').Append(blockApCombat).Append('=').Append(rawAttackHpMinusBlockAp)
+            .Append(" -> 交換後HP:").Append(attackerHpAfterExchange).AppendLine();
+        Debug.Log(sb.ToString());
     }
 
     private void ApplyOnAttackEffectsForCombatPair(CardController attacker, PlayerType attackerOwner, CardController defender)
@@ -3425,10 +4427,14 @@ public class BattleGameMain : MonoBehaviour
     /// <summary>
     /// エネミー OnAction：手札の利用可能なコマンドカードをログ出力し、一覧ポップアップを出す。候補があるとき true（Close まで攻撃フロー待機）。
     /// </summary>
-    private bool TryShowEnemyOnActionCommandCandidatesPopup(string context, System.Action onStepDone)
+    private bool TryShowEnemyOnActionCommandCandidatesPopup(
+        string context,
+        System.Action onStepDone,
+        CardController attackingUnitInAttackFlow = null)
     {
         RectTransform hand = enemyCardGameRule != null ? enemyCardGameRule.HandScrollContent : null;
         List<CardData> commandCards = new List<CardData>();
+        List<CardController> eligibleEnemyHandCommands = new List<CardController>();
         List<string> logLines = new List<string>();
         if (hand != null)
         {
@@ -3445,6 +4451,7 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
+                eligibleEnemyHandCommands.Add(cc);
                 commandCards.Add(cc.Data);
                 logLines.Add($"{cc.Data.cardName} (id:{cc.Data.id}, cost:{cc.Data.cost}, lv:{cc.Data.level})");
             }
@@ -3458,6 +4465,32 @@ public class BattleGameMain : MonoBehaviour
 
         Debug.Log(
             $"[EnemyOnActionCommands] context:{context} count:{commandCards.Count} → {string.Join(" | ", logLines)}");
+
+        LogFullBoardSnapshotForCommandTiming(context, PlayerType.Enemy, attackingUnitInAttackFlow);
+        LogEnemyAiOnActionHypotheticalSearchSpace(context, eligibleEnemyHandCommands, attackingUnitInAttackFlow);
+
+        if (hand != null)
+        {
+            for (int vi = 0; vi < hand.childCount; vi++)
+            {
+                CardController cc = hand.GetChild(vi).GetComponent<CardController>();
+                if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+                {
+                    continue;
+                }
+
+                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc.Data))
+                {
+                    continue;
+                }
+
+                LogVirtualOnActionCommandOutcomeForPlayerUnits(cc, PlayerType.Enemy, context);
+                if (attackFlowBlockRedirectUnit != null)
+                {
+                    LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(cc, PlayerType.Enemy, attackFlowBlockRedirectUnit, context);
+                }
+            }
+        }
 
         if (CardImagePrefab == null || ResolveBattleCanvas() == null)
         {
@@ -3594,6 +4627,1752 @@ public class BattleGameMain : MonoBehaviour
         return TryRunAttackOnActionPhasesAfterBlock(onComplete, attackingUnitInAttackFlow);
     }
 
+    /// <summary>プレイヤー盤面ユニットの仮想 HP/AP（本番の CardController は変更しない）。</summary>
+    private sealed class VirtualPlayerUnitSnap
+    {
+        public CardController Controller;
+        public int Slot;
+        public string Name;
+        public int Id;
+        public int Hp;
+        public int Ap;
+    }
+
+    /// <summary>味方・敵バトルゾーン両方の仮想ユニット（アタック時 OnAction の A/B 仮想ログ用）。</summary>
+    private sealed class VirtualBattleUnitSnap
+    {
+        public CardController Controller;
+        public PlayerType FieldOwner;
+        public int Slot;
+        public string Name;
+        public int Id;
+        public int Hp;
+        public int Ap;
+    }
+
+    private List<VirtualBattleUnitSnap> BuildFullBattleVirtualSnapshot()
+    {
+        List<VirtualBattleUnitSnap> list = new List<VirtualBattleUnitSnap>();
+        if (playerBattleZoneCards != null)
+        {
+            for (int i = 0; i < playerBattleZoneCards.Count; i++)
+            {
+                CardController c = playerBattleZoneCards[i];
+                if (c == null || c.Data == null || c.Data.type != Type.Unit)
+                {
+                    continue;
+                }
+
+                list.Add(new VirtualBattleUnitSnap
+                {
+                    Controller = c,
+                    FieldOwner = PlayerType.Player,
+                    Slot = i,
+                    Name = c.Data.cardName,
+                    Id = c.Data.id,
+                    Hp = c.CurrentHp,
+                    Ap = c.CurrentPower,
+                });
+            }
+        }
+
+        if (enemyBattleZoneCards != null)
+        {
+            for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+            {
+                CardController c = enemyBattleZoneCards[i];
+                if (c == null || c.Data == null || c.Data.type != Type.Unit)
+                {
+                    continue;
+                }
+
+                list.Add(new VirtualBattleUnitSnap
+                {
+                    Controller = c,
+                    FieldOwner = PlayerType.Enemy,
+                    Slot = i,
+                    Name = c.Data.cardName,
+                    Id = c.Data.id,
+                    Hp = c.CurrentHp,
+                    Ap = c.CurrentPower,
+                });
+            }
+        }
+
+        return list;
+    }
+
+    private List<VirtualPlayerUnitSnap> BuildVirtualPlayerZoneSnapshot()
+    {
+        List<VirtualPlayerUnitSnap> list = new List<VirtualPlayerUnitSnap>();
+        if (playerBattleZoneCards == null)
+        {
+            return list;
+        }
+
+        for (int i = 0; i < playerBattleZoneCards.Count; i++)
+        {
+            CardController c = playerBattleZoneCards[i];
+            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            {
+                continue;
+            }
+
+            list.Add(new VirtualPlayerUnitSnap
+            {
+                Controller = c,
+                Slot = i,
+                Name = c.Data.cardName,
+                Id = c.Data.id,
+                Hp = c.CurrentHp,
+                Ap = c.CurrentPower,
+            });
+        }
+
+        return list;
+    }
+
+    private static List<VirtualPlayerUnitSnap> CloneVirtualPlayerSnaps(List<VirtualPlayerUnitSnap> source)
+    {
+        List<VirtualPlayerUnitSnap> dst = new List<VirtualPlayerUnitSnap>(source.Count);
+        for (int i = 0; i < source.Count; i++)
+        {
+            VirtualPlayerUnitSnap s = source[i];
+            dst.Add(new VirtualPlayerUnitSnap
+            {
+                Controller = s.Controller,
+                Slot = s.Slot,
+                Name = s.Name,
+                Id = s.Id,
+                Hp = s.Hp,
+                Ap = s.Ap,
+            });
+        }
+
+        return dst;
+    }
+
+    private static VirtualPlayerUnitSnap FindPlayerVirtualSnap(List<VirtualPlayerUnitSnap> list, CardController unit)
+    {
+        if (unit == null || list == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].Controller == unit)
+            {
+                return list[i];
+            }
+        }
+
+        return null;
+    }
+
+    private static void ApplyVirtualStatToSnap(VirtualPlayerUnitSnap snap, int signedValue, EffectStatTarget statTarget)
+    {
+        switch (statTarget)
+        {
+            case EffectStatTarget.AP:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                break;
+            case EffectStatTarget.HP:
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+            default:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+        }
+    }
+
+    private static string FormatVirtualPlayerUnitsLine(List<VirtualPlayerUnitSnap> snaps)
+    {
+        if (snaps == null || snaps.Count == 0)
+        {
+            return "(no player units on field)";
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        for (int i = 0; i < snaps.Count; i++)
+        {
+            VirtualPlayerUnitSnap s = snaps[i];
+            if (i > 0)
+            {
+                sb.Append("  |  ");
+            }
+
+            sb.Append('#').Append(s.Slot).Append(':').Append(s.Name).Append("(id:").Append(s.Id).Append(") AP=").Append(s.Ap).Append(" HP=").Append(s.Hp);
+        }
+
+        return sb.ToString();
+    }
+
+    private static List<VirtualBattleUnitSnap> CloneVirtualBattleSnaps(List<VirtualBattleUnitSnap> source)
+    {
+        if (source == null)
+        {
+            return new List<VirtualBattleUnitSnap>();
+        }
+
+        List<VirtualBattleUnitSnap> dst = new List<VirtualBattleUnitSnap>(source.Count);
+        for (int i = 0; i < source.Count; i++)
+        {
+            VirtualBattleUnitSnap s = source[i];
+            dst.Add(new VirtualBattleUnitSnap
+            {
+                Controller = s.Controller,
+                FieldOwner = s.FieldOwner,
+                Slot = s.Slot,
+                Name = s.Name,
+                Id = s.Id,
+                Hp = s.Hp,
+                Ap = s.Ap,
+            });
+        }
+
+        return dst;
+    }
+
+    private static VirtualBattleUnitSnap FindBattleVirtualSnap(List<VirtualBattleUnitSnap> list, CardController unit)
+    {
+        if (unit == null || list == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].Controller == unit)
+            {
+                return list[i];
+            }
+        }
+
+        return null;
+    }
+
+    private static void ApplyVirtualStatToBattleSnap(VirtualBattleUnitSnap snap, int signedValue, EffectStatTarget statTarget)
+    {
+        switch (statTarget)
+        {
+            case EffectStatTarget.AP:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                break;
+            case EffectStatTarget.HP:
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+            default:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+        }
+    }
+
+    private static void ApplyVirtualBattleEffectToTargetsOnSnaps(
+        List<VirtualBattleUnitSnap> working,
+        EffectData effect,
+        List<CardController> targets)
+    {
+        if (working == null || effect == null || targets == null)
+        {
+            return;
+        }
+
+        int magnitude = Mathf.Abs(effect.value);
+        if (magnitude == 0)
+        {
+            return;
+        }
+
+        if (effect.type == EffectType.Draw || effect.type == EffectType.BlockRedirect)
+        {
+            return;
+        }
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController t = targets[i];
+            if (t == null || t.Data == null)
+            {
+                continue;
+            }
+
+            VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, t);
+            if (snap == null)
+            {
+                continue;
+            }
+
+            switch (effect.type)
+            {
+                case EffectType.Damage:
+                    snap.Hp = Mathf.Max(0, snap.Hp - magnitude);
+                    break;
+                case EffectType.Buff:
+                    ApplyVirtualStatToBattleSnap(snap, magnitude, effect.statTarget);
+                    break;
+                case EffectType.Debuff:
+                    ApplyVirtualStatToBattleSnap(snap, -magnitude, effect.statTarget);
+                    break;
+            }
+        }
+    }
+
+    private static string FormatVirtualBattleFieldLine(List<VirtualBattleUnitSnap> snaps)
+    {
+        if (snaps == null || snaps.Count == 0)
+        {
+            return "(empty)";
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(snaps.Count * 48);
+        sb.Append("味方 ");
+        AppendVirtualBattleSideSlice(sb, snaps, PlayerType.Player);
+        sb.Append(" | 敵 ");
+        AppendVirtualBattleSideSlice(sb, snaps, PlayerType.Enemy);
+        return sb.ToString();
+    }
+
+    private static void AppendVirtualBattleSideSlice(
+        System.Text.StringBuilder sb,
+        List<VirtualBattleUnitSnap> snaps,
+        PlayerType owner)
+    {
+        List<int> indices = new List<int>();
+        for (int i = 0; i < snaps.Count; i++)
+        {
+            if (snaps[i].FieldOwner == owner)
+            {
+                indices.Add(i);
+            }
+        }
+
+        indices.Sort((a, b) => snaps[a].Slot.CompareTo(snaps[b].Slot));
+        if (indices.Count == 0)
+        {
+            sb.Append("(none)");
+            return;
+        }
+
+        for (int k = 0; k < indices.Count; k++)
+        {
+            if (k > 0)
+            {
+                sb.Append("  |  ");
+            }
+
+            VirtualBattleUnitSnap s = snaps[indices[k]];
+            sb.Append('#').Append(s.Slot).Append(':').Append(s.Name).Append("(id:").Append(s.Id).Append(") AP=").Append(s.Ap).Append(" HP=").Append(s.Hp);
+        }
+    }
+
+    /// <summary>仮想枝の見出し用。0→PatternA, 1→PatternB …（26 超は Pattern27 形式）。</summary>
+    private static string FormatHypothesisPatternLetterLabel(int zeroBasedIndex)
+    {
+        if (zeroBasedIndex < 0)
+        {
+            zeroBasedIndex = 0;
+        }
+
+        if (zeroBasedIndex < 26)
+        {
+            return "Pattern" + (char)('A' + zeroBasedIndex);
+        }
+
+        return "Pattern" + (zeroBasedIndex + 1);
+    }
+
+    /// <summary>ユニットが座っているバトルゾーンのスロット番号（見つからなければ -1）。</summary>
+    private int TryGetUnitBattleZoneSlotIndex(CardController unit)
+    {
+        if (unit == null)
+        {
+            return -1;
+        }
+
+        if (playerBattleZoneCards != null)
+        {
+            for (int i = 0; i < playerBattleZoneCards.Count; i++)
+            {
+                if (playerBattleZoneCards[i] == unit)
+                {
+                    return i;
+                }
+            }
+        }
+
+        if (enemyBattleZoneCards != null)
+        {
+            for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+            {
+                if (enemyBattleZoneCards[i] == unit)
+                {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// OnAction 仮想適用後の盤面スナップ上で、攻撃中ユニット vs 宣言／ブロック防御ユニットの 1 交換を簡易計算してログする（本番は変更しない）。
+    /// 計算式は <see cref="TryUnitVsUnitAttack"/> の相互 ApplyDamage に合わせ AP をダメージ量とする（OnAttack 連鎖は未再現）。
+    /// </summary>
+    private void LogVirtualHypotheticalBattleExchangeAfterOnActionCommand(
+        List<VirtualBattleUnitSnap> snapsAfterOnActionCommand,
+        CardController hypotheticalCommandTarget,
+        string patternLabel,
+        int pickIndex,
+        CardController command,
+        PlayerType commandOwnerSide,
+        CardController attackingUnitInAttackFlow,
+        string relatedHypotheticalLogTag)
+    {
+        if (snapsAfterOnActionCommand == null || hypotheticalCommandTarget?.Data == null || command?.Data == null
+            || attackingUnitInAttackFlow == null || attackingUnitInAttackFlow.Data == null)
+        {
+            return;
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return;
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield)
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " hypotheticalCommandPick:" + hypotheticalCommandTarget.Data.cardName + "(id:" + hypotheticalCommandTarget.Data.id
+                + ") cmdId:" + command.Data.id + " note:strike:Shield — unitVsUnit exchange sim skipped.");
+            return;
+        }
+
+        if (attackFlowStrikeKind != AttackFlowStrikeKind.UnitVsUnit)
+        {
+            return;
+        }
+
+        CardController combatDefender = attackFlowBlockRedirectUnit != null ? attackFlowBlockRedirectUnit : attackFlowDeclaredDefenderUnit;
+        if (combatDefender == null || combatDefender.Data == null || combatDefender.Data.type != Type.Unit)
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " note:UnitVsUnit but no combat defender in AttackContext — exchange sim skipped.");
+            return;
+        }
+
+        List<VirtualBattleUnitSnap> battle = CloneVirtualBattleSnaps(snapsAfterOnActionCommand);
+        VirtualBattleUnitSnap atkSnap = FindBattleVirtualSnap(battle, attackingUnitInAttackFlow);
+        VirtualBattleUnitSnap defSnap = FindBattleVirtualSnap(battle, combatDefender);
+        if (atkSnap == null || defSnap == null)
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " note:attacker or defender not in virtual snapshot — exchange sim skipped.");
+            return;
+        }
+
+        int atkPower = atkSnap.Ap;
+        int defPower = defSnap.Ap;
+        int atkHpBefore = atkSnap.Hp;
+        int defHpBefore = defSnap.Hp;
+        if (atkHpBefore <= 0)
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " note:virtual attacker HP<=0 after command — exchange sim skipped.");
+            return;
+        }
+
+        defSnap.Hp = Mathf.Max(0, defSnap.Hp - atkPower);
+        atkSnap.Hp = Mathf.Max(0, atkSnap.Hp - defPower);
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(900);
+        sb.Append("[OnActionHypotheticalBattleSim] relatedTag:").Append(relatedHypotheticalLogTag).Append(" patternLabel:").Append(patternLabel)
+            .Append(" pickIndex:").Append(pickIndex).Append(" hypotheticalCommandPick:").Append(hypotheticalCommandTarget.Data.cardName).Append("(id:")
+            .Append(hypotheticalCommandTarget.Data.id).Append(") cmd:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(") side:")
+            .Append(commandOwnerSide).AppendLine();
+        sb.AppendLine(
+            "  note:Virtual 1-exchange after OnAction on field: defender.HP -= attacker.AP; attacker.HP -= defender.AP (AP from virtual snap post-command). OnAttack-timing modifiers not re-applied.");
+        sb.Append("  combatAttacker:").Append(attackingUnitInAttackFlow.Data.cardName).Append("(id:").Append(attackingUnitInAttackFlow.Data.id)
+            .Append(") virtualAP=").Append(atkPower).Append(" virtualHP_beforeExchange=").Append(atkHpBefore).AppendLine();
+        sb.Append("  combatDefender:").Append(combatDefender.Data.cardName).Append("(id:").Append(combatDefender.Data.id).Append(") virtualAP=")
+            .Append(defPower).Append(" virtualHP_beforeExchange=").Append(defHpBefore);
+        if (attackFlowBlockRedirectUnit != null && combatDefender == attackFlowBlockRedirectUnit)
+        {
+            sb.Append(" [defenderIsBlockRedirectUnit]");
+        }
+
+        sb.AppendLine();
+        sb.Append("  exchangeCalc: defenderHP ").Append(defHpBefore).Append(" - attackerAP ").Append(atkPower).Append(" -> ").Append(defSnap.Hp)
+            .Append("; attackerHP ").Append(atkHpBefore).Append(" - defenderAP ").Append(defPower).Append(" -> ").Append(atkSnap.Hp).AppendLine();
+        sb.Append("  virtualFieldOneLineAfterCommandAndCombat: ").Append(FormatVirtualBattleFieldLine(battle)).AppendLine();
+        sb.AppendLine("  === VirtualField_AP_HP_by_side_afterCommandAndCombat (攻撃中=[ユニットナウ] / ブロック中=[ブロックナウ]) ===");
+        AppendCompactVirtualSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, battle, PlayerType.Player, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        AppendCompactVirtualSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, battle, PlayerType.Enemy, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        if (attackingUnitInAttackFlow != null && attackFlowBlockRedirectUnit != null)
+        {
+            AppendAttackBlockNowVsAttackNowCalcLines(sb, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit, battle);
+        }
+
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// OnAction で敵ユニット候補ごとに「そのユニットを選んだ場合の仮想盤面」を、本番スナップショットと同型でログする（ゲーム状態は変更しない）。
+    /// </summary>
+    /// <param name="logTagPrimary">先頭 1 行のタグ（敵 AI 探索用は <c>[EnemyAiOnActionHypothetical]</c> など）。</param>
+    /// <param name="logTagDetail">詳細盤面ログのタグ。</param>
+    /// <param name="searchRole">ログ上の発生源（AI 向けに区別）。</param>
+    private void LogOnActionHypotheticalBoardForEnemyPick(
+        CardController command,
+        PlayerType commandOwnerSide,
+        EffectData effect,
+        CardController hypotheticalEnemyTarget,
+        int candidateIndex,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        string logTagPrimary = "[OnActionHypotheticalBoard]",
+        string logTagDetail = "[OnActionHypotheticalBoardDetail]",
+        string searchRole = "OnActionTargetPicker")
+    {
+        if (command == null || command.Data == null || effect == null || hypotheticalEnemyTarget == null
+            || hypotheticalEnemyTarget.Data == null)
+        {
+            return;
+        }
+
+        string patternLabel = FormatHypothesisPatternLetterLabel(candidateIndex);
+        int targetSlot = TryGetUnitBattleZoneSlotIndex(hypotheticalEnemyTarget);
+
+        List<VirtualBattleUnitSnap> before = BuildFullBattleVirtualSnapshot();
+        List<VirtualBattleUnitSnap> after = CloneVirtualBattleSnaps(before);
+        ApplyVirtualBattleEffectToTargetsOnSnaps(after, effect, new List<CardController> { hypotheticalEnemyTarget });
+        LogVirtualHypotheticalBattleExchangeAfterOnActionCommand(
+            after,
+            hypotheticalEnemyTarget,
+            patternLabel,
+            candidateIndex,
+            command,
+            commandOwnerSide,
+            attackingUnitInAttackFlow,
+            logTagPrimary);
+        System.Text.StringBuilder header = new System.Text.StringBuilder(512);
+        header.AppendLine(
+            logTagPrimary + " patternRow:" + patternLabel + " pickIndex:" + candidateIndex + " targetUnit:"
+            + hypotheticalEnemyTarget.Data.cardName + "(id:" + hypotheticalEnemyTarget.Data.id + ") zoneSlotIndex:#" + targetSlot
+            + " cmdId:" + command.Data.id);
+        header.Append(logTagPrimary).Append(" searchRole:").Append(searchRole).Append(" patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:PickEnemyIndex_").Append(candidateIndex).Append("_IfPick_")
+            .Append(hypotheticalEnemyTarget.Data.cardName).Append("(id:").Append(hypotheticalEnemyTarget.Data.id).Append(")")
+            .Append(" command:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(")")
+            .Append(" effect:").Append(effect.type).Append(" value:").Append(effect.value).Append(" stat:").Append(effect.statTarget)
+            .Append(" side:").Append(commandOwnerSide).Append(" zoneSlotIndex:#").Append(targetSlot);
+        if (commandQueueIndex >= 0 && commandQueueCount > 0)
+        {
+            header.Append(" queue:").Append(commandQueueIndex + 1).Append("/").Append(commandQueueCount);
+        }
+
+        header.Append(' ').Append(FormatBlockRedirectProbeInline(commandOwnerSide));
+        Debug.Log(header.ToString());
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(4096);
+        sb.Append(logTagDetail).Append(" searchRole:").Append(searchRole).Append(" patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:PickEnemyIndex_").Append(candidateIndex).Append(" (same pick as previous line)")
+            .AppendLine();
+        sb.Append("  -------- ").Append(patternLabel).Append(" / target:").Append(hypotheticalEnemyTarget.Data.cardName).Append("(id:")
+            .Append(hypotheticalEnemyTarget.Data.id).Append(") zoneSlotIndex:#").Append(targetSlot).Append(" --------").AppendLine();
+        sb.AppendLine(
+            "  note:Virtual field AP/HP below = if this command's EnemyUnit effect resolves on hypotheticalPick only (Damage/Buff/Debuff). Draw/trash/resource unchanged vs live.");
+        sb.Append("  summaryOneLine:before ").Append(FormatVirtualBattleFieldLine(before)).AppendLine();
+        sb.Append("  summaryOneLine:after  ").Append(FormatVirtualBattleFieldLine(after)).AppendLine();
+
+        System.Text.StringBuilder ctx = new System.Text.StringBuilder(192);
+        ctx.Append("onActionHypothetical|").Append(searchRole).Append("|").Append(patternLabel).Append("|PickEnemyIndex_").Append(candidateIndex)
+            .Append("|ifPickId:").Append(hypotheticalEnemyTarget.Data.id).Append("|cmdId:").Append(command.Data.id).Append("|side:")
+            .Append(commandOwnerSide);
+        if (commandQueueIndex >= 0 && commandQueueCount > 0)
+        {
+            ctx.Append("|queue:").Append(commandQueueIndex + 1).Append('/').Append(commandQueueCount);
+        }
+
+        AppendHypotheticalOnActionBoardSnapshotLines(sb, ctx.ToString(), commandOwnerSide, attackingUnitInAttackFlow, after);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// エネミー手札の OnAction コマンドごとに、対プレイヤー（<see cref="TargetType.EnemyUnit"/>）の仮想枝と盤面を列挙する。評価関数・後続 AI 用。
+    /// </summary>
+    private void LogEnemyAiOnActionHypotheticalSearchSpace(
+        string flowContext,
+        List<CardController> eligibleEnemyHandCommands,
+        CardController attackingUnitInAttackFlow)
+    {
+        if (eligibleEnemyHandCommands == null || eligibleEnemyHandCommands.Count == 0)
+        {
+            return;
+        }
+
+        int approxBranchRows = 0;
+        for (int i = 0; i < eligibleEnemyHandCommands.Count; i++)
+        {
+            CardController c = eligibleEnemyHandCommands[i];
+            if (c?.Data == null)
+            {
+                continue;
+            }
+
+            List<EffectData> fx = GetEffectsByTiming(c.Data, EffectTiming.OnAction);
+            EffectData enemyPick = fx.Find(e => e != null && e.target == TargetType.EnemyUnit);
+            approxBranchRows += enemyPick != null ? GetAliveEnemyUnits(PlayerType.Enemy).Count : 1;
+        }
+
+        Debug.Log(
+            "[EnemyAiOnActionSearch] phase:HypotheticalSpaceOpening flowContext:" + flowContext + " eligibleHandCommands:"
+            + eligibleEnemyHandCommands.Count + " approxHypotheticalLogs:" + approxBranchRows
+            + " tags:[EnemyAiOnActionHypothetical] one-line + [EnemyAiOnActionHypotheticalDetail] board "
+            + FormatBlockRedirectProbeInline(PlayerType.Enemy));
+
+        int nCmd = eligibleEnemyHandCommands.Count;
+        for (int ci = 0; ci < nCmd; ci++)
+        {
+            CardController cmd = eligibleEnemyHandCommands[ci];
+            if (cmd?.Data == null)
+            {
+                continue;
+            }
+
+            List<EffectData> onActionEffects = GetEffectsByTiming(cmd.Data, EffectTiming.OnAction);
+            if (onActionEffects == null || onActionEffects.Count == 0)
+            {
+                Debug.Log(
+                    "[EnemyAiOnActionSearch] commandSkip cmdId:" + cmd.Data.id + " reason:noOnActionEffects flowContext:" + flowContext);
+                continue;
+            }
+
+            EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target == TargetType.EnemyUnit);
+            if (enemyTargetEffect != null)
+            {
+                List<CardController> playerSideTargets = GetAliveEnemyUnits(PlayerType.Enemy);
+                Debug.Log(
+                    "[EnemyAiOnActionSearch] commandBranch source:Hand cmdIndex:" + ci + "/" + nCmd + " cmdId:" + cmd.Data.id
+                    + " name:" + cmd.Data.cardName + " playerSideUnitBranches:" + playerSideTargets.Count + " cost:" + cmd.Data.cost
+                    + " flowContext:" + flowContext);
+                System.Text.StringBuilder patternTable = new System.Text.StringBuilder(256);
+                patternTable.Append("[EnemyAiOnActionSearch] patternTable cmdQueue:").Append(ci + 1).Append('/').Append(nCmd).Append(" cmdId:")
+                    .Append(cmd.Data.id).Append(' ').Append(FormatBlockRedirectProbeInline(PlayerType.Enemy)).AppendLine();
+                for (int pi = 0; pi < playerSideTargets.Count; pi++)
+                {
+                    CardController pt = playerSideTargets[pi];
+                    if (pt?.Data == null)
+                    {
+                        continue;
+                    }
+
+                    int ps = TryGetUnitBattleZoneSlotIndex(pt);
+                    patternTable.Append("  patternRow:").Append(FormatHypothesisPatternLetterLabel(pi)).Append(" → target:")
+                        .Append(pt.Data.cardName).Append("(id:").Append(pt.Data.id).Append(") zoneSlotIndex:#").Append(ps).AppendLine();
+                }
+
+                Debug.Log(patternTable.ToString());
+                for (int ti = 0; ti < playerSideTargets.Count; ti++)
+                {
+                    LogOnActionHypotheticalBoardForEnemyPick(
+                        cmd,
+                        PlayerType.Enemy,
+                        enemyTargetEffect,
+                        playerSideTargets[ti],
+                        ti,
+                        attackingUnitInAttackFlow,
+                        ci,
+                        Mathf.Max(1, nCmd),
+                        "[EnemyAiOnActionHypothetical]",
+                        "[EnemyAiOnActionHypotheticalDetail]",
+                        "EnemyAiHandCommandSearch");
+                }
+            }
+            else
+            {
+                Debug.Log(
+                    "[EnemyAiOnActionSearch] commandBranch source:Hand cmdIndex:" + ci + "/" + nCmd + " cmdId:" + cmd.Data.id
+                    + " name:" + cmd.Data.cardName + " noEnemyUnitPickerEffect flowContext:" + flowContext);
+                LogEnemyAiHypotheticalDirectOnActionEffectChain(
+                    cmd,
+                    PlayerType.Enemy,
+                    onActionEffects,
+                    attackingUnitInAttackFlow,
+                    ci,
+                    Mathf.Max(1, nCmd),
+                    flowContext);
+            }
+        }
+    }
+
+    /// <summary>
+    /// EnemyUnit 選択を伴わない OnAction の連鎖を、仮想盤面として 1 枝ログする（Draw/BlockRedirect はスキップ）。
+    /// </summary>
+    private void LogEnemyAiHypotheticalDirectOnActionEffectChain(
+        CardController command,
+        PlayerType commandOwnerSide,
+        List<EffectData> onActionEffects,
+        CardController attackingUnitInAttackFlow,
+        int commandIndex,
+        int commandCount,
+        string flowContext)
+    {
+        if (command?.Data == null || onActionEffects == null)
+        {
+            return;
+        }
+
+        List<VirtualBattleUnitSnap> before = BuildFullBattleVirtualSnapshot();
+        List<VirtualBattleUnitSnap> working = CloneVirtualBattleSnaps(before);
+        System.Text.StringBuilder trace = new System.Text.StringBuilder(128);
+        for (int ei = 0; ei < onActionEffects.Count; ei++)
+        {
+            EffectData eff = onActionEffects[ei];
+            if (eff == null)
+            {
+                continue;
+            }
+
+            if (eff.type == EffectType.Draw || eff.type == EffectType.BlockRedirect)
+            {
+                trace.Append('[').Append(ei).Append(':').Append(eff.type).Append(" skip] ");
+                continue;
+            }
+
+            int magnitude = Mathf.Abs(eff.value);
+            if (magnitude == 0)
+            {
+                continue;
+            }
+
+            List<CardController> targets = ResolveEffectTargets(command, commandOwnerSide, eff.target);
+            if (targets == null || targets.Count == 0)
+            {
+                trace.Append('[').Append(ei).Append(":noTargets] ");
+                continue;
+            }
+
+            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets);
+            trace.Append('[').Append(ei).Append(':').Append(eff.type).Append('x').Append(targets.Count).Append("] ");
+        }
+
+        System.Text.StringBuilder header = new System.Text.StringBuilder(384);
+        string patternLabel = "PatternCmd_" + FormatHypothesisPatternLetterLabel(commandIndex);
+        header.AppendLine(
+            "[EnemyAiOnActionHypothetical] patternRow:" + patternLabel + " cmdQueueIndex:" + commandIndex + " cmdId:" + command.Data.id
+            + " flowContext:" + flowContext);
+        header.Append("[EnemyAiOnActionHypothetical] searchRole:EnemyAiHandCommandSearch patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:DirectChain_cmdIdx_")
+            .Append(commandIndex).Append("_cmdId_").Append(command.Data.id).Append(" command:").Append(command.Data.cardName)
+            .Append(" side:").Append(commandOwnerSide).Append(" queue:").Append(commandIndex + 1).Append("/").Append(commandCount)
+            .Append(" flowContext:").Append(flowContext).Append(" virtualTrace:").Append(trace.Length > 0 ? trace.ToString() : "(none)")
+            .Append(' ').Append(FormatBlockRedirectProbeInline(commandOwnerSide));
+        Debug.Log(header.ToString());
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(4096);
+        sb.Append("[EnemyAiOnActionHypotheticalDetail] patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:DirectChain_cmdIdx_").Append(commandIndex).Append(" (same branch as previous line)")
+            .AppendLine();
+        sb.Append("  -------- ").Append(patternLabel).Append(" / DirectOnActionEffectChain cmdId:").Append(command.Data.id).Append(" --------")
+            .AppendLine();
+        sb.AppendLine(
+            "  note:Virtual field = sequential Damage/Buff/Debuff from ResolveEffectTargets per effect; Draw/BlockRedirect skipped. Rules unchanged vs live.");
+        sb.Append("  summaryOneLine:before ").Append(FormatVirtualBattleFieldLine(before)).AppendLine();
+        sb.Append("  summaryOneLine:after  ").Append(FormatVirtualBattleFieldLine(working)).AppendLine();
+        System.Text.StringBuilder ctx = new System.Text.StringBuilder(192);
+        ctx.Append("enemyAiOnActionHypothetical|DirectChain|").Append(patternLabel).Append("|cmdIdx_").Append(commandIndex).Append("|cmdId:")
+            .Append(command.Data.id).Append("|side:").Append(commandOwnerSide).Append("|flow:").Append(flowContext);
+        AppendHypotheticalOnActionBoardSnapshotLines(sb, ctx.ToString(), commandOwnerSide, attackingUnitInAttackFlow, working);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// アタック系 OnAction でコマンドを使わず閉じたときの盤面スナップショット。
+    /// </summary>
+    private void LogAttackOnActionDecisionWithBoard(
+        string pattern,
+        string flowContext,
+        PlayerType side,
+        CardController attackingUnitInAttackFlow)
+    {
+        if (string.IsNullOrEmpty(flowContext) || !flowContext.Contains("attack"))
+        {
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(1400);
+        sb.Append("[AttackOnActionDecision] pattern:").Append(pattern).Append(" flowContext:").Append(flowContext).Append(" side:")
+            .Append(side).AppendLine();
+        AppendBoardStateSnapshotLines(sb, "attackOnActionDecision|" + pattern + "|" + flowContext, side, attackingUnitInAttackFlow);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// OnAction の効果を、プレイヤー盤面ユニットへの影響だけ数値シミュレーションしてログする（ゲーム状態は変更しない）。
+    /// </summary>
+    private void LogVirtualOnActionCommandOutcomeForPlayerUnits(CardController commandCard, PlayerType commandOwner, string contextTag)
+    {
+        if (commandCard == null || commandCard.Data == null)
+        {
+            return;
+        }
+
+        List<EffectData> effects = GetEffectsByTiming(commandCard.Data, EffectTiming.OnAction);
+        if (effects == null || effects.Count == 0)
+        {
+            return;
+        }
+
+        List<VirtualPlayerUnitSnap> before = BuildVirtualPlayerZoneSnapshot();
+        List<VirtualPlayerUnitSnap> working = CloneVirtualPlayerSnaps(before);
+        System.Text.StringBuilder notes = new System.Text.StringBuilder();
+
+        for (int ei = 0; ei < effects.Count; ei++)
+        {
+            EffectData effect = effects[ei];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            int magnitude = Mathf.Abs(effect.value);
+            switch (effect.type)
+            {
+                case EffectType.BlockRedirect:
+                    notes.Append("[BlockRedirect] ");
+                    continue;
+                case EffectType.Draw:
+                    notes.Append("[Draw ").Append(effect.value).Append("] ");
+                    continue;
+            }
+
+            if (magnitude == 0)
+            {
+                continue;
+            }
+
+            switch (effect.type)
+            {
+                case EffectType.Damage:
+                {
+                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    for (int ti = 0; ti < dmgTargets.Count; ti++)
+                    {
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, dmgTargets[ti]);
+                        if (snap != null)
+                        {
+                            snap.Hp = Mathf.Max(0, snap.Hp - magnitude);
+                        }
+                    }
+
+                    if (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)
+                    {
+                        notes.Append("[AreaDamage mag=").Append(magnitude).Append(" target=").Append(effect.target).Append(" → unit HP/AP には未反映] ");
+                    }
+
+                    break;
+                }
+                case EffectType.Buff:
+                case EffectType.Debuff:
+                {
+                    int sign = effect.type == EffectType.Buff ? 1 : -1;
+                    int signedValue = sign * magnitude;
+                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    for (int ti = 0; ti < statTargets.Count; ti++)
+                    {
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, statTargets[ti]);
+                        if (snap != null)
+                        {
+                            ApplyVirtualStatToSnap(snap, signedValue, effect.statTarget);
+                        }
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        string beforeLine = FormatVirtualPlayerUnitsLine(before);
+        string afterLine = FormatVirtualPlayerUnitsLine(working);
+        Debug.Log(
+            $"[VirtualOnAction→PlayerUnits] ctx:{contextTag} commandOwner:{commandOwner} card:{commandCard.Data.cardName}(id:{commandCard.Data.id})\n"
+            + $"  before: {beforeLine}\n"
+            + $"  after:  {afterLine}\n"
+            + $"  notes: {(notes.Length > 0 ? notes.ToString() : "(none)")}");
+    }
+
+    /// <summary>
+    /// ブロック／リダイレクトしたユニット 1 体にだけ、OnAction コマンドが当たった場合の仮想 HP/AP（ログのみ）。
+    /// </summary>
+    private void LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(
+        CardController commandCard,
+        PlayerType commandOwner,
+        CardController focusUnit,
+        string contextTag)
+    {
+        if (commandCard == null
+            || commandCard.Data == null
+            || focusUnit == null
+            || focusUnit.Data == null
+            || focusUnit.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(contextTag) || !contextTag.Contains("attack"))
+        {
+            return;
+        }
+
+        List<EffectData> effects = GetEffectsByTiming(commandCard.Data, EffectTiming.OnAction);
+        if (effects == null || effects.Count == 0)
+        {
+            return;
+        }
+
+        List<VirtualPlayerUnitSnap> before = new List<VirtualPlayerUnitSnap>
+        {
+            new VirtualPlayerUnitSnap
+            {
+                Controller = focusUnit,
+                Slot = -1,
+                Name = focusUnit.Data.cardName,
+                Id = focusUnit.Data.id,
+                Hp = focusUnit.CurrentHp,
+                Ap = focusUnit.CurrentPower,
+            },
+        };
+        List<VirtualPlayerUnitSnap> working = CloneVirtualPlayerSnaps(before);
+        System.Text.StringBuilder notes = new System.Text.StringBuilder();
+
+        for (int ei = 0; ei < effects.Count; ei++)
+        {
+            EffectData effect = effects[ei];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            int magnitude = Mathf.Abs(effect.value);
+            switch (effect.type)
+            {
+                case EffectType.BlockRedirect:
+                    notes.Append("[BlockRedirect] ");
+                    continue;
+                case EffectType.Draw:
+                    notes.Append("[Draw ").Append(effect.value).Append("] ");
+                    continue;
+            }
+
+            if (magnitude == 0)
+            {
+                continue;
+            }
+
+            switch (effect.type)
+            {
+                case EffectType.Damage:
+                {
+                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    bool hitsFocus = false;
+                    for (int ti = 0; ti < dmgTargets.Count; ti++)
+                    {
+                        if (dmgTargets[ti] == focusUnit)
+                        {
+                            hitsFocus = true;
+                            break;
+                        }
+                    }
+
+                    if (hitsFocus)
+                    {
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, focusUnit);
+                        if (snap != null)
+                        {
+                            snap.Hp = Mathf.Max(0, snap.Hp - magnitude);
+                        }
+                    }
+                    else if (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)
+                    {
+                        notes.Append("[AreaDamage → blocker unit には未反映] ");
+                    }
+
+                    break;
+                }
+                case EffectType.Buff:
+                case EffectType.Debuff:
+                {
+                    int sign = effect.type == EffectType.Buff ? 1 : -1;
+                    int signedValue = sign * magnitude;
+                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    bool hitsFocus = false;
+                    for (int ti = 0; ti < statTargets.Count; ti++)
+                    {
+                        if (statTargets[ti] == focusUnit)
+                        {
+                            hitsFocus = true;
+                            break;
+                        }
+                    }
+
+                    if (hitsFocus)
+                    {
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, focusUnit);
+                        if (snap != null)
+                        {
+                            ApplyVirtualStatToSnap(snap, signedValue, effect.statTarget);
+                        }
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        string beforeLine = FormatVirtualPlayerUnitsLine(before);
+        string afterLine = FormatVirtualPlayerUnitsLine(working);
+        Debug.Log(
+            $"[VirtualOnAction→BlockerUnit] ctx:{contextTag} commandOwner:{commandOwner} card:{commandCard.Data.cardName}(id:{commandCard.Data.id}) focus:{focusUnit.Data.cardName}(id:{focusUnit.Data.id})\n"
+            + $"  before: {beforeLine}\n"
+            + $"  after:  {afterLine}\n"
+            + $"  notes: {(notes.Length > 0 ? notes.ToString() : "(none)")}");
+    }
+
+    /// <summary>盤面（Rule / AttackContext / ゾーン / AttackingUnit）を StringBuilder に追記。先頭の [タグ] 行は呼び出し側。</summary>
+    private void AppendBoardStateSnapshotLines(
+        System.Text.StringBuilder sb,
+        string context,
+        PlayerType activeSide,
+        CardController attackingUnitInAttackFlow)
+    {
+        sb.Append("  context:").Append(context).Append(" activeSide:").Append(activeSide)
+            .Append(" battlePhase:").Append(currentPhase).Append(" currentPlayerType:").Append(currentPlayerType).AppendLine();
+
+        Gundam2024RuleScript.PlayerState p = gundamRule.Player;
+        Gundam2024RuleScript.PlayerState e = gundamRule.Enemy;
+        sb.Append("  Rule_Player: level:").Append(p.level).Append(" exResource:").Append(p.exResource).Append(" TotalLevel:").Append(p.TotalLevel)
+            .Append(" resource:").Append(p.resource).Append(" shield:").Append(p.shield).Append(" exBase:").Append(p.exBase)
+            .Append(" handCount:").Append(p.handCount).Append(" deckCount:").Append(p.deckCount).AppendLine();
+        sb.Append("  Rule_Enemy: level:").Append(e.level).Append(" exResource:").Append(e.exResource).Append(" TotalLevel:").Append(e.TotalLevel)
+            .Append(" resource:").Append(e.resource).Append(" shield:").Append(e.shield).Append(" exBase:").Append(e.exBase)
+            .Append(" handCount:").Append(e.handCount).Append(" deckCount:").Append(e.deckCount).AppendLine();
+
+        AppendAttackFlowContextToSnapshot(sb, activeSide);
+
+        sb.AppendLine("  === Field: AP/HP (味方・敵 同時) ===");
+        AppendCompactSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        AppendCompactSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        if (attackingUnitInAttackFlow != null && attackFlowBlockRedirectUnit != null)
+        {
+            AppendAttackBlockNowVsAttackNowCalcLines(sb, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit, null);
+        }
+
+        AppendBattleZoneDetailSnapshotLines(sb, "詳細 PlayerBattleZone", playerBattleZoneCards, PlayerType.Player);
+        AppendBattleZoneDetailSnapshotLines(sb, "詳細 EnemyBattleZone", enemyBattleZoneCards, PlayerType.Enemy);
+
+        if (attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null)
+        {
+            PlayerType atkOwner = ResolveCardOwner(attackingUnitInAttackFlow.transform);
+            sb.Append("  AttackingUnit: ").Append(attackingUnitInAttackFlow.Data.cardName).Append("(id:").Append(attackingUnitInAttackFlow.Data.id)
+                .Append(") AP=").Append(attackingUnitInAttackFlow.CurrentPower).Append(" HP=").Append(attackingUnitInAttackFlow.CurrentHp)
+                .Append(" REST:").Append(attackingUnitInAttackFlow.IsRestState).Append(" AtkFlg:").Append(attackingUnitInAttackFlow.AttackFlgState)
+                .Append(" owner:").Append(atkOwner).AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("  AttackingUnit: (none)");
+        }
+    }
+
+    /// <summary>
+    /// OnAction で「敵ユニット X を選んだ場合」の仮想盤面を、<see cref="AppendBoardStateSnapshotLines"/> と同じ構成で追記（フィールド AP/HP のみ仮想値）。
+    /// </summary>
+    private void AppendHypotheticalOnActionBoardSnapshotLines(
+        System.Text.StringBuilder sb,
+        string context,
+        PlayerType activeSide,
+        CardController attackingUnitInAttackFlow,
+        List<VirtualBattleUnitSnap> virtualSnaps)
+    {
+        sb.Append("  context:").Append(context).Append(" activeSide:").Append(activeSide)
+            .Append(" battlePhase:").Append(currentPhase).Append(" currentPlayerType:").Append(currentPlayerType).AppendLine();
+
+        Gundam2024RuleScript.PlayerState p = gundamRule.Player;
+        Gundam2024RuleScript.PlayerState e = gundamRule.Enemy;
+        sb.Append("  Rule_Player: level:").Append(p.level).Append(" exResource:").Append(p.exResource).Append(" TotalLevel:").Append(p.TotalLevel)
+            .Append(" resource:").Append(p.resource).Append(" shield:").Append(p.shield).Append(" exBase:").Append(p.exBase)
+            .Append(" handCount:").Append(p.handCount).Append(" deckCount:").Append(p.deckCount).AppendLine();
+        sb.Append("  Rule_Enemy: level:").Append(e.level).Append(" exResource:").Append(e.exResource).Append(" TotalLevel:").Append(e.TotalLevel)
+            .Append(" resource:").Append(e.resource).Append(" shield:").Append(e.shield).Append(" exBase:").Append(e.exBase)
+            .Append(" handCount:").Append(e.handCount).Append(" deckCount:").Append(e.deckCount).AppendLine();
+
+        AppendAttackFlowContextToSnapshot(sb, activeSide);
+
+        sb.AppendLine("  === Virtual Field: if command resolves against hypothetical pick (unit AP/HP only) ===");
+        AppendCompactVirtualSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, virtualSnaps, PlayerType.Player, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        AppendCompactVirtualSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, virtualSnaps, PlayerType.Enemy, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        if (attackingUnitInAttackFlow != null && attackFlowBlockRedirectUnit != null)
+        {
+            AppendAttackBlockNowVsAttackNowCalcLines(sb, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit, virtualSnaps);
+        }
+
+        AppendVirtualBattleZoneDetailSnapshotLines(sb, "詳細 PlayerBattleZone", playerBattleZoneCards, virtualSnaps, PlayerType.Player);
+        AppendVirtualBattleZoneDetailSnapshotLines(sb, "詳細 EnemyBattleZone", enemyBattleZoneCards, virtualSnaps, PlayerType.Enemy);
+
+        if (attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null)
+        {
+            int ap = attackingUnitInAttackFlow.CurrentPower;
+            int hp = attackingUnitInAttackFlow.CurrentHp;
+            VirtualBattleUnitSnap vs = FindBattleVirtualSnap(virtualSnaps, attackingUnitInAttackFlow);
+            if (vs != null)
+            {
+                ap = vs.Ap;
+                hp = vs.Hp;
+            }
+
+            PlayerType atkOwner = ResolveCardOwner(attackingUnitInAttackFlow.transform);
+            sb.Append("  AttackingUnit: ").Append(attackingUnitInAttackFlow.Data.cardName).Append("(id:").Append(attackingUnitInAttackFlow.Data.id)
+                .Append(") AP=").Append(ap).Append(" HP=").Append(hp).Append(" REST:").Append(attackingUnitInAttackFlow.IsRestState)
+                .Append(" AtkFlg:").Append(attackingUnitInAttackFlow.AttackFlgState).Append(" owner:").Append(atkOwner).AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("  AttackingUnit: (none)");
+        }
+    }
+
+    private void AppendAttackBlockNowVsAttackNowCalcLines(
+        System.Text.StringBuilder sb,
+        CardController attackNow,
+        CardController blockNow,
+        List<VirtualBattleUnitSnap> virtualSnapsOrNull)
+    {
+        if (attackNow == null || attackNow.gameObject == null || attackNow.Data == null
+            || blockNow == null || blockNow.gameObject == null || blockNow.Data == null)
+        {
+            return;
+        }
+
+        if (attackNow.Data.type != Type.Unit || blockNow.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        int atkAp;
+        int atkHp;
+        int blkAp;
+        int blkHp;
+        if (virtualSnapsOrNull != null)
+        {
+            VirtualBattleUnitSnap a = FindBattleVirtualSnap(virtualSnapsOrNull, attackNow);
+            VirtualBattleUnitSnap b = FindBattleVirtualSnap(virtualSnapsOrNull, blockNow);
+            if (a == null || b == null)
+            {
+                return;
+            }
+
+            atkAp = a.Ap;
+            atkHp = a.Hp;
+            blkAp = b.Ap;
+            blkHp = b.Hp;
+        }
+        else
+        {
+            atkAp = attackNow.CurrentPower;
+            atkHp = attackNow.CurrentHp;
+            blkAp = blockNow.CurrentPower;
+            blkHp = blockNow.CurrentHp;
+        }
+
+        int blockHpMinusAttackAp = blkHp - atkAp;
+        int attackHpMinusBlockAp = atkHp - blkAp;
+        sb.AppendLine("  [BlockNowVsAttackNow] ブロックナウHP-アタックナウAP: " + blkHp + "-" + atkAp + "=" + blockHpMinusAttackAp);
+        sb.AppendLine("  [BlockNowVsAttackNow] アタックナウHP-ブロックナウAP: " + atkHp + "-" + blkAp + "=" + attackHpMinusBlockAp);
+    }
+
+    private static void AppendCompactVirtualSideUnitsApHpLine(
+        System.Text.StringBuilder sb,
+        string sideLabel,
+        List<CardController> zone,
+        List<VirtualBattleUnitSnap> virtualSnaps,
+        PlayerType fieldOwner,
+        CardController attackHighlightUnit = null,
+        CardController blockHighlightUnit = null)
+    {
+        sb.Append("  [").Append(sideLabel).Append("] ");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':');
+            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.type == Type.Unit)
+            {
+                sb.Append("[ユニットナウ]");
+            }
+
+            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.type == Type.Unit)
+            {
+                sb.Append("[ブロックナウ]");
+            }
+
+            int ap = c.CurrentPower;
+            int hp = c.CurrentHp;
+            if (c.Data.type == Type.Unit && virtualSnaps != null)
+            {
+                VirtualBattleUnitSnap s = FindBattleVirtualSnap(virtualSnaps, c);
+                if (s != null && s.FieldOwner == fieldOwner)
+                {
+                    ap = s.Ap;
+                    hp = s.Hp;
+                }
+            }
+
+            sb.Append(c.Data.cardName).Append(" AP=").Append(ap).Append(" HP=").Append(hp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(empty)");
+        }
+
+        sb.AppendLine();
+    }
+
+    private static void AppendVirtualBattleZoneDetailSnapshotLines(
+        System.Text.StringBuilder sb,
+        string zoneLabel,
+        List<CardController> zone,
+        List<VirtualBattleUnitSnap> virtualSnaps,
+        PlayerType fieldOwner)
+    {
+        sb.Append("  ").Append(zoneLabel).AppendLine(":");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("    (empty)");
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                sb.Append("    [").Append(i).AppendLine("] (null)");
+                continue;
+            }
+
+            int ap = c.CurrentPower;
+            int hp = c.CurrentHp;
+            if (c.Data.type == Type.Unit && virtualSnaps != null)
+            {
+                VirtualBattleUnitSnap s = FindBattleVirtualSnap(virtualSnaps, c);
+                if (s != null && s.FieldOwner == fieldOwner)
+                {
+                    ap = s.Ap;
+                    hp = s.Hp;
+                }
+            }
+
+            sb.Append("    [").Append(i).Append("] ").Append(c.Data.type).Append(' ').Append(c.Data.cardName).Append("(id:").Append(c.Data.id)
+                .Append(") AP=").Append(ap).Append(" HP=").Append(hp).Append(" REST:").Append(c.IsRestState).Append(" AtkFlg:")
+                .Append(c.AttackFlgState).Append(" zoneOwner:").Append(fieldOwner).AppendLine();
+        }
+    }
+
+    /// <summary>OnAction コマンド実行後など、パターン付きで盤面スナップショットを 1 本のログに残す。</summary>
+    /// <param name="onActionResolvedUnitTargetsAfterApplyOrNull">
+    /// 適用後に参照が残るユニット（敵単体選択の対象や ResolveEffectTargets の結果）。ブロック文脈の評価ログ用。
+    /// </param>
+    private void LogCommandUseResultWithBoard(
+        string pattern,
+        PlayerType ownerSide,
+        CardController command,
+        CardController attackingUnitInAttackFlow,
+        int queueIndex,
+        int queueCount,
+        string detail,
+        List<CardController> onActionResolvedUnitTargetsAfterApplyOrNull = null)
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(1200);
+        sb.Append("[CommandResult] pattern:").Append(pattern);
+        if (command != null && command.Data != null)
+        {
+            sb.Append(" card:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(')');
+        }
+
+        sb.Append(" ownerSide:").Append(ownerSide);
+        if (queueIndex >= 0 && queueCount > 0)
+        {
+            sb.Append(" queue:").Append(queueIndex + 1).Append('/').Append(queueCount);
+        }
+
+        if (!string.IsNullOrEmpty(detail))
+        {
+            sb.Append(" | ").Append(detail);
+        }
+
+        sb.AppendLine();
+        string boardCtx = "commandResult|" + pattern + "|side:" + ownerSide;
+        AppendBoardStateSnapshotLines(sb, boardCtx, ownerSide, attackingUnitInAttackFlow);
+        if (ShouldAppendMutualUnitsApHpAfterBlockedOnActionCommand(pattern))
+        {
+            AppendMutualZoneUnitsApHpAfterBlockedOnActionCommand(sb);
+        }
+
+        Debug.Log(sb.ToString());
+        LogEvalBlockContextPostCommandBattleBoardIfApplicable(
+            pattern,
+            ownerSide,
+            attackingUnitInAttackFlow,
+            onActionResolvedUnitTargetsAfterApplyOrNull);
+    }
+
+    /// <summary>
+    /// ユニット・ブロック中に OnAction が成功したあとの盤面を、評価関数向けに <c>[EvalBlockContextPostCommand]</c> で別ログする。
+    /// </summary>
+    private void LogEvalBlockContextPostCommandBattleBoardIfApplicable(
+        string pattern,
+        PlayerType commandOwnerSide,
+        CardController attackingUnitInAttackFlow,
+        List<CardController> onActionResolvedUnitTargetsAfterApplyOrNull)
+    {
+        if (!ShouldAppendMutualUnitsApHpAfterBlockedOnActionCommand(pattern))
+        {
+            return;
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None
+            || attackFlowBlockRedirectUnit == null
+            || attackFlowBlockRedirectUnit.Data == null)
+        {
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(4096);
+        sb.Append("[EvalBlockContextPostCommand] pattern:").Append(pattern).Append(" commandOwnerSide:").Append(commandOwnerSide).Append(' ')
+            .Append(FormatBlockRedirectProbeInline(commandOwnerSide)).AppendLine();
+        sb.AppendLine(
+            "  note:blockedAttackFlow + OnAction command applied; full board below is state AFTER command (for eval / value function).");
+
+        CardController br = attackFlowBlockRedirectUnit;
+        PlayerType bro = ResolveCardOwner(br.transform);
+        sb.Append("  blockRedirectTargetAfterCommand: ").Append(br.Data.cardName).Append("(id:").Append(br.Data.id).Append(") AP=").Append(br.CurrentPower)
+            .Append(" HP=").Append(br.CurrentHp).Append(" REST:").Append(br.IsRestState).Append(" owner:").Append(bro).Append(" zoneSlotIndex:#")
+            .Append(TryGetUnitBattleZoneSlotIndex(br)).AppendLine();
+
+        if (onActionResolvedUnitTargetsAfterApplyOrNull != null && onActionResolvedUnitTargetsAfterApplyOrNull.Count > 0)
+        {
+            sb.AppendLine("  onActionEffectUnitTargetsAfterCommand:");
+            for (int i = 0; i < onActionResolvedUnitTargetsAfterApplyOrNull.Count; i++)
+            {
+                CardController t = onActionResolvedUnitTargetsAfterApplyOrNull[i];
+                if (t == null || t.Data == null || t.Data.type != Type.Unit)
+                {
+                    continue;
+                }
+
+                PlayerType to = ResolveCardOwner(t.transform);
+                bool sameAsBlock = t == attackFlowBlockRedirectUnit;
+                sb.Append("    - ").Append(t.Data.cardName).Append("(id:").Append(t.Data.id).Append(") AP=").Append(t.CurrentPower).Append(" HP=")
+                    .Append(t.CurrentHp).Append(" owner:").Append(to).Append(" zoneSlotIndex:#").Append(TryGetUnitBattleZoneSlotIndex(t));
+                if (sameAsBlock)
+                {
+                    sb.Append(" [sameAsBlockRedirectTarget]");
+                }
+
+                sb.AppendLine();
+            }
+        }
+
+        sb.AppendLine("  === fullBoardAfterCommand (eval snapshot) ===");
+        AppendBoardStateSnapshotLines(
+            sb,
+            "evalBlockContextPostCommand|" + pattern + "|side:" + commandOwnerSide,
+            commandOwnerSide,
+            attackingUnitInAttackFlow);
+        sb.AppendLine("  === allFieldUnitsAfterCommand (units only) ===");
+        sb.Append("  PlayerUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  EnemyUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, enemyBattleZoneCards);
+        sb.AppendLine();
+        Debug.Log(sb.ToString());
+    }
+
+    private static List<CardController> BuildOnActionUnitTargetListAfterApply(List<CardController> resolvedBeforeApply)
+    {
+        if (resolvedBeforeApply == null || resolvedBeforeApply.Count == 0)
+        {
+            return null;
+        }
+
+        List<CardController> list = new List<CardController>();
+        for (int i = 0; i < resolvedBeforeApply.Count; i++)
+        {
+            CardController c = resolvedBeforeApply[i];
+            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            {
+                continue;
+            }
+
+            list.Add(c);
+        }
+
+        return list.Count > 0 ? list : null;
+    }
+
+    private static bool ShouldAppendMutualUnitsApHpAfterBlockedOnActionCommand(string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern))
+        {
+            return false;
+        }
+
+        return pattern == "OnAction_AfterApplyEnemyUnitTarget" || pattern == "OnAction_AfterApplyDirectEffect";
+    }
+
+    /// <summary>
+    /// ユニット・ブロック／リダイレクトが有効な攻撃フローで OnAction コマンドを適用した直後、プレイヤー／エネミー双方のフィールド・ユニット AP/HP を 1 本にまとめて追記。
+    /// </summary>
+    private void AppendMutualZoneUnitsApHpAfterBlockedOnActionCommand(System.Text.StringBuilder sb)
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None
+            || attackFlowBlockRedirectUnit == null
+            || attackFlowBlockRedirectUnit.Data == null)
+        {
+            return;
+        }
+
+        sb.AppendLine("  === AfterBlock+OnActionCommand: mutual field units AP/HP (Player vs Enemy) ===");
+        sb.Append("  PlayerUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  EnemyUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, enemyBattleZoneCards);
+        sb.AppendLine();
+
+        CardController br = attackFlowBlockRedirectUnit;
+        PlayerType bo = ResolveCardOwner(br.transform);
+        int brSlot = TryGetUnitBattleZoneSlotIndex(br);
+        sb.Append("  BlockRedirectUnit: ").Append(br.Data.cardName).Append("(id:").Append(br.Data.id).Append(") AP=").Append(br.CurrentPower)
+            .Append(" HP=").Append(br.CurrentHp).Append(" REST:").Append(br.IsRestState).Append(" owner:").Append(bo).Append(" zoneSlotIndex:#")
+            .Append(brSlot).AppendLine();
+    }
+
+    private static void AppendBattleZoneUnitApHpInline(System.Text.StringBuilder sb, List<CardController> zone)
+    {
+        if (zone == null || zone.Count == 0)
+        {
+            sb.Append("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':').Append(c.Data.cardName).Append("(id:").Append(c.Data.id).Append(") AP=").Append(c.CurrentPower)
+                .Append(" HP=").Append(c.CurrentHp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(no units)");
+        }
+    }
+
+    private static void AppendBattleZoneUnitHpOnlyInline(System.Text.StringBuilder sb, List<CardController> zone)
+    {
+        if (zone == null || zone.Count == 0)
+        {
+            sb.Append("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':').Append(c.Data.cardName).Append("(id:").Append(c.Data.id).Append(") HP=").Append(c.CurrentHp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(no units)");
+        }
+    }
+
+    private struct UnitStatSnapForCommandLog
+    {
+        public int Id;
+        public string Name;
+        public PlayerType Owner;
+        public int Slot;
+        public int Ap;
+        public int Hp;
+    }
+
+    private List<UnitStatSnapForCommandLog> SnapUnitStatsForOnActionCommandLog(List<CardController> targets)
+    {
+        if (targets == null || targets.Count == 0)
+        {
+            return null;
+        }
+
+        List<UnitStatSnapForCommandLog> list = new List<UnitStatSnapForCommandLog>();
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController c = targets[i];
+            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            {
+                continue;
+            }
+
+            list.Add(new UnitStatSnapForCommandLog
+            {
+                Id = c.Data.id,
+                Name = c.Data.cardName,
+                Owner = ResolveCardOwner(c.transform),
+                Slot = TryGetUnitBattleZoneSlotIndex(c),
+                Ap = c.CurrentPower,
+                Hp = c.CurrentHp,
+            });
+        }
+
+        return list.Count > 0 ? list : null;
+    }
+
+    private CardController FindBattleZoneUnitByCardId(int cardId)
+    {
+        if (playerBattleZoneCards != null)
+        {
+            for (int i = 0; i < playerBattleZoneCards.Count; i++)
+            {
+                CardController c = playerBattleZoneCards[i];
+                if (c != null && c.Data != null && c.Data.type == Type.Unit && c.Data.id == cardId)
+                {
+                    return c;
+                }
+            }
+        }
+
+        if (enemyBattleZoneCards != null)
+        {
+            for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+            {
+                CardController c = enemyBattleZoneCards[i];
+                if (c != null && c.Data != null && c.Data.type == Type.Unit && c.Data.id == cardId)
+                {
+                    return c;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// OnAction コマンドをユニットに適用した直後: 対象の適用前→適用後 AP/HP と、フィールド上の味方・敵ユニットの AP/HP（および HP のみ要約）。
+    /// </summary>
+    private void LogOnActionCommandAppliedToUnitsBattleOutcome(
+        CardController command,
+        PlayerType commandOwner,
+        EffectData effect,
+        string patternTag,
+        List<UnitStatSnapForCommandLog> beforeSnaps)
+    {
+        if (command == null || command.Data == null)
+        {
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(1400);
+        sb.Append("[OnActionCommandAppliedToUnits] patternTag:").Append(patternTag).Append(" commandOwner:").Append(commandOwner)
+            .Append(" cmd:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(')');
+        if (effect != null)
+        {
+            sb.Append(" effect:").Append(effect.type).Append(" target:").Append(effect.target).Append(" value:").Append(effect.value);
+        }
+
+        sb.AppendLine();
+
+        if (beforeSnaps != null && beforeSnaps.Count > 0)
+        {
+            sb.AppendLine("  affectedUnits before->after (AP/HP; missing from field = likely trashed):");
+            for (int i = 0; i < beforeSnaps.Count; i++)
+            {
+                UnitStatSnapForCommandLog b = beforeSnaps[i];
+                CardController aft = FindBattleZoneUnitByCardId(b.Id);
+                sb.Append("    ").Append(b.Name).Append("(id:").Append(b.Id).Append(") owner:").Append(b.Owner).Append(" slotBefore:#").Append(b.Slot)
+                    .Append(" before:AP=").Append(b.Ap).Append(" HP=").Append(b.Hp).Append(" -> ");
+                if (aft == null || aft.Data == null || aft.Data.type != Type.Unit)
+                {
+                    sb.AppendLine("after:(not on field — trashed or invalid)");
+                }
+                else
+                {
+                    sb.Append("after:AP=").Append(aft.CurrentPower).Append(" HP=").Append(aft.CurrentHp).Append(" slotAfter:#")
+                        .Append(TryGetUnitBattleZoneSlotIndex(aft)).AppendLine();
+                }
+            }
+        }
+        else
+        {
+            sb.AppendLine("  affectedUnits: (no unit targets in snapshot — e.g. Draw / non-unit target)");
+        }
+
+        sb.Append("  afterApply_allFieldUnits_Player_AP_HP: ");
+        AppendBattleZoneUnitApHpInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  afterApply_allFieldUnits_Enemy_AP_HP: ");
+        AppendBattleZoneUnitApHpInline(sb, enemyBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  afterApply_playerUnits_hpOnly: ");
+        AppendBattleZoneUnitHpOnlyInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  afterApply_enemyUnits_hpOnly: ");
+        AppendBattleZoneUnitHpOnlyInline(sb, enemyBattleZoneCards);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>OnAction コマンド系 UI を出す直前の盤面スナップショット。アタック中に渡されたユニットも 1 行で出す。</summary>
+    private void LogFullBoardSnapshotForCommandTiming(string context, PlayerType activeSide, CardController attackingUnitInAttackFlow)
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(768);
+        sb.AppendLine("[BoardSnapshot]");
+        AppendBoardStateSnapshotLines(sb, context, activeSide, attackingUnitInAttackFlow);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>味方・敵それぞれ 1 行に、ゾーン内カードの AP/HP を並べて出す（同時比較用）。攻撃中に <c>[ユニットナウ]</c>、ブロック誘導ユニットに <c>[ブロックナウ]</c> を付与。</summary>
+    private static void AppendCompactSideUnitsApHpLine(
+        System.Text.StringBuilder sb,
+        string sideLabel,
+        List<CardController> zone,
+        CardController attackHighlightUnit = null,
+        CardController blockHighlightUnit = null)
+    {
+        sb.Append("  [").Append(sideLabel).Append("] ");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':');
+            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.type == Type.Unit)
+            {
+                sb.Append("[ユニットナウ]");
+            }
+
+            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.type == Type.Unit)
+            {
+                sb.Append("[ブロックナウ]");
+            }
+
+            sb.Append(c.Data.cardName)
+                .Append(" AP=").Append(c.CurrentPower).Append(" HP=").Append(c.CurrentHp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(empty)");
+        }
+
+        sb.AppendLine();
+    }
+
+    private static void AppendBattleZoneDetailSnapshotLines(
+        System.Text.StringBuilder sb,
+        string zoneLabel,
+        List<CardController> zone,
+        PlayerType zoneOwner)
+    {
+        sb.Append("  ").Append(zoneLabel).AppendLine(":");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("    (empty)");
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                sb.Append("    [").Append(i).AppendLine("] (null)");
+                continue;
+            }
+
+            sb.Append("    [").Append(i).Append("] ").Append(c.Data.type).Append(' ').Append(c.Data.cardName).Append("(id:").Append(c.Data.id)
+                .Append(") AP=").Append(c.CurrentPower).Append(" HP=").Append(c.CurrentHp).Append(" REST:").Append(c.IsRestState)
+                .Append(" AtkFlg:").Append(c.AttackFlgState).Append(" zoneOwner:").Append(zoneOwner).AppendLine();
+        }
+    }
+
     private bool TryHandleSingleSideOnActionStep(
         PlayerType side,
         string context,
@@ -3602,7 +6381,7 @@ public class BattleGameMain : MonoBehaviour
     {
         if (side == PlayerType.Enemy)
         {
-            return TryShowEnemyOnActionCommandCandidatesPopup(context, onStepDone);
+            return TryShowEnemyOnActionCommandCandidatesPopup(context, onStepDone, attackingUnitInAttackFlow);
         }
 
         return TryOpenOnActionCommandSelection(side, context, onStepDone, attackingUnitInAttackFlow);
@@ -3681,6 +6460,17 @@ public class BattleGameMain : MonoBehaviour
         if (canvas == null)
         {
             return false;
+        }
+
+        LogFullBoardSnapshotForCommandTiming(context, side, attackingUnitInAttackFlow);
+
+        for (int vci = 0; vci < commandCards.Count; vci++)
+        {
+            LogVirtualOnActionCommandOutcomeForPlayerUnits(commandCards[vci], side, context);
+            if (attackFlowBlockRedirectUnit != null)
+            {
+                LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(commandCards[vci], side, attackFlowBlockRedirectUnit, context);
+            }
         }
 
         DestroyActiveOnActionPopupIfAny();
@@ -3797,6 +6587,7 @@ public class BattleGameMain : MonoBehaviour
         closeRt.anchoredPosition = new Vector2(100f, 36f);
         closeBtn.onClick.AddListener(() =>
         {
+            LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseCommandPopup", context, side, attackingUnitInAttackFlow);
             isOnActionPopupOpen = false;
             activeOnActionPopupRoot = null;
             Destroy(root);
@@ -3830,14 +6621,18 @@ public class BattleGameMain : MonoBehaviour
             side,
             command,
             () => ExecuteOnActionCommandQueue(side, queue, index + 1, onAllDone, attackingUnitInAttackFlow),
-            attackingUnitInAttackFlow);
+            attackingUnitInAttackFlow,
+            index,
+            queue != null ? queue.Count : 0);
     }
 
     private void TryExecuteOnActionCommand(
         PlayerType side,
         CardController command,
         System.Action onDone,
-        CardController attackingUnitInAttackFlow = null)
+        CardController attackingUnitInAttackFlow = null,
+        int commandQueueIndex = -1,
+        int commandQueueCount = -1)
     {
         if (command == null || command.Data == null)
         {
@@ -3848,6 +6643,14 @@ public class BattleGameMain : MonoBehaviour
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
         if (onActionEffects.Count == 0)
         {
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoOnActionEffects",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:no OnAction timed effects on card");
             onDone?.Invoke();
             return;
         }
@@ -3855,19 +6658,51 @@ public class BattleGameMain : MonoBehaviour
         EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target == TargetType.EnemyUnit);
         if (enemyTargetEffect != null)
         {
-            OpenOnActionEnemyTargetSelection(side, command, enemyTargetEffect, onDone, attackingUnitInAttackFlow);
+            OpenOnActionEnemyTargetSelection(
+                side,
+                command,
+                enemyTargetEffect,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
             return;
         }
 
         if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.Data.cost, 0, command.Data.id))
         {
             Debug.Log("OnAction: リソース不足で実行できません。");
+            LogCommandUseResultWithBoard(
+                "OnAction_Failed_InsufficientResource",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "phase:before_apply_direct cost not consumed");
             onDone?.Invoke();
             return;
         }
 
-        ApplyEffect(command, side, onActionEffects[0]);
+        string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
+        EffectData applied = onActionEffects[0];
+        string effectDetail =
+            $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
+        List<CardController> resolvedBeforeApply = ResolveEffectTargets(command, side, applied.target);
+        List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
+        ApplyEffect(command, side, applied);
+        LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
         FinalizeOnActionSourceCard(command, side);
+        List<CardController> unitTargetsForEvalLog = BuildOnActionUnitTargetListAfterApply(resolvedBeforeApply);
+        LogCommandUseResultWithBoard(
+            "OnAction_AfterApplyDirectEffect",
+            side,
+            null,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            effectDetail,
+            unitTargetsForEvalLog);
         onDone?.Invoke();
     }
 
@@ -3876,11 +6711,21 @@ public class BattleGameMain : MonoBehaviour
         CardController command,
         EffectData effect,
         System.Action onDone,
-        CardController attackingUnitInAttackFlow = null)
+        CardController attackingUnitInAttackFlow = null,
+        int commandQueueIndex = -1,
+        int commandQueueCount = -1)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
         {
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoCanvas_EnemyTargetUI",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:ResolveBattleCanvas null");
             onDone?.Invoke();
             return;
         }
@@ -3889,8 +6734,50 @@ public class BattleGameMain : MonoBehaviour
         if (enemyUnits.Count == 0)
         {
             Debug.Log("OnAction: 対象となる敵ユニットがいません。");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoEnemyUnitTargets",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:GetAliveEnemyUnits empty");
             onDone?.Invoke();
             return;
+        }
+
+        if (command != null && command.Data != null && effect != null)
+        {
+            System.Text.StringBuilder openPatternTable = new System.Text.StringBuilder(320);
+            openPatternTable.Append("[OnActionHypotheticalBoard] phase:EnumerateHypotheticalPicks candidates:").Append(enemyUnits.Count)
+                .Append(" cmdId:").Append(command.Data.id).Append(" effect:").Append(effect.type).Append(" target:").Append(effect.target)
+                .Append(' ').Append(FormatBlockRedirectProbeInline(side)).AppendLine();
+            for (int pi = 0; pi < enemyUnits.Count; pi++)
+            {
+                CardController eu = enemyUnits[pi];
+                if (eu?.Data == null)
+                {
+                    continue;
+                }
+
+                int es = TryGetUnitBattleZoneSlotIndex(eu);
+                openPatternTable.Append("  patternRow:").Append(FormatHypothesisPatternLetterLabel(pi)).Append(" → target:")
+                    .Append(eu.Data.cardName).Append("(id:").Append(eu.Data.id).Append(") zoneSlotIndex:#").Append(es).AppendLine();
+            }
+
+            Debug.Log(openPatternTable.ToString());
+            for (int hi = 0; hi < enemyUnits.Count; hi++)
+            {
+                LogOnActionHypotheticalBoardForEnemyPick(
+                    command,
+                    side,
+                    effect,
+                    enemyUnits[hi],
+                    hi,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+            }
         }
 
         GameObject root = new GameObject("OnActionTargetSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -3945,13 +6832,36 @@ public class BattleGameMain : MonoBehaviour
                 if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.Data.cost, 0, command.Data.id))
                 {
                     Debug.Log("OnAction: リソース不足で実行できません。");
+                    LogCommandUseResultWithBoard(
+                        "OnAction_Failed_InsufficientResource",
+                        side,
+                        command,
+                        attackingUnitInAttackFlow,
+                        commandQueueIndex,
+                        commandQueueCount,
+                        "phase:enemy_target_ui cost not consumed");
                     Destroy(root);
                     onDone?.Invoke();
                     return;
                 }
 
+                string consumedSummary = command.Data != null ? $"{command.Data.cardName}(id:{command.Data.id})" : "?";
+                string detail =
+                    $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|pickedEnemy:{t.Data.cardName}(id:{t.Data.id})";
+                List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { t });
                 ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { t });
+                LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyEnemyUnitTarget", beforeSnapsPick);
                 FinalizeOnActionSourceCard(command, side);
+                List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(new List<CardController> { t });
+                LogCommandUseResultWithBoard(
+                    "OnAction_AfterApplyEnemyUnitTarget",
+                    side,
+                    null,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount,
+                    detail,
+                    pickedForEval);
                 Destroy(root);
                 onDone?.Invoke();
             });
@@ -4126,6 +7036,7 @@ public class BattleGameMain : MonoBehaviour
         closeRt.anchoredPosition = new Vector2(0f, 36f);
         closeBtn.onClick.AddListener(() =>
         {
+            LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseEnemyHandPreview", context, ownerType, null);
             isOnActionPopupOpen = false;
             activeOnActionPopupRoot = null;
             Destroy(root);
