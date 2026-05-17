@@ -10,7 +10,8 @@ public enum EffectTiming
     OnAction,       // 任意アクション（攻撃時/ターン終了時に手札から実行可能）
     OnDestroyed,    // 破壊された時
     OnEndOfGame,    // ゲーム終了時
-    OnEnemyAttack   // 敵が攻撃してきた時（防御リアクション用）
+    OnEnemyAttack,  // 敵が攻撃してきた時（防御リアクション用）
+    OnMain          // メインフェイズ中・自分のターンでいつでも実行可能
 }
 
 public enum EffectType

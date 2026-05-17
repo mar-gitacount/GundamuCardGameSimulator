@@ -35,3 +35,11 @@ MonoBehaviour:
       selectionMode: 1
       statTarget: 0
       duration: 1
+  - timing: 8
+    effects:
+    - type: 3
+      value: 3
+      target: 2
+      selectionMode: 1
+      statTarget: 0
+      duration: 1
