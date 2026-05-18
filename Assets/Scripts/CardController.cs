@@ -7,7 +7,7 @@ using System;
 public class CardController : MonoBehaviour,IPointerClickHandler
 {
     [Serializable]
-    private struct PowerModifier
+    private struct StatModifier
     {
         public int value;
         public EffectDuration duration;
@@ -30,12 +30,28 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         get
         {
             int basePower = Data != null ? Data.power : 0;
-            int modified = basePower + pilotPowerBonus;
-            for (int i = 0; i < powerModifiers.Count; i++)
-            {
-                modified += powerModifiers[i].value;
-            }
+            int modified = basePower + pilotPowerBonus + SumModifierValues(powerModifiers);
             return Mathf.Max(0, modified);
+        }
+    }
+
+    /// <summary>実効コスト（Data.cost + ランタイム補正）。アセットは変更しない。</summary>
+    public int CurrentCost
+    {
+        get
+        {
+            int baseCost = Data != null ? Data.cost : 0;
+            return Mathf.Max(0, baseCost + SumModifierValues(costModifiers));
+        }
+    }
+
+    /// <summary>実効レベル要件（Data.level + ランタイム補正）。アセットは変更しない。</summary>
+    public int CurrentLevel
+    {
+        get
+        {
+            int baseLevel = Data != null ? Data.level : 0;
+            return Mathf.Max(0, baseLevel + SumModifierValues(levelModifiers));
         }
     }
     public CardController MountedPilot { get; private set; }
@@ -46,7 +62,9 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     private GameObject shieldFaceCoverRoot;
     private int pilotPowerBonus;
-    private readonly List<PowerModifier> powerModifiers = new List<PowerModifier>();
+    private readonly List<StatModifier> powerModifiers = new List<StatModifier>();
+    private readonly List<StatModifier> costModifiers = new List<StatModifier>();
+    private readonly List<StatModifier> levelModifiers = new List<StatModifier>();
     private static readonly Vector2 PilotOffset = new Vector2(0f, -18f);
     private Image unitFaceTopLayer;
 
@@ -80,6 +98,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         CurrentHp = Mathf.Max(0, Data.hp);
         pilotPowerBonus = 0;
         powerModifiers.Clear();
+        costModifiers.Clear();
+        levelModifiers.Clear();
         MountedPilot = null;
         MountedUnit = null;
     }
@@ -167,40 +187,69 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public void OnPointerClick(PointerEventData eventData)
     {
         Debug.Log($"カードがクリックされました。カード名前: {Data.cardName}");
-        Debug.Log($"カードがクリックされました。カードコスト: {Data.cost}");
+        Debug.Log($"カードがクリックされました。カードコスト: {CurrentCost} (base:{Data.cost})");
         Debug.Log("クリックされました");
         onClickCallback?.Invoke(this);
     }
 
     public int GetCardcost()
     {
-        return Data.cost;
+        return CurrentCost;
     }
 
-    public void AddEffectStatBonus(int powerDelta, int hpDelta, EffectDuration duration = EffectDuration.Permanent)
+    public void AddEffectStatBonus(int powerDelta, int hpDelta, int costDelta, int levelDelta, EffectDuration duration = EffectDuration.Permanent)
     {
         if (powerDelta != 0)
         {
-            powerModifiers.Add(new PowerModifier
-            {
-                value = powerDelta,
-                duration = duration
-            });
+            powerModifiers.Add(new StatModifier { value = powerDelta, duration = duration });
         }
 
         if (hpDelta != 0)
         {
             CurrentHp = Mathf.Max(0, CurrentHp + hpDelta);
         }
+
+        if (costDelta != 0)
+        {
+            costModifiers.Add(new StatModifier { value = costDelta, duration = duration });
+        }
+
+        if (levelDelta != 0)
+        {
+            levelModifiers.Add(new StatModifier { value = levelDelta, duration = duration });
+        }
+    }
+
+    public void ClearTimedStatModifiersByDuration(EffectDuration duration)
+    {
+        ClearModifierListByDuration(powerModifiers, duration);
+        ClearModifierListByDuration(costModifiers, duration);
+        ClearModifierListByDuration(levelModifiers, duration);
     }
 
     public void ClearPowerModifiersByDuration(EffectDuration duration)
     {
-        for (int i = powerModifiers.Count - 1; i >= 0; i--)
+        ClearTimedStatModifiersByDuration(duration);
+    }
+
+    private static int SumModifierValues(List<StatModifier> modifiers)
+    {
+        int sum = 0;
+        for (int i = 0; i < modifiers.Count; i++)
         {
-            if (powerModifiers[i].duration == duration)
+            sum += modifiers[i].value;
+        }
+
+        return sum;
+    }
+
+    private static void ClearModifierListByDuration(List<StatModifier> modifiers, EffectDuration duration)
+    {
+        for (int i = modifiers.Count - 1; i >= 0; i--)
+        {
+            if (modifiers[i].duration == duration)
             {
-                powerModifiers.RemoveAt(i);
+                modifiers.RemoveAt(i);
             }
         }
     }

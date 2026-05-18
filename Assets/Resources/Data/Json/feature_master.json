@@ -1,0 +1,16 @@
+{
+    "features": [
+        {
+            "id": 1,
+            "featureKey": "Mobile_Suit",
+            "displayName": "モビルスーツ",
+            "description": ""
+        },
+        {
+            "id": 2,
+            "featureKey": "Earth_Federation",
+            "displayName": "地球連邦",
+            "description": ""
+        }
+    ]
+}

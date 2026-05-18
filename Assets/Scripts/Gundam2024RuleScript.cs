@@ -169,6 +169,11 @@ public class Gundam2024RuleScript
             return false;
         }
 
+        return CanPlayCard(side, card.level, card.cost, exToUse);
+    }
+
+    public bool CanPlayCard(PlayerSide side, int requiredLevel, int cardCost, int exToUse = 0)
+    {
         PlayerState state = GetState(side);
         int useEx = Mathf.Max(0, exToUse);
         if (useEx > state.exResource)
@@ -177,13 +182,13 @@ public class Gundam2024RuleScript
         }
 
         int levelAfterExUse = state.TotalLevel - useEx;
-        int resourceFromNormal = card.cost - useEx;
+        int resourceFromNormal = cardCost - useEx;
         if (resourceFromNormal < 0)
         {
             resourceFromNormal = 0;
         }
 
-        return levelAfterExUse >= card.level && state.resource >= resourceFromNormal;
+        return levelAfterExUse >= requiredLevel && state.resource >= resourceFromNormal;
     }
 
     public bool TryConsumeResource(PlayerSide side, int cost)

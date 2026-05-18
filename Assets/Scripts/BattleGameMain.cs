@@ -95,6 +95,9 @@ public class BattleGameMain : MonoBehaviour
     // エネミーのバトルゾーンのカードを管理するリスト
     private List<CardController> enemyBattleZoneCards = new List<CardController>();
 
+    /// <summary>OnHandAuto の再入防止（同一 CardController）。</summary>
+    private readonly HashSet<CardController> onHandAutoProcessing = new HashSet<CardController>();
+
     private CardController copyCardController;
     private bool isMatchFinished;
 
@@ -307,6 +310,7 @@ public class BattleGameMain : MonoBehaviour
     private IEnumerator BattleSetupCoroutine()
     {
         Debug.Log("バトルゲームのメインシーン");
+        CardFeatureRegistry.EnsureLoaded();
         isFirstPlayer = DecideTurnOrder();
         PlayerType firstPlayerThisGame = currentPlayerType;
 
@@ -849,14 +853,14 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        int cost = cardController.Data.cost;
+        int cost = cardController.CurrentCost;
         Gundam2024RuleScript.PlayerState ownerState = ownerSide == Gundam2024RuleScript.PlayerSide.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
         int currentLevel = ownerState.TotalLevel;
         int currentResource = ownerState.resource;
 
-        if (currentLevel < cardController.Data.level)
+        if (currentLevel < cardController.CurrentLevel)
         {
             Debug.Log("レベルが足りません。");
             Destroy(FilterPanel);
@@ -994,18 +998,18 @@ public class BattleGameMain : MonoBehaviour
         // 以下分岐してエネミーの手札にカードを追加する処理も書く。→後で
         // GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
         GameObject cardImage = Instantiate(CardImagePrefab, targetRule.HandScrollContent);
-        // フィールドのゲームオブジェクトも渡す。
-        cardImage.GetComponent<CardController>().SetUp(drawCardData,OnCardClicked);
-        //! カードのデータをプレイヤーの手札のリストに追加する処理も書く。→後で
-        // !AIの処理をバックグラウンドで走らせるため、毎ターン更新する。バックグラウンド処理用
+        CardController drawnCard = cardImage.GetComponent<CardController>();
+        drawnCard.SetUp(drawCardData, OnCardClicked);
         if (targetType == PlayerType.Player)
         {
-            playerHandCards.Add(cardImage.GetComponent<CardController>().Data);
+            playerHandCards.Add(drawnCard.Data);
         }
         else
         {
-            enemyHandCards.Add(cardImage.GetComponent<CardController>().Data);
+            enemyHandCards.Add(drawnCard.Data);
         }
+
+        TriggerOnHandAutoEffects(drawnCard, targetType, skipHandZoneCheck: true);
     }
     public bool DecideTurnOrder()
     {
@@ -1299,12 +1303,12 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!gundamRule.CanPlayCard(side, cc.Data))
+            if (!gundamRule.CanPlayCard(side, cc.CurrentLevel, cc.CurrentCost))
             {
                 continue;
             }
 
-            if (!gundamRule.TryConsumeResource(side, cc.Data.cost, 0, cc.Data.id))
+            if (!gundamRule.TryConsumeResource(side, cc.CurrentCost, 0, cc.Data.id))
             {
                 continue;
             }
@@ -1621,7 +1625,7 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc.Data))
+            if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc))
             {
                 continue;
             }
@@ -2391,7 +2395,7 @@ public class BattleGameMain : MonoBehaviour
 
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
-        ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfTurn);
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
 
         // プレイヤーとエネミーのターンを切り替える
@@ -3502,7 +3506,7 @@ public class BattleGameMain : MonoBehaviour
             TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
             pendingUnitAttackAttacker = null;
             pendingOnAttackEffectResolvedAttacker = null;
-            ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfBattle);
+            ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
             DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
             SyncAllResourceViewsFromRule();
@@ -3678,7 +3682,7 @@ public class BattleGameMain : MonoBehaviour
 
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedPowerModifiersForAllBattleUnits(EffectDuration.UntilEndOfBattle);
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
         if (attackFlowBlockRedirectUnit != null && defender == attackFlowBlockRedirectUnit)
@@ -4297,6 +4301,103 @@ public class BattleGameMain : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 手札に入ったカードの OnHandAuto を即時適用（プレイヤー操作・リソース消費なし）。
+    /// </summary>
+    /// <param name="skipHandZoneCheck">CardAddtoHand 直後など、手札判定を省略して適用する。</param>
+    private void TriggerOnHandAutoEffects(CardController card, PlayerType ownerType, bool skipHandZoneCheck = false)
+    {
+        if (card == null || card.Data == null || !onHandAutoProcessing.Add(card))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!skipHandZoneCheck && !IsCardInOwnerHand(card, ownerType))
+            {
+                Debug.LogWarning(
+                    $"[OnHandAuto] skipped (not in hand) card:{card.Data.cardName}(id:{card.Data.id}) side:{ownerType}");
+                return;
+            }
+
+            if (!HasEffectTiming(card.Data, EffectTiming.OnHandAuto))
+            {
+                return;
+            }
+
+            List<EffectData> effects = GetEffectsByTiming(card.Data, EffectTiming.OnHandAuto);
+            if (effects.Count == 0)
+            {
+                return;
+            }
+
+            Debug.Log(
+                $"[OnHandAuto] side:{ownerType} card:{card.Data.cardName}(id:{card.Data.id}) "
+                + $"costBefore:{card.CurrentCost} effects:{effects.Count}");
+            for (int i = 0; i < effects.Count; i++)
+            {
+                EffectData effect = effects[i];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                ApplyEffectForOnHandAuto(card, ownerType, effect);
+            }
+
+            Debug.Log(
+                $"[OnHandAuto] done card:{card.Data.cardName}(id:{card.Data.id}) costAfter:{card.CurrentCost}");
+        }
+        finally
+        {
+            onHandAutoProcessing.Remove(card);
+        }
+    }
+
+    /// <summary>
+    /// OnHandAuto 用。Self への Buff/Debuff は手札の <see cref="CardController"/> に直接付与する。
+    /// </summary>
+    private void ApplyEffectForOnHandAuto(CardController source, PlayerType ownerType, EffectData effect)
+    {
+        int magnitude = Mathf.Abs(effect.value);
+        if (magnitude == 0)
+        {
+            return;
+        }
+
+        switch (effect.type)
+        {
+            case EffectType.Buff:
+            case EffectType.Debuff:
+                int sign = effect.type == EffectType.Buff ? 1 : -1;
+                int signedValue = sign * magnitude;
+                if (effect.target == TargetType.Self)
+                {
+                    int costBefore = source.CurrentCost;
+                    int levelBefore = source.CurrentLevel;
+                    ApplyStatEffect(source, signedValue, effect.statTarget, effect.duration);
+                    Debug.Log(
+                        $"[OnHandAuto] Self {effect.type} stat:{effect.statTarget} value:{effect.value} "
+                        + $"cost:{costBefore}->{source.CurrentCost} level:{levelBefore}->{source.CurrentLevel} "
+                        + $"card:{source.Data.cardName}(id:{source.Data.id})");
+                    return;
+                }
+
+                break;
+        }
+
+        ApplyEffect(source, ownerType, effect);
+    }
+
+    private bool IsCardInOwnerHand(CardController card, PlayerType ownerType)
+    {
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        return rule != null
+            && rule.HandScrollContent != null
+            && card.transform.IsChildOf(rule.HandScrollContent);
+    }
+
     private void TriggerCardEffects(CardController sourceCard, PlayerType ownerType, EffectTiming timing)
     {
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
@@ -4401,6 +4502,8 @@ public class BattleGameMain : MonoBehaviour
     {
         int powerDelta = 0;
         int hpDelta = 0;
+        int costDelta = 0;
+        int levelDelta = 0;
         switch (statTarget)
         {
             case EffectStatTarget.AP:
@@ -4409,12 +4512,20 @@ public class BattleGameMain : MonoBehaviour
             case EffectStatTarget.HP:
                 hpDelta = signedValue;
                 break;
+            case EffectStatTarget.Cost:
+                costDelta = signedValue;
+                break;
+            case EffectStatTarget.Level:
+                levelDelta = signedValue;
+                break;
             default:
                 powerDelta = signedValue;
                 hpDelta = signedValue;
+                costDelta = signedValue;
+                levelDelta = signedValue;
                 break;
         }
-        target.AddEffectStatBonus(powerDelta, hpDelta, duration);
+        target.AddEffectStatBonus(powerDelta, hpDelta, costDelta, levelDelta, duration);
     }
 
     private List<CardController> ResolveEffectTargets(CardController sourceCard, PlayerType ownerType, TargetType targetType)
@@ -4473,23 +4584,54 @@ public class BattleGameMain : MonoBehaviour
         }
     }
 
-    private void ClearTimedPowerModifiersForSide(PlayerType side, EffectDuration duration)
+    private void ClearTimedStatModifiersOnHand(PlayerType side, EffectDuration duration)
     {
-        List<CardController> source = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
-        for (int i = 0; i < source.Count; i++)
+        RectTransform hand = side == PlayerType.Player
+            ? cardGameRule.HandScrollContent
+            : enemyCardGameRule.HandScrollContent;
+        if (hand == null)
         {
-            CardController c = source[i];
-            if (c != null && c.Data != null && c.Data.type == Type.Unit)
+            return;
+        }
+
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController c = hand.GetChild(i).GetComponent<CardController>();
+            if (c != null)
             {
-                c.ClearPowerModifiersByDuration(duration);
+                c.ClearTimedStatModifiersByDuration(duration);
             }
         }
     }
 
-    private void ClearTimedPowerModifiersForAllBattleUnits(EffectDuration duration)
+    private static void ClearTimedStatModifiersOnCardList(List<CardController> cards, EffectDuration duration)
     {
-        ClearTimedPowerModifiersForSide(PlayerType.Player, duration);
-        ClearTimedPowerModifiersForSide(PlayerType.Enemy, duration);
+        if (cards == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cards.Count; i++)
+        {
+            CardController c = cards[i];
+            if (c != null)
+            {
+                c.ClearTimedStatModifiersByDuration(duration);
+            }
+        }
+    }
+
+    private void ClearTimedStatModifiersForSide(PlayerType side, EffectDuration duration)
+    {
+        List<CardController> zone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        ClearTimedStatModifiersOnCardList(zone, duration);
+        ClearTimedStatModifiersOnHand(side, duration);
+    }
+
+    private void ClearTimedStatModifiersForAllInPlayCards(EffectDuration duration)
+    {
+        ClearTimedStatModifiersForSide(PlayerType.Player, duration);
+        ClearTimedStatModifiersForSide(PlayerType.Enemy, duration);
     }
 
     private bool LogHandOnActionCandidates(PlayerType ownerType, string context, System.Action onClose = null)
@@ -4517,7 +4659,7 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (HasEffectTiming(cc.Data, EffectTiming.OnAction) && CanExecuteOnActionCardNow(ownerType, cc.Data))
+            if (HasEffectTiming(cc.Data, EffectTiming.OnAction) && CanExecuteOnActionCardNow(ownerType, cc))
             {
                 candidates.Add($"{cc.Data.id}:{cc.Data.cardName}");
                 cards.Add(cc.Data);
@@ -4560,14 +4702,14 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc.Data))
+                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc))
                 {
                     continue;
                 }
 
                 eligibleEnemyHandCommands.Add(cc);
                 commandCards.Add(cc.Data);
-                logLines.Add($"{cc.Data.cardName} (id:{cc.Data.id}, cost:{cc.Data.cost}, lv:{cc.Data.level})");
+                logLines.Add($"{cc.Data.cardName} (id:{cc.Data.id}, cost:{cc.CurrentCost}, lv:{cc.CurrentLevel})");
             }
         }
 
@@ -4593,7 +4735,7 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc.Data))
+                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc))
                 {
                     continue;
                 }
@@ -5375,7 +5517,7 @@ public class BattleGameMain : MonoBehaviour
                 List<CardController> playerSideTargets = GetAliveEnemyUnits(PlayerType.Enemy);
                 Debug.Log(
                     "[EnemyAiOnActionSearch] commandBranch source:Hand cmdIndex:" + ci + "/" + nCmd + " cmdId:" + cmd.Data.id
-                    + " name:" + cmd.Data.cardName + " playerSideUnitBranches:" + playerSideTargets.Count + " cost:" + cmd.Data.cost
+                    + " name:" + cmd.Data.cardName + " playerSideUnitBranches:" + playerSideTargets.Count + " cost:" + cmd.CurrentCost
                     + " flowContext:" + flowContext);
                 System.Text.StringBuilder patternTable = new System.Text.StringBuilder(256);
                 patternTable.Append("[EnemyAiOnActionSearch] patternTable cmdQueue:").Append(ci + 1).Append('/').Append(nCmd).Append(" cmdId:")
@@ -6530,7 +6672,7 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (!HasEffectTiming(uc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(side, uc.Data))
+                if (!HasEffectTiming(uc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(side, uc))
                 {
                     continue;
                 }
@@ -6551,7 +6693,7 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(side, cc.Data))
+                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(side, cc))
                 {
                     continue;
                 }
@@ -6783,7 +6925,7 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.Data.cost, 0, command.Data.id))
+        if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
         {
             Debug.Log("OnAction: リソース不足で実行できません。");
             LogCommandUseResultWithBoard(
@@ -6943,7 +7085,7 @@ public class BattleGameMain : MonoBehaviour
 
             btn.onClick.AddListener(() =>
             {
-                if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.Data.cost, 0, command.Data.id))
+                if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
                 {
                     Debug.Log("OnAction: リソース不足で実行できません。");
                     LogCommandUseResultWithBoard(
@@ -7007,7 +7149,7 @@ public class BattleGameMain : MonoBehaviour
         }
 
         if (!HasEffectTiming(cardController.Data, EffectTiming.OnMain)
-            || !CanExecuteOnMainCardNow(ownerType, cardController.Data))
+            || !CanExecuteOnMainCardNow(ownerType, cardController))
         {
             return false;
         }
@@ -7033,7 +7175,7 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (!CanExecuteOnMainCardNow(side, source.Data))
+        if (!CanExecuteOnMainCardNow(side, source))
         {
             Debug.Log("OnMain: 現在は発動できません（ターン/フェイズ/リソース/レベル）。");
             onDone?.Invoke();
@@ -7112,7 +7254,7 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (!gundamRule.TryConsumeResource(ToRuleSide(side), source.Data.cost, 0, source.Data.id))
+        if (!gundamRule.TryConsumeResource(ToRuleSide(side), source.CurrentCost, 0, source.Data.id))
         {
             Debug.Log("OnMain: リソース不足で実行できません。");
             return false;
@@ -7335,9 +7477,9 @@ public class BattleGameMain : MonoBehaviour
         FinalizeOnActionSourceCard(source, side);
     }
 
-    private bool CanExecuteOnMainCardNow(PlayerType ownerType, CardData card)
+    private bool CanExecuteOnMainCardNow(PlayerType ownerType, CardController card)
     {
-        if (card == null || ownerType != currentPlayerType || currentPhase != BattlePhase.MainPhase)
+        if (card == null || card.Data == null || ownerType != currentPlayerType || currentPhase != BattlePhase.MainPhase)
         {
             return false;
         }
@@ -7345,7 +7487,7 @@ public class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerState state = ownerType == PlayerType.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
-        return state.TotalLevel >= card.level && state.resource >= card.cost;
+        return state.TotalLevel >= card.CurrentLevel && state.resource >= card.CurrentCost;
     }
 
     private static List<EffectData> GetEffectsByTiming(CardData data, EffectTiming timing)
@@ -7400,9 +7542,9 @@ public class BattleGameMain : MonoBehaviour
         }
     }
 
-    private bool CanExecuteOnActionCardNow(PlayerType ownerType, CardData card)
+    private bool CanExecuteOnActionCardNow(PlayerType ownerType, CardController card)
     {
-        if (card == null)
+        if (card == null || card.Data == null)
         {
             return false;
         }
@@ -7410,7 +7552,7 @@ public class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerState state = ownerType == PlayerType.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
-        return state.TotalLevel >= card.level && state.resource >= card.cost;
+        return state.TotalLevel >= card.CurrentLevel && state.resource >= card.CurrentCost;
     }
 
     private static bool HasEffectTiming(CardData data, EffectTiming timing)
