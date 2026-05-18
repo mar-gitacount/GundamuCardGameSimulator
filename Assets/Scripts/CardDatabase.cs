@@ -16,6 +16,7 @@ public class CardDatabase : MonoBehaviour
         Instance = this;
         Debug.Log("CardDatabase Awake: インスタンスが作成されました");
 
+        CardFeatureRegistry.EnsureLoaded();
         cardDict = new Dictionary<int, CardData>();
         LoadAllCards();
         // foreach (var card in cardList)
@@ -88,8 +89,8 @@ public class CardDatabase : MonoBehaviour
         imageName = card.imageName != null ? card.imageName.name : "",
         version = card.version,
         sourceType = (int)card.sourceType,
-        color = (int)card.color // カードの色を追加
-        
+        color = (int)card.color, // カードの色を追加
+        featureIds = CardFeatureRegistry.CollectIds(card.features),
     };
 }
 CardData ConvertToCardData(CardJson json)
@@ -120,7 +121,7 @@ CardData ConvertToCardData(CardJson json)
     // card.sourceType = (CardData.CardSourceType)json.sourceType;
     card.sourceType = (CardSourceType)json.sourceType;
     card.color = (CardColor)json.color; // カードの色を追加
-
+    card.SetFeaturesFromIds(json.featureIds);
 
     return card;
 }

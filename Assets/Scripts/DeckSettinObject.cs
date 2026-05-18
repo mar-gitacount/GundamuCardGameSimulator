@@ -401,6 +401,7 @@ public void battleStart()
 
 public CardData GetCardDataById(int id)
 {
+    CardFeatureRegistry.EnsureLoaded();
     var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(data => data.id);
     if (cardTable.TryGetValue(id, out CardData card))
     {

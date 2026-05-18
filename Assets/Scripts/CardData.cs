@@ -24,6 +24,9 @@ public class CardData : ScriptableObject
     [Tooltip("カード効果定義（タイミング別）。")]
     public List<TimedEffectData> timedEffects = new List<TimedEffectData>();
 
+    [Tooltip("カード特性（複数可）。マスタは Game/Card Feature または Resources/Data/Features。")]
+    public List<CardFeatureData> features = new List<CardFeatureData>();
+
 }
 
 
@@ -40,6 +43,7 @@ public class CardJson
     public int version;
     public int sourceType;
     public int color; // カードの色を追加
+    public int[] featureIds;
 
 }
 

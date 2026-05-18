@@ -28,7 +28,8 @@ public class PlayerPrefsSaveData : ISaveData
             imageName = card.imageName != null ? card.imageName.name : "",
             version = card.version,
             sourceType = (int)card.sourceType,
-            color = (int)card.color // カードの色を追加
+            color = (int)card.color, // カードの色を追加
+            featureIds = CardFeatureRegistry.CollectIds(card.features),
         };
     }
     public CardData ConvertToCardData(CardJson json)
@@ -48,6 +49,8 @@ public class PlayerPrefsSaveData : ISaveData
         {
             card.imageName = null;
         }
+
+        card.SetFeaturesFromIds(json.featureIds);
         return card;
     }
     

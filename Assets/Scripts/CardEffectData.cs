@@ -11,7 +11,8 @@ public enum EffectTiming
     OnDestroyed,    // 破壊された時
     OnEndOfGame,    // ゲーム終了時
     OnEnemyAttack,  // 敵が攻撃してきた時（防御リアクション用）
-    OnMain          // メインフェイズ中・自分のターンでいつでも実行可能
+    OnMain,         // メインフェイズ中・自分のターンでいつでも実行可能
+    OnHandAuto      // 手札に入った時に自動発動（操作不要）
 }
 
 public enum EffectType
@@ -45,6 +46,8 @@ public enum EffectStatTarget
 {
     AP,
     HP,
+    Cost,
+    Level,
     Both
 }
 
