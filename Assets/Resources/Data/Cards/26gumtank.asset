@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: gumtank
+  m_Name: 26gumtank
   m_EditorClassIdentifier: 
   id: 26
   cardName: gumtank
@@ -18,7 +18,7 @@ MonoBehaviour:
   level: 2
   power: 1
   hp: 2
-  imageName: {fileID: 21300000, guid: 5dfb7229be2ed4747ba0a7b08629ee2c, type: 3}
+  imageName: {fileID: 21300000, guid: b9247628bba421642a2cf1b85224fda7, type: 3}
   image: {fileID: 0}
   version: 4
   sourceType: 2

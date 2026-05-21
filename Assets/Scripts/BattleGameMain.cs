@@ -1697,7 +1697,7 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!HasEffectTiming(unit.Data, EffectTiming.OnEnemyAttack))
+            if (!unit.Data.IsBlockerUnit())
             {
                 continue;
             }
@@ -1708,25 +1708,9 @@ public class BattleGameMain : MonoBehaviour
         return reactionCandidates;
     }
 
-    private static bool CouldPlayerUnitRedirectShieldAttackToUnitCombat(CardController playerUnit)
+    private bool CouldPlayerUnitRedirectShieldAttackToUnitCombat(CardController playerUnit)
     {
-        if (playerUnit == null || playerUnit.Data == null)
-        {
-            return false;
-        }
-
-        if (!HasEffectTiming(playerUnit.Data, EffectTiming.OnEnemyAttack))
-        {
-            return false;
-        }
-
-        if (!HasBlockRedirectOnEnemyAttack(playerUnit.Data))
-        {
-            return false;
-        }
-
-        bool cannotSelectBecauseBlockRedirectWhileRest = HasBlockRedirectOnEnemyAttack(playerUnit.Data) && playerUnit.IsRestState;
-        return !cannotSelectBecauseBlockRedirectWhileRest;
+        return IsBlockRedirectReactionReady(playerUnit, PlayerType.Player);
     }
 
     private int ComputeEnemyAiShieldAttackHeuristicScoreForCompare(CardController attacker)
@@ -1903,7 +1887,7 @@ public class BattleGameMain : MonoBehaviour
 
             bool canRedirectUnitCombat = CouldPlayerUnitRedirectShieldAttackToUnitCombat(ru);
             sb.Append("  --- reactionUnit:").Append(ru.Data.cardName).Append("(id:").Append(ru.Data.id).Append(") REST:").Append(ru.IsRestState)
-                .Append(" hasBlockRedirectOnEnemyAttack:").Append(HasBlockRedirectOnEnemyAttack(ru.Data))
+                .Append(" isBlocker:").Append(ru.Data.IsBlockerUnit())
                 .Append(" couldRedirectToUnitCombat:").Append(canRedirectUnitCombat).AppendLine();
             if (!canRedirectUnitCombat)
             {
@@ -3399,8 +3383,28 @@ public class BattleGameMain : MonoBehaviour
                 pendingOnAttackEffectResolvedAttacker = attacker;
             }
 
+            if (!skipAttackedSidePanelPause
+                && attackerOwner == PlayerType.Player
+                && TryAutoApplyBlockRedirectFromAttack(
+                    attackerOwner,
+                    attacker,
+                    out CardController autoBlockFromShield,
+                    out PlayerType autoBlockOwnerFromShield)
+                && autoBlockFromShield != null)
+            {
+                attackFlowBlockRedirectUnit = autoBlockFromShield;
+                Debug.Log($"[ShieldToUnit] AI auto redirect to {autoBlockFromShield.Data.cardName}");
+                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    attacker,
+                    autoBlockFromShield,
+                    attackerOwner,
+                    autoBlockOwnerFromShield);
+                return;
+            }
+
             CardController selectedDefenderFromShieldPanel = null;
             if (!skipAttackedSidePanelPause
+                && attackerOwner == PlayerType.Enemy
                 && TryOpenAttackedSideUnitsPanel(
                     attackerOwner,
                     attacker,
@@ -3413,38 +3417,26 @@ public class BattleGameMain : MonoBehaviour
                         if (selectedDefenderFromShieldPanel != null)
                         {
                             PlayerType selectedDefenderOwner = ResolveCardOwner(selectedDefenderFromShieldPanel.transform);
-                            bool shouldRedirect = ExecuteDefenderOnAttackReaction(
-                                selectedDefenderFromShieldPanel,
-                                attacker,
-                                selectedDefenderOwner);
-                            if (shouldRedirect)
+                            if (IsBlockRedirectReactionReady(selectedDefenderFromShieldPanel, selectedDefenderOwner))
                             {
-                                if (attackerOwner == PlayerType.Enemy
-                                    && selectedDefenderOwner == PlayerType.Player
-                                    && TryEnemyAiAbortUnitAttackIfScoreTooLow(
-                                        attacker,
-                                        selectedDefenderFromShieldPanel,
-                                        "ShieldToUnit block redirect"))
-                                {
-                                    EnemyAiSkipEnemyUnitAttackWithoutBattle(
-                                        attacker,
-                                        attackerOwner,
-                                        "ShieldToUnit redirect score gate");
-                                    return;
-                                }
-
-                                selectedDefenderFromShieldPanel.SetUnitRestVisual(true);
-                                Debug.Log($"[ShieldToUnit] redirect to unit battle defender:{selectedDefenderFromShieldPanel.Data.cardName}");
+                                ApplyDefenderOnAttackReactionEffects(
+                                    selectedDefenderFromShieldPanel,
+                                    attacker,
+                                    selectedDefenderOwner);
                                 attackFlowBlockRedirectUnit = selectedDefenderFromShieldPanel;
-                                TryUnitVsUnitAttack(
+                                Debug.Log(
+                                    $"[ShieldToUnit] redirect to unit battle defender:{selectedDefenderFromShieldPanel.Data.cardName}");
+                                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
                                     attacker,
                                     selectedDefenderFromShieldPanel,
                                     attackerOwner,
-                                    selectedDefenderOwner,
-                                    false,
-                                    true);
+                                    selectedDefenderOwner);
                                 return;
                             }
+
+                            Debug.LogWarning(
+                                $"[ShieldToUnit] 選択ユニットはブロック不可のためシールド攻撃へ継続: "
+                                + $"{selectedDefenderFromShieldPanel.Data.cardName}");
                         }
 
                         TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true, true);
@@ -3590,28 +3582,56 @@ public class BattleGameMain : MonoBehaviour
         }
 
         if (!skipAttackedSidePanelPause
+            && attackerOwner == PlayerType.Player
+            && TryAutoApplyBlockRedirectFromAttack(
+                attackerOwner,
+                attacker,
+                out CardController autoBlockUnit,
+                out PlayerType autoBlockOwner)
+            && autoBlockUnit != null)
+        {
+            attackFlowBlockRedirectUnit = autoBlockUnit;
+            defender = autoBlockUnit;
+            defenderOwner = autoBlockOwner;
+        }
+        else if (!skipAttackedSidePanelPause
+            && attackerOwner == PlayerType.Enemy
             && TryOpenAttackedSideUnitsPanel(
                 attackerOwner,
                 attacker,
                 selected =>
                 {
-                    if (selected != null)
+                    if (selected == null)
                     {
-                        PlayerType selectedDefenderOwner = ResolveCardOwner(selected.transform);
-                        bool shouldRedirect = ExecuteDefenderOnAttackReaction(
-                            selected,
-                            attacker,
-                            selectedDefenderOwner);
-                        if (shouldRedirect)
-                        {
-                            attackFlowBlockRedirectUnit = selected;
-                            selected.SetUnitRestVisual(true);
-                        }
-                        defender = selected;
+                        return;
                     }
+
+                    CommitBlockRedirectSelection(attacker, selected, ref defender, ref defenderOwner);
                 },
-                () => TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause, true)))
+                () =>
+                {
+                    if (attackFlowBlockRedirectUnit != null)
+                    {
+                        PlayerType blockOwner = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+                        TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                            attacker,
+                            attackFlowBlockRedirectUnit,
+                            attackerOwner,
+                            blockOwner);
+                        return;
+                    }
+
+                    Debug.Log(
+                        "[BlockRedirect] ブロッカー未選択のため、宣言済み防御対象への通常ユニット戦へ継続。");
+                    TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause, true);
+                }))
         {
+            return;
+        }
+
+        if (attackFlowBlockRedirectUnit != null && defender != null && defender == attackFlowBlockRedirectUnit)
+        {
+            TryResolveBlockRedirectUnitCombatWithOnActionSteps(attacker, defender, attackerOwner, defenderOwner);
             return;
         }
 
@@ -3654,21 +3674,12 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // OnAttack 効果（ユニット本体＋搭乗パイロット）を「この防御対象(defender)」に確実適用してから戦闘値を確定する。
-        int defenderPowerBeforeEffects = defender.CurrentPower;
-        ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
-        int attackerPowerForCombat = attacker.CurrentPower;
-        int defenderPowerForCombat = defender.CurrentPower;
-        if (defenderPowerForCombat == defenderPowerBeforeEffects)
-        {
-            int fallbackApDelta = ComputeOnAttackApDeltaToDefender(attacker);
-            if (fallbackApDelta != 0)
-            {
-                defenderPowerForCombat = Mathf.Max(0, defenderPowerForCombat + fallbackApDelta);
-                Debug.Log($"[OnAttackFallback] apply AP delta:{fallbackApDelta} to defender combat power.");
-            }
-        }
-        Debug.Log($"[CombatPower] attacker:{attackerPowerForCombat} defender:{defenderPowerForCombat}");
+        ResolveUnitVsUnitCombatStrikePowers(
+            attacker,
+            attackerOwner,
+            defender,
+            out int attackerPowerForCombat,
+            out int defenderPowerForCombat);
 
         int defenderHpBeforeExchange = defender.CurrentHp;
         int attackerHpBeforeExchange = attacker.CurrentHp;
@@ -3709,6 +3720,141 @@ public class BattleGameMain : MonoBehaviour
                 defenderHpAfterExchange);
         }
 
+        LogAttackPostBattleFieldCompact(attacker, attackerOwner);
+        ClearAttackFlowContext();
+    }
+
+    /// <summary>
+    /// ブロック確定後：通常攻撃と同順で OnAction（敵→プレイヤー）を挟んでからブロック戦を解決する。
+    /// </summary>
+    private void TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+        CardController attacker,
+        CardController blocker,
+        PlayerType attackerOwner,
+        PlayerType blockerOwner,
+        bool skipOnActionPause = false)
+    {
+        if (attacker == null || blocker == null || attacker.Data == null || blocker.Data == null)
+        {
+            return;
+        }
+
+        attackFlowBlockRedirectUnit = blocker;
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            blocker,
+            attackFlowBlockRedirectUnit);
+
+        if (!skipOnActionPause
+            && TryRunAttackActionSteps(
+                blockerOwner,
+                attackerOwner,
+                () => TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    attacker,
+                    blocker,
+                    attackerOwner,
+                    blockerOwner,
+                    skipOnActionPause: true),
+                attacker))
+        {
+            return;
+        }
+
+        ExecuteBlockRedirectUnitCombat(attacker, blocker, attackerOwner, blockerOwner);
+    }
+
+    /// <summary>
+    /// ブロックリダイレクト後のユニット戦。通常攻撃ルール（REST 対象のみ等）を迂回し、
+    /// 攻撃者とブロッカーの双方が必ずレスト＋相互ダメージ（最低 1）になる。
+    /// OnAction は <see cref="TryResolveBlockRedirectUnitCombatWithOnActionSteps"/> で先に処理する。
+    /// </summary>
+    private void ExecuteBlockRedirectUnitCombat(
+        CardController attacker,
+        CardController blocker,
+        PlayerType attackerOwner,
+        PlayerType blockerOwner)
+    {
+        if (attacker == null || blocker == null || attacker.Data == null || blocker.Data == null)
+        {
+            return;
+        }
+
+        if (attacker.Data.type != Type.Unit || blocker.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        if (currentPhase != BattlePhase.MainPhase)
+        {
+            Debug.LogWarning("[BlockCombat] skipped: not MainPhase.");
+            return;
+        }
+
+        if (attacker.CurrentHp <= 0 || blocker.CurrentHp <= 0)
+        {
+            Debug.LogWarning("[BlockCombat] skipped: attacker or blocker HP is 0.");
+            return;
+        }
+
+        attackFlowBlockRedirectUnit = blocker;
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            blocker,
+            attackFlowBlockRedirectUnit);
+
+        ResolveUnitVsUnitCombatStrikePowers(
+            attacker,
+            attackerOwner,
+            blocker,
+            out int attackerPowerForCombat,
+            out int blockerPowerForCombat);
+        int blockerHpBeforeExchange = blocker.CurrentHp;
+        int attackerHpBeforeExchange = attacker.CurrentHp;
+
+        Debug.Log(
+            $"[BlockCombat] {attacker.Data.cardName}(strikeAP:{attackerPowerForCombat}) vs {blocker.Data.cardName}(strikeAP:{blockerPowerForCombat}) "
+            + $"owners attacker:{attackerOwner} blocker:{blockerOwner} note:OnActionデバフ後のCurrentPowerを使用(最低1強制なし)");
+
+        blocker.ApplyDamage(attackerPowerForCombat);
+        attacker.ApplyDamage(blockerPowerForCombat);
+
+        int blockerHpAfterExchange = blocker.CurrentHp;
+        int attackerHpAfterExchange = attacker.CurrentHp;
+
+        attacker.SetAttackFlg(AttackFlg.False);
+        attacker.SetUnitRestVisual(true);
+        blocker.SetUnitRestVisual(true);
+
+        if (blocker.CurrentHp <= 0)
+        {
+            SendCardToTrash(blocker, blockerOwner);
+        }
+
+        if (attacker.CurrentHp <= 0)
+        {
+            SendCardToTrash(attacker, attackerOwner);
+        }
+
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        DumpTurnResourceUsageLogs(attackerOwner, "block redirect unit combat");
+        SyncAllResourceViewsFromRule();
+
+        LogUnitAttackBlockedExchangeCalc(
+            attacker,
+            blocker,
+            attackerOwner,
+            attackerPowerForCombat,
+            blockerPowerForCombat,
+            attackerHpBeforeExchange,
+            blockerHpBeforeExchange,
+            attackerHpAfterExchange,
+            blockerHpAfterExchange);
         LogAttackPostBattleFieldCompact(attacker, attackerOwner);
         ClearAttackFlowContext();
     }
@@ -3762,6 +3908,51 @@ public class BattleGameMain : MonoBehaviour
         sb.Append("  アタックナウHP-ブロックナウAP: ").Append(attackerHpBeforeExchange).Append('-').Append(blockApCombat).Append('=').Append(rawAttackHpMinusBlockAp)
             .Append(" -> 交換後HP:").Append(attackerHpAfterExchange).AppendLine();
         Debug.Log(sb.ToString());
+    }
+
+    /// <summary>ユニット戦の与ダメージ AP。OnAction 等の powerModifiers を CurrentPower 経由で反映（0 なら与ダメージなし）。</summary>
+    private static int GetUnitStrikeDamagePower(CardController unit)
+    {
+        if (unit == null)
+        {
+            return 0;
+        }
+
+        return Mathf.Max(0, unit.CurrentPower);
+    }
+
+    /// <summary>
+    /// OnAttack 効果を適用したうえで攻防の strike AP を確定する。
+    /// OnAction コマンドの AP デバフは既に CurrentPower に載っている前提（戦闘直前に OnAction 済み）。
+    /// </summary>
+    private void ResolveUnitVsUnitCombatStrikePowers(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController defender,
+        out int attackerStrikePower,
+        out int defenderStrikePower)
+    {
+        int defenderPowerBeforeOnAttackResolve = defender != null ? defender.CurrentPower : 0;
+        int attackerPowerBeforeOnAttackResolve = attacker != null ? attacker.CurrentPower : 0;
+
+        ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
+
+        attackerStrikePower = GetUnitStrikeDamagePower(attacker);
+        defenderStrikePower = GetUnitStrikeDamagePower(defender);
+
+        if (defender != null && defenderStrikePower == defenderPowerBeforeOnAttackResolve)
+        {
+            int fallbackApDelta = ComputeOnAttackApDeltaToDefender(attacker);
+            if (fallbackApDelta != 0)
+            {
+                defenderStrikePower = Mathf.Max(0, defenderStrikePower + fallbackApDelta);
+                Debug.Log($"[OnAttackFallback] apply AP delta:{fallbackApDelta} to defender combat power.");
+            }
+        }
+
+        Debug.Log(
+            $"[CombatPower] attackerStrike:{attackerStrikePower} (preOnAttackResolve:{attackerPowerBeforeOnAttackResolve}) "
+            + $"defenderStrike:{defenderStrikePower} (preOnAttackResolve:{defenderPowerBeforeOnAttackResolve})");
     }
 
     private void ApplyOnAttackEffectsForCombatPair(CardController attacker, PlayerType attackerOwner, CardController defender)
@@ -3888,64 +4079,35 @@ public class BattleGameMain : MonoBehaviour
         TriggerCardEffects(pilot, attackerOwner, EffectTiming.OnAttack);
     }
 
-    private bool ExecuteDefenderOnAttackReaction(
-        CardController reactionUnit,
-        CardController attacker,
-        PlayerType defenderOwner)
+    /// <summary>選択ユニットへ攻撃をリダイレクトすべきか（<see cref="CardData.isBlocker"/> または旧 BlockRedirect）。</summary>
+    private bool ShouldRedirectAttackToBlocker(CardController reactionUnit, PlayerType defenderOwner)
     {
         if (reactionUnit == null || reactionUnit.Data == null)
         {
             return false;
         }
 
-        List<EffectData> effects = GetEffectsByTiming(reactionUnit.Data, EffectTiming.OnEnemyAttack);
-        bool shouldRedirectToSelectedDefender = false;
-        for (int i = 0; i < effects.Count; i++)
+        EffectActivationContext ctx = BuildActivationContext(defenderOwner, reactionUnit);
+        bool shouldRedirect = reactionUnit.Data.IsBlockerEligible(ctx);
+        if (shouldRedirect)
         {
-            EffectData effect = effects[i];
-            if (effect == null)
-            {
-                continue;
-            }
-
-            if (effect.type == EffectType.BlockRedirect)
-            {
-                shouldRedirectToSelectedDefender = true;
-                continue;
-            }
-
-            bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
-            if (enemyUnitTarget && attacker != null)
-            {
-                if (effect.target == TargetType.EnemyUnit)
-                {
-                    ApplyEffectToSpecificTargets(reactionUnit, defenderOwner, effect, new List<CardController> { attacker });
-                }
-                else
-                {
-                    ApplyEffect(reactionUnit, defenderOwner, effect);
-                }
-            }
-            else
-            {
-                ApplyEffect(reactionUnit, defenderOwner, effect);
-            }
+            return true;
         }
 
-        return shouldRedirectToSelectedDefender;
-    }
-
-    private static bool HasBlockRedirectOnEnemyAttack(CardData data)
-    {
-        if (data == null || data.timedEffects == null)
+        if (reactionUnit.Data.timedEffects == null)
         {
             return false;
         }
 
-        for (int i = 0; i < data.timedEffects.Count; i++)
+        for (int i = 0; i < reactionUnit.Data.timedEffects.Count; i++)
         {
-            TimedEffectData timed = data.timedEffects[i];
+            TimedEffectData timed = reactionUnit.Data.timedEffects[i];
             if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || timed.effects == null)
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
             {
                 continue;
             }
@@ -3961,6 +4123,330 @@ public class BattleGameMain : MonoBehaviour
         }
 
         return false;
+    }
+
+    /// <summary>OnEnemyAttack の BlockRedirect 以外の効果のみ適用（リダイレクト可否は別判定）。</summary>
+    private void ApplyDefenderOnAttackReactionEffects(
+        CardController reactionUnit,
+        CardController attacker,
+        PlayerType defenderOwner)
+    {
+        if (reactionUnit == null || reactionUnit.Data == null || reactionUnit.Data.timedEffects == null)
+        {
+            return;
+        }
+
+        EffectActivationContext ctx = BuildActivationContext(defenderOwner, reactionUnit);
+        for (int i = 0; i < reactionUnit.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = reactionUnit.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || timed.effects == null)
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            for (int j = 0; j < timed.effects.Count; j++)
+            {
+                EffectData effect = timed.effects[j];
+                if (effect == null || effect.type == EffectType.BlockRedirect)
+                {
+                    continue;
+                }
+
+                bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
+                if (enemyUnitTarget && attacker != null)
+                {
+                    if (effect.target == TargetType.EnemyUnit)
+                    {
+                        ApplyEffectToSpecificTargets(reactionUnit, defenderOwner, effect, new List<CardController> { attacker });
+                    }
+                    else
+                    {
+                        ApplyEffect(reactionUnit, defenderOwner, effect);
+                    }
+                }
+                else
+                {
+                    ApplyEffect(reactionUnit, defenderOwner, effect);
+                }
+            }
+        }
+    }
+
+    private bool ExecuteDefenderOnAttackReaction(
+        CardController reactionUnit,
+        CardController attacker,
+        PlayerType defenderOwner)
+    {
+        if (reactionUnit == null || reactionUnit.Data == null)
+        {
+            return false;
+        }
+
+        bool shouldRedirect = ShouldRedirectAttackToBlocker(reactionUnit, defenderOwner);
+        ApplyDefenderOnAttackReactionEffects(reactionUnit, attacker, defenderOwner);
+        return shouldRedirect;
+    }
+
+    private void CommitBlockRedirectSelection(
+        CardController attacker,
+        CardController blocker,
+        ref CardController defender,
+        ref PlayerType defenderOwner)
+    {
+        if (blocker == null || blocker.Data == null)
+        {
+            return;
+        }
+
+        PlayerType blockerOwner = ResolveCardOwner(blocker.transform);
+        if (!IsBlockRedirectReactionReady(blocker, blockerOwner))
+        {
+            Debug.LogWarning(
+                $"[BlockRedirect] ブロック不可のユニットが選択されました: {blocker.Data.cardName} "
+                + $"{(blocker.IsRestState ? "REST" : "ACTIVE")}");
+            return;
+        }
+
+        ApplyDefenderOnAttackReactionEffects(blocker, attacker, blockerOwner);
+        attackFlowBlockRedirectUnit = blocker;
+        defender = blocker;
+        defenderOwner = blockerOwner;
+        Debug.Log(
+            $"[BlockRedirect] ブロッカー確定: {blocker.Data.cardName}(id:{blocker.Data.id}) owner:{blockerOwner}");
+    }
+
+    private bool IsBlockRedirectReactionReady(CardController unit, PlayerType defenderOwner)
+    {
+        if (unit == null || unit.Data == null || unit.IsRestState)
+        {
+            return false;
+        }
+
+        EffectActivationContext ctx = BuildActivationContext(defenderOwner, unit);
+        return unit.Data.IsBlockerEligible(ctx);
+    }
+
+    private List<CardController> CollectSelectableBlockRedirectUnits(PlayerType attackerOwner)
+    {
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        List<CardController> defenderUnits = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> result = new List<CardController>();
+        for (int i = 0; i < defenderUnits.Count; i++)
+        {
+            CardController unit = defenderUnits[i];
+            if (IsBlockRedirectReactionReady(unit, defenderOwner))
+            {
+                result.Add(unit);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>防御側バトルゾーンの BlockRedirect 持ちユニット（REST 含む。表示用）。</summary>
+    private List<CardController> CollectBlockRedirectCapableUnits(PlayerType attackerOwner)
+    {
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        List<CardController> defenderUnits = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> result = new List<CardController>();
+        for (int i = 0; i < defenderUnits.Count; i++)
+        {
+            CardController unit = defenderUnits[i];
+            if (unit == null || unit.Data == null)
+            {
+                continue;
+            }
+
+            if (unit.Data.IsBlockerUnit())
+            {
+                result.Add(unit);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 防御側が AI、またはプレイヤーで選択可能ブロッカーが1体だけのとき自動で BlockRedirect を適用する。
+    /// </summary>
+    private bool TryAutoApplyBlockRedirectFromAttack(
+        PlayerType attackerOwner,
+        CardController attacker,
+        out CardController blockUnit,
+        out PlayerType blockOwner)
+    {
+        blockUnit = null;
+        blockOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        if (attacker == null)
+        {
+            return false;
+        }
+
+        List<CardController> selectable = CollectSelectableBlockRedirectUnits(attackerOwner);
+        if (selectable.Count == 0)
+        {
+            return false;
+        }
+
+        CardController pick;
+        if (blockOwner == PlayerType.Enemy)
+        {
+            pick = PickEnemyAiBlockRedirectUnit(attacker, selectable);
+        }
+        else
+        {
+            // プレイヤー防御は手動選択（攻撃元表示パネル）。AI のみ自動。
+            return false;
+        }
+
+        if (pick == null)
+        {
+            return false;
+        }
+
+        if (!IsBlockRedirectReactionReady(pick, blockOwner))
+        {
+            return false;
+        }
+
+        ApplyDefenderOnAttackReactionEffects(pick, attacker, blockOwner);
+        blockUnit = pick;
+        Debug.Log(
+            $"[BlockRedirect] auto applied blocker:{pick.Data.cardName}(id:{pick.Data.id}) owner:{blockOwner} "
+            + $"attacker:{attacker.Data?.cardName}");
+        return true;
+    }
+
+    private static CardController PickEnemyAiBlockRedirectUnit(CardController attacker, List<CardController> selectable)
+    {
+        if (selectable == null || selectable.Count == 0)
+        {
+            return null;
+        }
+
+        CardController best = selectable[0];
+        for (int i = 1; i < selectable.Count; i++)
+        {
+            CardController c = selectable[i];
+            if (c == null)
+            {
+                continue;
+            }
+
+            if (c.CurrentHp < best.CurrentHp)
+            {
+                best = c;
+            }
+        }
+
+        return best;
+    }
+
+    private void AppendAttackerPreviewToDefensePanel(GameObject root, CardController attacker)
+    {
+        if (root == null || attacker == null || attacker.Data == null || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        TextMeshProUGUI attackerLabel = root.CreateChildTextCustom("AttackerLabel", UIAnchor.TopCenter, 240, 28);
+        attackerLabel.text = "攻撃元";
+        attackerLabel.fontSize = 18;
+        attackerLabel.color = Color.white;
+        attackerLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
+
+        GameObject attackerCard = Instantiate(CardImagePrefab, root.transform);
+        RectTransform attackerRt = attackerCard.GetComponent<RectTransform>();
+        if (attackerRt != null)
+        {
+            attackerRt.anchorMin = new Vector2(0.5f, 1f);
+            attackerRt.anchorMax = new Vector2(0.5f, 1f);
+            attackerRt.pivot = new Vector2(0.5f, 1f);
+            attackerRt.sizeDelta = new Vector2(120f, 168f);
+            attackerRt.anchoredPosition = new Vector2(0f, -88f);
+        }
+
+        CardController preview = attackerCard.GetComponent<CardController>();
+        if (preview != null)
+        {
+            preview.SetUp(attacker.Data, _ => { });
+        }
+
+        TextMeshProUGUI attackerStat = attackerCard.CreateChildTextCustom(
+            "AttackerStat",
+            UIAnchor.BottomCenter,
+            110,
+            26);
+        attackerStat.text = $"AP:{attacker.CurrentPower} HP:{attacker.CurrentHp} {(attacker.IsRestState ? "REST" : "ACTIVE")}";
+        attackerStat.fontSize = 13;
+        attackerStat.color = Color.white;
+        attackerStat.alignment = TextAlignmentOptions.Center;
+
+        Button attackerBtn = attackerCard.GetComponent<Button>();
+        if (attackerBtn != null)
+        {
+            attackerBtn.interactable = false;
+        }
+    }
+
+    private void AppendDefensePanelUnitCard(
+        RectTransform content,
+        CardController unit,
+        bool canSelect,
+        string statusSuffix,
+        System.Action onPicked)
+    {
+        if (content == null || unit == null || unit.Data == null || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        GameObject cardItem = Instantiate(CardImagePrefab, content);
+        CardController itemCc = cardItem.GetComponent<CardController>();
+        if (itemCc != null)
+        {
+            itemCc.SetUp(unit.Data, _ => { });
+        }
+
+        GameObject statBg = new GameObject("StatBg", typeof(RectTransform), typeof(Image));
+        statBg.transform.SetParent(cardItem.transform, false);
+        RectTransform statBgRt = statBg.GetComponent<RectTransform>();
+        statBgRt.anchorMin = new Vector2(0f, 0f);
+        statBgRt.anchorMax = new Vector2(1f, 0f);
+        statBgRt.pivot = new Vector2(0.5f, 0f);
+        statBgRt.sizeDelta = new Vector2(0f, 28f);
+        statBgRt.anchoredPosition = Vector2.zero;
+        Image statBgImg = statBg.GetComponent<Image>();
+        statBgImg.color = new Color(0f, 0f, 0f, 0.55f);
+        statBgImg.raycastTarget = false;
+
+        TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
+        statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}{statusSuffix}";
+        statText.fontSize = 14;
+        statText.color = canSelect ? Color.white : new Color(0.75f, 0.75f, 0.75f, 1f);
+        statText.alignment = TextAlignmentOptions.Center;
+
+        Button btn = cardItem.GetComponent<Button>();
+        if (btn == null)
+        {
+            btn = cardItem.AddComponent<Button>();
+        }
+
+        btn.interactable = canSelect;
+        if (canSelect)
+        {
+            btn.onClick.AddListener(() =>
+            {
+                onPicked?.Invoke();
+                statText.color = new Color(1f, 0.35f, 0.35f, 1f);
+            });
+        }
     }
 
     private bool TryOpenAttackedSideUnitsPanel(
@@ -3995,7 +4481,6 @@ public class BattleGameMain : MonoBehaviour
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("AttackedSideUnitsTitle", UIAnchor.TopCenter, 720, 48);
-        title.text = "アタックされる側ユニット一覧";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -4019,48 +4504,15 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        List<CardController> defenderUnits = GetAliveEnemyUnits(attackerOwner);
-        List<CardController> reactionCandidates = new List<CardController>();
-        for (int i = 0; i < defenderUnits.Count; i++)
-        {
-            CardController unit = defenderUnits[i];
-            if (unit == null || unit.Data == null)
-            {
-                continue;
-            }
-
-            if (!HasEffectTiming(unit.Data, EffectTiming.OnEnemyAttack))
-            {
-                continue;
-            }
-
-            reactionCandidates.Add(unit);
-        }
-
-        // 「BlockRedirect かつ REST で選べない」など、実際に選択可能な候補が無い場合はパネルを出さずに進行させる。
-        bool hasSelectableCandidate = false;
-        for (int i = 0; i < reactionCandidates.Count; i++)
-        {
-            CardController unit = reactionCandidates[i];
-            if (unit == null || unit.Data == null)
-            {
-                continue;
-            }
-
-            bool hasBlockRedirect = HasBlockRedirectOnEnemyAttack(unit.Data);
-            bool cannotSelect = hasBlockRedirect && unit.IsRestState;
-            if (!cannotSelect)
-            {
-                hasSelectableCandidate = true;
-                break;
-            }
-        }
-
-        bool showAttackerInfoOnly = !hasSelectableCandidate
-            && attackerOwner == PlayerType.Enemy
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        bool enemyAttackingPlayer = attackerOwner == PlayerType.Enemy
             && attackingUnitForDisplay != null
             && attackingUnitForDisplay.Data != null;
-        if (!hasSelectableCandidate && !showAttackerInfoOnly)
+        List<CardController> blockRedirectUnits = CollectBlockRedirectCapableUnits(attackerOwner);
+        List<CardController> selectableBlockRedirects = CollectSelectableBlockRedirectUnits(attackerOwner);
+        bool hasSelectableBlocker = selectableBlockRedirects.Count > 0;
+
+        if (!enemyAttackingPlayer && !hasSelectableBlocker)
         {
             Destroy(root);
             activeAttackFlowDebugPanelRoot = null;
@@ -4073,120 +4525,55 @@ public class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        CardController selectedDefender = null;
-        if (showAttackerInfoOnly)
+        if (enemyAttackingPlayer)
         {
-            title.text = "敵の攻撃カード";
-            GameObject cardItem = Instantiate(CardImagePrefab, content);
-            CardController itemCc = cardItem.GetComponent<CardController>();
-            if (itemCc != null)
-            {
-                itemCc.SetUp(attackingUnitForDisplay.Data, _ => { });
-            }
-
-            GameObject statBg = new GameObject("StatBg", typeof(RectTransform), typeof(Image));
-            statBg.transform.SetParent(cardItem.transform, false);
-            RectTransform statBgRt = statBg.GetComponent<RectTransform>();
-            statBgRt.anchorMin = new Vector2(0f, 0f);
-            statBgRt.anchorMax = new Vector2(1f, 0f);
-            statBgRt.pivot = new Vector2(0.5f, 0f);
-            statBgRt.sizeDelta = new Vector2(0f, 28f);
-            statBgRt.anchoredPosition = new Vector2(0f, 0f);
-            Image statBgImg = statBg.GetComponent<Image>();
-            statBgImg.color = new Color(0f, 0f, 0f, 0.55f);
-            statBgImg.raycastTarget = false;
-
-            TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
-            statText.text = $"AP:{attackingUnitForDisplay.CurrentPower} HP:{attackingUnitForDisplay.CurrentHp} {(attackingUnitForDisplay.IsRestState ? "REST" : "ACTIVE")}";
-            statText.fontSize = 14;
-            statText.color = Color.white;
-            statText.alignment = TextAlignmentOptions.Center;
-
-            Button btn = cardItem.GetComponent<Button>();
-            if (btn != null)
-            {
-                btn.interactable = false;
-            }
+            title.text = hasSelectableBlocker
+                ? "敵の攻撃 — ACTIVE ブロッカーを選んで Close"
+                : "敵の攻撃 — ブロッカーなし（Close で通常処理）";
+            AppendAttackerPreviewToDefensePanel(root, attackingUnitForDisplay);
+            scrollRt.anchoredPosition = new Vector2(0f, -200f);
         }
-        else if (reactionCandidates.Count == 0)
+        else
+        {
+            title.text = "ブロッカーを選択して Close";
+        }
+
+        CardController selectedDefender = null;
+        if (blockRedirectUnits.Count == 0)
         {
             TextMeshProUGUI empty = root.CreateChildTextCustom("AttackedSideEmpty", UIAnchor.TopCenter, 480, 40);
-            empty.text = "OnEnemyAttack を持つ対象ユニットがいません";
+            empty.text = enemyAttackingPlayer
+                ? "バトルゾーンにブロッカー（isBlocker）がいません"
+                : "ブロッカーがいません";
             empty.fontSize = 20;
             empty.color = Color.white;
             empty.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -280f);
         }
         else
         {
-            for (int i = 0; i < reactionCandidates.Count; i++)
+            for (int i = 0; i < blockRedirectUnits.Count; i++)
             {
-                CardController unit = reactionCandidates[i];
+                CardController unit = blockRedirectUnits[i];
                 if (unit == null || unit.Data == null)
                 {
                     continue;
                 }
 
+                bool canSelect = IsBlockRedirectReactionReady(unit, defenderOwner);
                 Debug.Log(
-                    $"[AttackedSidePanelList] index:{i} card:{unit.Data.cardName} AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}");
+                    $"[AttackedSidePanelList] index:{i} card:{unit.Data.cardName} AP:{unit.CurrentPower} HP:{unit.CurrentHp} "
+                    + $"{(unit.IsRestState ? "REST" : "ACTIVE")} selectable:{canSelect}");
 
-                GameObject cardItem = Instantiate(CardImagePrefab, content);
-                CardController itemCc = cardItem.GetComponent<CardController>();
-                if (itemCc != null)
-                {
-                    itemCc.SetUp(unit.Data, _ => { });
-                }
-
-                GameObject statBg = new GameObject("StatBg", typeof(RectTransform), typeof(Image));
-                statBg.transform.SetParent(cardItem.transform, false);
-                RectTransform statBgRt = statBg.GetComponent<RectTransform>();
-                statBgRt.anchorMin = new Vector2(0f, 0f);
-                statBgRt.anchorMax = new Vector2(1f, 0f);
-                statBgRt.pivot = new Vector2(0.5f, 0f);
-                statBgRt.sizeDelta = new Vector2(0f, 28f);
-                statBgRt.anchoredPosition = new Vector2(0f, 0f);
-                Image statBgImg = statBg.GetComponent<Image>();
-                statBgImg.color = new Color(0f, 0f, 0f, 0.55f);
-                statBgImg.raycastTarget = false;
-
-                TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
-                statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}";
-                statText.fontSize = 14;
-                statText.color = Color.white;
-                statText.alignment = TextAlignmentOptions.Center;
-
-                Button btn = cardItem.GetComponent<Button>();
-                if (btn == null)
-                {
-                    btn = cardItem.AddComponent<Button>();
-                }
-
-                if (btn != null)
-                {
-                    bool hasBlockRedirect = HasBlockRedirectOnEnemyAttack(unit.Data);
-                    bool cannotSelect = hasBlockRedirect && unit.IsRestState;
-                    if (cannotSelect)
+                AppendDefensePanelUnitCard(
+                    content,
+                    unit,
+                    canSelect,
+                    canSelect ? "（ブロック可）" : " (REST・ブロック不可)",
+                    () =>
                     {
-                        btn.interactable = false;
-                        statText.color = new Color(0.75f, 0.75f, 0.75f, 1f);
-                    }
-
-                    CardController clickedUnit = unit;
-                    TextMeshProUGUI clickedStatText = statText;
-                    btn.onClick.AddListener(() =>
-                    {
-                        if (cannotSelect)
-                        {
-                            return;
-                        }
-
-                        selectedDefender = clickedUnit;
-                        title.text = $"アタックされる側ユニット一覧（選択: {clickedUnit.Data.cardName}）";
-                        if (clickedStatText != null)
-                        {
-                            clickedStatText.color = new Color(1f, 0.22f, 0.22f, 1f);
-                        }
+                        selectedDefender = unit;
+                        title.text = $"ブロッカー選択: {unit.Data.cardName}";
                     });
-                }
             }
         }
 
@@ -7322,12 +7709,14 @@ public class BattleGameMain : MonoBehaviour
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("OnActionTargetTitle", UIAnchor.TopCenter, 640, 48);
-        title.text = "OnAction Target Select";
+        bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
+        title.text = isAttackContext
+            ? $"OnAction — 赤文字=攻撃中ユニット ({attackingUnitInAttackFlow.Data.cardName})"
+            : "OnAction Target Select";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
-        bool isAttackContext = attackingUnitInAttackFlow != null;
         for (int i = 0; i < enemyUnits.Count; i++)
         {
             CardController t = enemyUnits[i];
@@ -7383,6 +7772,13 @@ public class BattleGameMain : MonoBehaviour
                     $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|pickedEnemy:{t.Data.cardName}(id:{t.Data.id})";
                 List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { t });
                 ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { t });
+                if (attackingUnitInAttackFlow != null && t == attackingUnitInAttackFlow)
+                {
+                    Debug.Log(
+                        $"[OnActionEnemyTarget] debuff applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(t)} "
+                        + $"(card:{t.Data.cardName})");
+                }
+
                 LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyEnemyUnitTarget", beforeSnapsPick);
                 FinalizeOnActionSourceCard(command, side);
                 List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(new List<CardController> { t });

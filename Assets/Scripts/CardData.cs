@@ -27,6 +27,8 @@ public class CardData : ScriptableObject
     [Tooltip("カード特性（複数可）。マスタは Game/Card Feature または Resources/Data/Features。")]
     public List<CardFeatureData> features = new List<CardFeatureData>();
 
+    [Tooltip("敵の攻撃をブロックし、身代わりのユニット戦にできる（ACTIVE 時のみ選択可）。")]
+    public bool isBlocker;
 }
 
 
@@ -44,7 +46,7 @@ public class CardJson
     public int sourceType;
     public int color; // カードの色を追加
     public int[] featureIds;
-
+    public bool isBlocker;
 }
 
 [Serializable]
