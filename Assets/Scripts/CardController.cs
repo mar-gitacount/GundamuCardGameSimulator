@@ -11,6 +11,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     {
         public int value;
         public EffectDuration duration;
+        /// <summary>空文字は従来の修飾。非空は <see cref="RemoveStatModifiersBySource"/> でまとめて除去。</summary>
+        public string sourceKey;
     }
 
     [SerializeField] private Image cardImage;
@@ -197,11 +199,18 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         return CurrentCost;
     }
 
-    public void AddEffectStatBonus(int powerDelta, int hpDelta, int costDelta, int levelDelta, EffectDuration duration = EffectDuration.Permanent)
+    public void AddEffectStatBonus(
+        int powerDelta,
+        int hpDelta,
+        int costDelta,
+        int levelDelta,
+        EffectDuration duration = EffectDuration.Permanent,
+        string statModifierSourceKey = null)
     {
+        string key = statModifierSourceKey ?? string.Empty;
         if (powerDelta != 0)
         {
-            powerModifiers.Add(new StatModifier { value = powerDelta, duration = duration });
+            powerModifiers.Add(new StatModifier { value = powerDelta, duration = duration, sourceKey = key });
         }
 
         if (hpDelta != 0)
@@ -211,12 +220,36 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
         if (costDelta != 0)
         {
-            costModifiers.Add(new StatModifier { value = costDelta, duration = duration });
+            costModifiers.Add(new StatModifier { value = costDelta, duration = duration, sourceKey = key });
         }
 
         if (levelDelta != 0)
         {
-            levelModifiers.Add(new StatModifier { value = levelDelta, duration = duration });
+            levelModifiers.Add(new StatModifier { value = levelDelta, duration = duration, sourceKey = key });
+        }
+    }
+
+    /// <summary>sourceKey が一致するランタイム修飾のみ除去（手札条件付きパッシブ用）。</summary>
+    public void RemoveStatModifiersBySource(string sourceKey)
+    {
+        if (string.IsNullOrEmpty(sourceKey))
+        {
+            return;
+        }
+
+        RemoveKeyedModifiers(powerModifiers, sourceKey);
+        RemoveKeyedModifiers(costModifiers, sourceKey);
+        RemoveKeyedModifiers(levelModifiers, sourceKey);
+    }
+
+    private static void RemoveKeyedModifiers(List<StatModifier> modifiers, string sourceKey)
+    {
+        for (int i = modifiers.Count - 1; i >= 0; i--)
+        {
+            if (modifiers[i].sourceKey == sourceKey)
+            {
+                modifiers.RemoveAt(i);
+            }
         }
     }
 
