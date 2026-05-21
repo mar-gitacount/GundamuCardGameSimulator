@@ -30,6 +30,7 @@ public class PlayerPrefsSaveData : ISaveData
             sourceType = (int)card.sourceType,
             color = (int)card.color, // カードの色を追加
             featureIds = CardFeatureRegistry.CollectIds(card.features),
+            isBlocker = card.isBlocker,
         };
     }
     public CardData ConvertToCardData(CardJson json)
@@ -50,6 +51,7 @@ public class PlayerPrefsSaveData : ISaveData
             card.imageName = null;
         }
 
+        card.isBlocker = json.isBlocker;
         card.SetFeaturesFromIds(json.featureIds);
         return card;
     }

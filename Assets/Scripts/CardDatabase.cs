@@ -91,6 +91,7 @@ public class CardDatabase : MonoBehaviour
         sourceType = (int)card.sourceType,
         color = (int)card.color, // カードの色を追加
         featureIds = CardFeatureRegistry.CollectIds(card.features),
+        isBlocker = card.isBlocker,
     };
 }
 CardData ConvertToCardData(CardJson json)
@@ -121,6 +122,7 @@ CardData ConvertToCardData(CardJson json)
     // card.sourceType = (CardData.CardSourceType)json.sourceType;
     card.sourceType = (CardSourceType)json.sourceType;
     card.color = (CardColor)json.color; // カードの色を追加
+    card.isBlocker = json.isBlocker;
     card.SetFeaturesFromIds(json.featureIds);
 
     return card;
