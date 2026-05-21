@@ -1,0 +1,111 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: XI GUNDAM
+  m_EditorClassIdentifier: 
+  id: 24
+  cardName: XI GUNDAM
+  cost: 9
+  level: 8
+  power: 5
+  hp: 5
+  imageName: {fileID: 21300000, guid: 267acbbf2b8b42541931f248642e2e7c, type: 3}
+  image: {fileID: 0}
+  version: 4
+  sourceType: 2
+  filterType: 0
+  color: 5
+  type: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 9
+    activationConditions:
+    - boardSide: 0
+      checkKind: 3
+      feature: {fileID: 0}
+      minimumCount: 0
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 6
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+    - boardSide: 1
+      checkKind: 1
+      feature: {fileID: 0}
+      minimumCount: 3
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+    effects:
+    - type: 3
+      value: 1
+      target: 0
+      selectionMode: 0
+      statTarget: 2
+      duration: 0
+      valueMode: 1
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      valueCountExcludeSource: 0
+    - type: 3
+      value: 1
+      target: 0
+      selectionMode: 0
+      statTarget: 3
+      duration: 0
+      valueMode: 1
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      valueCountExcludeSource: 0
+  - timing: 0
+    activationConditions:
+    - boardSide: 0
+      checkKind: 3
+      feature: {fileID: 0}
+      minimumCount: 0
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 6
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+    - boardSide: 1
+      checkKind: 1
+      feature: {fileID: 0}
+      minimumCount: 3
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+    effects:
+    - type: 0
+      value: 3
+      target: 2
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      valueCountExcludeSource: 0
+  features: []
