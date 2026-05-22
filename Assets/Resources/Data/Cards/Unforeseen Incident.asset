@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 20
   cardName: "\u4E88\u671F\u305B\u306C\u51FA\u6765\u4E8B"
   cost: 1
-  level: 4
+  level: 3
   power: 0
   hp: 0
   imageName: {fileID: 21300000, guid: 3e6971951a137224b9fcc926552b0af2, type: 3}
@@ -28,6 +28,7 @@ MonoBehaviour:
   attackFlg: 0
   timedEffects:
   - timing: 4
+    activationConditions: []
     effects:
     - type: 3
       value: 3
@@ -35,7 +36,15 @@ MonoBehaviour:
       selectionMode: 1
       statTarget: 0
       duration: 1
+      valueMode: 0
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      valueCountExcludeSource: 0
   - timing: 8
+    activationConditions: []
     effects:
     - type: 3
       value: 3
@@ -43,3 +52,12 @@ MonoBehaviour:
       selectionMode: 1
       statTarget: 0
       duration: 1
+      valueMode: 0
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      valueCountExcludeSource: 0
+  features: []
+  isBlocker: 0

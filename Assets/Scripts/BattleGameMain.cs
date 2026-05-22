@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro; // これを追加！
 
-public class BattleGameMain : MonoBehaviour
+public partial class BattleGameMain : MonoBehaviour
 {
     private const float MinEndTurnAreaWidth = 90f;
     private const float MaxEndTurnAreaWidth = 180f;
@@ -114,6 +114,8 @@ public class BattleGameMain : MonoBehaviour
     /// <summary>攻撃後 OnAction の「プレイヤー手前」に actionthink を挟むテスト用フラグ。</summary>
     [SerializeField] private bool enableAttackFlowActionThinkTest = true;
     [SerializeField] private bool enableShieldAttackFlowDebugLog = true;
+    [Tooltip("true のとき敵 OnAction はログ用ポップアップのみ。false で AI がコマンドを本番実行。")]
+    [SerializeField] private bool enableEnemyOnActionDebugPopupOnly;
     private bool isShieldAttackResolving;
     private bool isTurnPhaseSequenceRunning;
     private bool blockShieldFlowDuringShieldAttack;
@@ -1241,6 +1243,11 @@ public class BattleGameMain : MonoBehaviour
             yield return new WaitForSeconds(0.6f);
         }
 
+        if (TryEnemyExecuteOnMainFromHand())
+        {
+            yield return new WaitForSeconds(0.5f);
+        }
+
         int attacked = 0;
         while (true)
         {
@@ -1668,38 +1675,8 @@ public class BattleGameMain : MonoBehaviour
         }
 
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
-        if (onActionEffects == null)
-        {
-            return;
-        }
-
-        for (int ei = 0; ei < onActionEffects.Count; ei++)
-        {
-            EffectData eff = onActionEffects[ei];
-            if (eff == null)
-            {
-                continue;
-            }
-
-            if (eff.type == EffectType.Draw || eff.type == EffectType.BlockRedirect)
-            {
-                continue;
-            }
-
-            int magnitude = ResolveEffectMagnitude(eff, commandOwnerSide, command);
-            if (magnitude == 0)
-            {
-                continue;
-            }
-
-            List<CardController> targets = ResolveEffectTargets(command, commandOwnerSide, eff.target);
-            if (targets == null || targets.Count == 0)
-            {
-                continue;
-            }
-
-            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets, magnitude);
-        }
+        EnemyAiEffectPickContext ctx = BuildEnemyAiEffectPickContext(commandOwnerSide, command, null, null);
+        ApplyEnemyHandCommandVirtualEffects(working, onActionEffects, command, commandOwnerSide, ctx);
     }
 
     private List<CardController> GetPlayerUnitsForShieldAttackReactionPanel()
@@ -5099,8 +5076,13 @@ public class BattleGameMain : MonoBehaviour
 
             if (ownerType == PlayerType.Enemy)
             {
-                CardController picked = PickEnemyAiOnPlayedEffectTarget(candidates, effect);
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                }
+
                 TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
                 return;
             }
@@ -5118,30 +5100,6 @@ public class BattleGameMain : MonoBehaviour
         return effect != null
             && IsEffectTargetRequiringUnitSelection(effect.target)
             && effect.selectionMode != EffectSelectionMode.AttackedTargetOnly;
-    }
-
-    private static CardController PickEnemyAiOnPlayedEffectTarget(List<CardController> candidates, EffectData effect)
-    {
-        if (candidates == null || candidates.Count == 0)
-        {
-            return null;
-        }
-
-        if (effect != null && effect.type == EffectType.Damage)
-        {
-            CardController best = candidates[0];
-            for (int i = 1; i < candidates.Count; i++)
-            {
-                if (candidates[i].CurrentHp < best.CurrentHp)
-                {
-                    best = candidates[i];
-                }
-            }
-
-            return best;
-        }
-
-        return candidates[0];
     }
 
     private void ApplyEffect(CardController sourceCard, PlayerType ownerType, EffectData effect)
@@ -7373,7 +7331,7 @@ public class BattleGameMain : MonoBehaviour
     {
         if (side == PlayerType.Enemy)
         {
-            return TryShowEnemyOnActionCommandCandidatesPopup(context, onStepDone, attackingUnitInAttackFlow);
+            return TryExecuteEnemyOnActionStep(context, onStepDone, attackingUnitInAttackFlow);
         }
 
         return TryOpenOnActionCommandSelection(side, context, onStepDone, attackingUnitInAttackFlow);
@@ -7971,6 +7929,25 @@ public class BattleGameMain : MonoBehaviour
             if (candidates.Count == 0)
             {
                 Debug.Log($"OnMain: 選択可能な対象がありません (target:{effect.target})。");
+                TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone);
+                return;
+            }
+
+            if (side == PlayerType.Enemy)
+            {
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(side, source, null, null);
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    if (!TryConsumeResourceForOnMain(side, source, ref resourceConsumed))
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
+                }
+
                 TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone);
                 return;
             }

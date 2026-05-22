@@ -12,36 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
   m_Name: 27zawort
   m_EditorClassIdentifier: 
-  id: 26
-  cardName: gumtank
-  cost: 1
+  id: 27
+  cardName: zawort
+  cost: 2
   level: 2
-  power: 1
+  power: 3
   hp: 2
-  imageName: {fileID: 21300000, guid: b9247628bba421642a2cf1b85224fda7, type: 3}
+  imageName: {fileID: 21300000, guid: 05439dc25a08a324b8b8456ab6e908ef, type: 3}
   image: {fileID: 0}
-  version: 4
+  version: 1
   sourceType: 2
   filterType: 0
   color: 2
   type: 0
   attackFlg: 0
-  timedEffects:
-  - timing: 0
-    activationConditions: []
-    effects:
-    - type: 0
-      value: 1
-      target: 2
-      selectionMode: 0
-      statTarget: 1
-      duration: 0
-      valueMode: 0
-      valueCountBoardSide: 0
-      valueCountKind: 0
-      valueCountFeature: {fileID: 0}
-      valueCountMinUnitLevel: 0
-      valueScaleMaximum: 0
-      valueCountExcludeSource: 0
-  features:
-  - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  timedEffects: []
+  features: []
+  isBlocker: 1
