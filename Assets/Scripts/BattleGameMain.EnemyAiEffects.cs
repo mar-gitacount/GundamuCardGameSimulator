@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -510,8 +511,78 @@ public partial class BattleGameMain
 
         Debug.Log(
             $"[EnemyAI] OnMain execute:{best.Data.cardName}(id:{best.Data.id}) simScore:{bestScore} (effects→virtual→score)");
-        TryExecuteOnMainCard(PlayerType.Enemy, best, null);
+        StartCoroutine(EnemyOnMainCommandAckThenExecute(best));
         return true;
+    }
+
+    private List<CardController> BuildEnemyCommandPreviewTargetList(
+        CardController command,
+        PlayerType side,
+        EffectTiming timing,
+        CardController attackingUnitInAttackFlow)
+    {
+        List<CardController> preview = new List<CardController>();
+        if (command == null || command.Data == null)
+        {
+            return preview;
+        }
+
+        List<EffectData> effects = timing == EffectTiming.OnMain
+            ? BuildOnMainExecutableEffects(side, command)
+            : GetEffectsByTiming(command.Data, timing);
+        List<CardController> restTargets = timing == EffectTiming.OnAction
+            ? GetEnemyAiRestTargets(PlayerType.Enemy)
+            : null;
+        EnemyAiEffectPickContext ctx = BuildEnemyAiEffectPickContext(side, command, attackingUnitInAttackFlow, restTargets);
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.target.IsSingleOpponentUnitPickTarget())
+            {
+                CardController picked = PickEnemyAiEffectTarget(
+                    effect,
+                    ctx,
+                    GetAliveEnemyUnitsForEffectTarget(side, effect.target));
+                if (picked != null && !preview.Contains(picked))
+                {
+                    preview.Add(picked);
+                }
+            }
+            else
+            {
+                List<CardController> resolved = ResolveEffectTargets(command, side, effect.target);
+                for (int r = 0; r < resolved.Count; r++)
+                {
+                    CardController t = resolved[r];
+                    if (t != null && !preview.Contains(t))
+                    {
+                        preview.Add(t);
+                    }
+                }
+            }
+        }
+
+        return preview;
+    }
+
+    private IEnumerator EnemyOnMainCommandAckThenExecute(CardController command)
+    {
+        List<CardController> previewTargets = BuildEnemyCommandPreviewTargetList(
+            command,
+            PlayerType.Enemy,
+            EffectTiming.OnMain,
+            null);
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            null,
+            previewTargets,
+            "敵 — コマンド（OnMain）");
+        TryExecuteOnMainCard(PlayerType.Enemy, command, null);
     }
 
     private bool TryExecuteEnemyOnActionStep(
@@ -643,6 +714,14 @@ public partial class BattleGameMain
         return false;
     }
 
+    private List<CardController> BuildEnemyOnActionPreviewTargetList(
+        CardController command,
+        PlayerType side,
+        CardController attackingUnitInAttackFlow)
+    {
+        return BuildEnemyCommandPreviewTargetList(command, side, EffectTiming.OnAction, attackingUnitInAttackFlow);
+    }
+
     private void TryExecuteEnemyOnActionCommand(
         PlayerType side,
         CardController command,
@@ -655,11 +734,33 @@ public partial class BattleGameMain
             return;
         }
 
+        List<CardController> previewTargets = BuildEnemyOnActionPreviewTargetList(command, side, attackingUnitInAttackFlow);
+        StartCoroutine(EnemyOnActionCommandPreviewThenExecute(
+            side,
+            command,
+            previewTargets,
+            attackingUnitInAttackFlow,
+            onDone));
+    }
+
+    private IEnumerator EnemyOnActionCommandPreviewThenExecute(
+        PlayerType side,
+        CardController command,
+        List<CardController> previewTargets,
+        CardController attackingUnitInAttackFlow,
+        System.Action onDone)
+    {
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            previewTargets,
+            "敵 — コマンド（OnAction）");
+
         if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
         {
             Debug.Log("[EnemyAI] OnAction: リソース不足で実行できません。");
             onDone?.Invoke();
-            return;
+            yield break;
         }
 
         SyncResourceViewsFromRule(ToRuleSide(side));
@@ -669,7 +770,7 @@ public partial class BattleGameMain
         {
             FinalizeOnActionSourceCard(command, side);
             onDone?.Invoke();
-            return;
+            yield break;
         }
 
         List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);

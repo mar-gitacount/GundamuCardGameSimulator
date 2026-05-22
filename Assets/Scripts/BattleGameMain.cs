@@ -1245,7 +1245,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (TryEnemyExecuteOnMainFromHand())
         {
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen);
+            yield return new WaitForSeconds(0.15f);
         }
 
         int attacked = 0;
@@ -7452,6 +7453,7 @@ public partial class BattleGameMain : MonoBehaviour
         ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
         RectTransform content = sr != null ? sr.content : null;
 
+        HashSet<CardController> selectedSet = new HashSet<CardController>();
         List<CardController> selectedCommands = new List<CardController>();
         for (int i = 0; i < onActionSelectableSources.Count; i++)
         {
@@ -7461,41 +7463,8 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            GameObject go = Instantiate(CardImagePrefab, content);
-            CardController cc = go.GetComponent<CardController>();
-            if (cc != null)
-            {
-                cc.SetUp(command.Data, _ => { });
-            }
-
-            Button btn = go.GetComponent<Button>();
-            if (btn == null)
-            {
-                btn = go.AddComponent<Button>();
-            }
-
-            Image baseImage = go.GetComponent<Image>();
-            Color originalColor = baseImage != null ? baseImage.color : Color.white;
-            CardController selectedCommand = command;
-            btn.onClick.AddListener(() =>
-            {
-                if (selectedCommands.Contains(selectedCommand))
-                {
-                    selectedCommands.Remove(selectedCommand);
-                    if (baseImage != null)
-                    {
-                        baseImage.color = originalColor;
-                    }
-                }
-                else
-                {
-                    selectedCommands.Add(selectedCommand);
-                    if (baseImage != null)
-                    {
-                        baseImage.color = new Color(0.7f, 1f, 0.7f, 1f);
-                    }
-                }
-            });
+            string typeLabel = command.Data.type == Type.Command ? "Command" : "Unit";
+            AppendSelectableCommandCardToGrid(content, command, typeLabel, selectedSet);
         }
 
         Button confirmBtn = root.CreateChildButton("Confirm");
@@ -7507,6 +7476,8 @@ public partial class BattleGameMain : MonoBehaviour
         confirmRt.anchoredPosition = new Vector2(-100f, 36f);
         confirmBtn.onClick.AddListener(() =>
         {
+            selectedCommands.Clear();
+            selectedCommands.AddRange(selectedSet);
             if (selectedCommands.Count == 0)
             {
                 Debug.Log("OnAction: カードを1枚以上選択してください。");
@@ -7619,6 +7590,31 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        EffectData applied = onActionEffects[0];
+        List<CardController> resolvedBeforeApply = ResolveEffectTargets(command, side, applied.target);
+        StartCoroutine(ExecuteOnActionDirectEffectAfterPreview(
+            side,
+            command,
+            applied,
+            resolvedBeforeApply,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            onDone));
+    }
+
+    private IEnumerator ExecuteOnActionDirectEffectAfterPreview(
+        PlayerType side,
+        CardController command,
+        EffectData applied,
+        List<CardController> resolvedBeforeApply,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        yield return ShowCommandUsePreviewCoroutine(command, attackingUnitInAttackFlow, resolvedBeforeApply, null);
+
         if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
         {
             Debug.Log("OnAction: リソース不足で実行できません。");
@@ -7631,14 +7627,12 @@ public partial class BattleGameMain : MonoBehaviour
                 commandQueueCount,
                 "phase:before_apply_direct cost not consumed");
             onDone?.Invoke();
-            return;
+            yield break;
         }
 
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
-        EffectData applied = onActionEffects[0];
         string effectDetail =
             $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
-        List<CardController> resolvedBeforeApply = ResolveEffectTargets(command, side, applied.target);
         List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
         ApplyEffect(command, side, applied);
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
@@ -7665,21 +7659,6 @@ public partial class BattleGameMain : MonoBehaviour
         int commandQueueIndex = -1,
         int commandQueueCount = -1)
     {
-        Canvas canvas = ResolveBattleCanvas();
-        if (canvas == null)
-        {
-            LogCommandUseResultWithBoard(
-                "OnAction_Skipped_NoCanvas_EnemyTargetUI",
-                side,
-                command,
-                attackingUnitInAttackFlow,
-                commandQueueIndex,
-                commandQueueCount,
-                "reason:ResolveBattleCanvas null");
-            onDone?.Invoke();
-            return;
-        }
-
         List<CardController> enemyUnits = GetAliveEnemyUnitsForEffectTarget(side, effect.target);
         if (enemyUnits.Count == 0)
         {
@@ -7732,56 +7711,21 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        GameObject root = new GameObject("OnActionTargetSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        root.transform.SetParent(canvas.transform, false);
-        root.transform.SetAsLastSibling();
-        root.SetFullSize();
-        Image dim = root.GetComponent<Image>();
-        dim.color = new Color(0f, 0f, 0f, 0.55f);
-        dim.raycastTarget = true;
-
-        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionTargetTitle", UIAnchor.TopCenter, 640, 48);
         bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
-        title.text = isAttackContext
-            ? $"OnAction — 赤文字=攻撃中ユニット ({attackingUnitInAttackFlow.Data.cardName})"
-            : "OnAction Target Select";
-        title.color = Color.white;
-        title.fontSize = 24;
-        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+        string title = isAttackContext
+            ? $"OnAction — 対象を選択（攻撃中: {attackingUnitInAttackFlow.Data.cardName}）"
+            : "OnAction — 対象を選択";
+        string effectSummary = effect != null
+            ? $"{effect.type} / {effect.target} / 値:{effect.value}"
+            : "";
 
-        for (int i = 0; i < enemyUnits.Count; i++)
-        {
-            CardController t = enemyUnits[i];
-            if (attackingUnitInAttackFlow != null && t == attackingUnitInAttackFlow && t.Data != null)
-            {
-                Debug.Log(
-                    $"[OnActionEnemyTarget] attacking enemy in target list: {t.Data.cardName} AP:{t.CurrentPower} HP:{t.CurrentHp} (index:{i} side:{side})");
-            }
-            
-            Button btn = root.CreateChildButton($"{t.Data.cardName} AP:{t.CurrentPower} HP:{t.CurrentHp}");
-            bool isAttackingCardButton = isAttackContext
-                && t == attackingUnitInAttackFlow;
-            if (isAttackingCardButton)
-            {
-                TextMeshProUGUI btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnText != null)
-                {
-                    btnText.color = Color.red;
-                }
-            }
-            RectTransform rt = btn.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(420f, 44f);
-            rt.anchoredPosition = new Vector2(0f, -100f - (i * 52f));
-            if (attackingUnitInAttackFlow != null && t == attackingUnitInAttackFlow)
-            {
-                TextMeshProUGUI btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnText != null)
-                {
-                    btnText.color = new Color(1f, 0.22f, 0.22f, 1f);
-                }
-            }
-
-            btn.onClick.AddListener(() =>
+        OpenCommandWithTargetsSelectionUI(
+            title,
+            effectSummary,
+            command,
+            enemyUnits,
+            attackingUnitInAttackFlow,
+            picked =>
             {
                 if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
                 {
@@ -7794,26 +7738,25 @@ public partial class BattleGameMain : MonoBehaviour
                         commandQueueIndex,
                         commandQueueCount,
                         "phase:enemy_target_ui cost not consumed");
-                    Destroy(root);
                     onDone?.Invoke();
                     return;
                 }
 
                 string consumedSummary = command.Data != null ? $"{command.Data.cardName}(id:{command.Data.id})" : "?";
                 string detail =
-                    $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|pickedEnemy:{t.Data.cardName}(id:{t.Data.id})";
-                List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { t });
-                ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { t });
-                if (attackingUnitInAttackFlow != null && t == attackingUnitInAttackFlow)
+                    $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|pickedEnemy:{picked.Data.cardName}(id:{picked.Data.id})";
+                List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { picked });
+                ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { picked });
+                if (attackingUnitInAttackFlow != null && picked == attackingUnitInAttackFlow)
                 {
                     Debug.Log(
-                        $"[OnActionEnemyTarget] debuff applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(t)} "
-                        + $"(card:{t.Data.cardName})");
+                        $"[OnActionEnemyTarget] debuff applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(picked)} "
+                        + $"(card:{picked.Data.cardName})");
                 }
 
                 LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyEnemyUnitTarget", beforeSnapsPick);
                 FinalizeOnActionSourceCard(command, side);
-                List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(new List<CardController> { t });
+                List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(new List<CardController> { picked });
                 LogCommandUseResultWithBoard(
                     "OnAction_AfterApplyEnemyUnitTarget",
                     side,
@@ -7823,23 +7766,9 @@ public partial class BattleGameMain : MonoBehaviour
                     commandQueueCount,
                     detail,
                     pickedForEval);
-                Destroy(root);
                 onDone?.Invoke();
-            });
-        }
-
-        Button close = root.CreateChildButton("Close");
-        RectTransform closeRt = close.GetComponent<RectTransform>();
-        closeRt.sizeDelta = new Vector2(180f, 46f);
-        closeRt.anchorMin = new Vector2(0.5f, 0f);
-        closeRt.anchorMax = new Vector2(0.5f, 0f);
-        closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(0f, 34f);
-        close.onClick.AddListener(() =>
-        {
-            Destroy(root);
-            onDone?.Invoke();
-        });
+            },
+            onDone);
     }
 
     private bool TryAddOnMainEffectApplyButton(
@@ -8187,123 +8116,28 @@ public partial class BattleGameMain : MonoBehaviour
         bool resourceConsumed,
         System.Action onDone)
     {
-        Canvas canvas = ResolveBattleCanvas();
-        if (canvas == null)
-        {
-            onDone?.Invoke();
-            return;
-        }
-
-        DestroyActiveOnActionPopupIfAny();
-        GameObject root = new GameObject("OnMainTargetSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        activeOnActionPopupRoot = root;
-        isOnActionPopupOpen = true;
-        root.transform.SetParent(canvas.transform, false);
-        root.transform.SetAsLastSibling();
-        root.SetFullSize();
-        Image dim = root.GetComponent<Image>();
-        dim.color = new Color(0f, 0f, 0f, 0.55f);
-        dim.raycastTarget = true;
-
-        TextMeshProUGUI title = root.CreateChildTextCustom("OnMainTargetTitle", UIAnchor.TopCenter, 720, 48);
-        title.text = "OnMain — 対象を選択";
-        title.color = Color.white;
-        title.fontSize = 24;
-        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
-
-        if (CardImagePrefab != null && source != null && source.Data != null)
-        {
-            GameObject sourceCardGo = Instantiate(CardImagePrefab, root.transform);
-            RectTransform sourceRt = sourceCardGo.GetComponent<RectTransform>();
-            if (sourceRt != null)
-            {
-                sourceRt.anchorMin = new Vector2(0.5f, 1f);
-                sourceRt.anchorMax = new Vector2(0.5f, 1f);
-                sourceRt.pivot = new Vector2(0.5f, 1f);
-                sourceRt.sizeDelta = new Vector2(120f, 168f);
-                sourceRt.anchoredPosition = new Vector2(0f, -78f);
-            }
-
-            CardController preview = sourceCardGo.GetComponent<CardController>();
-            if (preview != null)
-            {
-                preview.SetUp(source.Data, _ => { });
-            }
-
-            Button sourceBlocker = sourceCardGo.GetComponent<Button>();
-            if (sourceBlocker != null)
-            {
-                sourceBlocker.interactable = false;
-            }
-        }
-
-        GameObject scrollGo = root.CreateGridScrollView(680, 360, UIAnchor.TopCenter);
-        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
-        scrollRt.anchoredPosition = new Vector2(0f, -270f);
-        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
-        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
-        RectTransform content = sr != null ? sr.content : null;
-
-        for (int i = 0; i < candidates.Count; i++)
-        {
-            CardController candidate = candidates[i];
-            if (content == null || candidate == null || candidate.Data == null || CardImagePrefab == null)
-            {
-                continue;
-            }
-
-            GameObject go = Instantiate(CardImagePrefab, content);
-            CardController cc = go.GetComponent<CardController>();
-            if (cc != null)
-            {
-                cc.SetUp(candidate.Data, _ => { });
-            }
-
-            TextMeshProUGUI statLabel = go.CreateChildTextCustom(
-                "TargetStat",
-                UIAnchor.BottomCenter,
-                100,
-                28);
-            statLabel.text = $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp}";
-            statLabel.fontSize = 14;
-            statLabel.color = Color.white;
-            statLabel.alignment = TextAlignmentOptions.Center;
-
-            Button btn = go.GetComponent<Button>();
-            if (btn == null)
-            {
-                btn = go.AddComponent<Button>();
-            }
-
-            CardController picked = candidate;
-            btn.onClick.AddListener(() =>
+        string effectSummary = effect != null
+            ? $"OnMain {effect.type} / {effect.target} / 値:{effect.value}"
+            : "OnMain";
+        OpenCommandWithTargetsSelectionUI(
+            "OnMain — 対象を選択",
+            effectSummary,
+            source,
+            candidates,
+            null,
+            picked =>
             {
                 bool consumed = resourceConsumed;
                 if (!TryConsumeResourceForOnMain(side, source, ref consumed))
                 {
-                    CloseOnMainTargetSelectionRoot(root);
                     onDone?.Invoke();
                     return;
                 }
 
                 ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
-                CloseOnMainTargetSelectionRoot(root);
                 TryExecuteOnMainEffectChain(side, source, allEffects, effectIndex + 1, consumed, onDone);
-            });
-        }
-
-        Button closeBtn = root.CreateChildButton("Close");
-        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
-        closeRt.sizeDelta = new Vector2(180f, 48f);
-        closeRt.anchorMin = new Vector2(0.5f, 0f);
-        closeRt.anchorMax = new Vector2(0.5f, 0f);
-        closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(0f, 36f);
-        closeBtn.onClick.AddListener(() =>
-        {
-            CloseOnMainTargetSelectionRoot(root);
-            onDone?.Invoke();
-        });
+            },
+            onDone);
     }
 
     private void CloseOnMainTargetSelectionRoot(GameObject root)
