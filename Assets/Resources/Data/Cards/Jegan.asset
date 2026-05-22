@@ -23,7 +23,7 @@ MonoBehaviour:
   version: 4
   sourceType: 1
   filterType: 0
-  color: 5
+  color: 2
   type: 0
   attackFlg: 0
   timedEffects:
@@ -54,3 +54,4 @@ MonoBehaviour:
       valueCountExcludeSource: 0
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  isBlocker: 0
