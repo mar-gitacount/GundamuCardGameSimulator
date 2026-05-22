@@ -33,7 +33,27 @@ public enum TargetType
     AllyAllUnits,
     EnemyAllUnits,
     SelfPlayer,
-    EnemyPlayer
+    EnemyPlayer,
+    /// <summary>相手バトルゾーンの REST ユニットのみ（ACTIVE は対象外）。既存 target 数値互換のため末尾に追加。</summary>
+    RestEnemyUnit
+}
+
+/// <summary><see cref="TargetType"/> の判定ヘルパー。</summary>
+public static class EffectTargetTypeExtensions
+{
+    public static bool IsOpponentUnitTarget(this TargetType targetType)
+    {
+        return targetType == TargetType.EnemyUnit
+            || targetType == TargetType.EnemyAllUnits
+            || targetType == TargetType.RestEnemyUnit;
+    }
+
+    /// <summary>1体選択 UI が必要な相手ユニット対象（REST 限定含む）。</summary>
+    public static bool IsSingleOpponentUnitPickTarget(this TargetType targetType)
+    {
+        return targetType == TargetType.EnemyUnit
+            || targetType == TargetType.RestEnemyUnit;
+    }
 }
 
 public enum EffectSelectionMode

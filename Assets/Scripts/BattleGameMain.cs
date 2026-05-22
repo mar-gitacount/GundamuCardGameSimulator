@@ -1377,6 +1377,7 @@ public class BattleGameMain : MonoBehaviour
 
             if (canAttackShield || canDirectAttack)
             {
+                Debug.Log($"[EnemyAI] canAttackShield:{canAttackShield} canDirectAttack:{canDirectAttack}");
                 LogEnemyAiPreShieldAttackSimulation(unit, eligibleEnemyHand);
                 LogEnemyAiShieldAttackRedirectScenariosPick(unit, restTargets, eligibleEnemyHand);
             }
@@ -1494,9 +1495,9 @@ public class BattleGameMain : MonoBehaviour
         Destroy(root, life);
     }
 
-    private List<CardController> GetEnemyAiRestTargets(PlayerType attackerOwner)
+    private List<CardController> GetAliveRestEnemyUnitsForOwner(PlayerType ownerType)
     {
-        List<CardController> enemies = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> enemies = GetAliveEnemyUnits(ownerType);
         List<CardController> rest = new List<CardController>();
         for (int i = 0; i < enemies.Count; i++)
         {
@@ -1506,7 +1507,23 @@ public class BattleGameMain : MonoBehaviour
                 rest.Add(c);
             }
         }
+
         return rest;
+    }
+
+    private List<CardController> GetEnemyAiRestTargets(PlayerType attackerOwner)
+    {
+        return GetAliveRestEnemyUnitsForOwner(attackerOwner);
+    }
+
+    private List<CardController> GetAliveEnemyUnitsForEffectTarget(PlayerType ownerType, TargetType targetType)
+    {
+        if (targetType == TargetType.RestEnemyUnit)
+        {
+            return GetAliveRestEnemyUnitsForOwner(ownerType);
+        }
+
+        return GetAliveEnemyUnits(ownerType);
     }
 
     private bool ShouldEnemyAiPreferShieldAttack(
@@ -3030,20 +3047,41 @@ public class BattleGameMain : MonoBehaviour
                         continue;
                     }
 
-                    bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
-                    if (!enemyUnitTarget)
+                    if (!effect.target.IsOpponentUnitTarget())
                     {
                         continue;
                     }
 
                     if (effect.selectionMode == EffectSelectionMode.AttackedTargetOnly)
                     {
+                        if (attackedTarget == null
+                            || attackedTarget.Data == null
+                            || attackedTarget.Data.type != Type.Unit)
+                        {
+                            continue;
+                        }
+
+                        if (effect.target == TargetType.RestEnemyUnit && !attackedTarget.IsRestState)
+                        {
+                            continue;
+                        }
+
                         List<CardController> singleTarget = new List<CardController> { attackedTarget };
                         ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
                         continue;
                     }
 
-                    List<CardController> enemyUnits = GetAliveEnemyUnits(attackerOwner);
+                    if (effect.target == TargetType.EnemyAllUnits)
+                    {
+                        ApplyEffectToSpecificTargets(
+                            sourceCard,
+                            attackerOwner,
+                            effect,
+                            GetAliveEnemyUnits(attackerOwner));
+                        continue;
+                    }
+
+                    List<CardController> enemyUnits = GetAliveEnemyUnitsForEffectTarget(attackerOwner, effect.target);
                     if (enemyUnits.Count == 0)
                     {
                         return false;
@@ -3081,7 +3119,9 @@ public class BattleGameMain : MonoBehaviour
         bg.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("EffectSelectTitle", UIAnchor.TopCenter, 620, 48);
-        title.text = "Select debuff target unit";
+        title.text = effect != null && effect.target == TargetType.RestEnemyUnit
+            ? "Select REST enemy unit"
+            : "Select debuff target unit";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -3980,9 +4020,13 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (effect.target == TargetType.EnemyUnit)
+            if (effect.target == TargetType.EnemyUnit || effect.target == TargetType.RestEnemyUnit)
             {
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { defender });
+                if (effect.target != TargetType.RestEnemyUnit || defender.IsRestState)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { defender });
+                }
+
                 continue;
             }
 
@@ -4036,7 +4080,7 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                bool targetEnemyUnit = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
+                bool targetEnemyUnit = effect.target.IsOpponentUnitTarget();
                 bool affectsAp = effect.statTarget == EffectStatTarget.AP || effect.statTarget == EffectStatTarget.Both;
                 if (!targetEnemyUnit || !affectsAp)
                 {
@@ -4158,18 +4202,25 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
-                if (enemyUnitTarget && attacker != null)
-                {
-                    if (effect.target == TargetType.EnemyUnit)
+                    bool enemyUnitTarget = effect.target.IsOpponentUnitTarget();
+                    if (enemyUnitTarget && attacker != null)
                     {
-                        ApplyEffectToSpecificTargets(reactionUnit, defenderOwner, effect, new List<CardController> { attacker });
+                        if (effect.target.IsSingleOpponentUnitPickTarget())
+                        {
+                            if (effect.target != TargetType.RestEnemyUnit || attacker.IsRestState)
+                            {
+                                ApplyEffectToSpecificTargets(
+                                    reactionUnit,
+                                    defenderOwner,
+                                    effect,
+                                    new List<CardController> { attacker });
+                            }
+                        }
+                        else
+                        {
+                            ApplyEffect(reactionUnit, defenderOwner, effect);
+                        }
                     }
-                    else
-                    {
-                        ApplyEffect(reactionUnit, defenderOwner, effect);
-                    }
-                }
                 else
                 {
                     ApplyEffect(reactionUnit, defenderOwner, effect);
@@ -4641,8 +4692,12 @@ public class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                bool enemyUnitTarget = effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits;
-                if (!enemyUnitTarget || effect.selectionMode != EffectSelectionMode.AttackedTargetOnly)
+                if (!effect.target.IsOpponentUnitTarget() || effect.selectionMode != EffectSelectionMode.AttackedTargetOnly)
+                {
+                    continue;
+                }
+
+                if (effect.target == TargetType.RestEnemyUnit && (defender == null || !defender.IsRestState))
                 {
                     continue;
                 }
@@ -4950,8 +5005,7 @@ public class BattleGameMain : MonoBehaviour
                 {
                     continue;
                 }
-                if (timing == EffectTiming.OnAttack
-                    && (effect.target == TargetType.EnemyUnit || effect.target == TargetType.EnemyAllUnits))
+                if (timing == EffectTiming.OnAttack && effect.target.IsOpponentUnitTarget())
                 {
                     // Enemy unit target effects are resolved before attack target decision.
                     continue;
@@ -5207,6 +5261,9 @@ public class BattleGameMain : MonoBehaviour
             case TargetType.EnemyUnit:
                 AddFirstAliveUnit(enemies, result);
                 break;
+            case TargetType.RestEnemyUnit:
+                AddFirstAliveRestUnit(enemies, result);
+                break;
             case TargetType.AllyAllUnits:
                 AddAllAliveUnits(allies, result);
                 break;
@@ -5224,6 +5281,19 @@ public class BattleGameMain : MonoBehaviour
         {
             CardController c = source[i];
             if (c != null && c.Data != null && c.Data.type == Type.Unit && c.CurrentHp > 0)
+            {
+                result.Add(c);
+                return;
+            }
+        }
+    }
+
+    private static void AddFirstAliveRestUnit(List<CardController> source, List<CardController> result)
+    {
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController c = source[i];
+            if (c != null && c.Data != null && c.Data.type == Type.Unit && c.CurrentHp > 0 && c.IsRestState)
             {
                 result.Add(c);
                 return;
@@ -6148,8 +6218,10 @@ public class BattleGameMain : MonoBehaviour
             }
 
             List<EffectData> fx = GetEffectsByTiming(c.Data, EffectTiming.OnAction);
-            EffectData enemyPick = fx.Find(e => e != null && e.target == TargetType.EnemyUnit);
-            approxBranchRows += enemyPick != null ? GetAliveEnemyUnits(PlayerType.Enemy).Count : 1;
+            EffectData enemyPick = fx.Find(e => e != null && e.target.IsSingleOpponentUnitPickTarget());
+            approxBranchRows += enemyPick != null
+                ? GetAliveEnemyUnitsForEffectTarget(PlayerType.Enemy, enemyPick.target).Count
+                : 1;
         }
 
         Debug.Log(
@@ -6175,10 +6247,10 @@ public class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target == TargetType.EnemyUnit);
+            EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target.IsSingleOpponentUnitPickTarget());
             if (enemyTargetEffect != null)
             {
-                List<CardController> playerSideTargets = GetAliveEnemyUnits(PlayerType.Enemy);
+                List<CardController> playerSideTargets = GetAliveEnemyUnitsForEffectTarget(PlayerType.Enemy, enemyTargetEffect.target);
                 Debug.Log(
                     "[EnemyAiOnActionSearch] commandBranch source:Hand cmdIndex:" + ci + "/" + nCmd + " cmdId:" + cmd.Data.id
                     + " name:" + cmd.Data.cardName + " playerSideUnitBranches:" + playerSideTargets.Count + " cost:" + cmd.CurrentCost
@@ -7575,7 +7647,7 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target == TargetType.EnemyUnit);
+        EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && e.target.IsSingleOpponentUnitPickTarget());
         if (enemyTargetEffect != null)
         {
             OpenOnActionEnemyTargetSelection(
@@ -7650,10 +7722,12 @@ public class BattleGameMain : MonoBehaviour
             return;
         }
 
-        List<CardController> enemyUnits = GetAliveEnemyUnits(side);
+        List<CardController> enemyUnits = GetAliveEnemyUnitsForEffectTarget(side, effect.target);
         if (enemyUnits.Count == 0)
         {
-            Debug.Log("OnAction: 対象となる敵ユニットがいません。");
+            Debug.Log(effect.target == TargetType.RestEnemyUnit
+                ? "OnAction: 対象となる REST の敵ユニットがいません。"
+                : "OnAction: 対象となる敵ユニットがいません。");
             LogCommandUseResultWithBoard(
                 "OnAction_Skipped_NoEnemyUnitTargets",
                 side,
@@ -7940,7 +8014,9 @@ public class BattleGameMain : MonoBehaviour
 
     private static bool IsEffectTargetRequiringUnitSelection(TargetType targetType)
     {
-        return targetType == TargetType.EnemyUnit || targetType == TargetType.AllyUnit;
+        return targetType == TargetType.EnemyUnit
+            || targetType == TargetType.RestEnemyUnit
+            || targetType == TargetType.AllyUnit;
     }
 
     private List<CardController> ResolveSelectableEffectTargets(
@@ -7968,6 +8044,9 @@ public class BattleGameMain : MonoBehaviour
                 break;
             case TargetType.EnemyUnit:
                 AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result);
+                break;
+            case TargetType.RestEnemyUnit:
+                AddAllAliveUnits(GetAliveRestEnemyUnitsForOwner(ownerType), result);
                 break;
         }
 
