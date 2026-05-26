@@ -8,6 +8,24 @@ public partial class BattleGameMain
     /// <summary>手札コマンド仮想シミュ後のスコア差分がこの値以上なら実行（OnAction / OnMain 共通）。</summary>
     private const int EnemyAiHandCommandMinScoreToExecute = 1;
 
+    /// <summary>コマンド後のプレイヤー攻撃シミュで相手（攻撃ユニット）が落ちたときの実行補正。</summary>
+    private const int EnemyAiPostAttackExecuteBonusPlayerUnitKilled = 28;
+
+    /// <summary>コマンド後もプレイヤー攻撃ユニットが生き残るときの benefit 上限。</summary>
+    private const int EnemyAiPostAttackMaxBenefitWhenPlayerSurvives = 8;
+
+    /// <summary>交換後スコア：プレイヤー攻撃ユニット撃破。</summary>
+    private const int EnemyAiPostAttackScorePlayerUnitDies = 78;
+
+    /// <summary>交換後スコア：プレイヤー攻撃ユニット生存（少なめ）。</summary>
+    private const int EnemyAiPostAttackScorePlayerUnitSurvives = 12;
+
+    /// <summary>交換後スコア：敵防御ユニット生存。</summary>
+    private const int EnemyAiPostAttackScoreEnemyDefenderSurvives = 42;
+
+    /// <summary>交換後スコア：敵防御ユニット撃破。</summary>
+    private const int EnemyAiPostAttackScoreEnemyDefenderDies = -72;
+
     private sealed class EnemyAiEffectPickContext
     {
         public PlayerType OwnerSide;
@@ -67,10 +85,14 @@ public partial class BattleGameMain
         }
 
         CardController pick = null;
-        switch (effect.type)
+        if (TryPickPrioritizedPlayerAttackerForEnemyOnAction(effect, ctx, candidates, out CardController prioritizedAttacker))
+        {
+            pick = prioritizedAttacker;
+        }
+        else switch (effect.type)
         {
             case EffectType.Damage:
-                pick = PickLowestHpUnit(candidates);
+                pick = PickEnemyAiDamageTargetDuringPlayerAttack(ctx, candidates);
                 break;
             case EffectType.Debuff:
                 pick = PickEnemyAiDebuffTarget(effect, ctx, candidates);
@@ -136,11 +158,76 @@ public partial class BattleGameMain
         return best;
     }
 
+    /// <summary>プレイヤー攻撃ウィンドウ中は、シミュ／本番とも攻撃中ユニットへのデバフ・ダメージを優先。</summary>
+    private bool TryPickPrioritizedPlayerAttackerForEnemyOnAction(
+        EffectData effect,
+        EnemyAiEffectPickContext ctx,
+        List<CardController> candidates,
+        out CardController picked)
+    {
+        picked = null;
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None
+            || attackFlowAttackerOwner != PlayerType.Player
+            || effect == null
+            || candidates == null
+            || candidates.Count == 0)
+        {
+            return false;
+        }
+
+        if (effect.type != EffectType.Damage && effect.type != EffectType.Debuff)
+        {
+            return false;
+        }
+
+        CardController focus = ctx.AttackingUnitInAttackFlow != null
+            ? ctx.AttackingUnitInAttackFlow
+            : attackFlowAttackerUnit;
+        if (focus == null || focus.Data == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            if (candidates[i] == focus)
+            {
+                picked = focus;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static CardController PickEnemyAiDamageTargetDuringPlayerAttack(
+        EnemyAiEffectPickContext ctx,
+        List<CardController> candidates)
+    {
+        if (ctx.AttackingUnitInAttackFlow != null)
+        {
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                if (candidates[i] == ctx.AttackingUnitInAttackFlow)
+                {
+                    return ctx.AttackingUnitInAttackFlow;
+                }
+            }
+        }
+
+        return PickLowestHpUnit(candidates);
+    }
+
     private CardController PickEnemyAiDebuffTarget(
         EffectData effect,
         EnemyAiEffectPickContext ctx,
         List<CardController> candidates)
     {
+        if (TryPickPrioritizedPlayerAttackerForEnemyOnAction(effect, ctx, candidates, out CardController atkPick))
+        {
+            return atkPick;
+        }
+
         bool affectsAp = effect.statTarget == EffectStatTarget.AP || effect.statTarget == EffectStatTarget.Both;
         if (!affectsAp)
         {
@@ -260,13 +347,67 @@ public partial class BattleGameMain
             restTargets);
 
         List<VirtualBattleUnitSnap> before = BuildFullBattleVirtualSnapshot();
-        int baseline = ScoreEnemyAiSimulatedBoardValue(before, attackingUnitInAttackFlow);
 
+        if (attackFlowAttackerOwner == PlayerType.Player
+            && attackFlowStrikeKind != AttackFlowStrikeKind.None)
+        {
+            int scoreWithoutCommand = SimulatePostCommandThenPlayerAttackScore(before, null, null, null);
+            int scoreWithCommand = SimulatePostCommandThenPlayerAttackScore(
+                before,
+                command,
+                effects,
+                pickCtx);
+            int benefit = scoreWithCommand - scoreWithoutCommand;
+
+            if (DidPlayerAttackerDieAfterPostCommandPlayerAttackSim(before, command, effects, pickCtx))
+            {
+                benefit += EnemyAiPostAttackExecuteBonusPlayerUnitKilled;
+            }
+            else if (DidPlayerAttackerSurviveAfterPostCommandPlayerAttackSim(before, command, effects, pickCtx))
+            {
+                benefit = Mathf.Min(benefit, EnemyAiPostAttackMaxBenefitWhenPlayerSurvives);
+            }
+
+            LogEnemyOnActionCommandSimulationForPlayerAttack(
+                command,
+                benefit,
+                scoreWithoutCommand,
+                scoreWithCommand,
+                before,
+                effects,
+                pickCtx);
+            return benefit;
+        }
+
+        int baseline = ScoreEnemyAiSimulatedBoardValue(before, attackingUnitInAttackFlow);
         List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(before);
         ApplyEnemyHandCommandVirtualEffects(work, effects, command, PlayerType.Enemy, pickCtx);
-
         int after = ScoreEnemyAiSimulatedBoardValue(work, attackingUnitInAttackFlow);
         return after - baseline;
+    }
+
+    /// <summary>コマンド（任意）適用 → 直後のプレイヤー攻撃交換を仮想適用したあとのスコア。</summary>
+    private int SimulatePostCommandThenPlayerAttackScore(
+        List<VirtualBattleUnitSnap> beforeCommandSnaps,
+        CardController command,
+        List<EffectData> effects,
+        EnemyAiEffectPickContext pickCtx)
+    {
+        List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(beforeCommandSnaps);
+        if (command != null && effects != null && pickCtx != null)
+        {
+            ApplyEnemyHandCommandVirtualEffects(work, effects, command, PlayerType.Enemy, pickCtx);
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.UnitVsUnit
+            && TryGetPlayerAttackExchangeVirtualSnaps(work, out VirtualBattleUnitSnap _, out VirtualBattleUnitSnap enemyDef)
+            && enemyDef != null)
+        {
+            ApplyVirtualPlayerAttackExchangeOnSnaps(work);
+            return ScorePostPlayerAttackExchangeOutcome(work);
+        }
+
+        return ScoreEnemyDefenseVsPlayerAttack(work);
     }
 
     /// <summary>仮想盤面の敵有利度（大きいほど敵に良い）。</summary>
@@ -281,7 +422,16 @@ public partial class BattleGameMain
 
         if (attackFlowStrikeKind != AttackFlowStrikeKind.None && attackFlowAttackerOwner == PlayerType.Player)
         {
-            return -ScoreIncomingPlayerAttackThreat(snaps);
+            List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(snaps);
+            if (attackFlowStrikeKind == AttackFlowStrikeKind.UnitVsUnit
+                && TryGetPlayerAttackExchangeVirtualSnaps(work, out _, out VirtualBattleUnitSnap ed)
+                && ed != null)
+            {
+                ApplyVirtualPlayerAttackExchangeOnSnaps(work);
+                return ScorePostPlayerAttackExchangeOutcome(work);
+            }
+
+            return ScoreEnemyDefenseVsPlayerAttack(work);
         }
 
         if (attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null)
@@ -324,6 +474,274 @@ public partial class BattleGameMain
         }
 
         return ComputeEnemyAiFieldAdvantageScore(snaps);
+    }
+
+    private bool TryGetPlayerAttackExchangeVirtualSnaps(
+        List<VirtualBattleUnitSnap> snaps,
+        out VirtualBattleUnitSnap playerAtk,
+        out VirtualBattleUnitSnap enemyDef)
+    {
+        playerAtk = attackFlowAttackerUnit != null
+            ? FindBattleVirtualSnap(snaps, attackFlowAttackerUnit)
+            : null;
+        enemyDef = null;
+        if (attackFlowBlockRedirectUnit != null)
+        {
+            enemyDef = FindBattleVirtualSnap(snaps, attackFlowBlockRedirectUnit);
+        }
+        else if (attackFlowDeclaredDefenderUnit != null)
+        {
+            enemyDef = FindBattleVirtualSnap(snaps, attackFlowDeclaredDefenderUnit);
+        }
+
+        return playerAtk != null;
+    }
+
+    /// <summary>仮想盤面上でプレイヤー攻撃の相互ダメージを適用（コマンド後の HP/AP で交換）。</summary>
+    private void ApplyVirtualPlayerAttackExchangeOnSnaps(List<VirtualBattleUnitSnap> snaps)
+    {
+        if (!TryGetPlayerAttackExchangeVirtualSnaps(snaps, out VirtualBattleUnitSnap playerAtk, out VirtualBattleUnitSnap enemyDef)
+            || playerAtk == null
+            || enemyDef == null)
+        {
+            return;
+        }
+
+        int playerStrike = Mathf.Max(0, playerAtk.Ap);
+        int enemyStrike = Mathf.Max(0, enemyDef.Ap);
+        enemyDef.Hp = Mathf.Max(0, enemyDef.Hp - playerStrike);
+        playerAtk.Hp = Mathf.Max(0, playerAtk.Hp - enemyStrike);
+    }
+
+    /// <summary>コマンド後＋プレイヤー攻撃交換**後**の結果をスコア化（敵視点・高いほど有利）。</summary>
+    private int ScorePostPlayerAttackExchangeOutcome(List<VirtualBattleUnitSnap> snapsAfterExchange)
+    {
+        if (!TryGetPlayerAttackExchangeVirtualSnaps(
+                snapsAfterExchange,
+                out VirtualBattleUnitSnap playerAtk,
+                out VirtualBattleUnitSnap enemyDef))
+        {
+            return -SumPlayerFieldThreat(snapsAfterExchange);
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield)
+        {
+            int shieldWeight = attackFlowDefenderShieldCountAtStrike > 0 ? 8 : 12;
+            return 40 - playerAtk.Ap * shieldWeight;
+        }
+
+        if (enemyDef == null)
+        {
+            return -SumPlayerFieldThreat(snapsAfterExchange);
+        }
+
+        int score = 0;
+        if (playerAtk.Hp <= 0)
+        {
+            score += EnemyAiPostAttackScorePlayerUnitDies;
+        }
+        else
+        {
+            score += EnemyAiPostAttackScorePlayerUnitSurvives;
+        }
+
+        if (enemyDef.Hp <= 0)
+        {
+            score += EnemyAiPostAttackScoreEnemyDefenderDies;
+        }
+        else
+        {
+            score += EnemyAiPostAttackScoreEnemyDefenderSurvives + enemyDef.Hp;
+        }
+
+        if (playerAtk.Hp <= 0 && enemyDef.Hp > 0)
+        {
+            score += 25;
+        }
+
+        if (playerAtk.Hp > 0 && enemyDef.Hp <= 0)
+        {
+            score -= 35;
+        }
+
+        return score;
+    }
+
+    private bool DidPlayerAttackerDieAfterPostCommandPlayerAttackSim(
+        List<VirtualBattleUnitSnap> beforeCommandSnaps,
+        CardController command,
+        List<EffectData> effects,
+        EnemyAiEffectPickContext pickCtx)
+    {
+        List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(beforeCommandSnaps);
+        if (command != null && effects != null && pickCtx != null)
+        {
+            ApplyEnemyHandCommandVirtualEffects(work, effects, command, PlayerType.Enemy, pickCtx);
+        }
+
+        if (!TryGetPlayerAttackExchangeVirtualSnaps(work, out VirtualBattleUnitSnap playerAtk, out VirtualBattleUnitSnap enemyDef)
+            || enemyDef == null)
+        {
+            return false;
+        }
+
+        ApplyVirtualPlayerAttackExchangeOnSnaps(work);
+        return playerAtk != null && playerAtk.Hp <= 0;
+    }
+
+    private bool DidPlayerAttackerSurviveAfterPostCommandPlayerAttackSim(
+        List<VirtualBattleUnitSnap> beforeCommandSnaps,
+        CardController command,
+        List<EffectData> effects,
+        EnemyAiEffectPickContext pickCtx)
+    {
+        List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(beforeCommandSnaps);
+        if (command != null && effects != null && pickCtx != null)
+        {
+            ApplyEnemyHandCommandVirtualEffects(work, effects, command, PlayerType.Enemy, pickCtx);
+        }
+
+        if (!TryGetPlayerAttackExchangeVirtualSnaps(work, out VirtualBattleUnitSnap playerAtk, out VirtualBattleUnitSnap enemyDef)
+            || enemyDef == null)
+        {
+            return false;
+        }
+
+        ApplyVirtualPlayerAttackExchangeOnSnaps(work);
+        return playerAtk != null && playerAtk.Hp > 0;
+    }
+
+    /// <summary>プレイヤー攻撃に対する防御側ユニットが交換後も生きるか。</summary>
+    private static bool EnemyDefenderSurvivesPlayerAttackExchange(
+        VirtualBattleUnitSnap playerAtk,
+        VirtualBattleUnitSnap enemyDef)
+    {
+        if (playerAtk == null || enemyDef == null)
+        {
+            return false;
+        }
+
+        return Mathf.Max(0, enemyDef.Hp - playerAtk.Ap) > 0;
+    }
+
+    /// <summary>プレイヤーだけが残る一方的交換か（敵防御ユニットが落ちる）。</summary>
+    private static bool IsOneSidedPlayerAttackTrade(
+        VirtualBattleUnitSnap playerAtk,
+        VirtualBattleUnitSnap enemyDef)
+    {
+        if (playerAtk == null || enemyDef == null)
+        {
+            return false;
+        }
+
+        int enemyHpAfter = Mathf.Max(0, enemyDef.Hp - playerAtk.Ap);
+        int playerHpAfter = Mathf.Max(0, playerAtk.Hp - enemyDef.Ap);
+        return enemyHpAfter <= 0 && playerHpAfter > 0;
+    }
+
+    /// <summary>プレイヤー攻撃中の敵評価（大きいほど敵に有利）。防御ユニット生存・攻撃者弱体化を重視。</summary>
+    private int ScoreEnemyDefenseVsPlayerAttack(List<VirtualBattleUnitSnap> snaps)
+    {
+        if (!TryGetPlayerAttackExchangeVirtualSnaps(snaps, out VirtualBattleUnitSnap playerAtk, out VirtualBattleUnitSnap enemyDef))
+        {
+            return -SumPlayerFieldThreat(snaps);
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield)
+        {
+            int shieldWeight = attackFlowDefenderShieldCountAtStrike > 0 ? 8 : 12;
+            return 40 - playerAtk.Ap * shieldWeight;
+        }
+
+        if (enemyDef == null)
+        {
+            return -SumPlayerFieldThreat(snaps);
+        }
+
+        int enemyHpAfter = Mathf.Max(0, enemyDef.Hp - playerAtk.Ap);
+        int playerHpAfter = Mathf.Max(0, playerAtk.Hp - enemyDef.Ap);
+        int score = 0;
+        if (enemyHpAfter > 0)
+        {
+            score += 60 + enemyHpAfter * 2 + enemyDef.Ap;
+        }
+        else
+        {
+            score -= 80;
+        }
+
+        if (playerHpAfter <= 0)
+        {
+            score += 55;
+        }
+        else
+        {
+            score -= playerHpAfter;
+        }
+
+        if (IsOneSidedPlayerAttackTrade(playerAtk, enemyDef))
+        {
+            score -= 70;
+        }
+
+        score -= playerAtk.Ap * 3;
+        return score;
+    }
+
+    private static string FormatPostPlayerAttackExchangeResultLine(
+        VirtualBattleUnitSnap playerAtk,
+        VirtualBattleUnitSnap enemyDef)
+    {
+        if (playerAtk == null)
+        {
+            return "(no player attacker)";
+        }
+
+        if (enemyDef == null)
+        {
+            return $"afterAttack player:{playerAtk.Name} HP{playerAtk.Hp} AP{playerAtk.Ap} (shield/no def unit)";
+        }
+
+        string playerOutcome = playerAtk.Hp <= 0 ? "playerKILLED" : "playerSURVIVES";
+        string enemyOutcome = enemyDef.Hp <= 0 ? "enemyDefKILLED" : "enemyDefSURVIVES";
+        return $"afterAttack player:{playerAtk.Name} HP{playerAtk.Hp} AP{playerAtk.Ap}({playerOutcome}) "
+            + $"enemyDef:{enemyDef.Name} HP{enemyDef.Hp} AP{enemyDef.Ap}({enemyOutcome})";
+    }
+
+    private void LogEnemyOnActionCommandSimulationForPlayerAttack(
+        CardController command,
+        int simBenefit,
+        int scoreWithoutCommand,
+        int scoreWithCommand,
+        List<VirtualBattleUnitSnap> beforeCommand,
+        List<EffectData> effects,
+        EnemyAiEffectPickContext pickCtx)
+    {
+        if (command == null || command.Data == null || attackFlowAttackerOwner != PlayerType.Player)
+        {
+            return;
+        }
+
+        List<VirtualBattleUnitSnap> noCmd = CloneVirtualBattleSnaps(beforeCommand);
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.UnitVsUnit)
+        {
+            ApplyVirtualPlayerAttackExchangeOnSnaps(noCmd);
+        }
+
+        List<VirtualBattleUnitSnap> withCmd = CloneVirtualBattleSnaps(beforeCommand);
+        ApplyEnemyHandCommandVirtualEffects(withCmd, effects, command, PlayerType.Enemy, pickCtx);
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.UnitVsUnit)
+        {
+            ApplyVirtualPlayerAttackExchangeOnSnaps(withCmd);
+        }
+
+        TryGetPlayerAttackExchangeVirtualSnaps(noCmd, out VirtualBattleUnitSnap paNo, out VirtualBattleUnitSnap edNo);
+        TryGetPlayerAttackExchangeVirtualSnaps(withCmd, out VirtualBattleUnitSnap paCmd, out VirtualBattleUnitSnap edCmd);
+        Debug.Log(
+            $"[EnemyAI] OnActionSim(playerAttack+cmdThenAtk) cmd:{command.Data.cardName}(id:{command.Data.id}) "
+            + $"benefit:{simBenefit} postScore noCmd:{scoreWithoutCommand} withCmd:{scoreWithCommand} | "
+            + $"noCommand→{FormatPostPlayerAttackExchangeResultLine(paNo, edNo)} | "
+            + $"withCommand→{FormatPostPlayerAttackExchangeResultLine(paCmd, edCmd)}");
     }
 
     /// <summary>プレイヤー攻撃中：敵側から見た「受けるプレッシャー」（大きいほど危険）。</summary>
@@ -604,6 +1022,14 @@ public partial class BattleGameMain
         List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
         CardController bestCmd = null;
         int bestScore = int.MinValue;
+        bool playerIsAttacking = attackFlowAttackerOwner == PlayerType.Player && attackFlowAttackerUnit != null;
+        if (playerIsAttacking)
+        {
+            Debug.Log(
+                $"[EnemyAI] OnActionSim(playerAttack+cmdThenAtk) start context:{context} eligibleCmds:{eligible.Count} "
+                + $"(score=postCommand+playerAttack exchange, high if opponent unit dies)");
+        }
+
         for (int i = 0; i < eligible.Count; i++)
         {
             CardController cmd = eligible[i];
@@ -654,21 +1080,7 @@ public partial class BattleGameMain
 
         if (attackFlowAttackerOwner == PlayerType.Player && attackFlowAttackerUnit != null)
         {
-            List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(BuildFullBattleVirtualSnapshot());
-            List<EffectData> effects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
-            EnemyAiEffectPickContext ctx = BuildEnemyAiEffectPickContext(
-                PlayerType.Enemy,
-                command,
-                attackingUnitInAttackFlow,
-                restTargets);
-            ApplyEnemyHandCommandVirtualEffects(work, effects, command, PlayerType.Enemy, ctx);
-            VirtualBattleUnitSnap pa = FindBattleVirtualSnap(work, attackFlowAttackerUnit);
-            if (pa != null && (pa.Hp <= 0 || pa.Ap <= 0))
-            {
-                return true;
-            }
-
-            return false;
+            return EnemyAiHandCommandSimWorthExecuteDuringPlayerAttack(command, attackingUnitInAttackFlow, restTargets);
         }
 
         if (attackingUnitInAttackFlow != null
@@ -681,6 +1093,67 @@ public partial class BattleGameMain
                 attackingUnitInAttackFlow,
                 restTargets,
                 new List<CardController> { command });
+        }
+
+        return false;
+    }
+
+    /// <summary>一方的に取られる見込みのとき、コマンド後に防御側が生き残る／攻撃者が無力化されれば実行。</summary>
+    private bool EnemyAiHandCommandSimWorthExecuteDuringPlayerAttack(
+        CardController command,
+        CardController attackingUnitInAttackFlow,
+        List<CardController> restTargets)
+    {
+        if (command == null || command.Data == null)
+        {
+            return false;
+        }
+
+        List<VirtualBattleUnitSnap> before = BuildFullBattleVirtualSnapshot();
+        List<EffectData> effects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        EnemyAiEffectPickContext ctx = BuildEnemyAiEffectPickContext(
+            PlayerType.Enemy,
+            command,
+            attackingUnitInAttackFlow,
+            restTargets);
+
+        if (DidPlayerAttackerDieAfterPostCommandPlayerAttackSim(before, command, effects, ctx))
+        {
+            return true;
+        }
+
+        List<VirtualBattleUnitSnap> noCmd = CloneVirtualBattleSnaps(before);
+        List<VirtualBattleUnitSnap> withCmd = CloneVirtualBattleSnaps(before);
+        ApplyEnemyHandCommandVirtualEffects(withCmd, effects, command, PlayerType.Enemy, ctx);
+        if (attackFlowStrikeKind != AttackFlowStrikeKind.UnitVsUnit)
+        {
+            return false;
+        }
+
+        ApplyVirtualPlayerAttackExchangeOnSnaps(noCmd);
+        ApplyVirtualPlayerAttackExchangeOnSnaps(withCmd);
+        if (!TryGetPlayerAttackExchangeVirtualSnaps(noCmd, out VirtualBattleUnitSnap paNo, out VirtualBattleUnitSnap edNo)
+            || !TryGetPlayerAttackExchangeVirtualSnaps(withCmd, out VirtualBattleUnitSnap paCmd, out VirtualBattleUnitSnap edCmd)
+            || edNo == null
+            || edCmd == null)
+        {
+            return false;
+        }
+
+        bool playerDiesWithCmd = paCmd.Hp <= 0;
+        bool playerSurvivesWithCmd = paCmd.Hp > 0;
+        bool enemySurvivesWithCmd = edCmd.Hp > 0;
+        bool enemyDiesWithoutCmd = edNo.Hp <= 0;
+        bool enemyDiesWithCmd = edCmd.Hp <= 0;
+
+        if (playerDiesWithCmd)
+        {
+            return true;
+        }
+
+        if (enemyDiesWithoutCmd && enemySurvivesWithCmd && playerSurvivesWithCmd)
+        {
+            return true;
         }
 
         return false;
