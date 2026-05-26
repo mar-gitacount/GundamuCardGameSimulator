@@ -54,3 +54,5 @@ public enum AttackFlg
     False = 0,
     True = 1,
 }
+
+

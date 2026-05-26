@@ -29,6 +29,8 @@ public class CardData : ScriptableObject
 
     [Tooltip("敵の攻撃をブロックし、身代わりのユニット戦にできる（ACTIVE 時のみ選択可）。")]
     public bool isBlocker;
+    
+    public bool isNotDirectAttack;
 }
 
 
@@ -47,6 +49,7 @@ public class CardJson
     public int color; // カードの色を追加
     public int[] featureIds;
     public bool isBlocker;
+    public bool isNotDirectAttack;
 }
 
 [Serializable]

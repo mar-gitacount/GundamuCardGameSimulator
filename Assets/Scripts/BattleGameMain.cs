@@ -783,14 +783,17 @@ public partial class BattleGameMain : MonoBehaviour
                     opponentState,
                     cardController.CurrentPower);
                 bool showDirectAttack = opponentState.shield <= 0;
+                bool allowShieldOrDirectAttack = !cardController.Data.isNotDirectAttack
+                    && (showShieldAttack || showDirectAttack);
 
-                if (showShieldAttack || showDirectAttack)
+                if (allowShieldOrDirectAttack)
                 {
                     string shieldLabel = showDirectAttack
                         ? "Direct Attack"
                         : opponentState.exBase > 0
                             ? $"Attack Shield (deal {cardController.CurrentPower} to EX Base)"
                             : "Attack Shield (break 1)";
+
                     var shieldAttackBtn = FilterPanel.CreateChildButton(shieldLabel);
                     RectTransform shieldRect = shieldAttackBtn.GetComponent<RectTransform>();
                     shieldRect.sizeDelta = new Vector2(320, 50);
@@ -1370,9 +1373,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.CurrentPower);
             bool canDirectAttack = gundamRule.Player.shield <= 0;
+            bool canShieldOrDirectAttack = !unit.Data.isNotDirectAttack && (canAttackShield || canDirectAttack);
             List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
             bool canAttackUnit = restTargets.Count > 0;
-            if (!canAttackShield && !canDirectAttack && !canAttackUnit)
+            if (!canShieldOrDirectAttack && !canAttackUnit)
             {
                 continue;
             }
@@ -1383,9 +1387,9 @@ public partial class BattleGameMain : MonoBehaviour
                 LogEnemyAiPreAttackUnitAttackSimulation(unit, restTargets, eligibleEnemyHand);
             }
 
-            if (canAttackShield || canDirectAttack)
+            if (canShieldOrDirectAttack)
             {
-                Debug.Log($"[EnemyAI] canAttackShield:{canAttackShield} canDirectAttack:{canDirectAttack}");
+                Debug.Log($"[EnemyAI] canAttackShield:{canAttackShield} canDirectAttack:{canDirectAttack} isNotDirectAttack:{unit.Data.isNotDirectAttack}");
                 LogEnemyAiPreShieldAttackSimulation(unit, eligibleEnemyHand);
                 LogEnemyAiShieldAttackRedirectScenariosPick(unit, restTargets, eligibleEnemyHand);
             }
@@ -1417,7 +1421,7 @@ public partial class BattleGameMain : MonoBehaviour
             AttackFlg before = unit.AttackFlgState;
             bool attackShield = ShouldEnemyAiPreferShieldAttack(
                 unit,
-                canAttackShield || canDirectAttack,
+                canShieldOrDirectAttack,
                 canAttackUnit,
                 restTargets,
                 eligibleEnemyHand);
@@ -3334,6 +3338,12 @@ public partial class BattleGameMain : MonoBehaviour
         if (attacker.AttackFlgState != AttackFlg.True)
         {
             Debug.Log("This unit cannot attack.");
+            return;
+        }
+
+        if (attacker.Data.isNotDirectAttack)
+        {
+            Debug.Log("This unit cannot attack shield or the player directly (isNotDirectAttack).");
             return;
         }
 
