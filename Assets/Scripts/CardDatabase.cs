@@ -17,6 +17,7 @@ public class CardDatabase : MonoBehaviour
         Debug.Log("CardDatabase Awake: インスタンスが作成されました");
 
         CardFeatureRegistry.EnsureLoaded();
+        NamedEffectSetRegistry.EnsureLoaded();
         cardDict = new Dictionary<int, CardData>();
         LoadAllCards();
         // foreach (var card in cardList)

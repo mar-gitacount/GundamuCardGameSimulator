@@ -1,0 +1,58 @@
+{
+    "effectSets": [
+        {
+            "effectSetName": "ScaleSelfCostLevelByEnemyUnits",
+            "displayName": "相手ユニット数×コスト・Lv-1（Self）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": 0,
+                    "statTarget": 2,
+                    "duration": 0,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 1,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": 0,
+                    "statTarget": 3,
+                    "duration": 0,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 1,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DamageEnemy3_SelectSingle",
+            "displayName": "敵ユニット1体に3ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 1,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        }
+    ]
+}

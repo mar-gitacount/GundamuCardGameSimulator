@@ -211,6 +211,10 @@ public class TimedEffectData
     [Tooltip("空なら条件なし（常に発動）。1件以上はすべて満たすと発動（AND）。")]
     public List<EffectActivationCondition> activationConditions = new List<EffectActivationCondition>();
 
+    [Tooltip("設定時は named_effect_master.json のプリセットを使用。空なら effects を使用。")]
+    public string effectsName;
+
+    [Tooltip("effectsName が空のときのインライン効果。effectsName 設定時は参照されない。")]
     public List<EffectData> effects = new List<EffectData>();
 }
 
@@ -226,14 +230,15 @@ public static class TimedEffectDataExtensions
     /// <summary>Self 向けの Buff/Debuff（コスト・レベル等）だけのブロックか。</summary>
     public static bool ContainsOnlySelfStatBuffDebuffEffects(this TimedEffectData timed)
     {
-        if (timed?.effects == null || timed.effects.Count == 0)
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        if (resolved.Count == 0)
         {
             return false;
         }
 
-        for (int i = 0; i < timed.effects.Count; i++)
+        for (int i = 0; i < resolved.Count; i++)
         {
-            EffectData e = timed.effects[i];
+            EffectData e = resolved[i];
             if (e == null)
             {
                 continue;
@@ -267,7 +272,7 @@ public static class TimedEffectDataExtensions
     /// <summary>配備時（OnPlayed）に解決するブロック。手札パッシブ専用ブロックは除外。</summary>
     public static bool IsOnFieldPlayedResolutionBlock(this TimedEffectData timed)
     {
-        if (timed == null || timed.timing != EffectTiming.OnPlayed || timed.effects == null || timed.effects.Count == 0)
+        if (timed == null || timed.timing != EffectTiming.OnPlayed || !timed.HasResolvedEffects())
         {
             return false;
         }

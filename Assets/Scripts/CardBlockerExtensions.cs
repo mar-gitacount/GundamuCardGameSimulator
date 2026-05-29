@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 /// <summary>
 /// ブロッカー（敵攻撃の身代わり）のデータ判定。
 /// </summary>
@@ -72,7 +74,7 @@ public static class CardBlockerExtensions
         for (int i = 0; i < data.timedEffects.Count; i++)
         {
             TimedEffectData timed = data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || timed.effects == null)
+            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || !timed.HasResolvedEffects())
             {
                 continue;
             }
@@ -82,9 +84,10 @@ public static class CardBlockerExtensions
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            IReadOnlyList<EffectData> resolvedEffects = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedEffects.Count; j++)
             {
-                EffectData effect = timed.effects[j];
+                EffectData effect = resolvedEffects[j];
                 if (effect != null && effect.type == EffectType.BlockRedirect)
                 {
                     return true;
