@@ -171,6 +171,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     /// </summary>
     public void SetUnitRestVisual(bool isRest)
     {
+        if (this == null || gameObject == null)
+        {
+            return;
+        }
+
         if (Data == null || Data.type != Type.Unit)
         {
             return;

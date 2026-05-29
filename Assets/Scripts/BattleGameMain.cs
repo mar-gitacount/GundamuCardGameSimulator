@@ -313,6 +313,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         Debug.Log("バトルゲームのメインシーン");
         CardFeatureRegistry.EnsureLoaded();
+        NamedEffectSetRegistry.EnsureLoaded();
         isFirstPlayer = DecideTurnOrder();
         PlayerType firstPlayerThisGame = currentPlayerType;
 
@@ -2770,9 +2771,62 @@ public partial class BattleGameMain : MonoBehaviour
         return c.transform.IsChildOf(rule.PlayerDeployPanel);
     }
 
+    private static bool IsCardControllerInstanceValid(CardController c)
+    {
+        return c != null && c.gameObject != null;
+    }
+
+    private void CancelPendingUnitAttackFlow()
+    {
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearAttackFlowContext();
+    }
+
+    /// <summary>OnAction 等の UI 後に、攻撃フロー文脈からユニット戦を再開する（破壊済み参照を避ける）。</summary>
+    private void TryResumeUnitVsUnitAttackAfterOnAction(bool skipOnActionPause, bool skipAttackedSidePanelPause)
+    {
+        CardController attacker = attackFlowAttackerUnit != null
+            ? attackFlowAttackerUnit
+            : pendingUnitAttackAttacker;
+        CardController defender = attackFlowBlockRedirectUnit != null
+            ? attackFlowBlockRedirectUnit
+            : attackFlowDeclaredDefenderUnit;
+
+        if (!IsCardControllerInstanceValid(attacker))
+        {
+            Debug.Log("[UnitAttack] Attacker was destroyed — cancel attack continuation.");
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        if (!IsCardControllerInstanceValid(defender))
+        {
+            Debug.Log("[UnitAttack] Defender was destroyed — cancel attack continuation.");
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        PlayerType attackerOwner = attackFlowAttackerOwner;
+        PlayerType defenderOwner = ResolveCardOwner(defender.transform);
+
+        if (attackFlowBlockRedirectUnit != null && defender == attackFlowBlockRedirectUnit)
+        {
+            TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                attacker,
+                defender,
+                attackerOwner,
+                defenderOwner,
+                skipOnActionPause);
+            return;
+        }
+
+        TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause, skipAttackedSidePanelPause);
+    }
+
     private bool IsUnitAliveOnAnyDeployField(CardController c)
     {
-        if (c == null || c.Data == null || c.Data.type != Type.Unit)
+        if (!IsCardControllerInstanceValid(c) || c.Data == null || c.Data.type != Type.Unit)
         {
             return false;
         }
@@ -3016,14 +3070,15 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
             {
                 TimedEffectData timed = sourceCard.Data.timedEffects[i];
-                if (timed == null || timed.timing != EffectTiming.OnAttack || timed.effects == null)
+                if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
                 {
                     continue;
                 }
 
-                for (int j = 0; j < timed.effects.Count; j++)
+                IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+                for (int j = 0; j < resolvedOnAttack.Count; j++)
                 {
-                    EffectData effect = timed.effects[j];
+                    EffectData effect = resolvedOnAttack[j];
                     if (effect == null)
                     {
                         continue;
@@ -3575,19 +3630,30 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(defender))
+        {
+            Debug.Log("[UnitAttack] Attacker or defender no longer exists — cancel.");
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
         if (attacker.Data.type != Type.Unit || defender.Data.type != Type.Unit)
         {
             Debug.Log("Only units can attack each other.");
             return;
         }
 
-        if (attacker.CurrentHp <= 0)
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            defender,
+            attackFlowBlockRedirectUnit);
+
+        if (!IsUnitAliveOnAnyDeployField(attacker))
         {
-            Debug.Log("[UnitAttack] Attacker HP is 0 — consume attack and set REST.");
-            attacker.SetAttackFlg(AttackFlg.False);
-            attacker.SetUnitRestVisual(true);
-            pendingUnitAttackAttacker = null;
-            pendingOnAttackEffectResolvedAttacker = null;
+            Debug.Log("[UnitAttack] Attacker not on field or HP is 0 — cancel attack.");
+            CancelPendingUnitAttackFlow();
             return;
         }
 
@@ -3601,7 +3667,7 @@ public partial class BattleGameMain : MonoBehaviour
                 attacker,
                 attackerOwner,
                 defender,
-                () => TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause, skipAttackedSidePanelPause)))
+                () => TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, skipAttackedSidePanelPause)))
             {
                 return;
             }
@@ -3651,7 +3717,13 @@ public partial class BattleGameMain : MonoBehaviour
 
                     Debug.Log(
                         "[BlockRedirect] ブロッカー未選択のため、宣言済み防御対象への通常ユニット戦へ継続。");
-                    TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause, true);
+                    RegisterAttackFlowContextForOnAction(
+                        attacker,
+                        attackerOwner,
+                        AttackFlowStrikeKind.UnitVsUnit,
+                        defender,
+                        attackFlowBlockRedirectUnit);
+                    TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, true);
                 }))
         {
             return;
@@ -3663,18 +3735,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        RegisterAttackFlowContextForOnAction(
-            attacker,
-            attackerOwner,
-            AttackFlowStrikeKind.UnitVsUnit,
-            defender,
-            attackFlowBlockRedirectUnit);
-
         if (!skipOnActionPause
             && TryRunAttackActionSteps(
                 defenderOwner,
                 attackerOwner,
-                () => TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, true, true),
+                () => TryResumeUnitVsUnitAttackAfterOnAction(true, true),
                 attacker))
         {
             return;
@@ -3762,8 +3827,10 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType blockerOwner,
         bool skipOnActionPause = false)
     {
-        if (attacker == null || blocker == null || attacker.Data == null || blocker.Data == null)
+        if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(blocker)
+            || attacker.Data == null || blocker.Data == null)
         {
+            CancelPendingUnitAttackFlow();
             return;
         }
 
@@ -3779,12 +3846,21 @@ public partial class BattleGameMain : MonoBehaviour
             && TryRunAttackActionSteps(
                 blockerOwner,
                 attackerOwner,
-                () => TryResolveBlockRedirectUnitCombatWithOnActionSteps(
-                    attacker,
-                    blocker,
-                    attackerOwner,
-                    blockerOwner,
-                    skipOnActionPause: true),
+                () =>
+                {
+                    RegisterAttackFlowContextForOnAction(
+                        attacker,
+                        attackerOwner,
+                        AttackFlowStrikeKind.UnitVsUnit,
+                        blocker,
+                        attackFlowBlockRedirectUnit);
+                    TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                        attackFlowAttackerUnit,
+                        attackFlowBlockRedirectUnit,
+                        attackFlowAttackerOwner,
+                        ResolveCardOwner(attackFlowBlockRedirectUnit.transform),
+                        skipOnActionPause: true);
+                },
                 attacker))
         {
             return;
@@ -3804,8 +3880,10 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner,
         PlayerType blockerOwner)
     {
-        if (attacker == null || blocker == null || attacker.Data == null || blocker.Data == null)
+        if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(blocker)
+            || attacker.Data == null || blocker.Data == null)
         {
+            CancelPendingUnitAttackFlow();
             return;
         }
 
@@ -4055,14 +4133,15 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < data.timedEffects.Count; i++)
         {
             TimedEffectData timed = data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnAttack || timed.effects == null)
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
             {
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnAttack.Count; j++)
             {
-                EffectData effect = timed.effects[j];
+                EffectData effect = resolvedOnAttack[j];
                 if (effect == null)
                 {
                     continue;
@@ -4134,7 +4213,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < reactionUnit.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = reactionUnit.Data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || timed.effects == null)
+            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || !timed.HasResolvedEffects())
             {
                 continue;
             }
@@ -4144,9 +4223,10 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            IReadOnlyList<EffectData> resolvedOnEnemyAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnEnemyAttack.Count; j++)
             {
-                EffectData effect = timed.effects[j];
+                EffectData effect = resolvedOnEnemyAttack[j];
                 if (effect != null && effect.type == EffectType.BlockRedirect)
                 {
                     return true;
@@ -4172,7 +4252,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < reactionUnit.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = reactionUnit.Data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || timed.effects == null)
+            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || !timed.HasResolvedEffects())
             {
                 continue;
             }
@@ -4182,9 +4262,10 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            IReadOnlyList<EffectData> resolvedOnEnemyAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnEnemyAttack.Count; j++)
             {
-                EffectData effect = timed.effects[j];
+                EffectData effect = resolvedOnEnemyAttack[j];
                 if (effect == null || effect.type == EffectType.BlockRedirect)
                 {
                     continue;
@@ -4667,14 +4748,15 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < data.timedEffects.Count; i++)
         {
             TimedEffectData timed = data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnAttack || timed.effects == null)
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
             {
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnAttack.Count; j++)
             {
-                EffectData effect = timed.effects[j];
+                EffectData effect = resolvedOnAttack[j];
                 if (effect == null)
                 {
                     continue;
@@ -4770,7 +4852,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int ti = 0; ti < card.Data.timedEffects.Count; ti++)
             {
                 TimedEffectData timed = card.Data.timedEffects[ti];
-                if (timed == null || timed.timing != EffectTiming.OnHandAuto || timed.effects == null || timed.effects.Count == 0)
+                if (timed == null || timed.timing != EffectTiming.OnHandAuto || !timed.HasResolvedEffects())
                 {
                     continue;
                 }
@@ -4780,12 +4862,13 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
+                IReadOnlyList<EffectData> resolvedOnHandAuto = timed.GetResolvedEffects();
                 Debug.Log(
                     $"[OnHandAuto] unconditional block side:{ownerType} card:{card.Data.cardName}(id:{card.Data.id}) "
-                    + $"costBefore:{card.CurrentCost} effects:{timed.effects.Count}");
-                for (int ei = 0; ei < timed.effects.Count; ei++)
+                    + $"costBefore:{card.CurrentCost} effects:{resolvedOnHandAuto.Count}");
+                for (int ei = 0; ei < resolvedOnHandAuto.Count; ei++)
                 {
-                    EffectData effect = timed.effects[ei];
+                    EffectData effect = resolvedOnHandAuto[ei];
                     if (effect == null)
                     {
                         continue;
@@ -4920,7 +5003,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int bi = 0; bi < cc.Data.timedEffects.Count; bi++)
         {
             TimedEffectData timed = cc.Data.timedEffects[bi];
-            if (timed == null || timed.effects == null || timed.effects.Count == 0)
+            if (timed == null || !timed.HasResolvedEffects())
             {
                 continue;
             }
@@ -4937,9 +5020,10 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            for (int ei = 0; ei < timed.effects.Count; ei++)
+            IReadOnlyList<EffectData> resolvedHandPassive = timed.GetResolvedEffects();
+            for (int ei = 0; ei < resolvedHandPassive.Count; ei++)
             {
-                EffectData effect = timed.effects[ei];
+                EffectData effect = resolvedHandPassive[ei];
                 if (effect == null)
                 {
                     continue;
@@ -4976,7 +5060,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
-            if (timed == null || timed.timing != timing || timed.effects == null)
+            if (timed == null || timed.timing != timing || !timed.HasResolvedEffects())
             {
                 continue;
             }
@@ -4986,9 +5070,10 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            IReadOnlyList<EffectData> resolvedTimed = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedTimed.Count; j++)
             {
-                EffectData effect = timed.effects[j];
+                EffectData effect = resolvedTimed[j];
                 if (effect == null)
                 {
                     continue;
@@ -5050,7 +5135,7 @@ public partial class BattleGameMain : MonoBehaviour
         TryExecuteOnPlayedEffectChain(
             sourceCard,
             ownerType,
-            block.effects,
+            block.GetResolvedEffects(),
             0,
             () => RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
     }
@@ -5058,7 +5143,7 @@ public partial class BattleGameMain : MonoBehaviour
     private void TryExecuteOnPlayedEffectChain(
         CardController sourceCard,
         PlayerType ownerType,
-        List<EffectData> effects,
+        IReadOnlyList<EffectData> effects,
         int index,
         System.Action onDone)
     {
@@ -8001,7 +8086,7 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         EffectData effect,
         List<CardController> candidates,
-        List<EffectData> allEffects,
+        IReadOnlyList<EffectData> allEffects,
         int effectIndex,
         System.Action onDone)
     {
@@ -8203,7 +8288,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < source.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = source.Data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnMain || timed.effects == null)
+            if (timed == null || timed.timing != EffectTiming.OnMain || !timed.HasResolvedEffects())
             {
                 continue;
             }
@@ -8213,11 +8298,12 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            for (int j = 0; j < timed.effects.Count; j++)
+            IReadOnlyList<EffectData> resolvedOnMain = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnMain.Count; j++)
             {
-                if (timed.effects[j] != null)
+                if (resolvedOnMain[j] != null)
                 {
-                    list.Add(timed.effects[j]);
+                    list.Add(resolvedOnMain[j]);
                 }
             }
         }
@@ -8227,27 +8313,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private static List<EffectData> GetEffectsByTiming(CardData data, EffectTiming timing)
     {
-        List<EffectData> result = new List<EffectData>();
-        if (data == null || data.timedEffects == null)
-        {
-            return result;
-        }
-        for (int i = 0; i < data.timedEffects.Count; i++)
-        {
-            TimedEffectData timed = data.timedEffects[i];
-            if (timed == null || timed.timing != timing || timed.effects == null)
-            {
-                continue;
-            }
-            for (int j = 0; j < timed.effects.Count; j++)
-            {
-                if (timed.effects[j] != null)
-                {
-                    result.Add(timed.effects[j]);
-                }
-            }
-        }
-        return result;
+        return TimedEffectResolver.CollectEffectsByTiming(data, timing);
     }
 
     private void SendUsedCommandToTrash(CardController command, PlayerType ownerType)
@@ -8292,21 +8358,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private static bool HasEffectTiming(CardData data, EffectTiming timing)
     {
-        if (data == null || data.timedEffects == null)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < data.timedEffects.Count; i++)
-        {
-            TimedEffectData timed = data.timedEffects[i];
-            if (timed != null && timed.timing == timing && timed.effects != null && timed.effects.Count > 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return TimedEffectResolver.HasEffectTiming(data, timing);
     }
 
     private void ShowOnActionHandCandidatesPopup(PlayerType ownerType, string context, List<CardData> cards, System.Action onClose = null)

@@ -10,23 +10,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 27zawort
+  m_Name: 29Close Combat 1
   m_EditorClassIdentifier: 
-  id: 27
-  cardName: zawort
+  id: 29
+  cardName: GQuuuuuuX (Omega Psycommu)
   cost: 2
   level: 2
-  power: 3
-  hp: 2
-  imageName: {fileID: 21300000, guid: 05439dc25a08a324b8b8456ab6e908ef, type: 3}
+  power: 6
+  hp: 5
+  imageName: {fileID: 21300000, guid: 9fbfe04d3903eea44a28d1d1bd970ff2, type: 3}
   image: {fileID: 0}
-  version: 1
+  version: 4
   sourceType: 2
   filterType: 0
   color: 5
-  type: 0
+  type: 2
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    effectsName: DamageEnemy3_SelectSingle
+    effects: []
   features: []
-  isBlocker: 1
-  isNotDirectAttack: 1
+  isBlocker: 0
+  isNotDirectAttack: 0
