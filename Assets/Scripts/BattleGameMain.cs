@@ -106,6 +106,9 @@ public partial class BattleGameMain : MonoBehaviour
     private CardController pendingOnAttackEffectResolvedAttacker;
     private bool isEndTurnFlowRunning;
     private bool isOnActionPopupOpen;
+    private bool isShieldBreakFlowOpen;
+    private bool shieldBreakQueueRunning;
+    private readonly Queue<PendingShieldBreakBatch> pendingShieldBreakBatches = new Queue<PendingShieldBreakBatch>();
     private GameObject activeOnActionPopupRoot;
     private GameObject activeAttackFlowDebugPanelRoot;
     private bool isAttackedSidePanelOpen;
@@ -297,8 +300,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        CardGameRule rule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
-        rule.MoveTopShieldCardsToTrash(broken);
+        pendingShieldBreakBatches.Enqueue(new PendingShieldBreakBatch { Side = side, Count = broken });
+        if (!shieldBreakQueueRunning)
+        {
+            StartCoroutine(RunShieldBreakQueueCoroutine());
+        }
     }
 
     private void Start()
@@ -1249,7 +1255,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (TryEnemyExecuteOnMainFromHand())
         {
-            yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen);
+            yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
             yield return new WaitForSeconds(0.15f);
         }
 
@@ -1273,10 +1279,10 @@ public partial class BattleGameMain : MonoBehaviour
             int attackedNow = TryEnemyShieldAttacks();
             if (attackedNow <= 0)
             {
-                if (isOnActionPopupOpen || isActionThinkPauseOpen)
+                if (isOnActionPopupOpen || isActionThinkPauseOpen || isShieldBreakFlowOpen)
                 {
                     // Close 後に onClose コールバックで攻撃が実行されるため、完了まで待って再評価する。
-                    yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen);
+                    yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
                     yield return new WaitForSeconds(0.15f);
                     continue;
                 }
@@ -1284,10 +1290,10 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             attacked += attackedNow;
-            if (isOnActionPopupOpen || isActionThinkPauseOpen)
+            if (isOnActionPopupOpen || isActionThinkPauseOpen || isShieldBreakFlowOpen)
             {
                 // アクションステップの Close まで次の攻撃に進ませない。
-                yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen);
+                yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
             }
 
             // 1回攻撃ごとに間隔を入れて、連続攻撃が速すぎる体感を防ぐ。
@@ -1453,7 +1459,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 return 0;
             }
-            if (isOnActionPopupOpen || isActionThinkPauseOpen)
+            if (isOnActionPopupOpen || isActionThinkPauseOpen || isShieldBreakFlowOpen)
             {
                 return 0;
             }
