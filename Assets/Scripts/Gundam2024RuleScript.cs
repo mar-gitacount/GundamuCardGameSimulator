@@ -402,6 +402,31 @@ public class Gundam2024RuleScript
         target.exBase = Mathf.Max(0, target.exBase - amount);
     }
 
+    /// <summary>
+    /// 制圧（シールドのみ）。EX ベースが 0 のときだけ実シールドを破壊する。呼び出し側で EX 有無を確認すること。
+    /// </summary>
+    public int ApplySuppressShieldBreaks(PlayerSide targetSide, int breakCount)
+    {
+        if (breakCount <= 0)
+        {
+            return 0;
+        }
+
+        PlayerState target = GetState(targetSide);
+        if (target.shield <= 0 || target.exBase > 0)
+        {
+            return 0;
+        }
+
+        int applied = Mathf.Min(breakCount, target.shield);
+        if (applied > 0)
+        {
+            DamageShield(targetSide, applied);
+        }
+
+        return applied;
+    }
+
     /// <summary>シールド攻撃ボタンを出すか（シールドが残っていること、AP が 1 以上必須）。</summary>
     public bool CanShowUnitShieldAttackOption(PlayerState defender, int attackerPower)
     {

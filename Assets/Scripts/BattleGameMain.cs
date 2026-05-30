@@ -3569,7 +3569,12 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.CurrentPower, hadExBaseLayerAtShieldAttackStart))
+            if (!TryResolveShieldAttackStrikeDamage(
+                    attacker,
+                    targetSide,
+                    defender,
+                    hadExBaseLayerAtShieldAttackStart,
+                    out string shieldStrikeLog))
             {
                 Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
                 ClearAttackFlowContext();
@@ -3578,15 +3583,13 @@ public partial class BattleGameMain : MonoBehaviour
 
             attacker.SetAttackFlg(AttackFlg.False);
             attacker.SetUnitRestVisual(true);
-            if (hadExBaseLayerAtShieldAttackStart)
+            if (!string.IsNullOrEmpty(shieldStrikeLog))
             {
-                Debug.Log($"[Attack] Shield attack vs EX layer. EX Base is now {defender.exBase}.");
-            }
-            else
-            {
-                Debug.Log("[Attack] Broke 1 shield (no EX Base).");
+                Debug.Log(shieldStrikeLog);
             }
 
+            TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnShieldAttack);
+            TriggerMountedPilotOnShieldAttackEffects(attacker, attackerOwner);
             TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
             TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
             pendingUnitAttackAttacker = null;
@@ -3605,6 +3608,119 @@ public partial class BattleGameMain : MonoBehaviour
                 blockShieldFlowDuringShieldAttack = false;
             }
         }
+    }
+
+    private const int DefaultSuppressShieldBreakCount = 2;
+
+    /// <summary>
+    /// 攻撃者（＋搭乗パイロット）の OnShieldAttack にある制圧の最大破壊枚数。無ければ 0。
+    /// </summary>
+    private static int GetMaxSuppressBreakCountFromCardData(CardData data)
+    {
+        List<EffectData> effects = TimedEffectResolver.CollectEffectsByTiming(data, EffectTiming.OnShieldAttack);
+        int maxBreaks = 0;
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null || effect.type != EffectType.Suppress)
+            {
+                continue;
+            }
+
+            int breaks = effect.value > 0 ? effect.value : DefaultSuppressShieldBreakCount;
+            if (breaks > maxBreaks)
+            {
+                maxBreaks = breaks;
+            }
+        }
+
+        return maxBreaks;
+    }
+
+    private static int GetMaxSuppressBreakCountFromUnit(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return 0;
+        }
+
+        int maxBreaks = GetMaxSuppressBreakCountFromCardData(unit.Data);
+        CardController pilot = unit.MountedPilot;
+        if (pilot != null && pilot.Data != null)
+        {
+            maxBreaks = Mathf.Max(maxBreaks, GetMaxSuppressBreakCountFromCardData(pilot.Data));
+        }
+
+        return maxBreaks;
+    }
+
+    /// <summary>
+    /// シールド攻撃のダメージ本体。EX あり→通常シールド攻撃。シールドのみ＋制圧→実シールドを複数枚。
+    /// </summary>
+    private bool TryResolveShieldAttackStrikeDamage(
+        CardController attacker,
+        Gundam2024RuleScript.PlayerSide targetSide,
+        Gundam2024RuleScript.PlayerState defender,
+        bool hadExBaseLayerAtShieldAttackStart,
+        out string logMessage)
+    {
+        logMessage = null;
+        if (attacker == null || defender == null || gundamRule == null)
+        {
+            return false;
+        }
+
+        int suppressBreaks = GetMaxSuppressBreakCountFromUnit(attacker);
+        bool shieldOnly = defender.exBase <= 0 && !hadExBaseLayerAtShieldAttackStart;
+
+        if (suppressBreaks > 0 && shieldOnly)
+        {
+            int applied = gundamRule.ApplySuppressShieldBreaks(targetSide, suppressBreaks);
+            if (applied <= 0)
+            {
+                return false;
+            }
+
+            logMessage = $"[Attack] Suppress broke {applied} shield(s) (shield-only).";
+            return true;
+        }
+
+        if (attacker.CurrentPower <= 0)
+        {
+            return false;
+        }
+
+        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.CurrentPower, hadExBaseLayerAtShieldAttackStart))
+        {
+            return false;
+        }
+
+        if (hadExBaseLayerAtShieldAttackStart)
+        {
+            logMessage = $"[Attack] Shield attack vs EX layer. EX Base is now {defender.exBase}.";
+        }
+        else
+        {
+            logMessage = "[Attack] Broke 1 shield (no EX Base).";
+        }
+
+        return true;
+    }
+
+    private void TriggerMountedPilotOnShieldAttackEffects(CardController attacker, PlayerType attackerOwner)
+    {
+        if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        CardController pilot = attacker.MountedPilot;
+        if (pilot == null || pilot.Data == null)
+        {
+            return;
+        }
+
+        TriggerCardEffects(pilot, attackerOwner, EffectTiming.OnShieldAttack);
     }
 
     private void TryUnitVsUnitAttack(
@@ -5259,6 +5375,10 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.BlockRedirect:
                 // BlockRedirect は戦闘フロー分岐で解釈するため、ここでは何もしない。
                 Debug.Log($"[Effect] BlockRedirect marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.Suppress:
+                // 制圧は TryResolveShieldAttackStrikeDamage でのみ解決する。
                 break;
         }
 
