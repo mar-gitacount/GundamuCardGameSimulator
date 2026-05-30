@@ -7,7 +7,8 @@ public enum EffectTiming
     OnPlayed,       // 手札から出した時（召喚時）
     OnTurnStart,    // 自分のターン開始時
     OnTurnEnd,      // 自分のターン終了時
-    OnAttack,       // 攻撃する時
+    OnAttack,       // 攻撃する時（ユニット戦など。シールド攻撃の制圧は OnShieldAttack）
+    OnShieldAttack, // シールド攻撃のダメージ解決時のみ
     OnAction,       // 任意アクション（攻撃時/ターン終了時に手札から実行可能）
     OnDestroyed,    // 破壊された時
     OnEndOfGame,    // ゲーム終了時
@@ -22,7 +23,9 @@ public enum EffectType
     Draw,
     Buff,
     Debuff,
-    BlockRedirect
+    BlockRedirect,
+    /// <summary>制圧。シールド攻撃時のみ。EXあり→通常シールド攻撃に任せる。シールドのみ→実シールドを value 枚破壊。</summary>
+    Suppress
 }
 
 public enum TargetType
