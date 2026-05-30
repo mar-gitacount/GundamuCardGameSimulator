@@ -9,6 +9,7 @@ public enum EffectTiming
     OnTurnEnd,      // 自分のターン終了時
     OnAttack,       // 攻撃する時（ユニット戦など。シールド攻撃の制圧は OnShieldAttack）
     OnShieldAttack, // シールド攻撃のダメージ解決時のみ
+    OnBurst,        // このカードがシールドとして破壊されたとき
     OnAction,       // 任意アクション（攻撃時/ターン終了時に手札から実行可能）
     OnDestroyed,    // 破壊された時
     OnEndOfGame,    // ゲーム終了時

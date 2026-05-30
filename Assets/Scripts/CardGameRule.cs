@@ -288,31 +288,60 @@ public class CardGameRule
     }
 
     /// <summary>
-    /// シールドが破壊された枚数ぶん、先頭からカードをトラッシュへ送り UI から取り除く（<see cref="Gundam2024RuleScript.DamageShield"/> と連動）。
+    /// シールドが破壊された枚数ぶん、先頭からカードをトラッシュへ送る（バースト UI なしの旧経路）。
     /// </summary>
     public void MoveTopShieldCardsToTrash(int count)
     {
-        if (count <= 0)
-        {
-            return;
-        }
-
         for (int i = 0; i < count; i++)
         {
-            if (shieldControllersInDrawOrder.Count == 0 || shieldCardIds.Count == 0)
+            if (!TryTakeTopShieldCardForBreak(out ShieldBreakTaken taken))
             {
                 break;
             }
 
-            CardController cc = shieldControllersInDrawOrder[0];
-            int id = shieldCardIds[0];
-            shieldControllersInDrawOrder.RemoveAt(0);
-            shieldCardIds.RemoveAt(0);
-            AddCardToTrash(id);
-            if (cc != null)
-            {
-                UnityEngine.Object.Destroy(cc.gameObject);
-            }
+            CommitShieldCardToTrash(taken);
+        }
+    }
+
+    /// <summary>破壊される先頭シールド1枚をリストから切り離し、表面を公開する。</summary>
+    public bool TryTakeTopShieldCardForBreak(out ShieldBreakTaken taken)
+    {
+        taken = default;
+        if (shieldControllersInDrawOrder.Count == 0 || shieldCardIds.Count == 0)
+        {
+            return false;
+        }
+
+        CardController cc = shieldControllersInDrawOrder[0];
+        int id = shieldCardIds[0];
+        shieldControllersInDrawOrder.RemoveAt(0);
+        shieldCardIds.RemoveAt(0);
+
+        if (cc != null)
+        {
+            cc.RevealShieldFace();
+        }
+
+        taken = new ShieldBreakTaken
+        {
+            Controller = cc,
+            CardId = id,
+            Data = cc != null && cc.Data != null ? cc.Data : DeckSettinObject.Instance.GetCardDataById(id),
+        };
+        return true;
+    }
+
+    /// <summary>公開・バースト処理後にトラッシュへ送る。</summary>
+    public void CommitShieldCardToTrash(ShieldBreakTaken taken)
+    {
+        if (taken.CardId > 0)
+        {
+            AddCardToTrash(taken.CardId);
+        }
+
+        if (taken.Controller != null)
+        {
+            UnityEngine.Object.Destroy(taken.Controller.gameObject);
         }
     }
 
