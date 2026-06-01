@@ -130,6 +130,88 @@ public partial class BattleGameMain
         }
     }
 
+    private bool HadActiveBaseLayerBeforeDeploy(PlayerType ownerType, CardGameRule ownerRule)
+    {
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+        Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
+        if (state.exBase > 0)
+        {
+            return true;
+        }
+
+        CardController deployed = ownerRule != null ? ownerRule.DeployedBase : null;
+        if (deployed != null && deployed.Data != null && deployed.CurrentHp > 0)
+        {
+            return true;
+        }
+
+        return ownerRule != null && ownerRule.HasOccupantInBaseSlot();
+    }
+
+    /// <summary>EX ベース（数値）とベース枠のカードを破壊してから新ベースを置く。</summary>
+    private void DestroyExistingBaseLayerBeforeDeploy(
+        PlayerType ownerType,
+        CardGameRule ownerRule,
+        CardController incomingCard)
+    {
+        if (ownerRule == null)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+        gundamRule.SetExBasePoints(ruleSide, 0);
+
+        CardController registered = ownerRule.DeployedBase;
+        if (registered != null && registered != incomingCard)
+        {
+            SendDeployedBaseToTrash(registered, ownerType, ownerRule);
+        }
+
+        if (ownerRule.BaseSlotContent == null)
+        {
+            return;
+        }
+
+        for (int i = ownerRule.BaseSlotContent.childCount - 1; i >= 0; i--)
+        {
+            CardController occupant = ownerRule.BaseSlotContent.GetChild(i).GetComponent<CardController>();
+            if (occupant != null && occupant != incomingCard)
+            {
+                SendDeployedBaseToTrash(occupant, ownerType, ownerRule);
+            }
+        }
+    }
+
+    /// <summary>ベース配備前にシールドゾーン登録を外し、ゾーン／バースト昇格ならシールド枚数を1減らす。</summary>
+    private void PrepareCardForBaseZoneDeploy(
+        CardController cardController,
+        PlayerType ownerType,
+        CardGameRule ownerRule,
+        Gundam2024RuleScript.PlayerSide ruleSide,
+        ref bool wasInHand)
+    {
+        if (cardController == null || ownerRule == null)
+        {
+            return;
+        }
+
+        cardController.SetEligibleForShieldZoneDeploy(false);
+
+        bool inShieldZone = ownerRule.ShieldCardsContent != null
+            && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
+        bool wasTrackedInShieldZone = ownerRule.TryUnregisterShieldZoneCard(cardController);
+
+        if (!wasInHand && (inShieldZone || wasTrackedInShieldZone || burstDeployBasePreferSourceCard))
+        {
+            if (!gundamRule.TryReduceShieldCountForHandMove(ruleSide, 1))
+            {
+                Debug.LogWarning(
+                    $"[BaseDeploy] Shield count could not be reduced when promoting {cardController.Data?.cardName} to base.");
+            }
+        }
+    }
+
     /// <summary>ベースカードを EX ベース枠へ配備する共通処理。</summary>
     private bool DeployCardToBaseZone(
         CardController cardController,
@@ -148,13 +230,12 @@ public partial class BattleGameMain
         }
 
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
-        CardController previousBase = ownerRule.DeployedBase;
-        if (previousBase != null && previousBase != cardController)
-        {
-            SendDeployedBaseToTrash(previousBase, ownerType, ownerRule);
-        }
+        bool replacingBaseLayer = HadActiveBaseLayerBeforeDeploy(ownerType, ownerRule);
+        DestroyExistingBaseLayerBeforeDeploy(ownerType, ownerRule, cardController);
 
-        gundamRule.SetExBasePoints(ruleSide, 0);
+        bool wasInHand = ownerRule.HandScrollContent != null
+            && cardController.transform.IsChildOf(ownerRule.HandScrollContent);
+        PrepareCardForBaseZoneDeploy(cardController, ownerType, ownerRule, ruleSide, ref wasInHand);
         RemoveCardFromHandLists(cardController, ownerType);
         cardController.RevealShieldFace();
         ownerRule.AttachDeployedBaseCard(cardController);
@@ -166,9 +247,16 @@ public partial class BattleGameMain
             TriggerOnPlayedEffects(cardController, ownerType, RefreshAllHandsConditionalOnHandAuto);
         }
 
-        TriggerBaseDeployedEffects(cardController, ownerType);
+        TriggerBaseDeployedEffects(cardController, ownerType, replacingBaseLayer);
         SyncResourceViewsFromRule(ruleSide);
         SyncBaseZoneHeaderDisplay(ruleSide);
+
+        if (replacingBaseLayer)
+        {
+            Debug.Log(
+                $"[BaseDeploy] Replaced base layer with {cardController.Data.cardName}(id:{cardController.Data.id}) side:{ownerType}");
+        }
+
         return true;
     }
 

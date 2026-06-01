@@ -2496,11 +2496,30 @@ public partial class BattleGameMain : MonoBehaviour
             : Gundam2024RuleScript.PlayerSide.Enemy;
     }
 
+    private void ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide side, bool force = false)
+    {
+        if (gundamRule == null || (!force && (shieldBreakQueueRunning || isShieldBreakFlowOpen)))
+        {
+            return;
+        }
+
+        CardGameRule rule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
+        if (rule == null)
+        {
+            return;
+        }
+
+        gundamRule.SyncShieldCountFromZone(side, rule.GetShieldZoneCardCount());
+    }
+
     private void SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide side)
     {
         CardGameRule targetRule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerState state = side == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player : gundamRule.Enemy;
         targetRule.ApplyExternalResourceState(state.TotalLevel, state.resource, state.exResource);
+        ReconcileShieldStateWithZone(side);
+        int shieldDisplayCount = targetRule != null ? targetRule.GetShieldZoneCardCount() : state.shield;
+        targetRule.SetShieldCountDisplay(shieldDisplayCount);
         SyncBaseZoneHeaderDisplay(side);
 
         if (side == Gundam2024RuleScript.PlayerSide.Player)
@@ -2567,9 +2586,15 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerCardEffects(cardController, ownerType, EffectTiming.OnDestroyed);
 
         CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
-        if (ownerRule != null && ownerRule.DeployedBase == cardController)
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+        if (ownerRule != null)
         {
-            ownerRule.ClearDeployedBaseCard();
+            if (ownerRule.DeployedBase == cardController)
+            {
+                ownerRule.ClearDeployedBaseCard();
+            }
+
+            ownerRule.TryUnregisterShieldZoneCard(cardController);
         }
 
         ownerRule.AddCardToTrash(cardController.Data.id);
@@ -2579,6 +2604,7 @@ public partial class BattleGameMain : MonoBehaviour
         playerHandCards.Remove(cardController.Data);
         enemyHandCards.Remove(cardController.Data);
         Destroy(cardController.gameObject);
+        ReconcileShieldStateWithZone(ruleSide);
         RefreshAllHandsConditionalOnHandAuto();
     }
 

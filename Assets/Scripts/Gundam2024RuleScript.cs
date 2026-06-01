@@ -354,6 +354,12 @@ public class Gundam2024RuleScript
         GetState(targetSide).shield += amount;
     }
 
+    /// <summary>ルール上のシールド枚数をゾーン実体と揃える（破壊フロー外でのみ呼ぶこと）。</summary>
+    public void SyncShieldCountFromZone(PlayerSide side, int zoneCardCount)
+    {
+        GetState(side).shield = Mathf.Max(0, zoneCardCount);
+    }
+
     /// <summary>
     /// ユニットのシールド攻撃。AP（攻撃力）が 1 未満のときは失敗し、シールドも EX ベースも変化しない。
     /// EXベースが1以上なら power 分を EX ベースに与える（シールド枚数は減らない）。

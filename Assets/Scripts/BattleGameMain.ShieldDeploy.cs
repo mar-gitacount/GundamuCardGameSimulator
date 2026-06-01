@@ -44,7 +44,10 @@ public partial class BattleGameMain
 
     private bool CanDeployShieldFromHand(CardController card)
     {
-        return card != null && card.IsEligibleForShieldZoneDeploy;
+        return card != null
+            && card.Data != null
+            && card.Data.type != Type.Base
+            && card.IsEligibleForShieldZoneDeploy;
     }
 
     private Gundam2024RuleScript.PlayerState GetRuleState(Gundam2024RuleScript.PlayerSide side)
@@ -118,6 +121,8 @@ public partial class BattleGameMain
         }
 
         if (preferred != null
+            && preferred.Data != null
+            && preferred.Data.type != Type.Base
             && CanDeployShieldFromHand(preferred)
             && preferred.transform.IsChildOf(rule.HandScrollContent))
         {
@@ -128,6 +133,11 @@ public partial class BattleGameMain
         for (int i = 0; i < hand.Count; i++)
         {
             CardController candidate = hand[i];
+            if (candidate?.Data != null && candidate.Data.type == Type.Base)
+            {
+                continue;
+            }
+
             if (CanDeployShieldFromHand(candidate))
             {
                 return candidate;
@@ -144,6 +154,11 @@ public partial class BattleGameMain
         bool requireEligibleFromHand)
     {
         if (card == null || card.Data == null || rule == null)
+        {
+            return false;
+        }
+
+        if (card.Data.type == Type.Base)
         {
             return false;
         }
@@ -267,7 +282,8 @@ public partial class BattleGameMain
     private void TriggerTimedEffectsForCard(
         CardController sourceCard,
         PlayerType ownerType,
-        EffectTiming timing)
+        EffectTiming timing,
+        bool skipDeployShieldFromHandOnBaseReplace = false)
     {
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
@@ -293,6 +309,12 @@ public partial class BattleGameMain
             {
                 EffectData effect = resolved[j];
                 if (effect == null)
+                {
+                    continue;
+                }
+
+                if (skipDeployShieldFromHandOnBaseReplace
+                    && effect.type == EffectType.DeployShieldFromHand)
                 {
                     continue;
                 }
@@ -580,9 +602,13 @@ public partial class BattleGameMain
         }
     }
 
-    private void TriggerBaseDeployedEffects(CardController baseCard, PlayerType ownerType)
+    private void TriggerBaseDeployedEffects(CardController baseCard, PlayerType ownerType, bool replacingExistingBaseLayer = false)
     {
-        TriggerTimedEffectsForCard(baseCard, ownerType, EffectTiming.OnBaseDeployed);
+        TriggerTimedEffectsForCard(
+            baseCard,
+            ownerType,
+            EffectTiming.OnBaseDeployed,
+            skipDeployShieldFromHandOnBaseReplace: replacingExistingBaseLayer);
     }
 
     private void TriggerShieldDeployedEffects(CardController shieldCard, PlayerType ownerType)

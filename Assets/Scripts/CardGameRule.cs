@@ -44,6 +44,7 @@ public class CardGameRule
     private RectTransform shieldCardsContent;
     private GridLayoutGroup shieldGrid;
     private TextMeshProUGUI exBaseDisplayText;
+    private TextMeshProUGUI shieldCountDisplayText;
     private RectTransform baseSlotContent;
     private CardController deployedBase;
     private readonly List<int> shieldCardIds = new List<int>();
@@ -313,10 +314,40 @@ public class CardGameRule
         return TryDetachShieldCardAtZoneIndex(0, out taken, revealFace: true);
     }
 
-    /// <summary>シールドゾーンのカード一覧（制圧時の選択用。まだ切り離さない）。</summary>
+    /// <summary>シールドゾーンに残っている実カード枚数（一覧のゾンビエントリを除去してから数える）。</summary>
     public int GetShieldZoneCardCount()
     {
+        PruneStaleShieldZoneEntries();
         return Mathf.Min(shieldControllersInDrawOrder.Count, shieldCardIds.Count);
+    }
+
+    /// <summary>破棄・ベース昇格などでゾーンを離れたが一覧に残っているエントリを除去する。</summary>
+    private void PruneStaleShieldZoneEntries()
+    {
+        for (int i = shieldControllersInDrawOrder.Count - 1; i >= 0; i--)
+        {
+            CardController cc = shieldControllersInDrawOrder[i];
+            if (cc == null
+                || shieldCardsContent == null
+                || !cc.transform.IsChildOf(shieldCardsContent))
+            {
+                shieldControllersInDrawOrder.RemoveAt(i);
+                if (i < shieldCardIds.Count)
+                {
+                    shieldCardIds.RemoveAt(i);
+                }
+            }
+        }
+
+        while (shieldCardIds.Count > shieldControllersInDrawOrder.Count)
+        {
+            shieldCardIds.RemoveAt(shieldCardIds.Count - 1);
+        }
+
+        while (shieldControllersInDrawOrder.Count > shieldCardIds.Count)
+        {
+            shieldControllersInDrawOrder.RemoveAt(shieldControllersInDrawOrder.Count - 1);
+        }
     }
 
     /// <summary>ゾーン内インデックスのカード情報（制圧選択 UI 用）。</summary>
@@ -404,8 +435,45 @@ public class CardGameRule
         return true;
     }
 
-    public bool HasShieldCardInZone =>
-        shieldControllersInDrawOrder.Count > 0 && shieldCardIds.Count > 0;
+    public bool HasShieldCardInZone => GetShieldZoneCardCount() > 0;
+
+    /// <summary>シールドゾーン登録から外す（ベース配備などでゾーンを離れるとき）。</summary>
+    public bool TryUnregisterShieldZoneCard(CardController cc)
+    {
+        if (cc == null)
+        {
+            return false;
+        }
+
+        int index = shieldControllersInDrawOrder.IndexOf(cc);
+        if (index < 0 || index >= shieldCardIds.Count)
+        {
+            return false;
+        }
+
+        shieldControllersInDrawOrder.RemoveAt(index);
+        shieldCardIds.RemoveAt(index);
+        return true;
+    }
+
+    /// <summary>ベース枠にカードが残っているか（参照切れ対策）。</summary>
+    public bool HasOccupantInBaseSlot()
+    {
+        if (baseSlotContent == null)
+        {
+            return deployedBase != null;
+        }
+
+        for (int i = 0; i < baseSlotContent.childCount; i++)
+        {
+            if (baseSlotContent.GetChild(i).GetComponent<CardController>() != null)
+            {
+                return true;
+            }
+        }
+
+        return deployedBase != null;
+    }
 
     /// <summary>シールドゾーン先頭1枚を手札へ移す（破壊・バースト UI なし）。</summary>
     public bool TryMoveTopShieldCardToHand(RectTransform handContent, out CardController movedCard)
@@ -495,6 +563,18 @@ public class CardGameRule
         exBaseDisplayText.text = text;
     }
 
+    /// <summary>ルール上の残りシールド枚数をシールドゾーン付近に表示する。</summary>
+    public void SetShieldCountDisplay(int count)
+    {
+        if (shieldCountDisplayText == null)
+        {
+            return;
+        }
+
+        shieldCountDisplayText.gameObject.SetActive(true);
+        shieldCountDisplayText.text = $"シールド:{Mathf.Max(0, count)}";
+    }
+
     /// <summary>EX ベース枠にベースカードを配置する。旧ベースは呼び出し側でトラッシュすること。</summary>
     public void AttachDeployedBaseCard(CardController baseCard)
     {
@@ -547,15 +627,21 @@ public class CardGameRule
         baseSlotContent.offsetMin = new Vector2(4f, -86f);
         baseSlotContent.offsetMax = new Vector2(-4f, -2f);
 
-        // GameObject shieldRow = new GameObject("ShieldCardsRow", typeof(RectTransform));
+        shieldCountDisplayText = shieldPanelRoot.CreateChildTextCustom("ShieldCountText", UIAnchor.TopCenter, 62, 20);
+        shieldCountDisplayText.text = "シールド:0";
+        shieldCountDisplayText.color = Color.black;
+        shieldCountDisplayText.fontSize = 16;
+        shieldCountDisplayText.alignment = TextAlignmentOptions.Center;
+        RectTransform shieldCountRt = shieldCountDisplayText.GetComponent<RectTransform>();
+        shieldCountRt.anchoredPosition = new Vector2(0f, -90f);
+
         GameObject shieldRow = shieldPanelRoot.CreateChildPanelCustom("ShieldCardsRow", UIAnchor.BottomStretch, 65, 270);
-        // shieldRow.transform.SetParent(shieldPanelRoot.transform, false);
         shieldCardsContent = shieldRow.GetComponent<RectTransform>();
         shieldCardsContent.anchorMin = new Vector2(0f, 0f);
         shieldCardsContent.anchorMax = new Vector2(1f, 0.82f);
         shieldCardsContent.pivot = new Vector2(0.5f, 0.5f);
         shieldCardsContent.offsetMin = new Vector2(6f, 8f);
-        shieldCardsContent.offsetMax = new Vector2(-6f, -40f);
+        shieldCardsContent.offsetMax = new Vector2(-6f, -58f);
 
         shieldGrid = shieldRow.AddComponent<GridLayoutGroup>();
         shieldGrid.cellSize = new Vector2(46f, 26f);
