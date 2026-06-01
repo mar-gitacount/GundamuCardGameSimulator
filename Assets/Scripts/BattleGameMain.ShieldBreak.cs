@@ -231,9 +231,10 @@ public partial class BattleGameMain
 
             yield return ShowShieldBreakRevealCoroutine(takenCards, shieldOwner, simultaneousReveal);
 
+            yield return ResolveBurstEffectsForTakenCardsCoroutine(takenCards, shieldOwner);
             for (int i = 0; i < takenCards.Count; i++)
             {
-                yield return ResolveSingleShieldBreakTakenCoroutine(takenCards[i], shieldOwner, rule, -1);
+                CommitShieldBreakTakenAfterBurst(takenCards[i], rule);
             }
 
             SyncAllResourceViewsFromRule();
@@ -314,22 +315,37 @@ public partial class BattleGameMain
             Debug.Log($"[Suppress] Base discarded (not deployed) {taken.Data?.cardName}(id:{taken.CardId})");
         }
 
+        List<ShieldBreakTaken> orderedBurstCards = new List<ShieldBreakTaken>(choice.NonBaseBurstOrderZoneIndices.Count);
         for (int o = 0; o < choice.NonBaseBurstOrderZoneIndices.Count; o++)
         {
             int zoneIndex = choice.NonBaseBurstOrderZoneIndices[o];
-            if (!byZone.TryGetValue(zoneIndex, out ShieldBreakTaken taken))
+            if (byZone.TryGetValue(zoneIndex, out ShieldBreakTaken taken))
             {
-                continue;
+                orderedBurstCards.Add(taken);
             }
+        }
 
-            yield return ResolveSingleShieldBreakTakenCoroutine(taken, shieldOwner, rule, zoneIndex);
-            processed.Add(zoneIndex);
+        if (orderedBurstCards.Count > 0)
+        {
+            yield return ResolveBurstEffectsForTakenCardsCoroutine(orderedBurstCards, shieldOwner);
+            for (int o = 0; o < choice.NonBaseBurstOrderZoneIndices.Count; o++)
+            {
+                int zoneIndex = choice.NonBaseBurstOrderZoneIndices[o];
+                if (byZone.TryGetValue(zoneIndex, out ShieldBreakTaken taken))
+                {
+                    CommitShieldBreakTakenAfterBurst(taken, rule);
+                    processed.Add(zoneIndex);
+                }
+            }
         }
 
         if (choice.BaseDeployZoneIndex >= 0
             && byZone.TryGetValue(choice.BaseDeployZoneIndex, out ShieldBreakTaken baseTaken))
         {
-            yield return ResolveSingleShieldBreakTakenCoroutine(baseTaken, shieldOwner, rule, choice.BaseDeployZoneIndex);
+            yield return ResolveBurstEffectsForTakenCardsCoroutine(
+                new List<ShieldBreakTaken> { baseTaken },
+                shieldOwner);
+            CommitShieldBreakTakenAfterBurst(baseTaken, rule);
             processed.Add(choice.BaseDeployZoneIndex);
         }
 
@@ -341,24 +357,6 @@ public partial class BattleGameMain
                 continue;
             }
 
-            rule.CommitShieldCardToTrash(taken);
-        }
-    }
-
-    private IEnumerator ResolveSingleShieldBreakTakenCoroutine(
-        ShieldBreakTaken taken,
-        PlayerType shieldOwner,
-        CardGameRule rule,
-        int zoneIndexForLog)
-    {
-        if (ShouldResolveShieldBurst(taken.Data))
-        {
-            yield return TriggerShieldBurstEffectsCoroutine(taken, shieldOwner);
-        }
-
-        bool keepCard = IsBurstCardRetained(taken.Controller, rule);
-        if (!keepCard)
-        {
             rule.CommitShieldCardToTrash(taken);
         }
     }
@@ -417,41 +415,6 @@ public partial class BattleGameMain
         }
 
         return result;
-    }
-
-    private IEnumerator TriggerShieldBurstEffectsCoroutine(ShieldBreakTaken taken, PlayerType shieldOwner)
-    {
-        if (taken.Data == null || taken.Data.timedEffects == null)
-        {
-            yield break;
-        }
-
-        CardController source = taken.Controller;
-        if (source == null || source.Data == null)
-        {
-            Debug.LogWarning($"[Burst] No visual for shield card id:{taken.CardId} — burst skipped.");
-            yield break;
-        }
-
-        bool preferBurstSourceForDeployBase = IsBaseCardWithDeployBaseBurst(taken.Data);
-        if (preferBurstSourceForDeployBase)
-        {
-            burstDeployBasePreferSourceCard = true;
-        }
-
-        try
-        {
-            Debug.Log($"[Burst] {taken.Data.cardName}(id:{taken.Data.id}) owner:{shieldOwner}");
-            yield return TriggerTimedEffectsForCardCoroutine(source, shieldOwner, EffectTiming.OnBurst);
-            SyncAllResourceViewsFromRule();
-        }
-        finally
-        {
-            if (preferBurstSourceForDeployBase)
-            {
-                burstDeployBasePreferSourceCard = false;
-            }
-        }
     }
 
     private IEnumerator ShowShieldBreakRevealCoroutine(
@@ -769,8 +732,8 @@ public partial class BattleGameMain
                 ? "ベースを1枚タップで配備指定、バーストカードは順番タップ → OK"
                 : hasBasePick
                     ? "配備するベースを1枚選び OK（選ばないベースは破棄）"
-                    : "バーストするカードを順にタップ（再タップで取り消し）→ OK"
-            : "破壊されるカードを確認し、OK で続行（バーストは OK 後に解決）";
+                    : "バーストするカードを順にタップ（再タップで取り消し）→ OK → カードごとに敵ユニットを選択"
+            : "破壊されるカードを確認し、OK で続行（バーストは OK 後、カードごとに敵ユニットを選択）";
         hint.fontSize = 15;
         hint.color = new Color(0.8f, 0.85f, 0.9f, 1f);
         hint.alignment = TextAlignmentOptions.Center;

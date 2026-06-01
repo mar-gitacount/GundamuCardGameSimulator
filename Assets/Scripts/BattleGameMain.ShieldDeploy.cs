@@ -8,6 +8,40 @@ public partial class BattleGameMain
     /// <summary>OnBurst 中の DeployBase のみ、破壊元カード自身を対象にする。</summary>
     private bool burstDeployBasePreferSourceCard;
 
+    /// <summary>バースト効果解決中は true（リソース消費・OnMain 扱いを抑止）。</summary>
+    private int burstEffectResolutionDepth;
+
+    private bool IsResolvingBurstEffect => burstEffectResolutionDepth > 0;
+
+    /// <summary>コマンドの OnAction / OnMain 用。バースト解決中はリソースを消費しない。</summary>
+    private bool TryConsumeResourceForCommandPlay(PlayerType side, CardController command, string context)
+    {
+        if (command == null || command.Data == null)
+        {
+            return false;
+        }
+
+        if (IsResolvingBurstEffect)
+        {
+            return true;
+        }
+
+        if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
+        {
+            Debug.Log($"[{context}] リソース不足で実行できません。");
+            return false;
+        }
+
+        SyncResourceViewsFromRule(ToRuleSide(side));
+        return true;
+    }
+
+    private struct BurstManualTargetStep
+    {
+        public ShieldBreakTaken Taken;
+        public EffectData Effect;
+    }
+
     private bool CanDeployShieldFromHand(CardController card)
     {
         return card != null && card.IsEligibleForShieldZoneDeploy;
@@ -303,49 +337,12 @@ public partial class BattleGameMain
             $"[TimedEffect] Player manual selection requires coroutine resolve (cardId:{sourceCard?.Data?.id}).");
     }
 
-    /// <summary>OnBurst など、手動選択 UI を待機して解決する。</summary>
-    private IEnumerator TriggerTimedEffectsForCardCoroutine(
-        CardController sourceCard,
-        PlayerType ownerType,
-        EffectTiming timing)
-    {
-        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
-        {
-            yield break;
-        }
-
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
-        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
-        {
-            TimedEffectData timed = sourceCard.Data.timedEffects[i];
-            if (timed == null || timed.timing != timing || !timed.HasResolvedEffects())
-            {
-                continue;
-            }
-
-            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
-            {
-                continue;
-            }
-
-            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
-            for (int j = 0; j < resolved.Count; j++)
-            {
-                EffectData effect = resolved[j];
-                if (effect == null)
-                {
-                    continue;
-                }
-
-                yield return ApplyTimedEffectResolvedCoroutine(sourceCard, ownerType, effect);
-            }
-        }
-    }
-
     private IEnumerator ApplyTimedEffectResolvedCoroutine(
         CardController sourceCard,
         PlayerType ownerType,
-        EffectData effect)
+        EffectData effect,
+        int manualPickIndex = 0,
+        int manualPickTotal = 0)
     {
         if (!EffectRequiresManualUnitSelection(effect))
         {
@@ -373,10 +370,37 @@ public partial class BattleGameMain
             yield break;
         }
 
+        string cardLabel = sourceCard != null && sourceCard.Data != null
+            ? sourceCard.Data.cardName
+            : "?";
+        string title = manualPickTotal > 1
+            ? $"バースト {manualPickIndex}/{manualPickTotal} — 対象を選択"
+            : "バースト — 対象を選択";
+        string summary = effect != null
+            ? $"{cardLabel}：{effect.type} / 敵ユニット1体 / 値:{effect.value}"
+            : cardLabel;
+
+        yield return WaitForPlayerBurstTargetSelectionCoroutine(
+            sourceCard,
+            ownerType,
+            effect,
+            candidates,
+            title,
+            summary);
+    }
+
+    private IEnumerator WaitForPlayerBurstTargetSelectionCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        List<CardController> candidates,
+        string title,
+        string effectSummary)
+    {
         bool selectionFinished = false;
         GameObject uiRoot = OpenCommandWithTargetsSelectionUI(
-            "バースト — 対象を選択",
-            effect != null ? $"{effect.type} / 敵ユニット1体 / 値:{effect.value}" : string.Empty,
+            title,
+            effectSummary,
             sourceCard,
             candidates,
             null,
@@ -394,6 +418,166 @@ public partial class BattleGameMain
         }
 
         yield return new WaitUntil(() => selectionFinished);
+        yield return new WaitUntil(() => !isOnActionPopupOpen);
+        yield return null;
+    }
+
+    private static void CollectBurstManualTargetSteps(
+        ShieldBreakTaken taken,
+        PlayerType ownerType,
+        BattleGameMain host,
+        List<BurstManualTargetStep> manualSteps)
+    {
+        if (taken.Data == null || taken.Data.timedEffects == null || host == null)
+        {
+            return;
+        }
+
+        EffectActivationContext activationContext = host.BuildActivationContext(ownerType, taken.Controller);
+        for (int i = 0; i < taken.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = taken.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnBurst || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect != null && EffectRequiresManualUnitSelection(effect))
+                {
+                    manualSteps.Add(new BurstManualTargetStep { Taken = taken, Effect = effect });
+                }
+            }
+        }
+    }
+
+    /// <summary>複数枚のバーストを順に解決（手動対象は1枚ごとにUI）。</summary>
+    private IEnumerator ResolveBurstEffectsForTakenCardsCoroutine(
+        IReadOnlyList<ShieldBreakTaken> takenCards,
+        PlayerType shieldOwner)
+    {
+        if (takenCards == null || takenCards.Count == 0)
+        {
+            yield break;
+        }
+
+        burstEffectResolutionDepth++;
+        try
+        {
+            List<BurstManualTargetStep> manualSteps = new List<BurstManualTargetStep>();
+            for (int i = 0; i < takenCards.Count; i++)
+            {
+                CollectBurstManualTargetSteps(takenCards[i], shieldOwner, this, manualSteps);
+            }
+
+            for (int i = 0; i < takenCards.Count; i++)
+            {
+                ShieldBreakTaken taken = takenCards[i];
+                if (taken.Data == null)
+                {
+                    continue;
+                }
+
+                CardController source = taken.Controller;
+                if (source == null || source.Data == null)
+                {
+                    Debug.LogWarning($"[Burst] No visual for shield card id:{taken.CardId} — auto effects skipped.");
+                    continue;
+                }
+
+                bool preferDeployBase = IsBaseCardWithDeployBaseBurst(taken.Data);
+                if (preferDeployBase)
+                {
+                    burstDeployBasePreferSourceCard = true;
+                }
+
+                try
+                {
+                    Debug.Log($"[Burst] {taken.Data.cardName}(id:{taken.Data.id}) owner:{shieldOwner}");
+                    EffectActivationContext activationContext = BuildActivationContext(shieldOwner, source);
+                    for (int t = 0; t < taken.Data.timedEffects.Count; t++)
+                    {
+                        TimedEffectData timed = taken.Data.timedEffects[t];
+                        if (timed == null || timed.timing != EffectTiming.OnBurst || !timed.HasResolvedEffects())
+                        {
+                            continue;
+                        }
+
+                        if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+                        {
+                            continue;
+                        }
+
+                        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+                        for (int e = 0; e < resolved.Count; e++)
+                        {
+                            EffectData effect = resolved[e];
+                            if (effect == null || EffectRequiresManualUnitSelection(effect))
+                            {
+                                continue;
+                            }
+
+                            ApplyEffect(source, shieldOwner, effect);
+                        }
+                    }
+                }
+                finally
+                {
+                    if (preferDeployBase)
+                    {
+                        burstDeployBasePreferSourceCard = false;
+                    }
+                }
+            }
+
+            int manualTotal = manualSteps.Count;
+            for (int i = 0; i < manualSteps.Count; i++)
+            {
+                BurstManualTargetStep step = manualSteps[i];
+                CardController source = step.Taken.Controller;
+                if (source == null || source.Data == null)
+                {
+                    Debug.LogWarning(
+                        $"[Burst] Manual step skipped — no controller (cardId:{step.Taken.CardId}).");
+                    continue;
+                }
+
+                yield return ApplyTimedEffectResolvedCoroutine(
+                    source,
+                    shieldOwner,
+                    step.Effect,
+                    i + 1,
+                    manualTotal);
+            }
+
+            SyncAllResourceViewsFromRule();
+        }
+        finally
+        {
+            burstEffectResolutionDepth--;
+        }
+    }
+
+    private static void CommitShieldBreakTakenAfterBurst(ShieldBreakTaken taken, CardGameRule rule)
+    {
+        if (rule == null)
+        {
+            return;
+        }
+
+        bool keepCard = IsBurstCardRetained(taken.Controller, rule);
+        if (!keepCard)
+        {
+            rule.CommitShieldCardToTrash(taken);
+        }
     }
 
     private void TriggerBaseDeployedEffects(CardController baseCard, PlayerType ownerType)
