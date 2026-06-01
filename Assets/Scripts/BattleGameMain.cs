@@ -8036,9 +8036,8 @@ public partial class BattleGameMain : MonoBehaviour
     {
         yield return ShowCommandUsePreviewCoroutine(command, attackingUnitInAttackFlow, resolvedBeforeApply, null);
 
-        if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
+        if (!TryConsumeResourceForCommandPlay(side, command, "OnAction"))
         {
-            Debug.Log("OnAction: リソース不足で実行できません。");
             LogCommandUseResultWithBoard(
                 "OnAction_Failed_InsufficientResource",
                 side,
@@ -8148,9 +8147,8 @@ public partial class BattleGameMain : MonoBehaviour
             attackingUnitInAttackFlow,
             picked =>
             {
-                if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
+                if (!TryConsumeResourceForCommandPlay(side, command, "OnAction"))
                 {
-                    Debug.Log("OnAction: リソース不足で実行できません。");
                     LogCommandUseResultWithBoard(
                         "OnAction_Failed_InsufficientResource",
                         side,
@@ -8325,6 +8323,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (source == null || source.Data == null)
         {
+            return false;
+        }
+
+        if (IsResolvingBurstEffect)
+        {
+            Debug.LogWarning(
+                $"[OnMain] Skipped resource consume during burst (cardId:{source.Data.id}). Use OnMain from hand, not burst.");
             return false;
         }
 
