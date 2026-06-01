@@ -1,0 +1,435 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+/// <summary>シールドゾーンと手札間の移動、およびシールド配備時の効果発動。</summary>
+public partial class BattleGameMain
+{
+    /// <summary>OnBurst 中の DeployBase のみ、破壊元カード自身を対象にする。</summary>
+    private bool burstDeployBasePreferSourceCard;
+
+    private bool CanDeployShieldFromHand(CardController card)
+    {
+        return card != null && card.IsEligibleForShieldZoneDeploy;
+    }
+
+    private Gundam2024RuleScript.PlayerState GetRuleState(Gundam2024RuleScript.PlayerSide side)
+    {
+        return side == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player : gundamRule.Enemy;
+    }
+
+    private bool CanTakeShieldFromZone(Gundam2024RuleScript.PlayerSide ruleSide, CardGameRule rule)
+    {
+        if (rule == null || gundamRule == null)
+        {
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
+        return state.shield > 0 && rule.HasShieldCardInZone;
+    }
+
+    private void RegisterShieldCardInHandLists(CardController card, PlayerType ownerType)
+    {
+        if (card == null || card.Data == null)
+        {
+            return;
+        }
+
+        if (ownerType == PlayerType.Player)
+        {
+            playerHandCards.Add(card.Data);
+        }
+        else
+        {
+            enemyHandCards.Add(card.Data);
+        }
+    }
+
+    private bool TryMoveShieldFromZoneToHand(
+        CardGameRule targetRule,
+        PlayerType targetType,
+        Gundam2024RuleScript.PlayerSide ruleSide)
+    {
+        if (targetRule == null || !CanTakeShieldFromZone(ruleSide, targetRule))
+        {
+            return false;
+        }
+
+        if (!gundamRule.TryReduceShieldCountForHandMove(ruleSide, 1))
+        {
+            return false;
+        }
+
+        if (!targetRule.TryMoveTopShieldCardToHand(targetRule.HandScrollContent, out CardController shieldCard))
+        {
+            gundamRule.AddShieldCount(ruleSide, 1);
+            return false;
+        }
+
+        shieldCard.SetEligibleForShieldZoneDeploy(true);
+        RegisterShieldCardInHandLists(shieldCard, targetType);
+        TriggerOnHandAutoEffects(shieldCard, targetType, skipHandZoneCheck: true);
+        SyncResourceViewsFromRule(ruleSide);
+        Debug.Log(
+            $"[AddShieldToHand] {shieldCard.Data.cardName}(id:{shieldCard.Data.id}) shield zone → {targetType} hand (shield -1)");
+        return true;
+    }
+
+    private CardController FindEligibleShieldDeployInHand(CardGameRule rule, CardController preferred)
+    {
+        if (rule?.HandScrollContent == null)
+        {
+            return null;
+        }
+
+        if (preferred != null
+            && CanDeployShieldFromHand(preferred)
+            && preferred.transform.IsChildOf(rule.HandScrollContent))
+        {
+            return preferred;
+        }
+
+        List<CardController> hand = CollectHandControllers(rule);
+        for (int i = 0; i < hand.Count; i++)
+        {
+            CardController candidate = hand[i];
+            if (CanDeployShieldFromHand(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private bool TryDeployCardToShieldZone(
+        CardController card,
+        PlayerType ownerType,
+        CardGameRule rule,
+        bool requireEligibleFromHand)
+    {
+        if (card == null || card.Data == null || rule == null)
+        {
+            return false;
+        }
+
+        if (rule.ShieldCardsContent != null && card.transform.IsChildOf(rule.ShieldCardsContent))
+        {
+            return false;
+        }
+
+        if (requireEligibleFromHand && !CanDeployShieldFromHand(card))
+        {
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+        bool wasInHand = rule.HandScrollContent != null
+            && card.transform.IsChildOf(rule.HandScrollContent);
+        if (wasInHand)
+        {
+            RemoveCardFromHandLists(card, ownerType);
+        }
+
+        if (!rule.TryAttachShieldCardFromHand(card))
+        {
+            if (wasInHand)
+            {
+                RegisterShieldCardInHandLists(card, ownerType);
+            }
+
+            return false;
+        }
+
+        card.SetEligibleForShieldZoneDeploy(false);
+        gundamRule.AddShieldCount(ruleSide, 1);
+        TriggerShieldDeployedEffects(card, ownerType);
+        SyncResourceViewsFromRule(ruleSide);
+        Debug.Log(
+            $"[DeployShieldFromHand] {card.Data.cardName}(id:{card.Data.id}) side:{ownerType} → shield zone");
+        return true;
+    }
+
+    private void ApplyDeployShieldFromHandEffect(
+        CardController sourceCard,
+        PlayerType sourceOwner,
+        EffectData effect,
+        int magnitude)
+    {
+        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect.target);
+        CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+
+        int applied = 0;
+        for (int i = 0; i < magnitude; i++)
+        {
+            CardController pick = FindEligibleShieldDeployInHand(rule, null);
+            if (pick == null)
+            {
+                if (applied == 0)
+                {
+                    Debug.LogWarning(
+                        $"[DeployShieldFromHand] No deployable shield in hand side:{recipient}");
+                }
+
+                break;
+            }
+
+            if (!TryDeployCardToShieldZone(pick, recipient, rule, requireEligibleFromHand: true))
+            {
+                break;
+            }
+
+            applied++;
+        }
+
+        Debug.Log(
+            $"[Effect] DeployShieldFromHand x{applied}/{magnitude} target:{effect.target} "
+            + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+    }
+
+    private void ApplyAddShieldToHandEffect(
+        CardController sourceCard,
+        PlayerType sourceOwner,
+        EffectData effect,
+        int magnitude)
+    {
+        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect.target);
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(recipient);
+        CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+
+        int applied = 0;
+        for (int i = 0; i < magnitude; i++)
+        {
+            if (!TryMoveShieldFromZoneToHand(rule, recipient, ruleSide))
+            {
+                if (applied == 0)
+                {
+                    Debug.LogWarning(
+                        $"[AddShieldToHand] No shield available side:{recipient} (shield count or zone card missing).");
+                }
+
+                break;
+            }
+
+            applied++;
+        }
+
+        Debug.Log(
+            $"[Effect] AddShieldToHand x{applied}/{magnitude} target:{effect.target} "
+            + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+    }
+
+    private PlayerType ResolveEffectOwnerPlayerType(PlayerType sourceOwner, TargetType target)
+    {
+        if (target == TargetType.EnemyPlayer)
+        {
+            return sourceOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        }
+
+        return sourceOwner;
+    }
+
+    private void TriggerTimedEffectsForCard(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectTiming timing)
+    {
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || timed.timing != timing || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                TryApplyTimedEffectResolved(sourceCard, ownerType, effect);
+            }
+        }
+    }
+
+    /// <summary>
+    /// OnBurst / OnBaseDeployed 等の自動解決。敵ユニット手動選択は UI または敵 AI で適用し、先頭ユニットへの誤適用を防ぐ。
+    /// </summary>
+    private void TryApplyTimedEffectResolved(CardController sourceCard, PlayerType ownerType, EffectData effect)
+    {
+        if (!EffectRequiresManualUnitSelection(effect))
+        {
+            ApplyEffect(sourceCard, ownerType, effect);
+            return;
+        }
+
+        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect.target);
+        if (candidates.Count == 0)
+        {
+            Debug.Log(
+                $"[TimedEffect] Manual selection skipped — no candidates (timing effect target:{effect.target} cardId:{sourceCard?.Data?.id}).");
+            return;
+        }
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+            CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+            if (picked != null)
+            {
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+            }
+
+            return;
+        }
+
+        Debug.LogWarning(
+            $"[TimedEffect] Player manual selection requires coroutine resolve (cardId:{sourceCard?.Data?.id}).");
+    }
+
+    /// <summary>OnBurst など、手動選択 UI を待機して解決する。</summary>
+    private IEnumerator TriggerTimedEffectsForCardCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectTiming timing)
+    {
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            yield break;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || timed.timing != timing || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                yield return ApplyTimedEffectResolvedCoroutine(sourceCard, ownerType, effect);
+            }
+        }
+    }
+
+    private IEnumerator ApplyTimedEffectResolvedCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (!EffectRequiresManualUnitSelection(effect))
+        {
+            ApplyEffect(sourceCard, ownerType, effect);
+            yield break;
+        }
+
+        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect.target);
+        if (candidates.Count == 0)
+        {
+            Debug.Log(
+                $"[Burst] Manual selection skipped — no candidates (target:{effect.target} cardId:{sourceCard?.Data?.id}).");
+            yield break;
+        }
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+            CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+            if (picked != null)
+            {
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+            }
+
+            yield break;
+        }
+
+        bool selectionFinished = false;
+        GameObject uiRoot = OpenCommandWithTargetsSelectionUI(
+            "バースト — 対象を選択",
+            effect != null ? $"{effect.type} / 敵ユニット1体 / 値:{effect.value}" : string.Empty,
+            sourceCard,
+            candidates,
+            null,
+            picked =>
+            {
+                selectionFinished = true;
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+            },
+            () => { selectionFinished = true; });
+
+        if (uiRoot == null)
+        {
+            Debug.LogWarning($"[Burst] Target selection UI could not open (cardId:{sourceCard?.Data?.id}).");
+            yield break;
+        }
+
+        yield return new WaitUntil(() => selectionFinished);
+    }
+
+    private void TriggerBaseDeployedEffects(CardController baseCard, PlayerType ownerType)
+    {
+        TriggerTimedEffectsForCard(baseCard, ownerType, EffectTiming.OnBaseDeployed);
+    }
+
+    private void TriggerShieldDeployedEffects(CardController shieldCard, PlayerType ownerType)
+    {
+        TriggerTimedEffectsForCard(shieldCard, ownerType, EffectTiming.OnShieldDeployed);
+    }
+
+    private void DeployShieldCardFromHand(
+        CardController shieldCard,
+        PlayerType ownerType,
+        CardGameRule ownerRule)
+    {
+        if (shieldCard == null || shieldCard.Data == null || !CanDeployShieldFromHand(shieldCard))
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+        RemoveCardFromHandLists(shieldCard, ownerType);
+        if (!ownerRule.TryAttachShieldCardFromHand(shieldCard))
+        {
+            RegisterShieldCardInHandLists(shieldCard, ownerType);
+            Debug.LogWarning("[ShieldDeploy] TryAttachShieldCardFromHand failed.");
+            return;
+        }
+
+        gundamRule.AddShieldCount(ruleSide, 1);
+        Debug.Log(
+            $"[ShieldDeploy] {shieldCard.Data.cardName}(id:{shieldCard.Data.id}) side:{ownerType} hand → shield zone");
+
+        TriggerShieldDeployedEffects(shieldCard, ownerType);
+        SyncResourceViewsFromRule(ruleSide);
+    }
+}

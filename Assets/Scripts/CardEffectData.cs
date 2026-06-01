@@ -9,7 +9,9 @@ public enum EffectTiming
     OnTurnEnd,      // 自分のターン終了時
     OnAttack,       // 攻撃する時（ユニット戦など。シールド攻撃の制圧は OnShieldAttack）
     OnShieldAttack, // シールド攻撃のダメージ解決時のみ
-    OnBurst,        // このカードがシールドとして破壊されたとき
+    OnBurst,        // シールド破壊公開時。DeployBase で自身をベースゾーンへ配備、Draw 等も可
+    OnBaseDeployed, // ベース配備時。AddShieldToHand でゾーン先頭を手札へ
+    OnShieldDeployed, // 手札のシールドカードをシールドゾーンに配備したとき
     OnAction,       // 任意アクション（攻撃時/ターン終了時に手札から実行可能）
     OnDestroyed,    // 破壊された時
     OnEndOfGame,    // ゲーム終了時
@@ -26,7 +28,13 @@ public enum EffectType
     Debuff,
     BlockRedirect,
     /// <summary>制圧。シールド攻撃時のみ。EXあり→通常シールド攻撃に任せる。シールドのみ→実シールドを value 枚破壊。</summary>
-    Suppress
+    Suppress,
+    /// <summary>手札へ移す（value=枚数）。ベース配備時はシールドゾーン先頭＋枚数減算。</summary>
+    AddShieldToHand,
+    /// <summary>手札のシールドをシールドゾーンへ配備（value=枚数）。</summary>
+    DeployShieldFromHand,
+    /// <summary>ベースゾーンへ配備（value=枚数）。OnBurst 時は破壊された Base カード自身を配備。</summary>
+    DeployBase
 }
 
 public enum TargetType
@@ -202,6 +210,9 @@ public class EffectData
 
     [Tooltip("MultiplyByBoardCount の上限（0 で上限なし）。")]
     public int valueScaleMaximum;
+
+    [Tooltip("（未使用）AddShieldToHand はシールドゾーン先頭の実カードを手札へ移す。")]
+    public int shieldTokenCardId;
 
     [Tooltip("カウント対象ゾーンに source がいる場合、source を数から除外。")]
     public bool valueCountExcludeSource;

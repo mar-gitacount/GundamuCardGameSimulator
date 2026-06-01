@@ -282,6 +282,7 @@ public partial class BattleGameMain : MonoBehaviour
     private void Awake()
     {
         gundamRule.OnShieldDamaged += OnGundamShieldDamaged;
+        RegisterBaseProtectionCallbacks();
     }
 
     private void OnDestroy()
@@ -292,7 +293,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private void OnGundamShieldDamaged(Gundam2024RuleScript.PlayerSide side, int oldShield, int newShield)
+    private void OnGundamShieldDamaged(Gundam2024RuleScript.PlayerSide side, int oldShield, int newShield, bool simultaneousReveal)
     {
         int broken = oldShield - newShield;
         if (broken <= 0)
@@ -300,7 +301,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        pendingShieldBreakBatches.Enqueue(new PendingShieldBreakBatch { Side = side, Count = broken });
+        isShieldBreakFlowOpen = true;
+        pendingShieldBreakBatches.Enqueue(new PendingShieldBreakBatch
+        {
+            Side = side,
+            Count = broken,
+            SimultaneousReveal = simultaneousReveal,
+        });
         if (!shieldBreakQueueRunning)
         {
             StartCoroutine(RunShieldBreakQueueCoroutine());
@@ -693,7 +700,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void OnCardClicked(CardController cardController)
     {
-        if (isMatchFinished)
+        if (isMatchFinished || isShieldBreakFlowOpen || shieldBreakQueueRunning)
         {
             return;
         }
@@ -715,6 +722,13 @@ public partial class BattleGameMain : MonoBehaviour
         bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel);
         bool isInShield = ownerRule.ShieldCardsContent != null
             && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
+        bool isInBaseSlot = IsCardInBaseSlot(cardController);
+        if (isInBaseSlot)
+        {
+            Debug.Log($"ベース: {cardController.Data.cardName} HP:{cardController.CurrentHp}");
+            return;
+        }
+
         bool isOnAnyDeployField =
             cardController.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
             || cardController.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel);
@@ -789,7 +803,10 @@ public partial class BattleGameMain : MonoBehaviour
                 bool showShieldAttack = gundamRule.CanShowUnitShieldAttackOption(
                     opponentState,
                     cardController.CurrentPower);
-                bool showDirectAttack = opponentState.shield <= 0;
+                bool showDirectAttack = !gundamRule.HasShieldZoneProtection(
+                    ownerType == PlayerType.Player
+                        ? Gundam2024RuleScript.PlayerSide.Enemy
+                        : Gundam2024RuleScript.PlayerSide.Player);
                 bool allowShieldOrDirectAttack = !cardController.Data.isNotDirectAttack
                     && (showShieldAttack || showDirectAttack);
 
@@ -797,8 +814,11 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     string shieldLabel = showDirectAttack
                         ? "Direct Attack"
-                        : opponentState.exBase > 0
-                            ? $"Attack Shield (deal {cardController.CurrentPower} to EX Base)"
+                        : opponentState.exBase > 0 || HasActiveDeployedBaseForRuleSide(
+                            ownerType == PlayerType.Player
+                                ? Gundam2024RuleScript.PlayerSide.Enemy
+                                : Gundam2024RuleScript.PlayerSide.Player)
+                            ? $"Attack Shield (deal {cardController.CurrentPower} to Base/EX)"
                             : "Attack Shield (break 1)";
 
                     var shieldAttackBtn = FilterPanel.CreateChildButton(shieldLabel);
@@ -866,6 +886,27 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log("現在のターンプレイヤーの手札ではありません。");
             Destroy(FilterPanel);
+            return;
+        }
+
+        if (CanDeployShieldFromHand(cardController))
+        {
+            float shieldActionY = -10f;
+            if (TryAddOnMainEffectApplyButton(FilterPanel, cardController, ownerType, shieldActionY))
+            {
+                shieldActionY -= 60f;
+                closeBtnRect.anchoredPosition = new Vector2(0, shieldActionY - 70f);
+            }
+
+            var deployShieldBtn = FilterPanel.CreateChildButton("Deploy Shield");
+            RectTransform shieldBtnRect = deployShieldBtn.GetComponent<RectTransform>();
+            shieldBtnRect.sizeDelta = new Vector2(240, 50);
+            shieldBtnRect.anchoredPosition = new Vector2(0, shieldActionY);
+            deployShieldBtn.onClick.AddListener(() =>
+            {
+                DeployShieldCardFromHand(cardController, ownerType, ownerRule);
+                Destroy(FilterPanel);
+            });
             return;
         }
 
@@ -964,7 +1005,15 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
-                SendCardToField(cardController, ownerType, ownerRule);
+                if (cardController.Data.type == Type.Base)
+                {
+                    BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
+                }
+                else
+                {
+                    SendCardToField(cardController, ownerType, ownerRule);
+                }
+
                 SyncResourceViewsFromRule(ownerSide);
                 Destroy(FilterPanel);
             });
@@ -974,6 +1023,27 @@ public partial class BattleGameMain : MonoBehaviour
             noRt.sizeDelta = new Vector2(220f, 50f);
             noRt.anchoredPosition = new Vector2(125f, -90f);
             noBtn.onClick.AddListener(() => Destroy(FilterPanel));
+            return;
+        }
+
+        if (cardController.Data.type == Type.Base)
+        {
+            var deployBaseBtn = FilterPanel.CreateChildButton("Deploy Base");
+            RectTransform baseBtnRect = deployBaseBtn.GetComponent<RectTransform>();
+            baseBtnRect.sizeDelta = new Vector2(240, 50);
+            baseBtnRect.anchoredPosition = new Vector2(0, handActionY);
+            deployBaseBtn.onClick.AddListener(() =>
+            {
+                if (!gundamRule.TryConsumeResource(ownerSide, cost, 0, cardController.Data.id))
+                {
+                    Debug.Log("リソースポイントが足りません！");
+                    return;
+                }
+
+                BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
+                SyncResourceViewsFromRule(ownerSide);
+                Destroy(FilterPanel);
+            });
             return;
         }
 
@@ -990,7 +1060,15 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            SendCardToField(cardController, ownerType, ownerRule);
+            if (cardController.Data.type == Type.Base)
+            {
+                BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
+            }
+            else
+            {
+                SendCardToField(cardController, ownerType, ownerRule);
+            }
+
             SyncResourceViewsFromRule(ownerSide);
             Destroy(FilterPanel);
         });
@@ -1047,7 +1125,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     public void ChangePhase(BattlePhase nextPhase)
     {
-        if (isMatchFinished)
+        if (isMatchFinished || isShieldBreakFlowOpen || shieldBreakQueueRunning)
         {
             return;
         }
@@ -1103,6 +1181,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         isTurnPhaseSequenceRunning = true;
+        yield return WaitForShieldBreakFlowCompleteCoroutine();
         yield return ShowPhasePauseCoroutine(currentPlayerType == PlayerType.Player ? "Player Turn" : "Enemy Turn");
         currentPhase = BattlePhase.DrawPhase;
         UpdateEndTurnButtonVisibility();
@@ -1379,7 +1458,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.CurrentPower);
-            bool canDirectAttack = gundamRule.Player.shield <= 0;
+            bool canDirectAttack = !gundamRule.HasShieldZoneProtection(Gundam2024RuleScript.PlayerSide.Player);
             bool canShieldOrDirectAttack = !unit.Data.isNotDirectAttack && (canAttackShield || canDirectAttack);
             List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
             bool canAttackUnit = restTargets.Count > 0;
@@ -2362,7 +2441,8 @@ public partial class BattleGameMain : MonoBehaviour
 
     void ExcueteEndTurn()
     {
-        if (isEndTurnFlowRunning || isAttackedSidePanelOpen || isActionThinkPauseOpen)
+        if (isEndTurnFlowRunning || isAttackedSidePanelOpen || isActionThinkPauseOpen
+            || isShieldBreakFlowOpen || shieldBreakQueueRunning)
         {
             return;
         }
@@ -2373,6 +2453,7 @@ public partial class BattleGameMain : MonoBehaviour
     private IEnumerator ExecuteEndTurnCoroutine()
     {
         isEndTurnFlowRunning = true;
+        yield return WaitForShieldBreakFlowCompleteCoroutine();
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = currentPlayerType;
@@ -2420,7 +2501,7 @@ public partial class BattleGameMain : MonoBehaviour
         CardGameRule targetRule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerState state = side == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player : gundamRule.Enemy;
         targetRule.ApplyExternalResourceState(state.TotalLevel, state.resource, state.exResource);
-        targetRule.SetExBaseDisplay(state.exBase);
+        SyncBaseZoneHeaderDisplay(side);
 
         if (side == Gundam2024RuleScript.PlayerSide.Player)
         {
@@ -2486,6 +2567,11 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerCardEffects(cardController, ownerType, EffectTiming.OnDestroyed);
 
         CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (ownerRule != null && ownerRule.DeployedBase == cardController)
+        {
+            ownerRule.ClearDeployedBaseCard();
+        }
+
         ownerRule.AddCardToTrash(cardController.Data.id);
 
         playerBattleZoneCards.Remove(cardController);
@@ -3436,8 +3522,9 @@ public partial class BattleGameMain : MonoBehaviour
             ? gundamRule.Player
             : gundamRule.Enemy;
 
-        // OnAction より前の時点で EX ベースがあったかを固定する（OnAction で EX が 0 になった後にシールドが割れるのを防ぐ）。
-        bool hadExBaseLayerAtShieldAttackStart = defender.exBase > 0;
+        // OnAction より前: EX ベースまたは配備ベースがあったか（OnAction 後に実シールドが割れるのを防ぐ）。
+        bool hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
+            || HasActiveDeployedBaseForRuleSide(targetSide);
         if (hadExBaseLayerAtShieldAttackStart)
         {
             blockShieldFlowDuringShieldAttack = true;
@@ -3453,6 +3540,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
         isShieldAttackResolving = true;
+        bool deferredShieldBreakWait = false;
 
         try
         {
@@ -3563,9 +3651,9 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            if (defender.shield <= 0)
+            if (!gundamRule.HasShieldZoneProtection(targetSide))
             {
-                Debug.Log($"[DirectAttack] Shield is 0. Resolving direct attack. attackPower:{attacker.CurrentPower}");
+                Debug.Log($"[DirectAttack] No shield zone protection. Resolving direct attack. attackPower:{attacker.CurrentPower}");
                 attacker.SetAttackFlg(AttackFlg.False);
                 attacker.SetUnitRestVisual(true);
                 pendingUnitAttackAttacker = null;
@@ -3575,6 +3663,7 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
+            int shieldBeforeStrike = defender.shield;
             if (!TryResolveShieldAttackStrikeDamage(
                     attacker,
                     targetSide,
@@ -3587,24 +3676,71 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            attacker.SetAttackFlg(AttackFlg.False);
-            attacker.SetUnitRestVisual(true);
-            if (!string.IsNullOrEmpty(shieldStrikeLog))
+            Gundam2024RuleScript.PlayerState defenderAfter = targetSide == Gundam2024RuleScript.PlayerSide.Player
+                ? gundamRule.Player
+                : gundamRule.Enemy;
+            int shieldsBroken = shieldBeforeStrike - defenderAfter.shield;
+            if (shieldsBroken > 0)
             {
-                Debug.Log(shieldStrikeLog);
+                deferredShieldBreakWait = true;
+                StartCoroutine(FinishUnitShieldAttackAfterBreakCoroutine(
+                    attacker,
+                    attackerOwner,
+                    shieldStrikeLog,
+                    hadExBaseLayerAtShieldAttackStart));
+                return;
             }
 
-            TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnShieldAttack);
-            TriggerMountedPilotOnShieldAttackEffects(attacker, attackerOwner);
-            TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
-            TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
-            pendingUnitAttackAttacker = null;
-            pendingOnAttackEffectResolvedAttacker = null;
-            ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-            DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
+            CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
+        }
+        finally
+        {
+            if (!deferredShieldBreakWait)
+            {
+                isShieldAttackResolving = false;
+                if (hadExBaseLayerAtShieldAttackStart)
+                {
+                    blockShieldFlowDuringShieldAttack = false;
+                }
+            }
+        }
+    }
 
-            SyncAllResourceViewsFromRule();
-            ClearAttackFlowContext();
+    private void CompleteUnitShieldAttackPostStrikeFollowUp(
+        CardController attacker,
+        PlayerType attackerOwner,
+        string shieldStrikeLog)
+    {
+        attacker.SetAttackFlg(AttackFlg.False);
+        attacker.SetUnitRestVisual(true);
+        if (!string.IsNullOrEmpty(shieldStrikeLog))
+        {
+            Debug.Log(shieldStrikeLog);
+        }
+
+        TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnShieldAttack);
+        TriggerMountedPilotOnShieldAttackEffects(attacker, attackerOwner);
+        TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
+        TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
+
+        SyncAllResourceViewsFromRule();
+        ClearAttackFlowContext();
+    }
+
+    private IEnumerator FinishUnitShieldAttackAfterBreakCoroutine(
+        CardController attacker,
+        PlayerType attackerOwner,
+        string shieldStrikeLog,
+        bool hadExBaseLayerAtShieldAttackStart)
+    {
+        yield return WaitForShieldBreakFlowCompleteCoroutine();
+        try
+        {
+            CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
         }
         finally
         {
@@ -3677,7 +3813,14 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         int suppressBreaks = GetMaxSuppressBreakCountFromUnit(attacker);
-        bool shieldOnly = defender.exBase <= 0 && !hadExBaseLayerAtShieldAttackStart;
+        bool shieldOnly = defender.exBase <= 0
+            && !HasActiveDeployedBaseForRuleSide(targetSide)
+            && !hadExBaseLayerAtShieldAttackStart;
+
+        if (TryApplyShieldAttackDamageToDeployedBase(attacker, targetSide, out logMessage))
+        {
+            return true;
+        }
 
         if (suppressBreaks > 0 && shieldOnly)
         {
@@ -5205,6 +5348,12 @@ public partial class BattleGameMain : MonoBehaviour
                     // Enemy unit target effects are resolved before attack target decision.
                     continue;
                 }
+
+                if (EffectRequiresManualUnitSelection(effect))
+                {
+                    continue;
+                }
+
                 ApplyEffect(sourceCard, ownerType, effect);
             }
         }
@@ -5322,6 +5471,13 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyEffect(CardController sourceCard, PlayerType ownerType, EffectData effect)
     {
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped auto-apply for manual unit selection (type:{effect.type} target:{effect.target} cardId:{sourceCard?.Data?.id}).");
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0)
         {
@@ -5338,6 +5494,23 @@ public partial class BattleGameMain : MonoBehaviour
                     CardAddtoHand(rule, ownerType);
                 }
                 Debug.Log($"[Effect] Draw x{magnitude} by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.AddShieldToHand:
+                ApplyAddShieldToHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.DeployShieldFromHand:
+                ApplyDeployShieldFromHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.DeployBase:
+                ApplyDeployBaseEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    magnitude,
+                    burstDeployBasePreferSourceCard);
                 break;
 
             case EffectType.Damage:
@@ -6051,7 +6224,10 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (effect.type == EffectType.Draw || effect.type == EffectType.BlockRedirect)
+        if (effect.type == EffectType.Draw || effect.type == EffectType.BlockRedirect
+            || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
+            || effect.type == EffectType.DeployBase
+            || effect.type == EffectType.Suppress)
         {
             return;
         }
@@ -6624,6 +6800,18 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
                     continue;
+                case EffectType.AddShieldToHand:
+                    notes.Append("[AddShieldToHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.DeployShieldFromHand:
+                    notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.DeployBase:
+                    notes.Append("[DeployBase ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.Suppress:
+                    notes.Append("[Suppress] ");
+                    continue;
             }
 
             if (magnitude == 0)
@@ -6741,6 +6929,18 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.AddShieldToHand:
+                    notes.Append("[AddShieldToHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.DeployShieldFromHand:
+                    notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.DeployBase:
+                    notes.Append("[DeployBase ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.Suppress:
+                    notes.Append("[Suppress] ");
                     continue;
             }
 
@@ -8073,7 +8273,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (IsEffectTargetRequiringUnitSelection(effect.target))
+        if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect.target);
             if (candidates.Count == 0)

@@ -23,44 +23,10 @@ MonoBehaviour:
   version: 4
   sourceType: 2
   filterType: 0
-  color: 5
+  color: 0
   type: 2
   attackFlg: 0
   timedEffects:
-  - timing: 6
-    activationConditions: []
-    effectsName: 
-    effects:
-    - type: 0
-      value: 2
-      target: 2
-      selectionMode: 1
-      statTarget: 1
-      duration: 2
-      valueMode: 1
-      valueCountBoardSide: 1
-      valueCountKind: 0
-      valueCountFeature: {fileID: 0}
-      valueCountMinUnitLevel: 0
-      valueScaleMaximum: 0
-      valueCountExcludeSource: 0
-  - timing: 10
-    activationConditions: []
-    effectsName: 
-    effects:
-    - type: 0
-      value: 2
-      target: 2
-      selectionMode: 1
-      statTarget: 1
-      duration: 2
-      valueMode: 0
-      valueCountBoardSide: 1
-      valueCountKind: 0
-      valueCountFeature: {fileID: 0}
-      valueCountMinUnitLevel: 0
-      valueScaleMaximum: 0
-      valueCountExcludeSource: 0
   - timing: 5
     activationConditions: []
     effectsName: 
@@ -77,7 +43,27 @@ MonoBehaviour:
       valueCountFeature: {fileID: 0}
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+  - timing: 12
+    activationConditions: []
+    effectsName: 
+    effects:
+    - type: 0
+      value: 2
+      target: 2
+      selectionMode: 1
+      statTarget: 1
+      duration: 2
+      valueMode: 0
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
       valueCountExcludeSource: 0
   features: []
   isBlocker: 0
   isNotDirectAttack: 0
+  isShieldToken: 0

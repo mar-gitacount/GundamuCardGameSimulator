@@ -75,6 +75,15 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public AttackFlg AttackFlgState => _attackFlg;
     public bool IsRestState { get; private set; }
 
+    /// <summary>シールドゾーンから手札へ移したカードのみ、再配備可能。</summary>
+    private bool eligibleForShieldZoneDeploy;
+    public bool IsEligibleForShieldZoneDeploy => eligibleForShieldZoneDeploy;
+
+    public void SetEligibleForShieldZoneDeploy(bool eligible)
+    {
+        eligibleForShieldZoneDeploy = eligible;
+    }
+
     public void SetUp(CardData carddata,Action<CardController> callback)
     {
         this.Data = carddata;

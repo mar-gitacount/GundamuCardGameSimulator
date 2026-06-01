@@ -23,7 +23,7 @@ MonoBehaviour:
   version: 3
   sourceType: 1
   filterType: 0
-  color: 5
+  color: 0
   type: 0
   attackFlg: 0
   timedEffects:
@@ -38,3 +38,4 @@ MonoBehaviour:
   features: []
   isBlocker: 0
   isNotDirectAttack: 0
+  isShieldToken: 0

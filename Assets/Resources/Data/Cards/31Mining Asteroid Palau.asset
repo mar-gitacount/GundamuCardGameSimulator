@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 31Mining Asteroid Palau
+  m_EditorClassIdentifier: 
+  id: 31
+  cardName: Mining Asteroid Palau
+  cost: 1
+  level: 2
+  power: 0
+  hp: 6
+  imageName: {fileID: 21300000, guid: ce63e4769f6c3ef4d82c5cd669fea1ed, type: 3}
+  image: {fileID: 0}
+  version: 1
+  sourceType: 2
+  filterType: 0
+  color: 4
+  type: 3
+  attackFlg: 0
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    effectsName: DeployBase1_OnBurst
+    effects: []
+  - timing: 6
+    activationConditions: []
+    effectsName: AddShield1_OnBaseDeployed
+    effects: []
+  features: []
+  isBlocker: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
