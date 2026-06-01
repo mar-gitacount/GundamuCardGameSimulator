@@ -273,7 +273,10 @@ public partial class BattleGameMain
         for (int ei = 0; ei < effects.Count; ei++)
         {
             EffectData eff = effects[ei];
-            if (eff == null || eff.type == EffectType.Draw || eff.type == EffectType.BlockRedirect)
+            if (eff == null || eff.type == EffectType.Draw || eff.type == EffectType.BlockRedirect
+                || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.DeployShieldFromHand
+                || eff.type == EffectType.DeployBase
+                || eff.type == EffectType.Suppress)
             {
                 continue;
             }

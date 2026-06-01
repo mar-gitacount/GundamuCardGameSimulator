@@ -94,6 +94,7 @@ public class CardDatabase : MonoBehaviour
         featureIds = CardFeatureRegistry.CollectIds(card.features),
         isBlocker = card.isBlocker,
         isNotDirectAttack = card.isNotDirectAttack,
+        isShieldToken = card.isShieldToken,
     };
 }
 CardData ConvertToCardData(CardJson json)
@@ -126,6 +127,7 @@ CardData ConvertToCardData(CardJson json)
     card.color = (CardColor)json.color; // カードの色を追加
     card.isBlocker = json.isBlocker;
     card.isNotDirectAttack = json.isNotDirectAttack;
+    card.isShieldToken = json.isShieldToken;
     card.SetFeaturesFromIds(json.featureIds);
 
     return card;

@@ -13,28 +13,29 @@ MonoBehaviour:
   m_Name: 30Vesalius
   m_EditorClassIdentifier: 
   id: 30
-  cardName: GQuuuuuuX (Omega Psycommu)
-  cost: 2
+  cardName: 30Vesalius
+  cost: 1
   level: 2
-  power: 6
+  power: 0
   hp: 5
-  imageName: {fileID: 21300000, guid: 9fbfe04d3903eea44a28d1d1bd970ff2, type: 3}
+  imageName: {fileID: 21300000, guid: 4561a30053b757b42a3b1098067a0f1f, type: 3}
   image: {fileID: 0}
-  version: 3
-  sourceType: 1
+  version: 1
+  sourceType: 2
   filterType: 0
-  color: 5
-  type: 0
+  color: 0
+  type: 3
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 5
     activationConditions: []
-    effectsName: DamageEnemy3_SelectSingle
+    effectsName: DeployBase1_OnBurst
     effects: []
-  - timing: 4
+  - timing: 6
     activationConditions: []
-    effectsName: Suppress2_OnShieldAttack
+    effectsName: AddShield1_OnBaseDeployed
     effects: []
   features: []
   isBlocker: 0
   isNotDirectAttack: 0
+  isShieldToken: 0

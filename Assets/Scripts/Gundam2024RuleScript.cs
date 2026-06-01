@@ -86,7 +86,10 @@ public class Gundam2024RuleScript
     public event Action<PlayerSide, TurnPhase> OnPhaseChanged;
     public event Action<PlayerSide> OnTurnChanged;
     /// <summary>第2引数: 減少前のシールド枚数、第3引数: 減少後。</summary>
-    public event Action<PlayerSide, int, int> OnShieldDamaged;
+    public event Action<PlayerSide, int, int, bool> OnShieldDamaged;
+
+    /// <summary>配備ベースが HP&gt;0 でシールドゾーンを守っているか（BattleGameMain が設定）。</summary>
+    public Func<PlayerSide, bool> HasActiveDeployedBase;
 
     public void InitializeGame(int playerDeckCount, int enemyDeckCount, PlayerSide firstPlayer)
     {
@@ -309,7 +312,25 @@ public class Gundam2024RuleScript
         return true;
     }
 
-    public void DamageShield(PlayerSide targetSide, int amount = 1)
+    /// <summary>シールドを手札へ移す用。破壊イベント・バースト UI は発火しない。</summary>
+    public bool TryReduceShieldCountForHandMove(PlayerSide side, int amount = 1)
+    {
+        if (amount <= 0)
+        {
+            return false;
+        }
+
+        PlayerState state = GetState(side);
+        if (state.shield < amount)
+        {
+            return false;
+        }
+
+        state.shield -= amount;
+        return true;
+    }
+
+    public void DamageShield(PlayerSide targetSide, int amount = 1, bool simultaneousReveal = false)
     {
         if (amount <= 0)
         {
@@ -319,7 +340,18 @@ public class Gundam2024RuleScript
         PlayerState target = GetState(targetSide);
         int before = target.shield;
         target.shield = Mathf.Max(0, target.shield - amount);
-        OnShieldDamaged?.Invoke(targetSide, before, target.shield);
+        OnShieldDamaged?.Invoke(targetSide, before, target.shield, simultaneousReveal);
+    }
+
+    /// <summary>シールドゾーンへカードを配備したとき等。破壊イベントは発火しない。</summary>
+    public void AddShieldCount(PlayerSide targetSide, int amount = 1)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        GetState(targetSide).shield += amount;
     }
 
     /// <summary>
@@ -418,29 +450,50 @@ public class Gundam2024RuleScript
             return 0;
         }
 
-        int applied = Mathf.Min(breakCount, target.shield);
-        if (applied > 0)
+        int maxToBreak = Mathf.Min(breakCount, target.shield);
+        if (maxToBreak <= 0)
         {
-            DamageShield(targetSide, applied);
+            return 0;
         }
 
-        return applied;
+        DamageShield(targetSide, maxToBreak, simultaneousReveal: maxToBreak > 1);
+        return maxToBreak;
     }
 
-    /// <summary>シールド攻撃ボタンを出すか（シールドが残っていること、AP が 1 以上必須）。</summary>
+    public void SetExBasePoints(PlayerSide side, int points)
+    {
+        GetState(side).exBase = Mathf.Max(0, points);
+    }
+
+    /// <summary>シールド枚数・EX ベース・配備ベースのいずれかで守られているか。</summary>
+    public bool HasShieldZoneProtection(PlayerSide side)
+    {
+        PlayerState state = GetState(side);
+        if (state.shield > 0 || state.exBase > 0)
+        {
+            return true;
+        }
+
+        return HasActiveDeployedBase != null && HasActiveDeployedBase(side);
+    }
+
+    /// <summary>シールド攻撃ボタンを出すか（守りがあること、AP が 1 以上必須）。</summary>
     public bool CanShowUnitShieldAttackOption(PlayerState defender, int attackerPower)
     {
-        if (defender == null || defender.shield <= 0)
+        if (defender == null || attackerPower <= 0)
         {
             return false;
         }
 
-        return attackerPower > 0;
+        return defender.shield > 0
+            || defender.exBase > 0
+            || (HasActiveDeployedBase != null && HasActiveDeployedBase(
+                defender == Player ? PlayerSide.Player : PlayerSide.Enemy));
     }
 
     public bool IsDefeated(PlayerSide side)
     {
-        return GetState(side).shield <= 0;
+        return !HasShieldZoneProtection(side);
     }
 
     public bool IsGameOver(out PlayerSide winner)

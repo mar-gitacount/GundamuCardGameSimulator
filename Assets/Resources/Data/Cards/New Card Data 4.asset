@@ -25,3 +25,17 @@ MonoBehaviour:
   filterType: 0
   color: 0
   type: 4
+  attackFlg: 0
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    effectsName: DeployBase1_OnBurst
+    effects: []
+  - timing: 6
+    activationConditions: []
+    effectsName: AddShield1_OnBaseDeployed
+    effects: []
+  features: []
+  isBlocker: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0

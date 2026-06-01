@@ -31,6 +31,9 @@ public class CardData : ScriptableObject
     public bool isBlocker;
     
     public bool isNotDirectAttack;
+
+    [Tooltip("シールドトークン。手札からシールドゾーンへ配備できる。")]
+    public bool isShieldToken;
 }
 
 
@@ -50,6 +53,7 @@ public class CardJson
     public int[] featureIds;
     public bool isBlocker;
     public bool isNotDirectAttack;
+    public bool isShieldToken;
 }
 
 [Serializable]

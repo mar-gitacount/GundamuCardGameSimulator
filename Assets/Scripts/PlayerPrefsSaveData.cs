@@ -32,6 +32,7 @@ public class PlayerPrefsSaveData : ISaveData
             featureIds = CardFeatureRegistry.CollectIds(card.features),
             isBlocker = card.isBlocker,
             isNotDirectAttack = card.isNotDirectAttack,
+            isShieldToken = card.isShieldToken,
         };
     }
     public CardData ConvertToCardData(CardJson json)
@@ -54,6 +55,7 @@ public class PlayerPrefsSaveData : ISaveData
 
         card.isBlocker = json.isBlocker;
         card.isNotDirectAttack = json.isNotDirectAttack;
+        card.isShieldToken = json.isShieldToken;
         card.SetFeaturesFromIds(json.featureIds);
         return card;
     }

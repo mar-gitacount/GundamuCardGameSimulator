@@ -44,6 +44,8 @@ public class CardGameRule
     private RectTransform shieldCardsContent;
     private GridLayoutGroup shieldGrid;
     private TextMeshProUGUI exBaseDisplayText;
+    private RectTransform baseSlotContent;
+    private CardController deployedBase;
     private readonly List<int> shieldCardIds = new List<int>();
     private readonly List<CardController> shieldControllersInDrawOrder = new List<CardController>();
     /// <summary>
@@ -237,6 +239,8 @@ public class CardGameRule
    public RectTransform PlayerHandPanel => HandPanel.GetComponent<RectTransform>();
    public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
     public RectTransform ShieldCardsContent => shieldCardsContent;
+    public RectTransform BaseSlotContent => baseSlotContent;
+    public CardController DeployedBase => deployedBase;
 
     /// <summary>
     /// マリガン完了後：EXベース表示を更新し、山札上から指定枚数をシールドエリアに並べる（手札には加えない）。
@@ -306,18 +310,50 @@ public class CardGameRule
     /// <summary>破壊される先頭シールド1枚をリストから切り離し、表面を公開する。</summary>
     public bool TryTakeTopShieldCardForBreak(out ShieldBreakTaken taken)
     {
+        return TryDetachShieldCardAtZoneIndex(0, out taken, revealFace: true);
+    }
+
+    /// <summary>シールドゾーンのカード一覧（制圧時の選択用。まだ切り離さない）。</summary>
+    public int GetShieldZoneCardCount()
+    {
+        return Mathf.Min(shieldControllersInDrawOrder.Count, shieldCardIds.Count);
+    }
+
+    /// <summary>ゾーン内インデックスのカード情報（制圧選択 UI 用）。</summary>
+    public bool TryGetShieldZoneCardAt(int zoneIndex, out ShieldBreakTaken taken)
+    {
         taken = default;
-        if (shieldControllersInDrawOrder.Count == 0 || shieldCardIds.Count == 0)
+        if (zoneIndex < 0 || zoneIndex >= shieldControllersInDrawOrder.Count || zoneIndex >= shieldCardIds.Count)
         {
             return false;
         }
 
-        CardController cc = shieldControllersInDrawOrder[0];
-        int id = shieldCardIds[0];
-        shieldControllersInDrawOrder.RemoveAt(0);
-        shieldCardIds.RemoveAt(0);
+        CardController cc = shieldControllersInDrawOrder[zoneIndex];
+        int id = shieldCardIds[zoneIndex];
+        taken = new ShieldBreakTaken
+        {
+            Controller = cc,
+            CardId = id,
+            Data = cc != null && cc.Data != null ? cc.Data : DeckSettinObject.Instance.GetCardDataById(id),
+        };
+        return taken.Data != null;
+    }
 
-        if (cc != null)
+    /// <summary>ゾーン内インデックスのカードを切り離す（制圧で順番確定後）。</summary>
+    public bool TryDetachShieldCardAtZoneIndex(int zoneIndex, out ShieldBreakTaken taken, bool revealFace = true)
+    {
+        taken = default;
+        if (zoneIndex < 0 || zoneIndex >= shieldControllersInDrawOrder.Count || zoneIndex >= shieldCardIds.Count)
+        {
+            return false;
+        }
+
+        CardController cc = shieldControllersInDrawOrder[zoneIndex];
+        int id = shieldCardIds[zoneIndex];
+        shieldControllersInDrawOrder.RemoveAt(zoneIndex);
+        shieldCardIds.RemoveAt(zoneIndex);
+
+        if (revealFace && cc != null)
         {
             cc.RevealShieldFace();
         }
@@ -343,6 +379,61 @@ public class CardGameRule
         {
             UnityEngine.Object.Destroy(taken.Controller.gameObject);
         }
+    }
+
+    /// <summary>手札の CardController をシールドゾーン末尾に追加する（face down）。</summary>
+    public bool TryAttachShieldCardFromHand(CardController cc)
+    {
+        if (cc == null || cc.Data == null || shieldCardsContent == null)
+        {
+            return false;
+        }
+
+        shieldCardIds.Add(cc.Data.id);
+        shieldControllersInDrawOrder.Add(cc);
+        cc.transform.SetParent(shieldCardsContent, false);
+        RectTransform cardRect = cc.GetComponent<RectTransform>();
+        if (cardRect != null && shieldGrid != null)
+        {
+            cardRect.localScale = Vector3.one;
+            cardRect.sizeDelta = shieldGrid.cellSize;
+        }
+
+        cc.SetShieldFaceHidden(true);
+        cc.SetEligibleForShieldZoneDeploy(false);
+        return true;
+    }
+
+    public bool HasShieldCardInZone =>
+        shieldControllersInDrawOrder.Count > 0 && shieldCardIds.Count > 0;
+
+    /// <summary>シールドゾーン先頭1枚を手札へ移す（破壊・バースト UI なし）。</summary>
+    public bool TryMoveTopShieldCardToHand(RectTransform handContent, out CardController movedCard)
+    {
+        movedCard = null;
+        if (handContent == null || !HasShieldCardInZone)
+        {
+            return false;
+        }
+
+        CardController cc = shieldControllersInDrawOrder[0];
+        shieldControllersInDrawOrder.RemoveAt(0);
+        shieldCardIds.RemoveAt(0);
+        if (cc == null)
+        {
+            return false;
+        }
+
+        cc.RevealShieldFace();
+        cc.transform.SetParent(handContent, false);
+        RectTransform cardRect = cc.GetComponent<RectTransform>();
+        if (cardRect != null)
+        {
+            cardRect.localScale = Vector3.one;
+        }
+
+        movedCard = cc;
+        return true;
     }
 
     public IReadOnlyList<int> GetShieldCardIds() => shieldCardIds;
@@ -379,9 +470,64 @@ public class CardGameRule
 
     public void SetExBaseDisplay(int points)
     {
+        if (exBaseDisplayText == null)
+        {
+            return;
+        }
+
+        if (deployedBase != null)
+        {
+            return;
+        }
+
+        exBaseDisplayText.gameObject.SetActive(true);
+        exBaseDisplayText.text = $"EX Base:{points}";
+    }
+
+    public void SetDeployedBaseHeader(string text)
+    {
+        if (exBaseDisplayText == null)
+        {
+            return;
+        }
+
+        exBaseDisplayText.gameObject.SetActive(true);
+        exBaseDisplayText.text = text;
+    }
+
+    /// <summary>EX ベース枠にベースカードを配置する。旧ベースは呼び出し側でトラッシュすること。</summary>
+    public void AttachDeployedBaseCard(CardController baseCard)
+    {
+        deployedBase = baseCard;
+        if (baseCard == null || baseSlotContent == null)
+        {
+            return;
+        }
+
+        baseCard.transform.SetParent(baseSlotContent, false);
+        RectTransform rt = baseCard.GetComponent<RectTransform>();
+        if (rt != null)
+        {
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(58f, 82f);
+            rt.localScale = Vector3.one;
+        }
+
         if (exBaseDisplayText != null)
         {
-            exBaseDisplayText.text = $"EX Base:{points}";
+            exBaseDisplayText.gameObject.SetActive(false);
+        }
+    }
+
+    public void ClearDeployedBaseCard()
+    {
+        deployedBase = null;
+        if (exBaseDisplayText != null)
+        {
+            exBaseDisplayText.gameObject.SetActive(true);
         }
     }
 
@@ -392,6 +538,14 @@ public class CardGameRule
         exBaseDisplayText.text = "EX Base:0";
         exBaseDisplayText.color = Color.black;
         exBaseDisplayText.fontSize = 20;
+
+        GameObject baseSlot = shieldPanelRoot.CreateChildPanelCustom("BaseSlot", UIAnchor.TopCenter, 65, 86);
+        baseSlotContent = baseSlot.GetComponent<RectTransform>();
+        baseSlotContent.anchorMin = new Vector2(0f, 1f);
+        baseSlotContent.anchorMax = new Vector2(1f, 1f);
+        baseSlotContent.pivot = new Vector2(0.5f, 1f);
+        baseSlotContent.offsetMin = new Vector2(4f, -86f);
+        baseSlotContent.offsetMax = new Vector2(-4f, -2f);
 
         // GameObject shieldRow = new GameObject("ShieldCardsRow", typeof(RectTransform));
         GameObject shieldRow = shieldPanelRoot.CreateChildPanelCustom("ShieldCardsRow", UIAnchor.BottomStretch, 65, 270);
