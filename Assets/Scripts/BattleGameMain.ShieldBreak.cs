@@ -172,6 +172,8 @@ public partial class BattleGameMain
         SuppressBreakPlayerChoice playerChoice = null;
         bool isSuppress = simultaneousReveal && brokenCount > 1;
 
+        try
+        {
         if (isSuppress)
         {
             SuppressBreakingLayout layout = BuildSuppressBreakingLayout(rule, brokenCount);
@@ -237,7 +239,6 @@ public partial class BattleGameMain
                 CommitShieldBreakTakenAfterBurst(takenCards[i], rule);
             }
 
-            SyncAllResourceViewsFromRule();
             yield break;
         }
 
@@ -247,7 +248,12 @@ public partial class BattleGameMain
         }
 
         yield return ResolveShieldBreakTakenCardsCoroutine(takenCards, shieldOwner, rule, playerChoice);
-        SyncAllResourceViewsFromRule();
+        }
+        finally
+        {
+            ReconcileShieldStateWithZone(side, force: true);
+            SyncAllResourceViewsFromRule();
+        }
     }
 
     private static bool IsSuppressPlayerChoiceReady(
