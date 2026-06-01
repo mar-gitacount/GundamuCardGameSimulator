@@ -316,7 +316,12 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void Start()
     {
-        StartCoroutine(BattleSetupCoroutine());
+        if (DeckSettinObject.Instance != null && !DeckSettinObject.Instance.IsBattleCanvasVisible())
+        {
+            return;
+        }
+
+        RestartBattleFromBeginning();
     }
 
     /// <summary>
@@ -437,6 +442,7 @@ public partial class BattleGameMain : MonoBehaviour
         ChangePhase(BattlePhase.StartTurn);
 
         ConfigureEndTurnButtonInHandPanel();
+        ConfigureBattleMenuButtonInHandPanel();
         if (EndTurnButton != null)
         {
             EndTurnButton.onClick.RemoveAllListeners();
@@ -8809,42 +8815,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ShowResultOverlay(string resultText)
     {
-        Canvas canvas = ResolveBattleCanvas();
-        if (canvas == null)
-        {
-            Debug.Log($"[Result] {resultText}");
-            return;
-        }
-
-        GameObject root = new GameObject("BattleResultOverlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        root.transform.SetParent(canvas.transform, false);
-        root.transform.SetAsLastSibling();
-        root.SetFullSize();
-
-        Image bg = root.GetComponent<Image>();
-        bg.color = new Color(0f, 0f, 0f, 0.65f);
-        bg.raycastTarget = true;
-
-        TextMeshProUGUI result = root.CreateChildTextCustom("ResultText", UIAnchor.FullSize, 420, 120);
-        result.text = resultText;
-        result.fontSize = 72;
-        result.alignment = TextAlignmentOptions.Center;
-        result.color = resultText == "WIN" ? new Color32(255, 230, 80, 255) : new Color32(255, 120, 120, 255);
-        RectTransform resultRt = result.GetComponent<RectTransform>();
-        resultRt.anchorMin = new Vector2(0.5f, 0.5f);
-        resultRt.anchorMax = new Vector2(0.5f, 0.5f);
-        resultRt.pivot = new Vector2(0.5f, 0.5f);
-        resultRt.sizeDelta = new Vector2(420f, 120f);
-        resultRt.anchoredPosition = new Vector2(0f, 40f);
-
-        Button close = root.CreateChildButton("Close");
-        RectTransform closeRt = close.GetComponent<RectTransform>();
-        closeRt.sizeDelta = new Vector2(180f, 52f);
-        closeRt.anchorMin = new Vector2(0.5f, 0.5f);
-        closeRt.anchorMax = new Vector2(0.5f, 0.5f);
-        closeRt.pivot = new Vector2(0.5f, 0.5f);
-        closeRt.anchoredPosition = new Vector2(0f, -60f);
-        close.onClick.AddListener(() => Destroy(root));
+        ShowGoHomeConfirmDialog(resultText);
     }
 
     private void ConfigureEndTurnButtonInHandPanel()

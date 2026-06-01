@@ -398,6 +398,69 @@ public void battleStart()
     Debug.Log($"バトル開始フラグ:{BattoleStartFlag}");
 }
 
+    public bool IsBattleCanvasVisible()
+    {
+        return BattleCanvas != null && BattleCanvas.gameObject.activeSelf;
+    }
+
+    private BattleGameMain ResolveBattleMain()
+    {
+        if (BattleCanvas == null)
+        {
+            return UnityEngine.Object.FindObjectOfType<BattleGameMain>();
+        }
+
+        BattleGameMain battle = BattleCanvas.GetComponentInChildren<BattleGameMain>(true);
+        return battle != null ? battle : UnityEngine.Object.FindObjectOfType<BattleGameMain>();
+    }
+
+    /// <summary>バトル画面を表示し、前回の対戦状態を破棄して最初からセットアップする。</summary>
+    public void EnterBattleFromMenu()
+    {
+        if (MainCanvas != null)
+        {
+            HideAllCanvasChildren(MainCanvas.gameObject);
+        }
+
+        if (BattleCanvas != null)
+        {
+            ShowAllCanvasChildren(BattleCanvas.gameObject);
+        }
+
+        BattleGameMain battle = ResolveBattleMain();
+        if (battle != null)
+        {
+            battle.RestartBattleFromBeginning();
+        }
+        else
+        {
+            Debug.LogWarning("[Battle] BattleGameMain が見つからないため、新規セットアップをスキップしました。");
+        }
+    }
+
+    /// <summary>バトルキャンバスを閉じ、デッキ編集などのメイン UI を表示する。</summary>
+    public void ReturnToMainMenuFromBattle()
+    {
+        BattoleStartFlag = false;
+        BattleGameMain battle = ResolveBattleMain();
+        if (battle != null)
+        {
+            battle.TeardownBattleSessionForMainMenu();
+        }
+
+        if (BattleCanvas != null)
+        {
+            HideAllCanvasChildren(BattleCanvas.gameObject);
+        }
+
+        if (MainCanvas != null)
+        {
+            ShowAllCanvasChildren(MainCanvas.gameObject);
+        }
+
+        Debug.Log("[Battle] Returned to main menu (canvas switch).");
+    }
+
 
 public CardData GetCardDataById(int id)
 {
@@ -489,11 +552,7 @@ public void ShowFileList()
             }
             // バトル画面に遷移する処理をここに書く
 
-            // 元の画面のUIを消す処理
-            HideAllCanvasChildren(MainCanvas.gameObject);
-
-            // バトルキャンバスのUIを表示する処理
-            ShowAllCanvasChildren(BattleCanvas.gameObject);
+            EnterBattleFromMenu();
             return;
         }
         cardData.Clear();
