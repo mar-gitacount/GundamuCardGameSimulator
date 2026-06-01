@@ -1005,7 +1005,7 @@ public partial class BattleGameMain : MonoBehaviour
             yesRt.anchoredPosition = new Vector2(-125f, -90f);
             yesBtn.onClick.AddListener(() =>
             {
-                if (!gundamRule.TryConsumeResource(ownerSide, cost, requiredEx, cardController.Data.id))
+                if (!TryPayHandDeployCost(ownerSide, cardController, requiredEx))
                 {
                     Debug.Log("EX/リソースが不足しているため配備できません。");
                     return;
@@ -1040,7 +1040,7 @@ public partial class BattleGameMain : MonoBehaviour
             baseBtnRect.anchoredPosition = new Vector2(0, handActionY);
             deployBaseBtn.onClick.AddListener(() =>
             {
-                if (!gundamRule.TryConsumeResource(ownerSide, cost, 0, cardController.Data.id))
+                if (!TryPayHandDeployCost(ownerSide, cardController, 0))
                 {
                     Debug.Log("リソースポイントが足りません！");
                     return;
@@ -1060,7 +1060,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         playButton.onClick.AddListener(() =>
         {
-            if (!gundamRule.TryConsumeResource(ownerSide, cost, 0, cardController.Data.id))
+            if (!TryPayHandDeployCost(ownerSide, cardController, 0))
             {
                 Debug.Log("リソースポイントが足りません！");
                 return;
@@ -1385,8 +1385,12 @@ public partial class BattleGameMain : MonoBehaviour
             yield return new WaitForSeconds(0.6f);
         }
 
+        if (TryEnemyDeployBaseWhenIdle())
+        {
+            yield return new WaitForSeconds(0.5f);
+        }
+
         Debug.Log($"エネミーの行動が終了しました。deploy:{deployed} shieldAttack:{attacked}");
-        // エンドフェイズに移行する
         ChangePhase(BattlePhase.EndTurn);
     }
 
@@ -1410,19 +1414,16 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!gundamRule.CanPlayCard(side, cc.CurrentLevel, cc.CurrentCost))
-            {
-                continue;
-            }
-
-            if (!gundamRule.TryConsumeResource(side, cc.CurrentCost, 0, cc.Data.id))
+            if (!TryPayHandDeployCost(side, cc, 0))
             {
                 continue;
             }
 
             SendCardToField(cc, PlayerType.Enemy, enemyCardGameRule);
             SyncResourceViewsFromRule(side);
-            Debug.Log($"[Enemy] ユニット配備: {cc.Data.cardName}");
+            Debug.Log(
+                $"[Enemy] ユニット配備: {cc.Data.cardName}(lv:{cc.CurrentLevel} cost:{cc.CurrentCost} "
+                + $"enemyLv:{gundamRule.Enemy.TotalLevel} res:{gundamRule.Enemy.resource})");
             return true;
         }
 
@@ -2722,7 +2723,7 @@ public partial class BattleGameMain : MonoBehaviour
             tr.anchoredPosition = new Vector2(0f, -210f - (i * 52f));
             targetBtn.onClick.AddListener(() =>
             {
-                if (!gundamRule.TryConsumeResource(ownerSide, cost, exToUse, pilotCard.Data.id))
+                if (!TryPayHandDeployCost(ownerSide, pilotCard, exToUse))
                 {
                     Debug.Log("リソース不足でパイロットを搭乗できません。");
                     return;
@@ -8365,7 +8366,12 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (!gundamRule.TryConsumeResource(ToRuleSide(side), source.CurrentCost, 0, source.Data.id))
+        if (!gundamRule.TryConsumeResource(
+                ToRuleSide(side),
+                source.CurrentCost,
+                0,
+                source.Data.id,
+                source.CurrentLevel))
         {
             Debug.Log("OnMain: リソース不足で実行できません。");
             return false;

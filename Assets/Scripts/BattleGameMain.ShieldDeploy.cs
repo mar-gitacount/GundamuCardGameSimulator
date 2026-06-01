@@ -26,7 +26,12 @@ public partial class BattleGameMain
             return true;
         }
 
-        if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
+        if (!gundamRule.TryConsumeResource(
+                ToRuleSide(side),
+                command.CurrentCost,
+                0,
+                command.Data.id,
+                command.CurrentLevel))
         {
             Debug.Log($"[{context}] リソース不足で実行できません。");
             return false;

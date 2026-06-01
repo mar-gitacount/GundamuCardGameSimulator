@@ -108,6 +108,34 @@ public partial class BattleGameMain
         rule.SetExBaseDisplay(state.exBase);
     }
 
+    /// <summary>手札からの配備用。CanPlayCard とリソース消費をまとめて行う（バースト配備は使わない）。</summary>
+    private bool TryPayHandDeployCost(Gundam2024RuleScript.PlayerSide side, CardController card, int exToUse = 0)
+    {
+        if (card == null || card.Data == null || gundamRule == null)
+        {
+            return false;
+        }
+
+        int requiredLevel = card.CurrentLevel;
+        int cost = card.CurrentCost;
+        if (!gundamRule.CanPlayCard(side, requiredLevel, cost, exToUse))
+        {
+            Gundam2024RuleScript.PlayerState state = GetRuleState(side);
+            Debug.Log(
+                $"[DeployPay] Cannot play from hand card:{card.Data.cardName}(id:{card.Data.id}) "
+                + $"lvReq:{requiredLevel} cost:{cost} exUse:{exToUse} side:{side} "
+                + $"totalLv:{state.TotalLevel} resource:{state.resource} exRes:{state.exResource}");
+            return false;
+        }
+
+        if (!gundamRule.TryConsumeResource(side, cost, exToUse, card.Data.id, requiredLevel))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private void BeginDeployBaseFromHand(CardController cardController, PlayerType ownerType, CardGameRule ownerRule)
     {
         if (cardController == null || cardController.Data == null || cardController.Data.type != Type.Base)

@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 22
   cardName: UnicornGundum
-  cost: 5
-  level: 7
+  cost: 2
+  level: 2
   power: 4
   hp: 6
   imageName: {fileID: 21300000, guid: 2359b5aefa3aa084780549ff8bb7f16a, type: 3}
@@ -30,6 +30,10 @@ MonoBehaviour:
   - timing: 4
     activationConditions: []
     effectsName: 
+    effects: []
+  - timing: 4
+    activationConditions: []
+    effectsName: Suppress2_OnShieldAttack
     effects:
     - type: 3
       value: 2
@@ -43,7 +47,9 @@ MonoBehaviour:
       valueCountFeature: {fileID: 0}
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
+      shieldTokenCardId: 0
       valueCountExcludeSource: 0
   features: []
   isBlocker: 0
   isNotDirectAttack: 0
+  isShieldToken: 0
