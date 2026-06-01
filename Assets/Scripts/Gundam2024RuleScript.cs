@@ -206,6 +206,12 @@ public class Gundam2024RuleScript
 
     public bool TryConsumeResource(PlayerSide side, int cost, int exToUse, int cardId)
     {
+        return TryConsumeResource(side, cost, exToUse, cardId, -1);
+    }
+
+    /// <param name="requiredLevel">0以上のとき、EX消費後の実効レベルがこの値以上であることを要求する。-1 はレベル要件なし。</param>
+    public bool TryConsumeResource(PlayerSide side, int cost, int exToUse, int cardId, int requiredLevel)
+    {
         if (cost < 0)
         {
             return false;
@@ -214,6 +220,12 @@ public class Gundam2024RuleScript
         PlayerState state = GetState(side);
         int useEx = Mathf.Max(0, exToUse);
         if (useEx > state.exResource)
+        {
+            return false;
+        }
+
+        int levelAfterExUse = state.TotalLevel - useEx;
+        if (requiredLevel >= 0 && levelAfterExUse < requiredLevel)
         {
             return false;
         }
@@ -229,7 +241,7 @@ public class Gundam2024RuleScript
             return false;
         }
 
-        if (state.TotalLevel - useEx < 0)
+        if (levelAfterExUse < 0)
         {
             return false;
         }

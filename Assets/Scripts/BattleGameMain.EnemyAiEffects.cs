@@ -1232,7 +1232,12 @@ public partial class BattleGameMain
             previewTargets,
             "敵 — コマンド（OnAction）");
 
-        if (!gundamRule.TryConsumeResource(ToRuleSide(side), command.CurrentCost, 0, command.Data.id))
+        if (!gundamRule.TryConsumeResource(
+                ToRuleSide(side),
+                command.CurrentCost,
+                0,
+                command.Data.id,
+                command.CurrentLevel))
         {
             Debug.Log("[EnemyAI] OnAction: リソース不足で実行できません。");
             onDone?.Invoke();
