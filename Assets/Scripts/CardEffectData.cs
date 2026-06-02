@@ -17,7 +17,8 @@ public enum EffectTiming
     OnEndOfGame,    // ゲーム終了時
     OnEnemyAttack,  // 敵が攻撃してきた時（防御リアクション用）
     OnMain,         // メインフェイズ中・自分のターンでいつでも実行可能
-    OnHandAuto      // 手札に入った時に自動発動（操作不要）
+    OnHandAuto,     // 手札に入った時に自動発動（操作不要）
+    OnRest          // ユニットが REST になった時
 }
 
 public enum EffectType
@@ -47,7 +48,9 @@ public enum TargetType
     SelfPlayer,
     EnemyPlayer,
     /// <summary>相手バトルゾーンの REST ユニットのみ（ACTIVE は対象外）。既存 target 数値互換のため末尾に追加。</summary>
-    RestEnemyUnit
+    RestEnemyUnit,
+    /// <summary>味方バトルゾーンの生存ユニット（効果の発動元カード自身は対象外）。</summary>
+    AllyOtherUnit
 }
 
 /// <summary><see cref="TargetType"/> の判定ヘルパー。</summary>
@@ -66,11 +69,21 @@ public static class EffectTargetTypeExtensions
         return targetType == TargetType.EnemyUnit
             || targetType == TargetType.RestEnemyUnit;
     }
+
+    /// <summary>味方ユニット1体を選ぶ対象（自身を含む／含まない）。</summary>
+    public static bool IsAllyUnitPickTarget(this TargetType targetType)
+    {
+        return targetType == TargetType.AllyUnit
+            || targetType == TargetType.AllyOtherUnit;
+    }
 }
 
 public enum EffectSelectionMode
 {
     AttackedTargetOnly,
+    /// <summary>対象候補から1体を選択する（味方/敵どちらにも使用）。</summary>
+    SelectSingle = 1,
+    /// <summary>旧名称互換。挙動は SelectSingle と同一。</summary>
     SelectSingleEnemyUnit,
     SelectMultipleEnemyUnits
 }

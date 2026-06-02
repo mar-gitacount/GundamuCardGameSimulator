@@ -295,6 +295,7 @@ public partial class BattleGameMain
             return;
         }
 
+        List<EffectData> pendingEffects = new List<EffectData>();
         EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
@@ -324,8 +325,66 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                TryApplyTimedEffectResolved(sourceCard, ownerType, effect);
+                pendingEffects.Add(effect);
             }
+        }
+
+        if (pendingEffects.Count > 0)
+        {
+            StartCoroutine(ResolveTimedEffectsForCardCoroutine(sourceCard, ownerType, timing, pendingEffects));
+        }
+    }
+
+    private IEnumerator ResolveTimedEffectsForCardCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectTiming timing,
+        List<EffectData> effects)
+    {
+        if (sourceCard == null || effects == null || effects.Count == 0)
+        {
+            yield break;
+        }
+
+        int manualTotal = 0;
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (EffectRequiresManualUnitSelection(effects[i]))
+            {
+                manualTotal++;
+            }
+        }
+
+        int manualIndex = 0;
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (EffectRequiresManualUnitSelection(effect))
+            {
+                manualIndex++;
+                yield return ApplyTimedEffectResolvedCoroutine(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    timing,
+                    manualIndex,
+                    manualTotal);
+                continue;
+            }
+
+            ApplyEffect(sourceCard, ownerType, effect);
+        }
+
+        if (timing == EffectTiming.OnBaseDeployed
+            || timing == EffectTiming.OnShieldDeployed
+            || timing == EffectTiming.OnRest)
+        {
+            SyncAllResourceViewsFromRule();
         }
     }
 
@@ -368,6 +427,7 @@ public partial class BattleGameMain
         CardController sourceCard,
         PlayerType ownerType,
         EffectData effect,
+        EffectTiming timing,
         int manualPickIndex = 0,
         int manualPickTotal = 0)
     {
@@ -400,11 +460,20 @@ public partial class BattleGameMain
         string cardLabel = sourceCard != null && sourceCard.Data != null
             ? sourceCard.Data.cardName
             : "?";
+        string timingLabel = timing switch
+        {
+            EffectTiming.OnRest => "OnRest",
+            EffectTiming.OnBaseDeployed => "配備効果",
+            EffectTiming.OnShieldDeployed => "シールド配備",
+            EffectTiming.OnBurst => "バースト",
+            _ => "効果",
+        };
         string title = manualPickTotal > 1
-            ? $"バースト {manualPickIndex}/{manualPickTotal} — 対象を選択"
-            : "バースト — 対象を選択";
+            ? $"{timingLabel} {manualPickIndex}/{manualPickTotal} — 対象を選択"
+            : $"{timingLabel} — 対象を選択";
+        string targetLabel = effect != null ? effect.target.ToString() : "?";
         string summary = effect != null
-            ? $"{cardLabel}：{effect.type} / 敵ユニット1体 / 値:{effect.value}"
+            ? $"{cardLabel}：{effect.type} / {targetLabel} / 値:{effect.value}"
             : cardLabel;
 
         yield return WaitForPlayerBurstTargetSelectionCoroutine(
@@ -581,6 +650,7 @@ public partial class BattleGameMain
                     source,
                     shieldOwner,
                     step.Effect,
+                    EffectTiming.OnBurst,
                     i + 1,
                     manualTotal);
             }

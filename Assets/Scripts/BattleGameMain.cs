@@ -6,6 +6,8 @@ using TMPro; // これを追加！
 
 public partial class BattleGameMain : MonoBehaviour
 {
+    private readonly Dictionary<CardController, int> onRestActivatedTurnByCard = new Dictionary<CardController, int>();
+
     private const float MinEndTurnAreaWidth = 90f;
     private const float MaxEndTurnAreaWidth = 180f;
     // Start is called before the first frame update
@@ -725,19 +727,15 @@ public partial class BattleGameMain : MonoBehaviour
         CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerSide ownerSide = ToRuleSide(ownerType);
         bool isInHand = cardController.transform.IsChildOf(ownerRule.HandScrollContent);
-        bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel);
+        bool isInBaseSlot = IsCardInBaseSlot(cardController);
+        bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel) || isInBaseSlot;
         bool isInShield = ownerRule.ShieldCardsContent != null
             && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
-        bool isInBaseSlot = IsCardInBaseSlot(cardController);
-        if (isInBaseSlot)
-        {
-            Debug.Log($"ベース: {cardController.Data.cardName} HP:{cardController.CurrentHp}");
-            return;
-        }
 
         bool isOnAnyDeployField =
             cardController.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
-            || cardController.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel);
+            || cardController.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel)
+            || isInBaseSlot;
 
         if (isInShield && cardController.IsShieldFaceHidden)
         {
@@ -853,6 +851,11 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             float fieldActionY = canShowUnitAttackMenu ? -130f : -70f;
+            if (TryAddOnRestSelfActivateButton(FilterPanel, cardController, ownerType, fieldActionY))
+            {
+                fieldActionY -= 60f;
+            }
+
             if (TryAddOnMainEffectApplyButton(FilterPanel, cardController, ownerType, fieldActionY))
             {
                 fieldActionY -= 60f;
@@ -873,9 +876,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // シールドエリア：詳細表示のみ（場・手札と同様にフィルターで閲覧）
+        // シールドエリア：OnRest の能動起動を許可
         if (isInShield)
         {
+            if (TryAddOnRestSelfActivateButton(FilterPanel, cardController, ownerType, -10f))
+            {
+                closeBtnRect.anchoredPosition = new Vector2(0, -80f);
+            }
             return;
         }
 
@@ -2719,33 +2726,60 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>
     /// 自分ターン開始時：場の自軍ユニットをアクティブ(True)へ更新。
     /// 表示は起き状態になり、この状態で攻撃可能。
+    /// OnRest でレストしたベース・シールド上のカードも ACTIVE に戻す。
     /// </summary>
     private void ApplyTurnStartAttackFlgForCurrentPlayer()
     {
-        if (currentPlayerType == PlayerType.Player)
+        PlayerType side = currentPlayerType;
+        CardGameRule rule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        List<CardController> battleZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+
+        Debug.Log(
+            side == PlayerType.Player
+                ? "[TurnStart] プレイヤー：ユニットをアクティブ化、レスト中のベース/シールドを起こす"
+                : "[TurnStart] エネミー：ユニットをアクティブ化、レスト中のベース/シールドを起こす");
+
+        for (int i = 0; i < battleZone.Count; i++)
         {
-            Debug.Log("[AttackFlg] プレイヤーターン開始：場のユニットをアクティブ(True)に設定");
-            foreach (var c in playerBattleZoneCards)
+            CardController c = battleZone[i];
+            if (c == null || c.Data == null || c.Data.type != Type.Unit)
             {
-                if (c != null && c.Data != null && c.Data.type == Type.Unit)
-                {
-                    c.SetAttackFlg(AttackFlg.True);
-                    c.SetUnitRestVisual(false);
-                }
+                continue;
+            }
+
+            c.SetAttackFlg(AttackFlg.True);
+            if (c.IsRestState)
+            {
+                c.SetUnitRestVisual(false);
             }
         }
-        else
+
+        StandRestingCardsInZone(rule?.DeployedBase);
+        if (rule?.BaseSlotContent != null)
         {
-            Debug.Log("[AttackFlg] エネミーターン開始：場のユニットをアクティブ(True)に設定");
-            foreach (var c in enemyBattleZoneCards)
+            for (int i = 0; i < rule.BaseSlotContent.childCount; i++)
             {
-                if (c != null && c.Data != null && c.Data.type == Type.Unit)
-                {
-                    c.SetAttackFlg(AttackFlg.True);
-                    c.SetUnitRestVisual(false);
-                }
+                StandRestingCardsInZone(rule.BaseSlotContent.GetChild(i).GetComponent<CardController>());
             }
         }
+
+        if (rule?.ShieldCardsContent != null)
+        {
+            for (int i = 0; i < rule.ShieldCardsContent.childCount; i++)
+            {
+                StandRestingCardsInZone(rule.ShieldCardsContent.GetChild(i).GetComponent<CardController>());
+            }
+        }
+    }
+
+    private static void StandRestingCardsInZone(CardController card)
+    {
+        if (card == null || !card.IsRestState)
+        {
+            return;
+        }
+
+        card.SetUnitRestVisual(false);
     }
 
     private PlayerType ResolveCardOwner(Transform cardTransform)
@@ -3506,7 +3540,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log("[ShieldAttack] HP is 0 — consume attack and set REST.");
             attacker.SetAttackFlg(AttackFlg.False);
-            attacker.SetUnitRestVisual(true);
+            SetUnitRestAndTriggerEffects(attacker, attackerOwner);
             pendingUnitAttackAttacker = null;
             pendingOnAttackEffectResolvedAttacker = null;
             return;
@@ -3641,7 +3675,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or direct attack.");
                 attacker.SetAttackFlg(AttackFlg.False);
-                attacker.SetUnitRestVisual(true);
+                SetUnitRestAndTriggerEffects(attacker, attackerOwner);
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
                 ClearAttackFlowContext();
@@ -3652,7 +3686,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 Debug.Log($"[DirectAttack] No shield zone protection. Resolving direct attack. attackPower:{attacker.CurrentPower}");
                 attacker.SetAttackFlg(AttackFlg.False);
-                attacker.SetUnitRestVisual(true);
+                SetUnitRestAndTriggerEffects(attacker, attackerOwner);
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
                 HandleDirectAttackWinLose(attackerOwner);
@@ -3709,7 +3743,7 @@ public partial class BattleGameMain : MonoBehaviour
         string shieldStrikeLog)
     {
         attacker.SetAttackFlg(AttackFlg.False);
-        attacker.SetUnitRestVisual(true);
+        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
         if (!string.IsNullOrEmpty(shieldStrikeLog))
         {
             Debug.Log(shieldStrikeLog);
@@ -3867,6 +3901,60 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TriggerCardEffects(pilot, attackerOwner, EffectTiming.OnShieldAttack);
+    }
+
+    private void SetUnitRestAndTriggerEffects(CardController unit, PlayerType ownerType)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return;
+        }
+
+        unit.SetUnitRestVisual(true);
+    }
+
+    private bool CanActivateOnRestBySelf(PlayerType ownerType, CardController source)
+    {
+        if (source == null || source.Data == null)
+        {
+            return false;
+        }
+
+        if (ownerType != currentPlayerType || currentPhase != BattlePhase.MainPhase)
+        {
+            return false;
+        }
+
+        if (source.IsRestState)
+        {
+            return false;
+        }
+
+        int turnIndex = gundamRule != null ? gundamRule.TurnIndex : -1;
+        if (onRestActivatedTurnByCard.TryGetValue(source, out int activatedTurn) && activatedTurn == turnIndex)
+        {
+            return false;
+        }
+
+        return HasEffectTiming(source.Data, EffectTiming.OnRest);
+    }
+
+    private bool TryActivateOnRestBySelf(PlayerType ownerType, CardController source)
+    {
+        if (!CanActivateOnRestBySelf(ownerType, source))
+        {
+            Debug.Log("OnRest: 現在は発動できません（ターン/フェイズ/REST状態）。");
+            return false;
+        }
+
+        source.SetAttackFlg(AttackFlg.False);
+        source.SetUnitRestVisual(true);
+        int turnIndex = gundamRule != null ? gundamRule.TurnIndex : -1;
+        onRestActivatedTurnByCard[source] = turnIndex;
+        // TriggerCardEffects は手動選択効果を continue で捨てるため、コルーチン解決を使う。
+        TriggerTimedEffectsForCard(source, ownerType, EffectTiming.OnRest);
+        SyncAllResourceViewsFromRule();
+        return true;
     }
 
     private void TryUnitVsUnitAttack(
@@ -4044,7 +4132,7 @@ public partial class BattleGameMain : MonoBehaviour
         int defenderHpAfterExchange = defender.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
         attacker.SetAttackFlg(AttackFlg.False);
-        attacker.SetUnitRestVisual(true);
+        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
 
         if (defender.CurrentHp <= 0)
         {
@@ -4194,8 +4282,8 @@ public partial class BattleGameMain : MonoBehaviour
         int attackerHpAfterExchange = attacker.CurrentHp;
 
         attacker.SetAttackFlg(AttackFlg.False);
-        attacker.SetUnitRestVisual(true);
-        blocker.SetUnitRestVisual(true);
+        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
+        SetUnitRestAndTriggerEffects(blocker, blockerOwner);
 
         if (blocker.CurrentHp <= 0)
         {
@@ -5608,6 +5696,9 @@ public partial class BattleGameMain : MonoBehaviour
             case TargetType.AllyUnit:
                 AddFirstAliveUnit(allies, result);
                 break;
+            case TargetType.AllyOtherUnit:
+                AddFirstAliveUnit(allies, result, sourceCard);
+                break;
             case TargetType.EnemyUnit:
                 AddFirstAliveUnit(enemies, result);
                 break;
@@ -5625,16 +5716,21 @@ public partial class BattleGameMain : MonoBehaviour
         return result;
     }
 
-    private static void AddFirstAliveUnit(List<CardController> source, List<CardController> result)
+    private static void AddFirstAliveUnit(
+        List<CardController> source,
+        List<CardController> result,
+        CardController exclude = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
-            if (c != null && c.Data != null && c.Data.type == Type.Unit && c.CurrentHp > 0)
+            if (c == null || c == exclude || c.Data == null || c.Data.type != Type.Unit || c.CurrentHp <= 0)
             {
-                result.Add(c);
-                return;
+                continue;
             }
+
+            result.Add(c);
+            return;
         }
     }
 
@@ -5651,15 +5747,20 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private static void AddAllAliveUnits(List<CardController> source, List<CardController> result)
+    private static void AddAllAliveUnits(
+        List<CardController> source,
+        List<CardController> result,
+        CardController exclude = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
-            if (c != null && c.Data != null && c.Data.type == Type.Unit && c.CurrentHp > 0)
+            if (c == null || c == exclude || c.Data == null || c.Data.type != Type.Unit || c.CurrentHp <= 0)
             {
-                result.Add(c);
+                continue;
             }
+
+            result.Add(c);
         }
     }
 
@@ -8217,6 +8318,35 @@ public partial class BattleGameMain : MonoBehaviour
         return true;
     }
 
+    private bool TryAddOnRestSelfActivateButton(
+        GameObject filterPanel,
+        CardController cardController,
+        PlayerType ownerType,
+        float anchoredY)
+    {
+        if (filterPanel == null || cardController == null || cardController.Data == null)
+        {
+            return false;
+        }
+
+        if (!CanActivateOnRestBySelf(ownerType, cardController))
+        {
+            return false;
+        }
+
+        Button restBtn = filterPanel.CreateChildButton("レストして効果発動");
+        RectTransform restRt = restBtn.GetComponent<RectTransform>();
+        restRt.sizeDelta = new Vector2(320f, 50f);
+        restRt.anchoredPosition = new Vector2(0f, anchoredY);
+        CardController source = cardController;
+        restBtn.onClick.AddListener(() =>
+        {
+            TryActivateOnRestBySelf(ownerType, source);
+            Destroy(filterPanel);
+        });
+        return true;
+    }
+
     private void TryExecuteOnMainCard(PlayerType side, CardController source, System.Action onDone)
     {
         if (source == null || source.Data == null)
@@ -8350,7 +8480,8 @@ public partial class BattleGameMain : MonoBehaviour
     {
         return targetType == TargetType.EnemyUnit
             || targetType == TargetType.RestEnemyUnit
-            || targetType == TargetType.AllyUnit;
+            || targetType == TargetType.AllyUnit
+            || targetType == TargetType.AllyOtherUnit;
     }
 
     private List<CardController> ResolveSelectableEffectTargets(
@@ -8375,6 +8506,9 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case TargetType.AllyUnit:
                 AddAllAliveUnits(allies, result);
+                break;
+            case TargetType.AllyOtherUnit:
+                AddAllAliveUnits(allies, result, sourceCard);
                 break;
             case TargetType.EnemyUnit:
                 AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result);
