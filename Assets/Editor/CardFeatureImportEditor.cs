@@ -81,4 +81,52 @@ public static class CardFeatureImportEditor
         Debug.Log($"[CardFeatureImport] Done. created:{created} updated:{updated} total:{master.features.Length}");
     }
 }
+
+/// <summary>
+/// Feature JSON の変更時と Editor 起動時に自動インポートする。
+/// </summary>
+[InitializeOnLoad]
+public sealed class CardFeatureImportAutoRunner : AssetPostprocessor
+{
+    private const string JsonAssetPath = "Assets/Resources/Data/Json/feature_master.json";
+    private static bool initialized;
+
+    static CardFeatureImportAutoRunner()
+    {
+        // ドメインリロード直後は AssetDatabase の状態が不安定なことがあるため delay 実行。
+        EditorApplication.delayCall += RunOnEditorLoad;
+    }
+
+    private static void RunOnEditorLoad()
+    {
+        if (initialized || EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            return;
+        }
+
+        initialized = true;
+        CardFeatureImportEditor.ImportFromJson();
+    }
+
+    private static void OnPostprocessAllAssets(
+        string[] importedAssets,
+        string[] deletedAssets,
+        string[] movedAssets,
+        string[] movedFromAssetPaths)
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            return;
+        }
+
+        for (int i = 0; i < importedAssets.Length; i++)
+        {
+            if (importedAssets[i] == JsonAssetPath)
+            {
+                CardFeatureImportEditor.ImportFromJson();
+                return;
+            }
+        }
+    }
+}
 #endif

@@ -71,7 +71,7 @@ public partial class BattleGameMain
         bool singleOnly)
     {
         List<CardController> candidates = candidatesOrNull
-            ?? ResolveSelectableEffectTargets(ctx.SourceCard, ctx.OwnerSide, effect.target);
+            ?? ResolveSelectableEffectTargets(ctx.SourceCard, ctx.OwnerSide, effect);
         List<CardController> result = new List<CardController>();
         if (effect == null || candidates == null || candidates.Count == 0)
         {
@@ -254,7 +254,7 @@ public partial class BattleGameMain
             return PickEnemyAiEffectTargets(effect, ctx, null, singleOnly: true);
         }
 
-        return ResolveEffectTargets(sourceCard, ownerSide, effect.target);
+        return ResolveEffectTargets(sourceCard, ownerSide, effect);
     }
 
     /// <summary>カードの効果リストを仮想盤面に適用（本番 ApplyEffect と同じ対象解決）。</summary>
@@ -294,7 +294,7 @@ public partial class BattleGameMain
             }
             else
             {
-                targets = ResolveEffectTargets(command, commandOwnerSide, eff.target);
+                targets = ResolveEffectTargets(command, commandOwnerSide, eff);
             }
 
             if (targets == null || targets.Count == 0)
@@ -967,7 +967,7 @@ public partial class BattleGameMain
             {
                 List<CardController> pickCandidates = effect.target.IsSingleOpponentUnitPickTarget()
                     ? GetAliveEnemyUnitsForEffectTarget(side, effect.target)
-                    : ResolveSelectableEffectTargets(command, side, effect.target);
+                    : ResolveSelectableEffectTargets(command, side, effect);
                 CardController picked = PickEnemyAiEffectTarget(effect, ctx, pickCandidates);
                 if (picked != null && !preview.Contains(picked))
                 {
@@ -976,7 +976,7 @@ public partial class BattleGameMain
             }
             else
             {
-                List<CardController> resolved = ResolveEffectTargets(command, side, effect.target);
+                List<CardController> resolved = ResolveEffectTargets(command, side, effect);
                 for (int r = 0; r < resolved.Count; r++)
                 {
                     CardController t = resolved[r];
@@ -1297,7 +1297,7 @@ public partial class BattleGameMain
         {
             List<CardController> candidates = effect.target.IsSingleOpponentUnitPickTarget()
                 ? GetAliveEnemyUnitsForEffectTarget(side, effect.target)
-                : ResolveSelectableEffectTargets(command, side, effect.target);
+                : ResolveSelectableEffectTargets(command, side, effect);
             CardController picked = PickEnemyAiEffectTarget(effect, ctx, candidates);
             if (picked == null)
             {
@@ -1318,7 +1318,7 @@ public partial class BattleGameMain
             return;
         }
 
-        List<CardController> resolvedBefore = ResolveEffectTargets(command, side, effect.target);
+        List<CardController> resolvedBefore = ResolveEffectTargets(command, side, effect);
         List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBefore);
         ApplyEffect(command, side, effect);
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "EnemyAI_OnAction_AfterApplyDirectEffect", beforeSnaps);

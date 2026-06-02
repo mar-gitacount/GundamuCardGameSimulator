@@ -237,7 +237,7 @@ public partial class BattleGameMain
 
             if (EffectRequiresManualUnitSelection(effect))
             {
-                List<CardController> candidates = ResolveSelectableEffectTargets(source, ownerType, effect.target);
+                List<CardController> candidates = ResolveSelectableEffectTargets(source, ownerType, effect);
                 CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
                 if (picked != null)
                 {
@@ -294,7 +294,7 @@ public partial class BattleGameMain
             }
             else
             {
-                targets = ResolveEffectTargets(source, ownerType, effect.target);
+                targets = ResolveEffectTargets(source, ownerType, effect);
             }
 
             if (targets == null || targets.Count == 0)

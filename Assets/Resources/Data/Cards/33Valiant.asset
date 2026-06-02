@@ -53,6 +53,8 @@ MonoBehaviour:
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
   features: []
   isBlocker: 0
   isNotDirectAttack: 0

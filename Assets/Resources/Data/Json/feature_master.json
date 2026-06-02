@@ -11,6 +11,12 @@
             "featureKey": "Earth_Federation",
             "displayName": "地球連邦",
             "description": ""
+        },
+        {
+            "id": 3,
+            "featureKey": "Zaft",
+            "displayName": "ザフト",
+            "description": ""
         }
     ]
 }

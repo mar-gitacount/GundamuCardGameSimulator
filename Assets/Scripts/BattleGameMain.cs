@@ -5361,7 +5361,8 @@ public partial class BattleGameMain : MonoBehaviour
             playerBattleZoneCards,
             enemyBattleZoneCards,
             CollectHandControllers(cardGameRule),
-            CollectHandControllers(enemyCardGameRule));
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType);
     }
 
     private void RefreshAllHandsConditionalOnHandAuto()
@@ -5567,7 +5568,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (EffectRequiresManualUnitSelection(effect))
         {
-            List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect.target);
+            List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
             if (candidates.Count == 0)
             {
                 Debug.Log($"OnPlayed: 選択可能な対象がありません (target:{effect.target})。");
@@ -5618,7 +5619,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        List<CardController> targets = ResolveEffectTargets(sourceCard, ownerType, effect.target);
+        List<CardController> targets = ResolveEffectTargets(sourceCard, ownerType, effect);
         switch (effect.type)
         {
             case EffectType.Draw:
@@ -5728,13 +5729,22 @@ public partial class BattleGameMain : MonoBehaviour
         target.AddEffectStatBonus(powerDelta, hpDelta, costDelta, levelDelta, duration, statModifierSourceKey);
     }
 
-    private List<CardController> ResolveEffectTargets(CardController sourceCard, PlayerType ownerType, TargetType targetType)
+    private List<CardController> ResolveEffectTargets(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
     {
+        if (effect == null)
+        {
+            return new List<CardController>();
+        }
+
+        CardFeatureData requiredFeature = effect.GetTargetFeature();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> enemies = ownerType == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
         List<CardController> result = new List<CardController>();
 
-        switch (targetType)
+        switch (effect.target)
         {
             case TargetType.Self:
                 if (sourceCard != null)
@@ -5743,22 +5753,22 @@ public partial class BattleGameMain : MonoBehaviour
                 }
                 break;
             case TargetType.AllyUnit:
-                AddFirstAliveUnit(allies, result);
+                AddFirstAliveUnit(allies, result, null, requiredFeature);
                 break;
             case TargetType.AllyOtherUnit:
-                AddFirstAliveUnit(allies, result, sourceCard);
+                AddFirstAliveUnit(allies, result, sourceCard, requiredFeature);
                 break;
             case TargetType.EnemyUnit:
-                AddFirstAliveUnit(enemies, result);
+                AddFirstAliveUnit(enemies, result, null, requiredFeature);
                 break;
             case TargetType.RestEnemyUnit:
-                AddFirstAliveRestUnit(enemies, result);
+                AddFirstAliveRestUnit(enemies, result, requiredFeature);
                 break;
             case TargetType.AllyAllUnits:
-                AddAllAliveUnits(allies, result);
+                AddAllAliveUnits(allies, result, null, requiredFeature);
                 break;
             case TargetType.EnemyAllUnits:
-                AddAllAliveUnits(enemies, result);
+                AddAllAliveUnits(enemies, result, null, requiredFeature);
                 break;
         }
 
@@ -5768,7 +5778,8 @@ public partial class BattleGameMain : MonoBehaviour
     private static void AddFirstAliveUnit(
         List<CardController> source,
         List<CardController> result,
-        CardController exclude = null)
+        CardController exclude = null,
+        CardFeatureData requiredFeature = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
@@ -5778,33 +5789,54 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            if (requiredFeature != null && !c.Data.HasFeature(requiredFeature))
+            {
+                continue;
+            }
+
             result.Add(c);
             return;
         }
     }
 
-    private static void AddFirstAliveRestUnit(List<CardController> source, List<CardController> result)
+    private static void AddFirstAliveRestUnit(
+        List<CardController> source,
+        List<CardController> result,
+        CardFeatureData requiredFeature = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
-            if (c != null && c.Data != null && c.Data.type == Type.Unit && c.CurrentHp > 0 && c.IsRestState)
+            if (c == null || c.Data == null || c.Data.type != Type.Unit || c.CurrentHp <= 0 || !c.IsRestState)
             {
-                result.Add(c);
-                return;
+                continue;
             }
+
+            if (requiredFeature != null && !c.Data.HasFeature(requiredFeature))
+            {
+                continue;
+            }
+
+            result.Add(c);
+            return;
         }
     }
 
     private static void AddAllAliveUnits(
         List<CardController> source,
         List<CardController> result,
-        CardController exclude = null)
+        CardController exclude = null,
+        CardFeatureData requiredFeature = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
             if (c == null || c == exclude || c.Data == null || c.Data.type != Type.Unit || c.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (requiredFeature != null && !c.Data.HasFeature(requiredFeature))
             {
                 continue;
             }
@@ -6848,7 +6880,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            List<CardController> targets = ResolveEffectTargets(command, commandOwnerSide, eff.target);
+            List<CardController> targets = ResolveEffectTargets(command, commandOwnerSide, eff);
             if (targets == null || targets.Count == 0)
             {
                 trace.Append('[').Append(ei).Append(":noTargets] ");
@@ -6970,7 +7002,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.Damage:
                 {
-                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
                     for (int ti = 0; ti < dmgTargets.Count; ti++)
                     {
                         VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, dmgTargets[ti]);
@@ -6992,7 +7024,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     int sign = effect.type == EffectType.Buff ? 1 : -1;
                     int signedValue = sign * magnitude;
-                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
                     for (int ti = 0; ti < statTargets.Count; ti++)
                     {
                         VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, statTargets[ti]);
@@ -7100,7 +7132,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.Damage:
                 {
-                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
                     bool hitsFocus = false;
                     for (int ti = 0; ti < dmgTargets.Count; ti++)
                     {
@@ -7131,7 +7163,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     int sign = effect.type == EffectType.Buff ? 1 : -1;
                     int signedValue = sign * magnitude;
-                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect.target);
+                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
                     bool hitsFocus = false;
                     for (int ti = 0; ti < statTargets.Count; ti++)
                     {
@@ -8159,7 +8191,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         EffectData applied = onActionEffects[0];
-        List<CardController> resolvedBeforeApply = ResolveEffectTargets(command, side, applied.target);
+        List<CardController> resolvedBeforeApply = ResolveEffectTargets(command, side, applied);
         StartCoroutine(ExecuteOnActionDirectEffectAfterPreview(
             side,
             command,
@@ -8449,7 +8481,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (EffectRequiresManualUnitSelection(effect))
         {
-            List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect.target);
+            List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect);
             if (candidates.Count == 0)
             {
                 Debug.Log($"OnMain: 選択可能な対象がありません (target:{effect.target})。");
@@ -8536,34 +8568,41 @@ public partial class BattleGameMain : MonoBehaviour
     private List<CardController> ResolveSelectableEffectTargets(
         CardController sourceCard,
         PlayerType ownerType,
-        TargetType targetType)
+        EffectData effect)
     {
+        if (effect == null)
+        {
+            return new List<CardController>();
+        }
+
+        CardFeatureData requiredFeature = effect.GetTargetFeature();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> result = new List<CardController>();
 
-        switch (targetType)
+        switch (effect.target)
         {
             case TargetType.Self:
                 if (sourceCard != null
                     && sourceCard.Data != null
                     && sourceCard.Data.type == Type.Unit
                     && sourceCard.CurrentHp > 0
-                    && IsCardOnBattleZone(sourceCard))
+                    && IsCardOnBattleZone(sourceCard)
+                    && (requiredFeature == null || sourceCard.Data.HasFeature(requiredFeature)))
                 {
                     result.Add(sourceCard);
                 }
                 break;
             case TargetType.AllyUnit:
-                AddAllAliveUnits(allies, result);
+                AddAllAliveUnits(allies, result, null, requiredFeature);
                 break;
             case TargetType.AllyOtherUnit:
-                AddAllAliveUnits(allies, result, sourceCard);
+                AddAllAliveUnits(allies, result, sourceCard, requiredFeature);
                 break;
             case TargetType.EnemyUnit:
-                AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result);
+                AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeature);
                 break;
             case TargetType.RestEnemyUnit:
-                AddAllAliveUnits(GetAliveRestEnemyUnitsForOwner(ownerType), result);
+                AddAllAliveUnits(GetAliveRestEnemyUnitsForOwner(ownerType), result, null, requiredFeature);
                 break;
         }
 

@@ -33,10 +33,10 @@ MonoBehaviour:
     effects:
     - type: 2
       value: 2
-      target: 1
+      target: 8
       selectionMode: 1
       statTarget: 0
-      duration: 0
+      duration: 1
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0
@@ -45,6 +45,8 @@ MonoBehaviour:
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
   features: []
   isBlocker: 0
   isNotDirectAttack: 0
