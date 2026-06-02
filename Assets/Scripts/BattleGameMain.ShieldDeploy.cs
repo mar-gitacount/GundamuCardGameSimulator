@@ -399,7 +399,7 @@ public partial class BattleGameMain
             return;
         }
 
-        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect.target);
+        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
         if (candidates.Count == 0)
         {
             Debug.Log(
@@ -437,7 +437,7 @@ public partial class BattleGameMain
             yield break;
         }
 
-        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect.target);
+        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
         if (candidates.Count == 0)
         {
             Debug.Log(

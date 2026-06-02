@@ -155,6 +155,48 @@
             ]
         },
         {
+            "effectSetName": "BuffAllyMobileSuitApX_SelectSingle",
+            "displayName": "モビルスーツ特性の味方ユニット1体のAPを+X",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllAllyMobileSuitApX",
+            "displayName": "モビルスーツ特性の味方ユニット全員のAPを+X",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 3,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 1
+                }
+            ]
+        },
+        {
             "effectSetName": "DamageEnemy3_SelectSingle",
             "displayName": "敵ユニット1体に3ダメージ",
             "effects": [

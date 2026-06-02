@@ -32,7 +32,17 @@ MonoBehaviour:
     effectsName: DeployBase1_OnBurst
     effects: []
   - timing: 6
-    activationConditions: []
+    activationConditions:
+    - boardSide: -1
+      checkKind: -1
+      turnCheck: 0
+      feature: {fileID: 0}
+      minimumCount: 0
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
     effectsName: AddShield1_OnBaseDeployed
     effects: []
   features: []

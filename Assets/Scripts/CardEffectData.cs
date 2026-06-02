@@ -107,6 +107,8 @@ public enum EffectDuration
 /// <summary>発動条件で参照する盤面・手札の領域。</summary>
 public enum EffectBoardSide
 {
+    /// <summary>未指定（判定をスキップ）。</summary>
+    Unset = -1,
     OwnerBattleZone,
     OpponentBattleZone,
     OwnerHand,
@@ -115,6 +117,8 @@ public enum EffectBoardSide
 
 public enum EffectActivationCheckKind
 {
+    /// <summary>未指定（判定をスキップ）。</summary>
+    Unset = -1,
     /// <summary>Feature を持つカードが minimumCount 枚以上いる（主にユニット想定）。</summary>
     HasFeature,
     /// <summary>生存ユニットが minimumCount 体以上いる。</summary>
@@ -126,6 +130,16 @@ public enum EffectActivationCheckKind
     /// unitCountCompareOp で unitCountThreshold と比較（例: LV6が0体 → Equal + threshold 0）。
     /// </summary>
     CountUnitsAtExactLevel
+}
+
+public enum EffectTurnCheckKind
+{
+    /// <summary>未指定（ターン判定をスキップ）。</summary>
+    Unset = -1,
+    /// <summary>現在がソースカードのオーナー側のターン。</summary>
+    OwnerTurn = 0,
+    /// <summary>現在が相手側のターン。</summary>
+    NotOwnerTurn = 1
 }
 
 public enum EffectLevelAggregate
@@ -173,6 +187,9 @@ public class EffectActivationCondition
 {
     public EffectBoardSide boardSide = EffectBoardSide.OwnerBattleZone;
     public EffectActivationCheckKind checkKind = EffectActivationCheckKind.HasFeature;
+
+    [Tooltip("Unset ならターン判定しない。OwnerTurn/NotOwnerTurn を指定した場合のみ判定する。")]
+    public EffectTurnCheckKind turnCheck = EffectTurnCheckKind.Unset;
 
     [Tooltip("HasFeature 時に参照。未設定なら HasFeature は常に false。")]
     public CardFeatureData feature;
@@ -229,6 +246,42 @@ public class EffectData
 
     [Tooltip("カウント対象ゾーンに source がいる場合、source を数から除外。")]
     public bool valueCountExcludeSource;
+
+    [Tooltip("Buff/Debuff 等の対象を、この Feature を持つユニットに限定。未設定なら target のみで解決。")]
+    public CardFeatureData targetFeature;
+
+    [Tooltip("JSON 用。targetFeature 未設定時に ID で解決（0=未指定）。")]
+    public int targetFeatureId;
+}
+
+/// <summary><see cref="EffectData"/> の対象 Feature 解決。</summary>
+public static class EffectDataExtensions
+{
+    public static CardFeatureData GetTargetFeature(this EffectData effect)
+    {
+        if (effect == null)
+        {
+            return null;
+        }
+
+        if (effect.targetFeature != null)
+        {
+            return effect.targetFeature;
+        }
+
+        if (effect.targetFeatureId > 0)
+        {
+            CardFeatureRegistry.EnsureLoaded();
+            return CardFeatureRegistry.GetById(effect.targetFeatureId);
+        }
+
+        return null;
+    }
+
+    public static bool HasTargetFeatureFilter(this EffectData effect)
+    {
+        return effect != null && (effect.targetFeature != null || effect.targetFeatureId > 0);
+    }
 }
 
 [Serializable]

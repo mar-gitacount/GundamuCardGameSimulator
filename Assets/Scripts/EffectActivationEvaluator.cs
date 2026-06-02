@@ -12,6 +12,7 @@ public sealed class EffectActivationContext
     public IReadOnlyList<CardController> EnemyBattleZone { get; }
     public IReadOnlyList<CardController> PlayerHand { get; }
     public IReadOnlyList<CardController> EnemyHand { get; }
+    public bool IsOwnerTurn { get; }
 
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
@@ -19,7 +20,8 @@ public sealed class EffectActivationContext
         IReadOnlyList<CardController> playerBattleZone,
         IReadOnlyList<CardController> enemyBattleZone,
         IReadOnlyList<CardController> playerHand,
-        IReadOnlyList<CardController> enemyHand)
+        IReadOnlyList<CardController> enemyHand,
+        bool isOwnerTurn)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -27,6 +29,7 @@ public sealed class EffectActivationContext
         EnemyBattleZone = enemyBattleZone ?? System.Array.Empty<CardController>();
         PlayerHand = playerHand ?? System.Array.Empty<CardController>();
         EnemyHand = enemyHand ?? System.Array.Empty<CardController>();
+        IsOwnerTurn = isOwnerTurn;
     }
 }
 
@@ -73,6 +76,27 @@ public static class EffectActivationEvaluator
 
     private static bool EvaluateSingle(EffectActivationCondition c, EffectActivationContext ctx)
     {
+        if (c.turnCheck != EffectTurnCheckKind.Unset)
+        {
+            bool expectOwnerTurn = c.turnCheck == EffectTurnCheckKind.OwnerTurn;
+            if (ctx.IsOwnerTurn != expectOwnerTurn)
+            {
+                return false;
+            }
+        }
+
+        // 未指定なら、この条件ブロックはターン条件以外を無視して通す。
+        if (c.checkKind == EffectActivationCheckKind.Unset)
+        {
+            return true;
+        }
+
+        // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
+        if (c.boardSide == EffectBoardSide.Unset)
+        {
+            return true;
+        }
+
         IReadOnlyList<CardController> zone = ResolveZone(ctx, c.boardSide);
         switch (c.checkKind)
         {
