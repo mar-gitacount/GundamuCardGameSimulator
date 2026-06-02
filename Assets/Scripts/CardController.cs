@@ -185,7 +185,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             return;
         }
 
-        if (Data == null || Data.type != Type.Unit)
+        if (Data == null)
         {
             return;
         }

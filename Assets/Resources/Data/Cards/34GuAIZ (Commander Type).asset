@@ -10,41 +10,33 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 30Vesalius
+  m_Name: 34GuAIZ (Commander Type)
   m_EditorClassIdentifier: 
-  id: 30
-  cardName: 30Vesalius
-  cost: 1
-  level: 2
-  power: 0
-  hp: 5
-  imageName: {fileID: 21300000, guid: 4561a30053b757b42a3b1098067a0f1f, type: 3}
+  id: 34
+  cardName: GuAIZ (Commander Type)
+  cost: 4
+  level: 3
+  power: 4
+  hp: 3
+  imageName: {fileID: 21300000, guid: 7d15f7b90abd3f04c8bc2f4fcfa05e23, type: 3}
   image: {fileID: 0}
-  version: 1
-  sourceType: 2
+  version: 3
+  sourceType: 1
   filterType: 0
   color: 0
-  type: 3
+  type: 0
   attackFlg: 0
   timedEffects:
-  - timing: 5
-    activationConditions: []
-    effectsName: DeployBase1_OnBurst
-    effects: []
-  - timing: 6
-    activationConditions: []
-    effectsName: AddShield1_OnBaseDeployed
-    effects: []
   - timing: 14
     activationConditions: []
     effectsName: 
     effects:
     - type: 2
-      value: 1
+      value: 2
       target: 1
       selectionMode: 1
       statTarget: 0
-      duration: 1
+      duration: 0
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0

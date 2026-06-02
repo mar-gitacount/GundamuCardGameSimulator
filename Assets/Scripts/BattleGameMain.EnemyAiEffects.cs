@@ -248,7 +248,7 @@ public partial class BattleGameMain
             return new List<CardController>();
         }
 
-        if (effect.target.IsSingleOpponentUnitPickTarget())
+        if (EffectRequiresManualUnitSelection(effect))
         {
             EnemyAiEffectPickContext ctx = BuildEnemyAiEffectPickContext(ownerSide, sourceCard, attackingUnitInAttackFlow, null);
             return PickEnemyAiEffectTargets(effect, ctx, null, singleOnly: true);
@@ -288,7 +288,7 @@ public partial class BattleGameMain
             }
 
             List<CardController> targets;
-            if (eff.target.IsSingleOpponentUnitPickTarget())
+            if (EffectRequiresManualUnitSelection(eff))
             {
                 targets = PickEnemyAiEffectTargets(eff, ctx, null, singleOnly: true);
             }
@@ -963,12 +963,12 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (effect.target.IsSingleOpponentUnitPickTarget())
+            if (EffectRequiresManualUnitSelection(effect))
             {
-                CardController picked = PickEnemyAiEffectTarget(
-                    effect,
-                    ctx,
-                    GetAliveEnemyUnitsForEffectTarget(side, effect.target));
+                List<CardController> pickCandidates = effect.target.IsSingleOpponentUnitPickTarget()
+                    ? GetAliveEnemyUnitsForEffectTarget(side, effect.target)
+                    : ResolveSelectableEffectTargets(command, side, effect.target);
+                CardController picked = PickEnemyAiEffectTarget(effect, ctx, pickCandidates);
                 if (picked != null && !preview.Contains(picked))
                 {
                     preview.Add(picked);
@@ -1293,9 +1293,11 @@ public partial class BattleGameMain
             return;
         }
 
-        if (effect.target.IsSingleOpponentUnitPickTarget())
+        if (EffectRequiresManualUnitSelection(effect))
         {
-            List<CardController> candidates = GetAliveEnemyUnitsForEffectTarget(side, effect.target);
+            List<CardController> candidates = effect.target.IsSingleOpponentUnitPickTarget()
+                ? GetAliveEnemyUnitsForEffectTarget(side, effect.target)
+                : ResolveSelectableEffectTargets(command, side, effect.target);
             CardController picked = PickEnemyAiEffectTarget(effect, ctx, candidates);
             if (picked == null)
             {
