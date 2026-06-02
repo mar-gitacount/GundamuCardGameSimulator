@@ -1332,8 +1332,8 @@ public partial class BattleGameMain : MonoBehaviour
         Debug.Log("エネミーの行動を開始します。");
         yield return new WaitForSeconds(0.8f);
 
-        bool deployed = TryEnemyDeployUnitFromHand();
-        if (deployed)
+        int deployedCount = TryEnemyDeployAllAffordableUnitsFromHand();
+        if (deployedCount > 0)
         {
             yield return new WaitForSeconds(0.6f);
         }
@@ -1390,44 +1390,8 @@ public partial class BattleGameMain : MonoBehaviour
             yield return new WaitForSeconds(0.5f);
         }
 
-        Debug.Log($"エネミーの行動が終了しました。deploy:{deployed} shieldAttack:{attacked}");
+        Debug.Log($"エネミーの行動が終了しました。deployUnits:{deployedCount} shieldAttack:{attacked}");
         ChangePhase(BattlePhase.EndTurn);
-    }
-
-    /// <summary>
-    /// エネミー手札から、現在のレベル/リソースで出せる最初のユニットを1体だけ配備する。
-    /// </summary>
-    private bool TryEnemyDeployUnitFromHand()
-    {
-        RectTransform hand = enemyCardGameRule.HandScrollContent;
-        if (hand == null)
-        {
-            return false;
-        }
-
-        Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Enemy;
-        for (int i = 0; i < hand.childCount; i++)
-        {
-            CardController cc = hand.GetChild(i).GetComponent<CardController>();
-            if (cc == null || cc.Data == null || cc.Data.type != Type.Unit)
-            {
-                continue;
-            }
-
-            if (!TryPayHandDeployCost(side, cc, 0))
-            {
-                continue;
-            }
-
-            SendCardToField(cc, PlayerType.Enemy, enemyCardGameRule);
-            SyncResourceViewsFromRule(side);
-            Debug.Log(
-                $"[Enemy] ユニット配備: {cc.Data.cardName}(lv:{cc.CurrentLevel} cost:{cc.CurrentCost} "
-                + $"enemyLv:{gundamRule.Enemy.TotalLevel} res:{gundamRule.Enemy.resource})");
-            return true;
-        }
-
-        return false;
     }
 
     /// <summary>

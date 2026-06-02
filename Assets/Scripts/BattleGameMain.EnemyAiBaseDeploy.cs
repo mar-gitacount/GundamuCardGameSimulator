@@ -82,23 +82,9 @@ public partial class BattleGameMain
             return false;
         }
 
+        EnemyAiDeployResourceBudget reserve = ComputeEnemyAiOnActionResourceReserve();
         Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Enemy;
-        List<CardController> hand = CollectHandControllers(enemyCardGameRule);
-        for (int i = 0; i < hand.Count; i++)
-        {
-            CardController cc = hand[i];
-            if (cc == null || cc.Data == null || cc.Data.type != Type.Unit)
-            {
-                continue;
-            }
-
-            if (gundamRule.CanPlayCard(side, cc.CurrentLevel, cc.CurrentCost))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return CollectEnemyDeployableUnitsFromHand(side, reserve).Count > 0;
     }
 
     private bool EnemyAiCanExecuteUsefulOnMainFromHand()
