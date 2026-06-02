@@ -1351,6 +1351,11 @@ public partial class BattleGameMain : MonoBehaviour
             yield return new WaitForSeconds(0.15f);
         }
 
+        if (TryEnemyExecuteScoredOnRestBeforeAttacks())
+        {
+            yield return new WaitForSeconds(0.4f);
+        }
+
         int attacked = 0;
         while (true)
         {
@@ -3913,6 +3918,45 @@ public partial class BattleGameMain : MonoBehaviour
         unit.SetUnitRestVisual(true);
     }
 
+    /// <summary>シールドゾーンから OnRest できるのは、表向き（裏面カバーなし）のベースのみ。</summary>
+    private static bool IsVisibleBaseInShieldZone(CardController card)
+    {
+        return card != null
+            && card.Data != null
+            && card.Data.type == Type.Base
+            && !card.IsShieldFaceHidden;
+    }
+
+    private bool IsCardInOwnerShieldZone(CardController card, PlayerType ownerType)
+    {
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        return card != null
+            && rule != null
+            && rule.ShieldCardsContent != null
+            && card.transform.IsChildOf(rule.ShieldCardsContent);
+    }
+
+    /// <summary>OnRest の起動元として有効な場所か（シールド上は表ベースのみ）。</summary>
+    private bool CanUseOnRestAtCardLocation(CardController card, PlayerType ownerType)
+    {
+        if (card == null || card.Data == null)
+        {
+            return false;
+        }
+
+        if (IsCardInBaseSlot(card) || IsCardOnBattleZone(card))
+        {
+            return true;
+        }
+
+        if (IsCardInOwnerShieldZone(card, ownerType))
+        {
+            return IsVisibleBaseInShieldZone(card);
+        }
+
+        return false;
+    }
+
     private bool CanActivateOnRestBySelf(PlayerType ownerType, CardController source)
     {
         if (source == null || source.Data == null)
@@ -3921,6 +3965,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (ownerType != currentPlayerType || currentPhase != BattlePhase.MainPhase)
+        {
+            return false;
+        }
+
+        if (!CanUseOnRestAtCardLocation(source, ownerType))
         {
             return false;
         }

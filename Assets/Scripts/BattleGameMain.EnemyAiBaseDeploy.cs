@@ -151,12 +151,19 @@ public partial class BattleGameMain
         return false;
     }
 
-    /// <summary>仮想盤面（ユニット）＋配備ベース想定のゾーン防御ボーナス。</summary>
+    /// <summary>仮想盤面＋OnBaseDeployed 効果シミュ＋ゾーン防御。</summary>
     private int ScoreEnemyAiBoardWithSimulatedBaseDeploy(CardController baseCandidate)
     {
-        int score = ComputeEnemyAiFieldAdvantageScore(BuildFullBattleVirtualSnapshot());
-        score += ScoreEnemyAiDefensiveZoneValue(Gundam2024RuleScript.PlayerSide.Enemy, baseCandidate);
-        return score;
+        List<VirtualBattleUnitSnap> fieldSnaps = BuildFullBattleVirtualSnapshot();
+        int withoutEffects = ComputeEnemyAiFieldAdvantageScore(fieldSnaps)
+            + ScoreEnemyAiDefensiveZoneValue(Gundam2024RuleScript.PlayerSide.Enemy, baseCandidate);
+        int withEffects = ScoreEnemyAiBoardWithOnBaseDeployedEffects(baseCandidate, fieldSnaps);
+        if (withEffects - withoutEffects < EnemyAiOnBaseDeployedMinPlanBenefit)
+        {
+            return withoutEffects;
+        }
+
+        return withEffects;
     }
 
     private int ScoreEnemyAiDefensiveZoneValue(
