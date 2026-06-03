@@ -23,7 +23,7 @@ MonoBehaviour:
   version: 1
   sourceType: 2
   filterType: 0
-  color: 4
+  color: 0
   type: 3
   attackFlg: 0
   timedEffects:
@@ -45,6 +45,36 @@ MonoBehaviour:
       unitCountThreshold: 0
     effectsName: AddShield1_OnBaseDeployed
     effects: []
+  - timing: 6
+    activationConditions:
+    - boardSide: -1
+      checkKind: -1
+      turnCheck: 0
+      feature: {fileID: 0}
+      minimumCount: 0
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+    effectsName: 
+    effects:
+    - type: 2
+      value: 3
+      target: 1
+      selectionMode: 1
+      statTarget: 0
+      duration: 1
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
+      targetFeatureId: 0
   features: []
   isBlocker: 0
   isNotDirectAttack: 0

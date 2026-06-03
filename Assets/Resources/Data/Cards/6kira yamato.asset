@@ -10,35 +10,35 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 34GuAIZ (Commander Type)
+  m_Name: 6kira yamato
   m_EditorClassIdentifier: 
-  id: 34
-  cardName: GuAIZ (Commander Type)
-  cost: 4
-  level: 3
-  power: 4
-  hp: 3
-  imageName: {fileID: 21300000, guid: 7d15f7b90abd3f04c8bc2f4fcfa05e23, type: 3}
+  id: 6
+  cardName: "\u30AD\u30E9\u30E4\u30DE\u30C8"
+  cost: 1
+  level: 4
+  power: 2
+  hp: 1
+  imageName: {fileID: 21300000, guid: 529114f185431124eb16131d3ec65c74, type: 3}
   image: {fileID: 0}
-  version: 3
-  sourceType: 1
+  version: 1
+  sourceType: 2
   filterType: 0
-  color: 0
-  type: 0
+  color: 5
+  type: 1
   attackFlg: 0
   timedEffects:
-  - timing: 14
+  - timing: 3
     activationConditions: []
     effectsName: 
     effects:
-    - type: 2
+    - type: 3
       value: 2
-      target: 8
+      target: 2
       selectionMode: 1
       statTarget: 0
-      duration: 1
+      duration: 2
       valueMode: 0
-      valueCountBoardSide: 0
+      valueCountBoardSide: 1
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
       valueCountMinUnitLevel: 0
@@ -48,7 +48,8 @@ MonoBehaviour:
       targetFeature: {fileID: 0}
       targetFeatureId: 0
   features:
-  - {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
+  - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
+  link: []
   isBlocker: 0
   isNotDirectAttack: 0
   isShieldToken: 0

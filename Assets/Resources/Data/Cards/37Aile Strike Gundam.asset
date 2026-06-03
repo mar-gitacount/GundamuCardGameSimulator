@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 37Aile Strike Gundam
+  m_EditorClassIdentifier: 
+  id: 37
+  cardName: Aile Strike Gundam
+  cost: 4
+  level: 5
+  power: 4
+  hp: 4
+  imageName: {fileID: 21300000, guid: 5f042bc4b4d14314fab8de337a882f7f, type: 3}
+  image: {fileID: 0}
+  version: 1
+  sourceType: 2
+  filterType: 0
+  color: 5
+  type: 0
+  attackFlg: 0
+  timedEffects: []
+  features:
+  - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
+  link:
+  - pilotCardId: 6
+    pilotFeatures: []
+    pilotFeatureIds: 
+  isBlocker: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0

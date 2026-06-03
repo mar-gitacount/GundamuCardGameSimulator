@@ -19,13 +19,16 @@ public class CardData : ScriptableObject
     public CardColor color;
     public Type type;
     /// <summary>ユニット（Type.Unit）向け。アセット上の既定値。実行時は CardController で上書き。</summary>
-    [Tooltip("ユニットのみ有効。配備時は False、自分ターン開始で True に更新（BattleGameMain）。")]
+    [Tooltip("ユニットのみ。配備ターンは False。Link 条件搭乗で同日 True。次の自分ターン開始で True。")]
     public AttackFlg attackFlg = AttackFlg.False;
     [Tooltip("カード効果定義（タイミング別）。")]
     public List<TimedEffectData> timedEffects = new List<TimedEffectData>();
 
     [Tooltip("カード特性（複数可）。マスタは Game/Card Feature または Resources/Data/Features。")]
     public List<CardFeatureData> features = new List<CardFeatureData>();
+
+    [Tooltip("ユニットのみ。Link＝条件パイロット定義。任意搭乗可。条件一致で出したターンから攻撃可。次ターン以降は通常どおり。")]
+    public List<UnitLinkPilotSlot> link = new List<UnitLinkPilotSlot>();
 
     [Tooltip("敵の攻撃をブロックし、身代わりのユニット戦にできる（ACTIVE 時のみ選択可）。")]
     public bool isBlocker;

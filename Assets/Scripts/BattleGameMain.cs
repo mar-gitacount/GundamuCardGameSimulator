@@ -2721,6 +2721,7 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 Debug.Log($"[Pilot] {pilotCard.Data.cardName} を {target.Data.cardName} に搭乗。AP:{target.CurrentPower} HP:{target.CurrentHp}");
+                ApplyUnitAttackFlgFromLink(target, ownerType);
                 TriggerOnPlayedEffects(pilotCard, ownerType, RefreshAllHandsConditionalOnHandAuto);
                 SyncResourceViewsFromRule(ownerSide);
                 Destroy(filterPanel);
@@ -2733,6 +2734,25 @@ public partial class BattleGameMain : MonoBehaviour
     /// 表示は起き状態になり、この状態で攻撃可能。
     /// OnRest でレストしたベース・シールド上のカードも ACTIVE に戻す。
     /// </summary>
+    /// <summary>搭乗直後：Link ユニットに条件パイロットが載ったときだけ、出したターンでも AttackFlg を True にする。</summary>
+    private void ApplyUnitAttackFlgFromLink(CardController unit, PlayerType ownerType)
+    {
+        if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        if (ownerType != currentPlayerType)
+        {
+            return;
+        }
+
+        if (UnitLinkExtensions.GrantsSameTurnAttackOnLink(unit.Data, unit.MountedPilot))
+        {
+            unit.SetAttackFlg(AttackFlg.True);
+        }
+    }
+
     private void ApplyTurnStartAttackFlgForCurrentPlayer()
     {
         PlayerType side = currentPlayerType;
