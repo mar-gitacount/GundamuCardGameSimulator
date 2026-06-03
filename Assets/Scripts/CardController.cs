@@ -359,6 +359,55 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         return true;
     }
 
+    /// <summary>搭乗パイロットを外す（破棄しない）。ユニット側のボーナスを戻す。</summary>
+    public CardController DetachMountedPilotWithoutDestroy()
+    {
+        CardController pilot = MountedPilot;
+        if (pilot == null || pilot.Data == null)
+        {
+            return null;
+        }
+
+        pilotPowerBonus = Mathf.Max(0, pilotPowerBonus - Mathf.Max(0, pilot.Data.power));
+        CurrentHp = Mathf.Max(0, CurrentHp - Mathf.Max(0, pilot.Data.hp));
+        MountedPilot = null;
+        pilot.MountedUnit = null;
+
+        RectTransform pilotRt = pilot.transform as RectTransform;
+        if (pilotRt != null)
+        {
+            pilotRt.SetParent(null, false);
+            LayoutElement le = pilot.GetComponent<LayoutElement>();
+            if (le != null)
+            {
+                le.ignoreLayout = false;
+            }
+        }
+
+        Image pilotImage = pilot.GetComponent<Image>();
+        if (pilotImage != null)
+        {
+            pilotImage.raycastTarget = true;
+        }
+
+        return pilot;
+    }
+
+    /// <summary>ユニットの搭乗・戦場用レイヤーを手札表示向けに戻す。</summary>
+    public void CleanupUnitBattleMountVisuals()
+    {
+        if (unitFaceTopLayer != null)
+        {
+            Destroy(unitFaceTopLayer.gameObject);
+            unitFaceTopLayer = null;
+        }
+
+        if (cardImage != null)
+        {
+            cardImage.enabled = true;
+        }
+    }
+
     private void EnsureUnitFaceTopLayer()
     {
         if (unitFaceTopLayer != null || cardImage == null)

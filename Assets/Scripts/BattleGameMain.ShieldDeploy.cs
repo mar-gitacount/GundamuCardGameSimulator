@@ -471,17 +471,21 @@ public partial class BattleGameMain
         string title = manualPickTotal > 1
             ? $"{timingLabel} {manualPickIndex}/{manualPickTotal} — 対象を選択"
             : $"{timingLabel} — 対象を選択";
-        string targetLabel = effect != null ? effect.target.ToString() : "?";
         string summary = effect != null
-            ? $"{cardLabel}：{effect.type} / {targetLabel} / 値:{effect.value}"
+            ? $"{cardLabel}：{effect.FormatEffectSelectionSummary()}"
             : cardLabel;
+        string titleForEffect = effect != null && effect.type == EffectType.Bounce
+            ? (manualPickTotal > 1
+                ? $"バウンス {manualPickIndex}/{manualPickTotal} — 手札に戻すユニット"
+                : "バウンス — 手札に戻すユニットを選択")
+            : title;
 
         yield return WaitForPlayerBurstTargetSelectionCoroutine(
             sourceCard,
             ownerType,
             effect,
             candidates,
-            title,
+            titleForEffect,
             summary);
     }
 
