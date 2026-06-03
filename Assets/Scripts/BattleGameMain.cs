@@ -3368,7 +3368,13 @@ public partial class BattleGameMain : MonoBehaviour
                             continue;
                         }
 
-                        OpenEnemyUnitEffectSelectionUI(sourceCard, attackerOwner, effect, bounceCandidates, onResolved);
+                        OpenEnemyUnitEffectSelectionUI(
+                            sourceCard,
+                            attacker,
+                            attackerOwner,
+                            effect,
+                            bounceCandidates,
+                            onResolved);
                         return true;
                     }
 
@@ -3404,10 +3410,16 @@ public partial class BattleGameMain : MonoBehaviour
                     List<CardController> enemyUnits = ResolveSelectableEffectTargets(sourceCard, attackerOwner, effect);
                     if (enemyUnits.Count == 0)
                     {
-                        return false;
+                        continue;
                     }
 
-                    OpenEnemyUnitEffectSelectionUI(sourceCard, attackerOwner, effect, enemyUnits, onResolved);
+                    OpenEnemyUnitEffectSelectionUI(
+                        sourceCard,
+                        attacker,
+                        attackerOwner,
+                        effect,
+                        enemyUnits,
+                        onResolved);
                     return true;
                 }
             }
@@ -3417,16 +3429,20 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     private void OpenEnemyUnitEffectSelectionUI(
-        CardController attacker,
+        CardController effectSourceCard,
+        CardController attackingUnit,
         PlayerType attackerOwner,
         EffectData effect,
         List<CardController> enemyUnits,
         System.Action onResolved = null)
     {
+        CardController attackUnit = attackingUnit ?? pendingUnitAttackAttacker ?? effectSourceCard;
+
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
         {
-            pendingOnAttackEffectResolvedAttacker = pendingUnitAttackAttacker;
+            pendingOnAttackEffectResolvedAttacker = attackUnit;
+            onResolved?.Invoke();
             return;
         }
 
@@ -3506,12 +3522,19 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
-                if (effect.selectionMode == EffectSelectionMode.SelectSingleEnemyUnit)
+                bool immediateSinglePick = effect.type == EffectType.Bounce
+                    || effect.selectionMode.IsImmediateSinglePick();
+                if (immediateSinglePick)
                 {
                     consumed = true;
-                    ApplyEffectToSpecificTargets(attacker, attackerOwner, effect, new List<CardController> { unit });
-                    pendingOnAttackEffectResolvedAttacker = attacker;
-                    Debug.Log("OnAttack effect target selected. Now select attack target.");
+                    ApplyEffectToSpecificTargets(
+                        effectSourceCard,
+                        attackerOwner,
+                        effect,
+                        new List<CardController> { unit });
+                    pendingOnAttackEffectResolvedAttacker = attackUnit;
+                    Debug.Log(
+                        $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName})。攻撃を続行します。");
                     Destroy(root);
                     onResolved?.Invoke();
                     return;
@@ -3557,9 +3580,10 @@ public partial class BattleGameMain : MonoBehaviour
                     Debug.Log("効果対象を1体以上選択してください。");
                     return;
                 }
-                ApplyEffectToSpecificTargets(attacker, attackerOwner, effect, selected);
-                pendingOnAttackEffectResolvedAttacker = attacker;
-                Debug.Log("OnAttack effect targets selected. Now select attack target.");
+                ApplyEffectToSpecificTargets(effectSourceCard, attackerOwner, effect, selected);
+                pendingOnAttackEffectResolvedAttacker = attackUnit;
+                Debug.Log(
+                    $"[OnAttack] 効果対象を複数選択 ({effectSourceCard?.Data?.cardName})。攻撃を続行します。");
                 Destroy(root);
                 onResolved?.Invoke();
             });
