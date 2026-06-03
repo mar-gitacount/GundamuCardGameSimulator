@@ -50,12 +50,13 @@ MonoBehaviour:
       targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
+      filterTargetUnitLevel: 0
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
   link:
   - pilotCardId: 6
     pilotFeatures: []
     pilotFeatureIds: 
-  isBlocker: 0
+  isBlocker: 1
   isNotDirectAttack: 0
   isShieldToken: 0
