@@ -17,6 +17,12 @@
             "featureKey": "Zaft",
             "displayName": "ザフト",
             "description": ""
+        },
+        {
+            "id": 4,
+            "featureKey": "Earth_Alliance",
+            "displayName": "地球連合",
+            "description": ""
         }
     ]
 }
