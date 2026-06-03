@@ -2855,7 +2855,10 @@ public partial class BattleGameMain : MonoBehaviour
 
                 Debug.Log($"[Pilot] {pilotCard.Data.cardName} を {target.Data.cardName} に搭乗。AP:{target.CurrentPower} HP:{target.CurrentHp}");
                 ApplyUnitAttackFlgFromLink(target, ownerType);
-                TriggerOnPlayedEffects(pilotCard, ownerType, RefreshAllHandsConditionalOnHandAuto);
+                TriggerOnPilotMountedEffects(target, pilotCard, ownerType, () =>
+                {
+                    TriggerOnPlayedEffects(pilotCard, ownerType, RefreshAllHandsConditionalOnHandAuto);
+                });
                 SyncResourceViewsFromRule(ownerSide);
                 Destroy(filterPanel);
             });
@@ -5571,6 +5574,24 @@ public partial class BattleGameMain : MonoBehaviour
             isOwnerTurn: ownerType == currentPlayerType);
     }
 
+    private EffectActivationContext BuildPilotMountActivationContext(
+        PlayerType ownerType,
+        CardController sourceCard,
+        CardController hostUnit,
+        CardController pilot)
+    {
+        return new EffectActivationContext(
+            ownerType,
+            sourceCard,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: hostUnit,
+            mountedPilot: pilot);
+    }
+
     private void RefreshAllHandsConditionalOnHandAuto()
     {
         RefreshHandConditionalOnHandAuto(PlayerType.Player);
@@ -5661,6 +5682,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (timing == EffectTiming.OnPilotMounted)
+        {
+            return;
+        }
+
         EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
 
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
@@ -5698,6 +5724,93 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyEffect(sourceCard, ownerType, effect);
             }
         }
+    }
+
+    /// <summary>パイロット搭乗時（OnPilotMounted）。ユニット→パイロットの順で timedEffects を解決。</summary>
+    private void TriggerOnPilotMountedEffects(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType,
+        System.Action onComplete)
+    {
+        if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        List<TimedEffectData> unitBlocks = CollectOnPilotMountedBlocks(hostUnit, ownerType, hostUnit, pilot);
+        List<TimedEffectData> pilotBlocks = CollectOnPilotMountedBlocks(pilot, ownerType, hostUnit, pilot);
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        Debug.Log(
+            $"[OnPilotMounted] 開始: {pilot.Data.cardName} → {hostUnit.Data.cardName} "
+            + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
+        RunOnPilotMountedTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
+        {
+            RunOnPilotMountedTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
+        });
+    }
+
+    private List<TimedEffectData> CollectOnPilotMountedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        CardController hostUnit,
+        CardController pilot)
+    {
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            return blocks;
+        }
+
+        EffectActivationContext activationContext =
+            BuildPilotMountActivationContext(ownerType, sourceCard, hostUnit, pilot);
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || !timed.IsOnPilotMountedResolutionBlock())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                Debug.Log(
+                    $"[OnPilotMounted] 条件未達: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+
+        return blocks;
+    }
+
+    private void RunOnPilotMountedTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        List<TimedEffectData> blocks,
+        int blockIndex,
+        System.Action onComplete)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        TimedEffectData block = blocks[blockIndex];
+        TryExecuteOnPlayedEffectChain(
+            sourceCard,
+            ownerType,
+            block.GetResolvedEffects(),
+            0,
+            () => RunOnPilotMountedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
     }
 
     /// <summary>場に出した時（OnPlayed）。条件付きブロック内の効果を順に解決し、敵ユニット選択が必要なら UI を出す。</summary>

@@ -28,7 +28,18 @@ MonoBehaviour:
   attackFlg: 0
   timedEffects:
   - timing: 0
-    activationConditions: []
+    activationConditions:
+    - boardSide: 0
+      checkKind: 0
+      turnCheck: 0
+      feature: {fileID: 0}
+      minimumCount: 0
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
     effectsName: 
     effects:
     - type: 9
@@ -47,9 +58,9 @@ MonoBehaviour:
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
-      targetUnitFilterStat: -1
+      targetUnitFilterStat: 1
       targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 0
+      targetUnitStatCompareValue: 4
       filterTargetUnitLevel: 0
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}

@@ -18,7 +18,8 @@ public enum EffectTiming
     OnEnemyAttack,  // 敵が攻撃してきた時（防御リアクション用）
     OnMain,         // メインフェイズ中・自分のターンでいつでも実行可能
     OnHandAuto,     // 手札に入った時に自動発動（操作不要）
-    OnRest          // ユニットが REST になった時
+    OnRest,         // ユニットが REST になった時
+    OnPilotMounted  // パイロットをユニットに搭乗した時（ユニット・パイロット双方の timedEffects が対象）
 }
 
 public enum EffectType
@@ -153,7 +154,15 @@ public enum EffectActivationCheckKind
     /// CardData.level が compareValue と一致する生存ユニットの体数を数え、
     /// unitCountCompareOp で unitCountThreshold と比較（例: LV6が0体 → Equal + threshold 0）。
     /// </summary>
-    CountUnitsAtExactLevel
+    CountUnitsAtExactLevel,
+    /// <summary>
+    /// 搭乗先ユニットに載っているパイロットを参照（OnPilotMounted 推奨）。
+    /// boardSide 未指定時は MountHostUnit（搭乗イベントのホスト）のパイロットのみ。
+    /// boardSide 指定時はそのゾーン内で条件を満たす搭乗ユニットが minimumCount 体以上。
+    /// feature / pilotCardId で絞り込み。
+    /// compareValue + compareOp で搭乗パイロットの実効レベル（CurrentLevel）を比較（例: 4 以上 → compareValue=4, GreaterOrEqual）。
+    /// </summary>
+    MountedPilot
 }
 
 public enum EffectTurnCheckKind
@@ -232,6 +241,12 @@ public class EffectActivationCondition
 
     [Tooltip("CountUnitsAtExactLevel のみ: 数えた体数と比較する閾値（例: LV6 が 0 体なら 0）。")]
     public int unitCountThreshold;
+
+    [Tooltip("MountedPilot のみ: パイロットカード ID（0 なら ID 条件なし）。")]
+    public int pilotCardId;
+
+    [Tooltip("MountedPilot のみ: 搭乗パイロットの実効レベルと compareOp で比較。compareValue=0 かつ pilotCardId/feature も無い場合はレベル判定なし。")]
+    public int pilotLevelThreshold;
 }
 
 [Serializable]
@@ -552,6 +567,17 @@ public static class TimedEffectDataExtensions
     public static bool IsOnFieldPlayedResolutionBlock(this TimedEffectData timed)
     {
         if (timed == null || timed.timing != EffectTiming.OnPlayed || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>パイロット搭乗時（OnPilotMounted）に解決するブロック。</summary>
+    public static bool IsOnPilotMountedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null || timed.timing != EffectTiming.OnPilotMounted || !timed.HasResolvedEffects())
         {
             return false;
         }

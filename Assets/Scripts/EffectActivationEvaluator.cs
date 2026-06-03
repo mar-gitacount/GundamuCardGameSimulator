@@ -14,6 +14,12 @@ public sealed class EffectActivationContext
     public IReadOnlyList<CardController> EnemyHand { get; }
     public bool IsOwnerTurn { get; }
 
+    /// <summary>OnPilotMounted 時の搭乗先ユニット（未設定時は Source が Unit ならそれを使用）。</summary>
+    public CardController MountHostUnit { get; }
+
+    /// <summary>OnPilotMounted 時に載せたパイロット（未設定時は MountHostUnit.MountedPilot）。</summary>
+    public CardController MountedPilot { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -21,7 +27,9 @@ public sealed class EffectActivationContext
         IReadOnlyList<CardController> enemyBattleZone,
         IReadOnlyList<CardController> playerHand,
         IReadOnlyList<CardController> enemyHand,
-        bool isOwnerTurn)
+        bool isOwnerTurn,
+        CardController mountHostUnit = null,
+        CardController mountedPilot = null)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -30,6 +38,8 @@ public sealed class EffectActivationContext
         PlayerHand = playerHand ?? System.Array.Empty<CardController>();
         EnemyHand = enemyHand ?? System.Array.Empty<CardController>();
         IsOwnerTurn = isOwnerTurn;
+        MountHostUnit = mountHostUnit;
+        MountedPilot = mountedPilot;
     }
 }
 
@@ -91,6 +101,11 @@ public static class EffectActivationEvaluator
             return true;
         }
 
+        if (c.checkKind == EffectActivationCheckKind.MountedPilot)
+        {
+            return EvaluateMountedPilot(c, ctx);
+        }
+
         // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
         if (c.boardSide == EffectBoardSide.Unset)
         {
@@ -114,6 +129,103 @@ public static class EffectActivationEvaluator
             default:
                 return false;
         }
+    }
+
+    private static bool EvaluateMountedPilot(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        if (c.boardSide != EffectBoardSide.Unset)
+        {
+            IReadOnlyList<CardController> zone = ResolveZone(ctx, c.boardSide);
+            int matched = CountUnitsWithMatchingMountedPilot(zone, c);
+            return matched >= need;
+        }
+
+        CardController host = ctx.MountHostUnit;
+        if (host == null && ctx.SourceCard != null && ctx.SourceCard.Data != null
+            && ctx.SourceCard.Data.type == Type.Unit)
+        {
+            host = ctx.SourceCard;
+        }
+
+        if (host == null)
+        {
+            return false;
+        }
+
+        CardController pilot = ctx.MountedPilot ?? host.MountedPilot;
+        return PilotMeetsMountedPilotCondition(pilot, c);
+    }
+
+    private static int CountUnitsWithMatchingMountedPilot(IReadOnlyList<CardController> zone, EffectActivationCondition c)
+    {
+        int n = 0;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (!IsAliveUnit(unit))
+            {
+                continue;
+            }
+
+            if (PilotMeetsMountedPilotCondition(unit.MountedPilot, c))
+            {
+                n++;
+            }
+        }
+
+        return n;
+    }
+
+    private static bool PilotMeetsMountedPilotCondition(CardController pilot, EffectActivationCondition c)
+    {
+        if (pilot == null || pilot.Data == null || pilot.Data.type != Type.Pilot)
+        {
+            return false;
+        }
+
+        CardData data = pilot.Data;
+        if (c.pilotCardId > 0 && data.id != c.pilotCardId)
+        {
+            return false;
+        }
+
+        if (c.feature != null && !data.HasFeature(c.feature))
+        {
+            return false;
+        }
+
+        int levelThreshold = ResolveMountedPilotLevelThreshold(c);
+        if (levelThreshold > 0)
+        {
+            if (!CompareInts(pilot.CurrentLevel, levelThreshold, c.compareOp))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>MountedPilot のレベル閾値。pilotLevelThreshold 優先、未設定時は compareValue。</summary>
+    private static int ResolveMountedPilotLevelThreshold(EffectActivationCondition c)
+    {
+        if (c == null)
+        {
+            return 0;
+        }
+
+        if (c.pilotLevelThreshold > 0)
+        {
+            return c.pilotLevelThreshold;
+        }
+
+        return c.compareValue;
     }
 
     private static bool EvaluateUnitLevel(IReadOnlyList<CardController> zone, EffectActivationCondition c)

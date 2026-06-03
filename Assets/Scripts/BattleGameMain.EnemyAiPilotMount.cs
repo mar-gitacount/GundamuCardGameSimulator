@@ -130,7 +130,10 @@ public partial class BattleGameMain
         }
 
         ApplyUnitAttackFlgFromLink(unit, PlayerType.Enemy);
-        TriggerOnPlayedEffects(pilot, PlayerType.Enemy, RefreshAllHandsConditionalOnHandAuto);
+        TriggerOnPilotMountedEffects(unit, pilot, PlayerType.Enemy, () =>
+        {
+            TriggerOnPlayedEffects(pilot, PlayerType.Enemy, RefreshAllHandsConditionalOnHandAuto);
+        });
         SyncResourceViewsFromRule(side);
         return true;
     }
@@ -154,6 +157,7 @@ public partial class BattleGameMain
 
         List<VirtualBattleUnitSnap> after = CloneVirtualBattleSnaps(before);
         ApplyVirtualPilotMountToSnaps(after, pilot, unit);
+        ApplyVirtualPilotOnMountedEffects(after, unit, pilot);
         ApplyVirtualPilotOnPlayedEffects(after, pilot, unit);
 
         int afterOutlook = ScoreEnemyAiMountPhaseOutlook(after, reserve, pilot, unit, pilot);
@@ -209,6 +213,63 @@ public partial class BattleGameMain
         snap.Hp += Mathf.Max(0, pilot.Data.hp);
     }
 
+    private void ApplyVirtualPilotOnMountedEffects(
+        List<VirtualBattleUnitSnap> snaps,
+        CardController hostUnit,
+        CardController pilot)
+    {
+        if (snaps == null || hostUnit == null || pilot == null)
+        {
+            return;
+        }
+
+        ApplyVirtualOnPilotMountedForCard(snaps, hostUnit, hostUnit, pilot);
+        ApplyVirtualOnPilotMountedForCard(snaps, pilot, hostUnit, pilot);
+    }
+
+    private void ApplyVirtualOnPilotMountedForCard(
+        List<VirtualBattleUnitSnap> snaps,
+        CardController sourceCard,
+        CardController hostUnit,
+        CardController pilot)
+    {
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            return;
+        }
+
+        EffectActivationContext activationContext =
+            BuildPilotMountActivationContext(PlayerType.Enemy, sourceCard, hostUnit, pilot);
+        List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
+        EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(
+            PlayerType.Enemy,
+            sourceCard,
+            hostUnit,
+            restTargets);
+
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || !timed.IsOnPilotMountedResolutionBlock())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            List<EffectData> resolved = new List<EffectData>(timed.GetResolvedEffects());
+            ApplyEnemyHandCommandVirtualEffects(
+                snaps,
+                resolved,
+                sourceCard,
+                PlayerType.Enemy,
+                pickCtx);
+        }
+    }
+
     private void ApplyVirtualPilotOnPlayedEffects(
         List<VirtualBattleUnitSnap> snaps,
         CardController pilot,
@@ -219,7 +280,11 @@ public partial class BattleGameMain
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(PlayerType.Enemy, pilot);
+        EffectActivationContext activationContext = BuildPilotMountActivationContext(
+            PlayerType.Enemy,
+            pilot,
+            mountedUnit,
+            pilot);
         List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
         EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(
             PlayerType.Enemy,
