@@ -90,6 +90,17 @@ public enum EffectSelectionMode
     SelectMultipleEnemyUnits
 }
 
+/// <summary><see cref="EffectSelectionMode"/> の選択 UI ヘルパー。</summary>
+public static class EffectSelectionModeExtensions
+{
+    /// <summary>1体選んだら即確定するモード（SelectSingle / SelectSingleEnemyUnit）。</summary>
+    public static bool IsImmediateSinglePick(this EffectSelectionMode mode)
+    {
+        return mode == EffectSelectionMode.SelectSingle
+            || mode == EffectSelectionMode.SelectSingleEnemyUnit;
+    }
+}
+
 public enum EffectStatTarget
 {
     AP,
