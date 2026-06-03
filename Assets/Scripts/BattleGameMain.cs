@@ -1349,6 +1349,13 @@ public partial class BattleGameMain : MonoBehaviour
             yield return new WaitForSeconds(0.6f);
         }
 
+        int mountedCount = TryEnemyMountAllAffordablePilotsFromHand();
+        if (mountedCount > 0)
+        {
+            yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
+            yield return new WaitForSeconds(0.6f);
+        }
+
         if (TryEnemyExecuteOnMainFromHand())
         {
             yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);

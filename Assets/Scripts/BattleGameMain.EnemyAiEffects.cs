@@ -385,8 +385,29 @@ public partial class BattleGameMain
             return benefit;
         }
 
-        int baseline = ScoreEnemyAiSimulatedBoardValue(before, attackingUnitInAttackFlow);
-        List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(before);
+        return ScoreEnemyHandCommandBenefitOnSnaps(
+            before,
+            command,
+            effects,
+            pickCtx,
+            attackingUnitInAttackFlow);
+    }
+
+    /// <summary>既存の仮想盤面に対して手札コマンド効果のスコア差分（高いほど敵に有利）。</summary>
+    private int ScoreEnemyHandCommandBenefitOnSnaps(
+        List<VirtualBattleUnitSnap> beforeSnaps,
+        CardController command,
+        List<EffectData> effects,
+        EnemyAiEffectPickContext pickCtx,
+        CardController attackingUnitInAttackFlow)
+    {
+        if (beforeSnaps == null || command == null || effects == null || pickCtx == null)
+        {
+            return int.MinValue / 2;
+        }
+
+        int baseline = ScoreEnemyAiSimulatedBoardValue(beforeSnaps, attackingUnitInAttackFlow);
+        List<VirtualBattleUnitSnap> work = CloneVirtualBattleSnaps(beforeSnaps);
         ApplyEnemyHandCommandVirtualEffects(work, effects, command, PlayerType.Enemy, pickCtx);
         int after = ScoreEnemyAiSimulatedBoardValue(work, attackingUnitInAttackFlow);
         return after - baseline;
