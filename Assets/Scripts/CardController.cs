@@ -94,6 +94,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
         // 手札・新規生成時は常に False（ユニット以外は攻撃フラグを使わない）
         _attackFlg = AttackFlg.False;
+        eligibleForShieldZoneDeploy = false;
         ResetRuntimeStatsFromData();
     }
 
@@ -316,6 +317,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         MountedPilot = pilot;
         pilot.MountedUnit = this;
         pilot.SetAttackFlg(AttackFlg.False);
+        pilot.SetEligibleForShieldZoneDeploy(false);
+        SetEligibleForShieldZoneDeploy(false);
 
         RectTransform pilotRt = pilot.transform as RectTransform;
         RectTransform unitRt = transform as RectTransform;

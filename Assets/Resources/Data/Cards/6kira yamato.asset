@@ -34,7 +34,7 @@ MonoBehaviour:
     - type: 3
       value: 2
       target: 2
-      selectionMode: 1
+      selectionMode: 2
       statTarget: 0
       duration: 2
       valueMode: 0
@@ -47,6 +47,10 @@ MonoBehaviour:
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      filterTargetUnitLevel: 0
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
   link: []

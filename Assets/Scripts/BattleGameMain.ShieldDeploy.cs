@@ -47,12 +47,23 @@ public partial class BattleGameMain
         public EffectData Effect;
     }
 
+    /// <summary>手札からシールドゾーンへ再配備できるカードか（シールド→手札経由のみ）。</summary>
     private bool CanDeployShieldFromHand(CardController card)
     {
-        return card != null
-            && card.Data != null
-            && card.Data.type != Type.Base
-            && card.IsEligibleForShieldZoneDeploy;
+        if (card == null || card.Data == null || !card.IsEligibleForShieldZoneDeploy)
+        {
+            return false;
+        }
+
+        // ユニット・パイロット・ベースはバトル用。誤ってシールドに載せない。
+        if (card.Data.type == Type.Unit
+            || card.Data.type == Type.Pilot
+            || card.Data.type == Type.Base)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private Gundam2024RuleScript.PlayerState GetRuleState(Gundam2024RuleScript.PlayerSide side)

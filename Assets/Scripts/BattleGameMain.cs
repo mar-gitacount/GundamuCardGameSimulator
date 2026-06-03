@@ -726,16 +726,20 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType = ResolveCardOwner(cardController.transform);
         CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerSide ownerSide = ToRuleSide(ownerType);
-        bool isInHand = cardController.transform.IsChildOf(ownerRule.HandScrollContent);
+        bool isInHand = ownerRule.HandScrollContent != null
+            && cardController.transform.IsChildOf(ownerRule.HandScrollContent);
         bool isInBaseSlot = IsCardInBaseSlot(cardController);
-        bool isOnField = cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel) || isInBaseSlot;
         bool isInShield = ownerRule.ShieldCardsContent != null
             && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
+        // 手札が PlayerDeployPanel 配下にある UI でも、手札カードを場扱いにしない。
+        bool isOnField = !isInHand
+            && !isInShield
+            && (cardController.transform.IsChildOf(ownerRule.PlayerDeployPanel) || isInBaseSlot);
 
-        bool isOnAnyDeployField =
-            cardController.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
-            || cardController.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel)
-            || isInBaseSlot;
+        bool isOnAnyDeployField = !isInHand
+            && (cardController.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
+                || cardController.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel)
+                || isInBaseSlot);
 
         if (isInShield && cardController.IsShieldFaceHidden)
         {
@@ -2727,6 +2731,8 @@ public partial class BattleGameMain : MonoBehaviour
                 enemyBattleZoneCards.Add(cardController);
             }
         }
+
+        cardController.SetEligibleForShieldZoneDeploy(false);
 
         // ユニット配備直後はアクティブ（起き状態）で配置する。
         if (cardController.Data.type == Type.Unit)
