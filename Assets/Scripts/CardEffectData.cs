@@ -35,7 +35,9 @@ public enum EffectType
     /// <summary>手札のシールドをシールドゾーンへ配備（value=枚数）。</summary>
     DeployShieldFromHand,
     /// <summary>ベースゾーンへ配備（value=枚数）。OnBurst 時は破壊された Base カード自身を配備。</summary>
-    DeployBase
+    DeployBase,
+    /// <summary>バトルゾーンのユニットを手札に戻す（バウンス）。value=適用体数上限（0 で対象リスト全員）。</summary>
+    Bounce
 }
 
 public enum TargetType
@@ -95,6 +97,17 @@ public enum EffectStatTarget
     Cost,
     Level,
     Both
+}
+
+/// <summary>バウンス等の対象ユニット絞り込みに使うステータス（実効値で比較）。</summary>
+public enum EffectTargetUnitFilterStat
+{
+    /// <summary>未指定（ステータス条件なし）。</summary>
+    Unset = -1,
+    AP = 0,
+    HP = 1,
+    Cost = 2,
+    Level = 3
 }
 
 public enum EffectDuration
@@ -252,6 +265,19 @@ public class EffectData
 
     [Tooltip("JSON 用。targetFeature 未設定時に ID で解決（0=未指定）。")]
     public int targetFeatureId;
+
+    [Tooltip("Bounce 等：対象ユニットをこのステータス（実効値）で絞り込む。Unset=条件なし。")]
+    public EffectTargetUnitFilterStat targetUnitFilterStat = EffectTargetUnitFilterStat.Unset;
+
+    [Tooltip("targetUnitFilterStat 時の比較（例: LessOrEqual + 4 で Lv4以下）。")]
+    public EffectCompareOperator targetUnitStatCompareOp = EffectCompareOperator.LessOrEqual;
+
+    [Tooltip("targetUnitFilterStat 時の比較値。")]
+    public int targetUnitStatCompareValue;
+
+    [HideInInspector]
+    [Tooltip("旧フィールド。targetUnitFilterStat が Unset のとき Level 条件として読み替え。")]
+    public bool filterTargetUnitLevel;
 }
 
 /// <summary><see cref="EffectData"/> の対象 Feature 解決。</summary>
@@ -281,6 +307,167 @@ public static class EffectDataExtensions
     public static bool HasTargetFeatureFilter(this EffectData effect)
     {
         return effect != null && (effect.targetFeature != null || effect.targetFeatureId > 0);
+    }
+
+    public static EffectTargetUnitFilterStat GetTargetUnitFilterStat(this EffectData effect)
+    {
+        if (effect == null)
+        {
+            return EffectTargetUnitFilterStat.Unset;
+        }
+
+        if (effect.targetUnitFilterStat != EffectTargetUnitFilterStat.Unset)
+        {
+            return effect.targetUnitFilterStat;
+        }
+
+        if (effect.filterTargetUnitLevel)
+        {
+            return EffectTargetUnitFilterStat.Level;
+        }
+
+        return EffectTargetUnitFilterStat.Unset;
+    }
+
+    public static bool HasTargetUnitStatFilter(this EffectData effect)
+    {
+        return effect != null && effect.GetTargetUnitFilterStat() != EffectTargetUnitFilterStat.Unset;
+    }
+
+    public static bool HasTargetUnitFilter(this EffectData effect)
+    {
+        return effect != null && (effect.HasTargetFeatureFilter() || effect.HasTargetUnitStatFilter());
+    }
+
+    public static int GetTargetUnitFilterStatValue(CardController unit, EffectTargetUnitFilterStat stat)
+    {
+        if (unit == null)
+        {
+            return 0;
+        }
+
+        switch (stat)
+        {
+            case EffectTargetUnitFilterStat.AP:
+                return unit.CurrentPower;
+            case EffectTargetUnitFilterStat.HP:
+                return unit.CurrentHp;
+            case EffectTargetUnitFilterStat.Cost:
+                return unit.CurrentCost;
+            case EffectTargetUnitFilterStat.Level:
+                return unit.CurrentLevel;
+            default:
+                return 0;
+        }
+    }
+
+    /// <summary>バトルゾーンのユニットが対象フィルタ（Feature / ステータス）を満たすか。</summary>
+    public static bool MatchesTargetUnitFilter(this EffectData effect, CardController unit)
+    {
+        if (effect == null || unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+        {
+            return false;
+        }
+
+        CardFeatureData feature = effect.GetTargetFeature();
+        if (feature != null && !unit.Data.HasFeature(feature))
+        {
+            return false;
+        }
+
+        EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+        if (statFilter != EffectTargetUnitFilterStat.Unset
+            && !EffectCompareHelper.Compare(
+                GetTargetUnitFilterStatValue(unit, statFilter),
+                effect.targetUnitStatCompareValue,
+                effect.targetUnitStatCompareOp))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static string FormatTargetUnitFilterStatLabel(EffectTargetUnitFilterStat stat)
+    {
+        switch (stat)
+        {
+            case EffectTargetUnitFilterStat.AP:
+                return "AP";
+            case EffectTargetUnitFilterStat.HP:
+                return "HP";
+            case EffectTargetUnitFilterStat.Cost:
+                return "Cost";
+            case EffectTargetUnitFilterStat.Level:
+                return "Lv";
+            default:
+                return string.Empty;
+        }
+    }
+
+    public static string FormatTargetUnitFilterDescription(this EffectData effect)
+    {
+        if (effect == null || !effect.HasTargetUnitFilter())
+        {
+            return string.Empty;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        CardFeatureData feature = effect.GetTargetFeature();
+        if (feature != null)
+        {
+            sb.Append(feature.displayName);
+        }
+
+        EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+        if (statFilter != EffectTargetUnitFilterStat.Unset)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(FormatTargetUnitFilterStatLabel(statFilter))
+                .Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                .Append(effect.targetUnitStatCompareValue);
+        }
+
+        return sb.ToString();
+    }
+
+    private static string FormatCompareOpSymbol(EffectCompareOperator op)
+    {
+        switch (op)
+        {
+            case EffectCompareOperator.GreaterOrEqual:
+                return "≥";
+            case EffectCompareOperator.Greater:
+                return ">";
+            case EffectCompareOperator.Equal:
+                return "=";
+            case EffectCompareOperator.LessOrEqual:
+                return "≤";
+            case EffectCompareOperator.Less:
+                return "<";
+            default:
+                return "?";
+        }
+    }
+
+    public static string FormatEffectSelectionSummary(this EffectData effect)
+    {
+        if (effect == null)
+        {
+            return string.Empty;
+        }
+
+        string filter = effect.FormatTargetUnitFilterDescription();
+        if (string.IsNullOrEmpty(filter))
+        {
+            return $"{effect.type} / {effect.target} / 値:{effect.value}";
+        }
+
+        return $"{effect.type} / {effect.target} / 値:{effect.value} / 条件:{filter}";
     }
 }
 
@@ -350,7 +537,7 @@ public static class TimedEffectDataExtensions
         return timed.timing == EffectTiming.OnHandAuto || timed.timing == EffectTiming.OnPlayed;
     }
 
-    /// <summary>配備時（OnPlayed）に解決するブロック。手札パッシブ専用ブロックは除外。</summary>
+    /// <summary>配備時（OnPlayed）に解決するブロック。手札条件付きパッシブ専用は除外。</summary>
     public static bool IsOnFieldPlayedResolutionBlock(this TimedEffectData timed)
     {
         if (timed == null || timed.timing != EffectTiming.OnPlayed || !timed.HasResolvedEffects())
@@ -358,7 +545,7 @@ public static class TimedEffectDataExtensions
             return false;
         }
 
-        return !timed.ContainsOnlySelfStatBuffDebuffEffects();
+        return !timed.IsHandConditionalPassiveBlock();
     }
 }
 

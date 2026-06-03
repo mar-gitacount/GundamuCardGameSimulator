@@ -100,6 +100,9 @@ public partial class BattleGameMain
             case EffectType.Buff:
                 pick = PickHighestThreatOrFirst(candidates);
                 break;
+            case EffectType.Bounce:
+                pick = PickHighestThreatOrFirst(candidates);
+                break;
             default:
                 pick = candidates[0];
                 break;
@@ -282,7 +285,7 @@ public partial class BattleGameMain
             }
 
             int magnitude = ResolveEffectMagnitude(eff, commandOwnerSide, command);
-            if (magnitude == 0)
+            if (magnitude == 0 && eff.type != EffectType.Bounce)
             {
                 continue;
             }
