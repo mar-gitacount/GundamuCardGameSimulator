@@ -218,13 +218,41 @@ public partial class BattleGameMain
         CardController hostUnit,
         CardController pilot)
     {
-        if (snaps == null || hostUnit == null || pilot == null)
+        if (snaps == null || hostUnit == null || pilot == null || hostUnit.Data == null)
         {
             return;
         }
 
-        ApplyVirtualOnPilotMountedForCard(snaps, hostUnit, hostUnit, pilot);
-        ApplyVirtualOnPilotMountedForCard(snaps, pilot, hostUnit, pilot);
+        UnitLinkExtensions.ResolveOnPilotMountedExecutionPlan(
+            hostUnit.Data,
+            out bool resolveUnit,
+            out bool resolvePilot,
+            out bool unitFirst);
+
+        if (unitFirst)
+        {
+            if (resolveUnit)
+            {
+                ApplyVirtualOnPilotMountedForCard(snaps, hostUnit, hostUnit, pilot);
+            }
+
+            if (resolvePilot)
+            {
+                ApplyVirtualOnPilotMountedForCard(snaps, pilot, hostUnit, pilot);
+            }
+        }
+        else
+        {
+            if (resolvePilot)
+            {
+                ApplyVirtualOnPilotMountedForCard(snaps, pilot, hostUnit, pilot);
+            }
+
+            if (resolveUnit)
+            {
+                ApplyVirtualOnPilotMountedForCard(snaps, hostUnit, hostUnit, pilot);
+            }
+        }
     }
 
     private void ApplyVirtualOnPilotMountedForCard(

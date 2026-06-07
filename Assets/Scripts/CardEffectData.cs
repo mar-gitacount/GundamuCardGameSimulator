@@ -38,7 +38,9 @@ public enum EffectType
     /// <summary>ベースゾーンへ配備（value=枚数）。OnBurst 時は破壊された Base カード自身を配備。</summary>
     DeployBase,
     /// <summary>バトルゾーンのユニットを手札に戻す（バウンス）。value=適用体数上限（0 で対象リスト全員）。</summary>
-    Bounce
+    Bounce,
+    /// <summary>対象ユニットを REST にする。value=適用体数上限（0 で対象リスト全員）。</summary>
+    Rest
 }
 
 public enum TargetType
@@ -54,6 +56,22 @@ public enum TargetType
     RestEnemyUnit,
     /// <summary>味方バトルゾーンの生存ユニット（効果の発動元カード自身は対象外）。</summary>
     AllyOtherUnit
+}
+
+/// <summary><see cref="EffectType"/> のヘルパー。</summary>
+public static class EffectTypeExtensions
+{
+    /// <summary>value が適用体数上限として使われ、効果量 0 でも解決するタイプ。</summary>
+    public static bool UsesTargetCountValue(this EffectType type)
+    {
+        return type == EffectType.Bounce || type == EffectType.Rest;
+    }
+
+    /// <summary>対象ユニットの手動選択 UI が必要なタイプ。</summary>
+    public static bool RequiresManualUnitSelection(this EffectType type)
+    {
+        return type == EffectType.Bounce || type == EffectType.Rest;
+    }
 }
 
 /// <summary><see cref="TargetType"/> の判定ヘルパー。</summary>
@@ -292,7 +310,7 @@ public class EffectData
     [Tooltip("JSON 用。targetFeature 未設定時に ID で解決（0=未指定）。")]
     public int targetFeatureId;
 
-    [Tooltip("Bounce 等：対象ユニットをこのステータス（実効値）で絞り込む。Unset=条件なし。")]
+    [Tooltip("Bounce / Rest 等：対象ユニットをこのステータス（実効値）で絞り込む。Unset=条件なし。")]
     public EffectTargetUnitFilterStat targetUnitFilterStat = EffectTargetUnitFilterStat.Unset;
 
     [Tooltip("targetUnitFilterStat 時の比較（例: LessOrEqual + 4 で Lv4以下）。")]
