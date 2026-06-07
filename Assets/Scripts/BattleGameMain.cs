@@ -123,6 +123,8 @@ public partial class BattleGameMain : MonoBehaviour
     [SerializeField] private bool enableEnemyOnActionDebugPopupOnly;
     private bool isShieldAttackResolving;
     private bool isTurnPhaseSequenceRunning;
+    /// <summary>エネミー <see cref="EnemyActionCoroutine"/> 実行中。ターン進行を止める。</summary>
+    private bool isEnemyMainPhaseCoroutineRunning;
     private bool blockShieldFlowDuringShieldAttack;
     private Gundam2024RuleScript.PlayerSide blockedShieldFlowSide;
 
@@ -1150,7 +1152,7 @@ public partial class BattleGameMain : MonoBehaviour
         switch (nextPhase)
         {
             case BattlePhase.StartTurn:
-                if (!isTurnPhaseSequenceRunning)
+                if (!isTurnPhaseSequenceRunning && !isEnemyMainPhaseCoroutineRunning)
                 {
                     StartCoroutine(ExecuteTurnPhaseSequenceCoroutine());
                 }
@@ -1226,7 +1228,13 @@ public partial class BattleGameMain : MonoBehaviour
     {
         currentPhase = BattlePhase.EndTurn;
         UpdateEndTurnButtonVisibility();
+        yield return WaitForBattleFlowIdleCoroutine();
         yield return ShowPhasePauseCoroutine("End Phase");
+        while (isEnemyMainPhaseCoroutineRunning || IsBattleFlowBlockingTurnProgress())
+        {
+            yield return null;
+        }
+
         ExcueteEndTurn();
     }
 
@@ -1340,81 +1348,87 @@ public partial class BattleGameMain : MonoBehaviour
             yield break;
         }
 
-        Debug.Log("エネミーの行動を開始します。");
-        yield return new WaitForSeconds(0.8f);
-
-        int deployedCount = TryEnemyDeployAllAffordableUnitsFromHand();
-        if (deployedCount > 0)
+        isEnemyMainPhaseCoroutineRunning = true;
+        try
         {
-            yield return new WaitForSeconds(0.6f);
-        }
+            Debug.Log("エネミーの行動を開始します。");
+            yield return new WaitForSeconds(0.8f);
 
-        int mountedCount = TryEnemyMountAllAffordablePilotsFromHand();
-        if (mountedCount > 0)
-        {
-            yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
-            yield return new WaitForSeconds(0.6f);
-        }
-
-        if (TryEnemyExecuteOnMainFromHand())
-        {
-            yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
-            yield return new WaitForSeconds(0.15f);
-        }
-
-        if (TryEnemyExecuteScoredOnRestBeforeAttacks())
-        {
-            yield return new WaitForSeconds(0.4f);
-        }
-
-        int attacked = 0;
-        while (true)
-        {
-            if (isAttackedSidePanelOpen)
+            int deployedCount = TryEnemyDeployAllAffordableUnitsFromHand();
+            if (deployedCount > 0)
             {
-                yield return new WaitUntil(() => !isAttackedSidePanelOpen);
-                yield return new WaitForSeconds(0.1f);
-                continue;
+                yield return new WaitForSeconds(0.6f);
             }
 
-            if (isActionThinkPauseOpen)
+            int mountedCount = TryEnemyMountAllAffordablePilotsFromHand();
+            if (mountedCount > 0)
             {
-                yield return new WaitUntil(() => !isActionThinkPauseOpen);
-                yield return new WaitForSeconds(0.1f);
-                continue;
+                yield return WaitForBattleFlowIdleCoroutine();
+                yield return new WaitForSeconds(0.6f);
             }
 
-            int attackedNow = TryEnemyShieldAttacks();
-            if (attackedNow <= 0)
+            if (TryEnemyExecuteOnMainFromHand())
             {
-                if (isOnActionPopupOpen || isActionThinkPauseOpen || isShieldBreakFlowOpen)
+                yield return WaitForBattleFlowIdleCoroutine();
+                yield return new WaitForSeconds(0.15f);
+            }
+
+            if (TryEnemyExecuteScoredOnRestBeforeAttacks())
+            {
+                yield return new WaitForSeconds(0.4f);
+            }
+
+            int attacked = 0;
+            while (true)
+            {
+                yield return WaitForBattleFlowIdleCoroutine();
+
+                if (isAttackedSidePanelOpen)
                 {
-                    // Close 後に onClose コールバックで攻撃が実行されるため、完了まで待って再評価する。
-                    yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
-                    yield return new WaitForSeconds(0.15f);
+                    yield return new WaitUntil(() => !isAttackedSidePanelOpen);
+                    yield return new WaitForSeconds(0.1f);
                     continue;
                 }
-                break;
+
+                if (isActionThinkPauseOpen)
+                {
+                    yield return new WaitUntil(() => !isActionThinkPauseOpen);
+                    yield return new WaitForSeconds(0.1f);
+                    continue;
+                }
+
+                int attackedNow = TryEnemyShieldAttacks();
+                if (attackedNow <= 0)
+                {
+                    if (IsBattleFlowBlockingTurnProgress())
+                    {
+                        yield return WaitForBattleFlowIdleCoroutine();
+                        yield return new WaitForSeconds(0.15f);
+                        continue;
+                    }
+
+                    break;
+                }
+
+                attacked += attackedNow;
+                yield return WaitForBattleFlowIdleCoroutine();
+
+                yield return new WaitForSeconds(0.6f);
             }
 
-            attacked += attackedNow;
-            if (isOnActionPopupOpen || isActionThinkPauseOpen || isShieldBreakFlowOpen)
+            if (TryEnemyDeployBaseWhenIdle())
             {
-                // アクションステップの Close まで次の攻撃に進ませない。
-                yield return new WaitUntil(() => !isOnActionPopupOpen && !isActionThinkPauseOpen && !isShieldBreakFlowOpen);
+                yield return new WaitForSeconds(0.5f);
             }
 
-            // 1回攻撃ごとに間隔を入れて、連続攻撃が速すぎる体感を防ぐ。
-            yield return new WaitForSeconds(0.6f);
+            yield return WaitForBattleFlowIdleCoroutine();
+            Debug.Log($"エネミーの行動が終了しました。deployUnits:{deployedCount} shieldAttack:{attacked}");
+            ChangePhase(BattlePhase.EndTurn);
         }
-
-        if (TryEnemyDeployBaseWhenIdle())
+        finally
         {
-            yield return new WaitForSeconds(0.5f);
+            isEnemyMainPhaseCoroutineRunning = false;
         }
-
-        Debug.Log($"エネミーの行動が終了しました。deployUnits:{deployedCount} shieldAttack:{attacked}");
-        ChangePhase(BattlePhase.EndTurn);
     }
 
     /// <summary>
@@ -1532,7 +1546,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 return 0;
             }
-            if (isOnActionPopupOpen || isActionThinkPauseOpen || isShieldBreakFlowOpen)
+            if (IsBattleFlowBlockingTurnProgress())
             {
                 return 0;
             }
@@ -2435,8 +2449,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     void ExcueteEndTurn()
     {
-        if (isEndTurnFlowRunning || isAttackedSidePanelOpen || isActionThinkPauseOpen
-            || isShieldBreakFlowOpen || shieldBreakQueueRunning)
+        if (isEndTurnFlowRunning || isEnemyMainPhaseCoroutineRunning || IsBattleFlowBlockingTurnProgress())
         {
             return;
         }
@@ -2444,10 +2457,48 @@ public partial class BattleGameMain : MonoBehaviour
         StartCoroutine(ExecuteEndTurnCoroutine());
     }
 
+    /// <summary>OnAction / 攻撃フロー / シールド処理など、ターン進行を止める UI・処理が走っているか。</summary>
+    private bool IsBattleFlowBlockingTurnProgress()
+    {
+        if (isMatchFinished)
+        {
+            return false;
+        }
+
+        return isOnActionPopupOpen
+            || isAttackedSidePanelOpen
+            || isActionThinkPauseOpen
+            || isShieldBreakFlowOpen
+            || shieldBreakQueueRunning
+            || isShieldAttackResolving
+            || attackFlowStrikeKind != AttackFlowStrikeKind.None
+            || pendingUnitAttackAttacker != null
+            || pendingOnAttackEffectResolvedAttacker != null;
+    }
+
+    private IEnumerator WaitForBattleFlowIdleCoroutine()
+    {
+        while (IsBattleFlowBlockingTurnProgress())
+        {
+            yield return null;
+        }
+    }
+
+    private void ReleaseOnActionPopupState(GameObject root)
+    {
+        if (activeOnActionPopupRoot == root)
+        {
+            activeOnActionPopupRoot = null;
+        }
+
+        isOnActionPopupOpen = false;
+    }
+
     private IEnumerator ExecuteEndTurnCoroutine()
     {
         isEndTurnFlowRunning = true;
         yield return WaitForShieldBreakFlowCompleteCoroutine();
+        yield return WaitForBattleFlowIdleCoroutine();
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = currentPlayerType;
@@ -3521,6 +3572,8 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         GameObject root = new GameObject("OnAttackEffectSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
@@ -3613,6 +3666,7 @@ public partial class BattleGameMain : MonoBehaviour
                     pendingOnAttackEffectResolvedAttacker = attackUnit;
                     Debug.Log(
                         $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName})。攻撃を続行します。");
+                    ReleaseOnActionPopupState(root);
                     Destroy(root);
                     onResolved?.Invoke();
                     return;
@@ -3662,6 +3716,7 @@ public partial class BattleGameMain : MonoBehaviour
                 pendingOnAttackEffectResolvedAttacker = attackUnit;
                 Debug.Log(
                     $"[OnAttack] 効果対象を複数選択 ({effectSourceCard?.Data?.cardName})。攻撃を続行します。");
+                ReleaseOnActionPopupState(root);
                 Destroy(root);
                 onResolved?.Invoke();
             });
@@ -3675,7 +3730,9 @@ public partial class BattleGameMain : MonoBehaviour
         {
             pendingUnitAttackAttacker = null;
             pendingOnAttackEffectResolvedAttacker = null;
+            ReleaseOnActionPopupState(root);
             Destroy(root);
+            CancelPendingUnitAttackFlow();
         });
     }
 
