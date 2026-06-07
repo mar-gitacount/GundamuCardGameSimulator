@@ -1046,7 +1046,7 @@ public partial class BattleGameMain
 
         if (enableEnemyOnActionDebugPopupOnly)
         {
-            return TryShowEnemyOnActionCommandCandidatesPopup(context, onStepDone, attackingUnitInAttackFlow);
+            return TryOpenOnActionCommandSelection(PlayerType.Enemy, context, onStepDone, attackingUnitInAttackFlow);
         }
 
         List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);

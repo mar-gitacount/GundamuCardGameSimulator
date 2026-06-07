@@ -154,6 +154,7 @@ public partial class BattleGameMain
         isActionThinkPauseOpen = false;
         isShieldAttackResolving = false;
         isTurnPhaseSequenceRunning = false;
+        isEnemyMainPhaseCoroutineRunning = false;
         blockShieldFlowDuringShieldAttack = false;
         burstDeployBasePreferSourceCard = false;
         burstEffectResolutionDepth = 0;
