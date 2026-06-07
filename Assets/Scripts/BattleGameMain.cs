@@ -2713,6 +2713,63 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
+    private void ApplyRestEffect(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null || targets == null || targets.Count == 0)
+        {
+            return;
+        }
+
+        int limit = effect.value > 0 ? effect.value : targets.Count;
+        int applied = 0;
+        for (int i = 0; i < targets.Count && applied < limit; i++)
+        {
+            if (TryApplyRestToUnit(targets[i]))
+            {
+                applied++;
+            }
+        }
+
+        if (applied > 0)
+        {
+            Debug.Log($"[Effect] Rest applied:{applied} target:{effect.target}");
+        }
+    }
+
+    private static bool TryApplyRestToUnit(CardController unit)
+    {
+        if (unit == null || unit.Data == null || unit.Data.type != Type.Unit || unit.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        if (unit.IsRestState)
+        {
+            return false;
+        }
+
+        unit.SetAttackFlg(AttackFlg.False);
+        unit.SetUnitRestVisual(true);
+        return true;
+    }
+
+    private static void FilterOutAlreadyRestedUnits(List<CardController> targets)
+    {
+        if (targets == null)
+        {
+            return;
+        }
+
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            CardController c = targets[i];
+            if (c != null && c.IsRestState)
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
     private void SendCardToField(CardController cardController, PlayerType ownerType, CardGameRule ownerRule)
     {
         if (cardController == null || ownerRule == null)
@@ -3368,12 +3425,13 @@ public partial class BattleGameMain : MonoBehaviour
                         continue;
                     }
 
-                    if (!effect.target.IsOpponentUnitTarget() && effect.type != EffectType.Bounce)
+                    if (!effect.target.IsOpponentUnitTarget()
+                        && !effect.type.UsesTargetCountValue())
                     {
                         continue;
                     }
 
-                    if (effect.type == EffectType.Bounce || EffectRequiresManualUnitSelection(effect))
+                    if (effect.type.RequiresManualUnitSelection() || EffectRequiresManualUnitSelection(effect))
                     {
                         List<CardController> bounceCandidates = ResolveSelectableEffectTargets(
                             sourceCard,
@@ -3475,6 +3533,10 @@ public partial class BattleGameMain : MonoBehaviour
         {
             title.text = "バウンス — 手札に戻すユニットを選択";
         }
+        else if (effect != null && effect.type == EffectType.Rest)
+        {
+            title.text = "REST — 対象ユニットを選択";
+        }
         else
         {
             title.text = effect != null && effect.target == TargetType.RestEnemyUnit
@@ -3538,7 +3600,7 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
-                bool immediateSinglePick = effect.type == EffectType.Bounce
+                bool immediateSinglePick = effect.type.RequiresManualUnitSelection()
                     || effect.selectionMode.IsImmediateSinglePick();
                 if (immediateSinglePick)
                 {
@@ -3640,7 +3702,7 @@ public partial class BattleGameMain : MonoBehaviour
     private void ApplyEffectToSpecificTargets(CardController sourceCard, PlayerType ownerType, EffectData effect, List<CardController> targets)
     {
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
-        if (magnitude == 0 && effect.type != EffectType.Bounce)
+        if (magnitude == 0 && !effect.type.UsesTargetCountValue())
         {
             return;
         }
@@ -3683,12 +3745,18 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 case EffectType.Bounce:
                     break;
+                case EffectType.Rest:
+                    break;
             }
         }
 
         if (effect.type == EffectType.Bounce)
         {
             ApplyBounceEffect(effect, targets);
+        }
+        else if (effect.type == EffectType.Rest)
+        {
+            ApplyRestEffect(effect, targets);
         }
 
         SyncAllResourceViewsFromRule();
@@ -5726,7 +5794,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    /// <summary>パイロット搭乗時（OnPilotMounted）。ユニット→パイロットの順で timedEffects を解決。</summary>
+    /// <summary>パイロット搭乗時（OnPilotMounted）。ホストユニットの設定に従い片方のみ／両方・順序を解決。</summary>
     private void TriggerOnPilotMountedEffects(
         CardController hostUnit,
         CardController pilot,
@@ -5739,8 +5807,19 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        List<TimedEffectData> unitBlocks = CollectOnPilotMountedBlocks(hostUnit, ownerType, hostUnit, pilot);
-        List<TimedEffectData> pilotBlocks = CollectOnPilotMountedBlocks(pilot, ownerType, hostUnit, pilot);
+        UnitLinkExtensions.ResolveOnPilotMountedExecutionPlan(
+            hostUnit.Data,
+            out bool resolveUnit,
+            out bool resolvePilot,
+            out bool unitFirst);
+
+        List<TimedEffectData> unitBlocks = resolveUnit
+            ? CollectOnPilotMountedBlocks(hostUnit, ownerType, hostUnit, pilot)
+            : new List<TimedEffectData>();
+        List<TimedEffectData> pilotBlocks = resolvePilot
+            ? CollectOnPilotMountedBlocks(pilot, ownerType, hostUnit, pilot)
+            : new List<TimedEffectData>();
+
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
         {
             onComplete?.Invoke();
@@ -5749,11 +5828,33 @@ public partial class BattleGameMain : MonoBehaviour
 
         Debug.Log(
             $"[OnPilotMounted] 開始: {pilot.Data.cardName} → {hostUnit.Data.cardName} "
+            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} order:{hostUnit.Data.pilotMountOnPilotMountedOrder} "
             + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
-        RunOnPilotMountedTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
+
+        void RunUnitThenPilot()
         {
-            RunOnPilotMountedTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
-        });
+            RunOnPilotMountedTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
+            {
+                RunOnPilotMountedTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
+            });
+        }
+
+        void RunPilotThenUnit()
+        {
+            RunOnPilotMountedTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
+            {
+                RunOnPilotMountedTimedBlocks(hostUnit, ownerType, unitBlocks, 0, onComplete);
+            });
+        }
+
+        if (unitFirst)
+        {
+            RunUnitThenPilot();
+        }
+        else
+        {
+            RunPilotThenUnit();
+        }
     }
 
     private List<TimedEffectData> CollectOnPilotMountedBlocks(
@@ -5937,7 +6038,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (effect.type == EffectType.Bounce)
+        if (effect.type.RequiresManualUnitSelection())
         {
             return true;
         }
@@ -5972,7 +6073,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
-        if (magnitude == 0 && effect.type != EffectType.Bounce)
+        if (magnitude == 0 && !effect.type.UsesTargetCountValue())
         {
             return;
         }
@@ -6056,6 +6157,9 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.Bounce:
                 ApplyBounceEffect(effect, targets);
                 break;
+            case EffectType.Rest:
+                ApplyRestEffect(effect, targets);
+                break;
         }
 
         SyncAllResourceViewsFromRule();
@@ -6135,6 +6239,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         FilterTargetsByUnitCondition(result, effect);
+        if (effect.type == EffectType.Rest)
+        {
+            FilterOutAlreadyRestedUnits(result);
+        }
+
         return result;
     }
 
@@ -6528,6 +6637,7 @@ public partial class BattleGameMain : MonoBehaviour
         public int Id;
         public int Hp;
         public int Ap;
+        public bool IsRest;
     }
 
     private List<VirtualBattleUnitSnap> BuildFullBattleVirtualSnapshot()
@@ -6552,6 +6662,7 @@ public partial class BattleGameMain : MonoBehaviour
                     Id = c.Data.id,
                     Hp = c.CurrentHp,
                     Ap = c.CurrentPower,
+                    IsRest = c.IsRestState,
                 });
             }
         }
@@ -6575,6 +6686,7 @@ public partial class BattleGameMain : MonoBehaviour
                     Id = c.Data.id,
                     Hp = c.CurrentHp,
                     Ap = c.CurrentPower,
+                    IsRest = c.IsRestState,
                 });
             }
         }
@@ -6709,6 +6821,7 @@ public partial class BattleGameMain : MonoBehaviour
                 Id = s.Id,
                 Hp = s.Hp,
                 Ap = s.Ap,
+                IsRest = s.IsRest,
             });
         }
 
@@ -6791,6 +6904,31 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     removed++;
                 }
+            }
+
+            return;
+        }
+
+        if (effect.type == EffectType.Rest)
+        {
+            int limit = effect.value > 0 ? effect.value : targets.Count;
+            int rested = 0;
+            for (int i = 0; i < targets.Count && rested < limit; i++)
+            {
+                CardController t = targets[i];
+                if (t == null)
+                {
+                    continue;
+                }
+
+                VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, t);
+                if (snap == null || snap.IsRest)
+                {
+                    continue;
+                }
+
+                snap.IsRest = true;
+                rested++;
             }
 
             return;
@@ -7263,7 +7401,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             int magnitude = ResolveEffectMagnitude(eff, commandOwnerSide, command);
-            if (magnitude == 0 && eff.type != EffectType.Bounce)
+            if (magnitude == 0 && !eff.type.UsesTargetCountValue())
             {
                 continue;
             }
@@ -8707,13 +8845,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
-        string title = effect.type == EffectType.Bounce
-            ? (isAttackContext
-                ? $"バウンス — 手札に戻すユニットを選択（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : "バウンス — 手札に戻すユニットを選択")
-            : (isAttackContext
-                ? $"OnAction — 対象を選択（攻撃中: {attackingUnitInAttackFlow.Data.cardName}）"
-                : "OnAction — 対象を選択");
+        string title = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
         string effectSummary = effect != null ? effect.FormatEffectSelectionSummary() : string.Empty;
 
         OpenCommandWithTargetsSelectionUI(
@@ -9005,7 +9137,39 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         FilterTargetsByUnitCondition(result, effect);
+        if (effect.type == EffectType.Rest)
+        {
+            FilterOutAlreadyRestedUnits(result);
+        }
+
         return result;
+    }
+
+    private static string FormatManualUnitSelectionTitle(EffectData effect, CardController attackingUnitInAttackFlow)
+    {
+        if (effect == null)
+        {
+            return "対象を選択";
+        }
+
+        bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
+        if (effect.type == EffectType.Bounce)
+        {
+            return isAttackContext
+                ? $"バウンス — 手札に戻すユニットを選択（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
+                : "バウンス — 手札に戻すユニットを選択";
+        }
+
+        if (effect.type == EffectType.Rest)
+        {
+            return isAttackContext
+                ? $"REST — 対象ユニットを選択（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
+                : "REST — 対象ユニットを選択";
+        }
+
+        return isAttackContext
+            ? $"OnAction — 対象を選択（攻撃中: {attackingUnitInAttackFlow.Data.cardName}）"
+            : "OnAction — 対象を選択";
     }
 
     private bool IsCardOnBattleZone(CardController card)
@@ -9065,7 +9229,9 @@ public partial class BattleGameMain : MonoBehaviour
         TextMeshProUGUI title = root.CreateChildTextCustom("OnPlayedTargetTitle", UIAnchor.TopCenter, 720, 48);
         title.text = effect != null && effect.type == EffectType.Bounce
             ? "配備 — バウンス対象を選択"
-            : "配備効果 — 対象を選択";
+            : effect != null && effect.type == EffectType.Rest
+                ? "配備 — REST 対象を選択"
+                : "配備効果 — 対象を選択";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);

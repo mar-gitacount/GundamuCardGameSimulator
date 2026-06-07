@@ -489,7 +489,11 @@ public partial class BattleGameMain
             ? (manualPickTotal > 1
                 ? $"バウンス {manualPickIndex}/{manualPickTotal} — 手札に戻すユニット"
                 : "バウンス — 手札に戻すユニットを選択")
-            : title;
+            : effect != null && effect.type == EffectType.Rest
+                ? (manualPickTotal > 1
+                    ? $"REST {manualPickIndex}/{manualPickTotal} — 対象ユニット"
+                    : "REST — 対象ユニットを選択")
+                : title;
 
         yield return WaitForPlayerBurstTargetSelectionCoroutine(
             sourceCard,

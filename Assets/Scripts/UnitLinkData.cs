@@ -18,6 +18,24 @@ public class UnitLinkPilotSlot
     public int[] pilotFeatureIds;
 }
 
+/// <summary>搭乗時 OnPilotMounted の解決対象（ホストユニットの CardData で指定）。</summary>
+public enum PilotMountOnPilotMountedSource
+{
+    /// <summary>ユニット・パイロット双方（双方に OnPilotMounted があれば両方）。</summary>
+    Both = 0,
+    /// <summary>搭乗先ユニットの OnPilotMounted のみ。</summary>
+    UnitOnly = 1,
+    /// <summary>搭乗パイロットの OnPilotMounted のみ。</summary>
+    PilotOnly = 2,
+}
+
+/// <summary><see cref="PilotMountOnPilotMountedSource.Both"/> 時の解決順。</summary>
+public enum PilotMountOnPilotMountedOrder
+{
+    UnitFirst = 0,
+    PilotFirst = 1,
+}
+
 /// <summary>
 /// <see cref="CardData.link"/> の照合・AttackFlg 判定。
 /// </summary>
@@ -154,5 +172,33 @@ public static class UnitLinkExtensions
         }
 
         return list;
+    }
+
+    /// <summary>搭乗時 OnPilotMounted の実行計画（ホストユニットの CardData 設定を参照）。</summary>
+    public static void ResolveOnPilotMountedExecutionPlan(
+        CardData hostUnitData,
+        out bool resolveUnitEffects,
+        out bool resolvePilotEffects,
+        out bool unitRunsBeforePilot)
+    {
+        resolveUnitEffects = true;
+        resolvePilotEffects = true;
+        unitRunsBeforePilot = true;
+        if (hostUnitData == null || hostUnitData.type != Type.Unit)
+        {
+            return;
+        }
+
+        switch (hostUnitData.pilotMountOnPilotMountedSource)
+        {
+            case PilotMountOnPilotMountedSource.UnitOnly:
+                resolvePilotEffects = false;
+                break;
+            case PilotMountOnPilotMountedSource.PilotOnly:
+                resolveUnitEffects = false;
+                break;
+        }
+
+        unitRunsBeforePilot = hostUnitData.pilotMountOnPilotMountedOrder != PilotMountOnPilotMountedOrder.PilotFirst;
     }
 }
