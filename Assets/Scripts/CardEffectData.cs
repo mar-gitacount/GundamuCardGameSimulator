@@ -101,6 +101,8 @@ public static class EffectTargetTypeExtensions
 
 public enum EffectSelectionMode
 {
+    /// <summary>未指定。target の定義どおり自動解決（選択 UI なし）。</summary>
+    Unset = -1,
     AttackedTargetOnly,
     /// <summary>対象候補から1体を選択する（味方/敵どちらにも使用）。</summary>
     SelectSingle = 1,
@@ -118,6 +120,20 @@ public static class EffectSelectionModeExtensions
         return mode == EffectSelectionMode.SelectSingle
             || mode == EffectSelectionMode.SelectSingleEnemyUnit;
     }
+
+    /// <summary>プレイヤーがユニットを選ぶ UI が必要なモード。</summary>
+    public static bool RequiresManualUnitPick(this EffectSelectionMode mode)
+    {
+        return mode == EffectSelectionMode.SelectSingle
+            || mode == EffectSelectionMode.SelectSingleEnemyUnit
+            || mode == EffectSelectionMode.SelectMultipleEnemyUnits;
+    }
+
+    /// <summary>攻撃対象ユニットにだけ効果を当てるモード。</summary>
+    public static bool IsAttackedTargetOnlyMode(this EffectSelectionMode mode)
+    {
+        return mode == EffectSelectionMode.AttackedTargetOnly;
+    }
 }
 
 public enum EffectStatTarget
@@ -126,7 +142,9 @@ public enum EffectStatTarget
     HP,
     Cost,
     Level,
-    Both
+    Both,
+    /// <summary>戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。盤面全体に常時適用）。</summary>
+    EffectDamage
 }
 
 /// <summary>バウンス等の対象ユニット絞り込みに使うステータス（実効値で比較）。</summary>
