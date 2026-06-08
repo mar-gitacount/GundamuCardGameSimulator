@@ -68,9 +68,16 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     private readonly List<StatModifier> costModifiers = new List<StatModifier>();
     private readonly List<StatModifier> levelModifiers = new List<StatModifier>();
     private readonly List<StatModifier> effectDamageModifiers = new List<StatModifier>();
+    private readonly List<StatModifier> effectDamageImmunityModifiers = new List<StatModifier>();
 
     /// <summary>効果ダメージ（戦闘交換以外）への実効補正。</summary>
     public int CurrentEffectDamageModifier => SumModifierValues(effectDamageModifiers);
+
+    /// <summary>効果ダメージ無効化レイヤー数（Buff/Debuff の EffectDamageImmunity）。</summary>
+    public int CurrentEffectDamageImmunityCount => Mathf.Max(0, SumModifierValues(effectDamageImmunityModifiers));
+
+    /// <summary>効果ダメージ無効化が有効か。</summary>
+    public bool HasEffectDamageImmunity => CurrentEffectDamageImmunityCount > 0;
     private static readonly Vector2 PilotOffset = new Vector2(0f, -18f);
     private Image unitFaceTopLayer;
 
@@ -117,6 +124,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         costModifiers.Clear();
         levelModifiers.Clear();
         effectDamageModifiers.Clear();
+        effectDamageImmunityModifiers.Clear();
         MountedPilot = null;
         MountedUnit = null;
     }
@@ -226,7 +234,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         int levelDelta,
         EffectDuration duration = EffectDuration.Permanent,
         string statModifierSourceKey = null,
-        int effectDamageDelta = 0)
+        int effectDamageDelta = 0,
+        int effectDamageImmunityDelta = 0)
     {
         string key = statModifierSourceKey ?? string.Empty;
         if (powerDelta != 0)
@@ -253,6 +262,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         {
             effectDamageModifiers.Add(new StatModifier { value = effectDamageDelta, duration = duration, sourceKey = key });
         }
+
+        if (effectDamageImmunityDelta != 0)
+        {
+            effectDamageImmunityModifiers.Add(new StatModifier { value = effectDamageImmunityDelta, duration = duration, sourceKey = key });
+        }
     }
 
     /// <summary>sourceKey が一致するランタイム修飾のみ除去（手札条件付きパッシブ用）。</summary>
@@ -267,6 +281,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         RemoveKeyedModifiers(costModifiers, sourceKey);
         RemoveKeyedModifiers(levelModifiers, sourceKey);
         RemoveKeyedModifiers(effectDamageModifiers, sourceKey);
+        RemoveKeyedModifiers(effectDamageImmunityModifiers, sourceKey);
     }
 
     private static void RemoveKeyedModifiers(List<StatModifier> modifiers, string sourceKey)
@@ -286,6 +301,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         ClearModifierListByDuration(costModifiers, duration);
         ClearModifierListByDuration(levelModifiers, duration);
         ClearModifierListByDuration(effectDamageModifiers, duration);
+        ClearModifierListByDuration(effectDamageImmunityModifiers, duration);
     }
 
     public void ClearPowerModifiersByDuration(EffectDuration duration)

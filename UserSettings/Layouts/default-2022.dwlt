@@ -351,7 +351,7 @@ MonoBehaviour:
   m_SceneHierarchy:
     m_TreeViewState:
       scrollPos: {x: 0, y: 0}
-      m_SelectedIDs: e8620000
+      m_SelectedIDs: 1a630000
       m_LastClickedID: 0
       m_ExpandedIDs: 1afbffff
       m_RenameOverlay:
@@ -1035,7 +1035,7 @@ MonoBehaviour:
     m_ControlHash: -371814159
     m_PrefName: Preview_InspectorPreview
   m_LastInspectedObjectInstanceID: -1
-  m_LastVerticalScrollValue: 717.6
+  m_LastVerticalScrollValue: 340.40002
   m_GlobalObjectId: 
   m_InspectorMode: 0
   m_LockTracker:
@@ -1200,9 +1200,9 @@ MonoBehaviour:
     m_IsLocked: 0
   m_FolderTreeState:
     scrollPos: {x: 0, y: 168.6}
-    m_SelectedIDs: 5a6b0000
-    m_LastClickedID: 27482
-    m_ExpandedIDs: 00000000386b00003a6b00003c6b00003e6b0000406b0000426b000000ca9a3b
+    m_SelectedIDs: 606b0000
+    m_LastClickedID: 27488
+    m_ExpandedIDs: 000000003e6b0000406b0000426b0000446b0000466b0000486b000000ca9a3b
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1230,7 +1230,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 0}
     m_SelectedIDs: 
     m_LastClickedID: 0
-    m_ExpandedIDs: 00000000386b00003a6b00003c6b00003e6b0000406b0000426b0000
+    m_ExpandedIDs: 000000003e6b0000406b0000426b0000446b0000466b0000486b0000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1346,9 +1346,9 @@ MonoBehaviour:
     m_IsLocked: 0
   m_FolderTreeState:
     scrollPos: {x: 0, y: 168.6}
-    m_SelectedIDs: 6a6b0000
-    m_LastClickedID: 27498
-    m_ExpandedIDs: 00000000386b00003a6b00003c6b00003e6b0000406b0000426b000000ca9a3b
+    m_SelectedIDs: 6e6b0000
+    m_LastClickedID: 27502
+    m_ExpandedIDs: 000000003e6b0000406b0000426b0000446b0000466b0000486b000000ca9a3b
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1376,7 +1376,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 0}
     m_SelectedIDs: 
     m_LastClickedID: 0
-    m_ExpandedIDs: 00000000386b00003a6b00003c6b00003e6b0000406b0000426b0000
+    m_ExpandedIDs: 000000003e6b0000406b0000426b0000446b0000466b0000486b0000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1401,8 +1401,8 @@ MonoBehaviour:
       m_Icon: {fileID: 0}
       m_ResourceFile: 
   m_ListAreaState:
-    m_SelectedInstanceIDs: 1c630000
-    m_LastClickedInstanceID: 25372
+    m_SelectedInstanceIDs: 0e630000
+    m_LastClickedInstanceID: 25358
     m_HadKeyboardFocusLastEvent: 0
     m_ExpandedInstanceIDs: de810000747e0000b86b0000a66b00000000000084660000d665000010660000346700004a680000ea680000186a0000
     m_RenameOverlay:

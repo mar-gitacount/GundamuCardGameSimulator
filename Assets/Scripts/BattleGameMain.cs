@@ -6246,6 +6246,7 @@ public partial class BattleGameMain : MonoBehaviour
         int costDelta = 0;
         int levelDelta = 0;
         int effectDamageDelta = 0;
+        int effectDamageImmunityDelta = 0;
         switch (statTarget)
         {
             case EffectStatTarget.AP:
@@ -6263,6 +6264,9 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectStatTarget.EffectDamage:
                 effectDamageDelta = signedValue;
                 break;
+            case EffectStatTarget.EffectDamageImmunity:
+                effectDamageImmunityDelta = signedValue > 0 ? 1 : (signedValue < 0 ? -1 : 0);
+                break;
             default:
                 powerDelta = signedValue;
                 hpDelta = signedValue;
@@ -6270,7 +6274,15 @@ public partial class BattleGameMain : MonoBehaviour
                 levelDelta = signedValue;
                 break;
         }
-        target.AddEffectStatBonus(powerDelta, hpDelta, costDelta, levelDelta, duration, statModifierSourceKey, effectDamageDelta);
+        target.AddEffectStatBonus(
+            powerDelta,
+            hpDelta,
+            costDelta,
+            levelDelta,
+            duration,
+            statModifierSourceKey,
+            effectDamageDelta,
+            effectDamageImmunityDelta);
     }
 
     /// <summary>
@@ -6279,7 +6291,79 @@ public partial class BattleGameMain : MonoBehaviour
     /// </summary>
     private int ResolveEffectDamageAmount(int baseMagnitude)
     {
+        if (HasGlobalEffectDamageImmunityFromLiveField())
+        {
+            return 0;
+        }
+
         return Mathf.Max(0, baseMagnitude + GetGlobalEffectDamageModifierFromLiveField());
+    }
+
+    private int ResolveEffectDamageAmountForVirtualPlayerLog(int baseMagnitude, List<VirtualPlayerUnitSnap> workingPlayerOverrides)
+    {
+        if (HasGlobalEffectDamageImmunityForVirtualPlayerLog(workingPlayerOverrides))
+        {
+            return 0;
+        }
+
+        return Mathf.Max(0, baseMagnitude + GetGlobalEffectDamageModifierForVirtualPlayerLog(workingPlayerOverrides));
+    }
+
+    private bool HasGlobalEffectDamageImmunityFromLiveField()
+    {
+        return HasEffectDamageImmunityInZone(playerBattleZoneCards)
+            || HasEffectDamageImmunityInZone(enemyBattleZoneCards);
+    }
+
+    private bool HasGlobalEffectDamageImmunityForVirtualPlayerLog(List<VirtualPlayerUnitSnap> workingPlayerOverrides)
+    {
+        if (HasEffectDamageImmunityInZone(enemyBattleZoneCards))
+        {
+            return true;
+        }
+
+        if (playerBattleZoneCards == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < playerBattleZoneCards.Count; i++)
+        {
+            CardController c = playerBattleZoneCards[i];
+            if (c == null)
+            {
+                continue;
+            }
+
+            VirtualPlayerUnitSnap snap = workingPlayerOverrides != null
+                ? FindPlayerVirtualSnap(workingPlayerOverrides, c)
+                : null;
+            if (snap != null ? snap.EffectDamageImmunityCount > 0 : c.HasEffectDamageImmunity)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasEffectDamageImmunityInZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c != null && c.HasEffectDamageImmunity)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>両バトルゾーン上の EffectDamage 修飾合計（常時適用）。</summary>
@@ -6772,6 +6856,7 @@ public partial class BattleGameMain : MonoBehaviour
         public int Hp;
         public int Ap;
         public int EffectDamageMod;
+        public int EffectDamageImmunityCount;
     }
 
     /// <summary>味方・敵バトルゾーン両方の仮想ユニット（アタック時 OnAction の A/B 仮想ログ用）。</summary>
@@ -6786,6 +6871,7 @@ public partial class BattleGameMain : MonoBehaviour
         public int Ap;
         public bool IsRest;
         public int EffectDamageMod;
+        public int EffectDamageImmunityCount;
     }
 
     private List<VirtualBattleUnitSnap> BuildFullBattleVirtualSnapshot()
@@ -6812,6 +6898,7 @@ public partial class BattleGameMain : MonoBehaviour
                     Ap = c.CurrentPower,
                     IsRest = c.IsRestState,
                     EffectDamageMod = c.CurrentEffectDamageModifier,
+                    EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
                 });
             }
         }
@@ -6837,6 +6924,7 @@ public partial class BattleGameMain : MonoBehaviour
                     Ap = c.CurrentPower,
                     IsRest = c.IsRestState,
                     EffectDamageMod = c.CurrentEffectDamageModifier,
+                    EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
                 });
             }
         }
@@ -6869,6 +6957,7 @@ public partial class BattleGameMain : MonoBehaviour
                 Hp = c.CurrentHp,
                 Ap = c.CurrentPower,
                 EffectDamageMod = c.CurrentEffectDamageModifier,
+                EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
             });
         }
 
@@ -6890,6 +6979,7 @@ public partial class BattleGameMain : MonoBehaviour
                 Hp = s.Hp,
                 Ap = s.Ap,
                 EffectDamageMod = s.EffectDamageMod,
+                EffectDamageImmunityCount = s.EffectDamageImmunityCount,
             });
         }
 
@@ -6926,6 +7016,9 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case EffectStatTarget.EffectDamage:
                 snap.EffectDamageMod += signedValue;
+                break;
+            case EffectStatTarget.EffectDamageImmunity:
+                snap.EffectDamageImmunityCount = Mathf.Max(0, snap.EffectDamageImmunityCount + (signedValue > 0 ? 1 : signedValue < 0 ? -1 : 0));
                 break;
             default:
                 snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
@@ -6978,6 +7071,7 @@ public partial class BattleGameMain : MonoBehaviour
                 Ap = s.Ap,
                 IsRest = s.IsRest,
                 EffectDamageMod = s.EffectDamageMod,
+                EffectDamageImmunityCount = s.EffectDamageImmunityCount,
             });
         }
 
@@ -7015,6 +7109,9 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectStatTarget.EffectDamage:
                 snap.EffectDamageMod += signedValue;
                 break;
+            case EffectStatTarget.EffectDamageImmunity:
+                snap.EffectDamageImmunityCount = Mathf.Max(0, snap.EffectDamageImmunityCount + (signedValue > 0 ? 1 : signedValue < 0 ? -1 : 0));
+                break;
             default:
                 snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
                 snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
@@ -7038,8 +7135,31 @@ public partial class BattleGameMain : MonoBehaviour
         return sum;
     }
 
+    private static bool HasGlobalEffectDamageImmunityInVirtualBattle(List<VirtualBattleUnitSnap> working)
+    {
+        if (working == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < working.Count; i++)
+        {
+            if (working[i].EffectDamageImmunityCount > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static int ResolveVirtualEffectDamageAmount(int baseMagnitude, List<VirtualBattleUnitSnap> working)
     {
+        if (HasGlobalEffectDamageImmunityInVirtualBattle(working))
+        {
+            return 0;
+        }
+
         return Mathf.Max(0, baseMagnitude + SumVirtualBattleEffectDamageModifier(working));
     }
 
@@ -7714,8 +7834,7 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Damage:
                 {
                     List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
-                    int globalEffectDamageMod = GetGlobalEffectDamageModifierForVirtualPlayerLog(working);
-                    int damageAmount = Mathf.Max(0, magnitude + globalEffectDamageMod);
+                    int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working);
                     for (int ti = 0; ti < dmgTargets.Count; ti++)
                     {
                         VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, dmgTargets[ti]);
@@ -7801,6 +7920,7 @@ public partial class BattleGameMain : MonoBehaviour
                 Hp = focusUnit.CurrentHp,
                 Ap = focusUnit.CurrentPower,
                 EffectDamageMod = focusUnit.CurrentEffectDamageModifier,
+                EffectDamageImmunityCount = focusUnit.CurrentEffectDamageImmunityCount,
             },
         };
         List<VirtualPlayerUnitSnap> working = CloneVirtualPlayerSnaps(before);
@@ -7862,8 +7982,7 @@ public partial class BattleGameMain : MonoBehaviour
                         VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, focusUnit);
                         if (snap != null)
                         {
-                            int globalEffectDamageMod = GetGlobalEffectDamageModifierForVirtualPlayerLog(working);
-                            int damageAmount = Mathf.Max(0, magnitude + globalEffectDamageMod);
+                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working);
                             snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                         }
                     }
