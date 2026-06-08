@@ -13,13 +13,17 @@ public enum EffectTiming
     OnBaseDeployed, // ベース配備時。AddShieldToHand でゾーン先頭を手札へ
     OnShieldDeployed, // 手札のシールドカードをシールドゾーンに配備したとき
     OnAction,       // 任意アクション（攻撃時/ターン終了時に手札から実行可能）
-    OnDestroyed,    // 破壊された時
+    OnDestroyed,    // ユニット／カード破壊時（OnUnitDestroyed と同一）
     OnEndOfGame,    // ゲーム終了時
     OnEnemyAttack,  // 敵が攻撃してきた時（防御リアクション用）
     OnMain,         // メインフェイズ中・自分のターンでいつでも実行可能
     OnHandAuto,     // 手札に入った時に自動発動（操作不要）
     OnRest,         // ユニットが REST になった時
-    OnPilotMounted  // パイロットをユニットに搭乗した時（ユニット・パイロット双方の timedEffects が対象）
+    OnPilotMounted, // パイロットをユニットに搭乗した時（ユニット・パイロット双方の timedEffects が対象）
+    /// <summary>OnDestroyed の別名（ユニット破壊時）。Inspector / JSON どちらでも指定可。</summary>
+    OnUnitDestroyed = OnDestroyed,
+    /// <summary>このカードが敵ユニットを破壊した時（キルしたカード自身の timedEffects のみ発動）。</summary>
+    OnEnemyUnitDestroyed
 }
 
 public enum EffectType
@@ -616,6 +620,33 @@ public static class TimedEffectDataExtensions
     public static bool IsOnPilotMountedResolutionBlock(this TimedEffectData timed)
     {
         if (timed == null || timed.timing != EffectTiming.OnPilotMounted || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）に解決するブロック。</summary>
+    public static bool IsOnUnitDestroyedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        if (timed.timing != EffectTiming.OnDestroyed && timed.timing != EffectTiming.OnUnitDestroyed)
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>このカードが敵ユニットを破壊した時（OnEnemyUnitDestroyed）に解決するブロック。</summary>
+    public static bool IsOnEnemyUnitDestroyedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null || timed.timing != EffectTiming.OnEnemyUnitDestroyed || !timed.HasResolvedEffects())
         {
             return false;
         }

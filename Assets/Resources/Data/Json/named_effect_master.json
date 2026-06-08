@@ -327,6 +327,26 @@
                     "valueCountExcludeSource": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "OnEnemyUnitDestroyed_Damage2_EnemyPlayer",
+            "displayName": "このカードが敵ユニット破壊時：相手領域に効果ダメージ2",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 6,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
         }
     ]
 }

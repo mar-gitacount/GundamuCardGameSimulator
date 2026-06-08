@@ -354,6 +354,88 @@ public partial class BattleGameMain
         SendCardToTrash(baseCard, ownerType);
     }
 
+    private bool TryApplyEffectDamageToDeployedBase(Gundam2024RuleScript.PlayerSide targetSide, int amount, out string logMessage)
+    {
+        logMessage = null;
+        if (amount <= 0)
+        {
+            return false;
+        }
+
+        CardController defenderBase = GetDeployedBaseForRuleSide(targetSide);
+        if (defenderBase == null || defenderBase.Data == null || defenderBase.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        int hpBefore = defenderBase.CurrentHp;
+        defenderBase.ApplyDamage(amount);
+        PlayerType defenderOwner = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? PlayerType.Player
+            : PlayerType.Enemy;
+        CardGameRule defenderRule = GetCardRuleForRuleSide(targetSide);
+
+        logMessage =
+            $"[EffectDamage] Dealt {amount} to Base {defenderBase.Data.cardName} HP:{hpBefore}→{defenderBase.CurrentHp}";
+
+        SyncBaseZoneHeaderDisplay(targetSide);
+
+        if (defenderBase.CurrentHp <= 0)
+        {
+            SendDeployedBaseToTrash(defenderBase, defenderOwner, defenderRule);
+            SyncResourceViewsFromRule(targetSide);
+            logMessage += " (destroyed)";
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 効果ダメージによるプレイヤー領域へのダメージ。
+    /// 配備ベース → EXベース（いずれも value 分）→ シールド1枚のみの順。戦闘交換ダメージとは別経路。
+    /// </summary>
+    private void ApplyEffectDamageToPlayerArea(Gundam2024RuleScript.PlayerSide targetSide, int amount)
+    {
+        if (amount <= 0 || gundamRule == null)
+        {
+            return;
+        }
+
+        if (HasEffectDamageImmunityForPlayerSide(targetSide))
+        {
+            Debug.Log($"[EffectDamage] Blocked player-area damage — side:{targetSide} has EffectDamageImmunity.");
+            return;
+        }
+
+        if (blockShieldFlowDuringShieldAttack && targetSide == blockedShieldFlowSide)
+        {
+            gundamRule.DamageExBaseOnly(targetSide, amount);
+            return;
+        }
+
+        if (TryApplyEffectDamageToDeployedBase(targetSide, amount, out string baseLog))
+        {
+            Debug.Log(baseLog);
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerState target = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        if (target != null && target.exBase > 0)
+        {
+            gundamRule.DamageExBaseOnly(targetSide, amount);
+            Debug.Log($"[EffectDamage] Dealt {amount} to EX Base (now {target.exBase}).");
+            return;
+        }
+
+        if (target != null && target.shield > 0)
+        {
+            gundamRule.DamageShield(targetSide, 1, simultaneousReveal: false);
+            Debug.Log($"[EffectDamage] Broke 1 shield (effect value:{amount} does not multiply shield breaks).");
+        }
+    }
+
     private bool TryApplyShieldAttackDamageToDeployedBase(
         CardController attacker,
         Gundam2024RuleScript.PlayerSide targetSide,

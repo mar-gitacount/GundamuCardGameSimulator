@@ -412,9 +412,9 @@ public class Gundam2024RuleScript
     }
 
     /// <summary>
-    /// プレイヤー領域へのダメージを適用する。
+    /// プレイヤー領域へのダメージを適用する（戦闘のシールド攻撃等）。
     /// EXベースが残っている間はEXベースのみ減少し、シールドは減らさない。
-    /// EXベースが0のときのみシールドを減少させる（オーバーフローしない）。
+    /// 効果ダメージ（EffectType.Damage → EnemyPlayer 等）は <see cref="BattleGameMain.ApplyEffectDamageToPlayerArea"/> を使用（配備ベース優先）。
     /// </summary>
     public void DamagePlayerArea(PlayerSide targetSide, int amount)
     {
