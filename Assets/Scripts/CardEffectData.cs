@@ -144,7 +144,9 @@ public enum EffectStatTarget
     Level,
     Both,
     /// <summary>戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。盤面全体に常時適用）。</summary>
-    EffectDamage
+    EffectDamage,
+    /// <summary>効果ダメージを完全無効化（Buff で付与。盤面に1体でもいれば全効果ダメージ0）。</summary>
+    EffectDamageImmunity
 }
 
 /// <summary>バウンス等の対象ユニット絞り込みに使うステータス（実効値で比較）。</summary>

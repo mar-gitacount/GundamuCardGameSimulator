@@ -10,21 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 40Silver Bullet
+  m_Name: 40Silver Bullet 1
   m_EditorClassIdentifier: 
-  id: 40
-  cardName: Silver Bullet
-  cost: 3
-  level: 5
-  power: 4
-  hp: 4
-  imageName: {fileID: 21300000, guid: b16f4871c807ea9448a191b59c7ded68, type: 3}
+  id: 41
+  cardName: Argama
+  cost: 1
+  level: 3
+  power: 0
+  hp: 5
+  imageName: {fileID: 21300000, guid: 0d37b7b17f091ca4e84eb7695d389d1c, type: 3}
   image: {fileID: 0}
-  version: 4
+  version: 2
   sourceType: 2
   filterType: 0
   color: 5
-  type: 0
+  type: 2
   attackFlg: 0
   timedEffects:
   - timing: 0
@@ -35,7 +35,7 @@ MonoBehaviour:
       value: 3
       target: 0
       selectionMode: -1
-      statTarget: 5
+      statTarget: 6
       duration: 0
       valueMode: 0
       valueCountBoardSide: 0
