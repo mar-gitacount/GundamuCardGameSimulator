@@ -23,7 +23,7 @@ public enum EffectTiming
     /// <summary>OnDestroyed の別名（ユニット破壊時）。Inspector / JSON どちらでも指定可。</summary>
     OnUnitDestroyed = OnDestroyed,
     /// <summary>このカードが敵ユニットを破壊した時（キルしたカード自身の timedEffects のみ発動）。</summary>
-    OnEnemyUnitDestroyed
+    OnEnemyUnitDestroyed = 16
 }
 
 public enum EffectType
