@@ -10,32 +10,32 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 40Silver Bullet 1
+  m_Name: 42RickDOm
   m_EditorClassIdentifier: 
-  id: 41
-  cardName: Argama
-  cost: 1
+  id: 42
+  cardName: RickDom
+  cost: 2
   level: 3
-  power: 0
-  hp: 5
-  imageName: {fileID: 21300000, guid: 0d37b7b17f091ca4e84eb7695d389d1c, type: 3}
+  power: 3
+  hp: 3
+  imageName: {fileID: 21300000, guid: b67d169119b5dae419a943259a9ee789, type: 3}
   image: {fileID: 0}
-  version: 2
+  version: 1
   sourceType: 2
   filterType: 0
-  color: 5
-  type: 2
+  color: 1
+  type: 0
   attackFlg: 0
   timedEffects:
   - timing: 0
     activationConditions: []
     effectsName: 
     effects:
-    - type: 3
-      value: 3
+    - type: 0
+      value: 0
       target: 0
-      selectionMode: -1
-      statTarget: 6
+      selectionMode: 0
+      statTarget: 0
       duration: 0
       valueMode: 0
       valueCountBoardSide: 0
@@ -47,15 +47,12 @@ MonoBehaviour:
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
-      targetUnitFilterStat: -1
+      targetUnitFilterStat: 0
       targetUnitStatCompareOp: 0
       targetUnitStatCompareValue: 0
       filterTargetUnitLevel: 0
   features: []
-  link:
-  - pilotCardId: 0
-    pilotFeatures: []
-    pilotFeatureIds: 
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 1

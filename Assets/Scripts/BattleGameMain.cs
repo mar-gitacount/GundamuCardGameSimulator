@@ -2616,7 +2616,7 @@ public partial class BattleGameMain : MonoBehaviour
         SyncResourceViewsFromRule(side);
     }
 
-    private void SendCardToTrash(CardController cardController, PlayerType ownerType)
+    private void SendCardToTrash(CardController cardController, PlayerType ownerType, CardController destroyedBy = null)
     {
         if (cardController == null || cardController.Data == null)
         {
@@ -2628,7 +2628,65 @@ public partial class BattleGameMain : MonoBehaviour
             SendCardToTrash(cardController.MountedPilot, ownerType);
         }
 
-        TriggerCardEffects(cardController, ownerType, EffectTiming.OnDestroyed);
+        TriggerOnDestroyedEffects(cardController, ownerType, () =>
+        {
+            TriggerOnEnemyUnitDestroyedEffects(cardController, ownerType, destroyedBy, () =>
+                FinishSendCardToTrash(cardController, ownerType));
+        });
+    }
+
+    private bool TryResolveEnemyUnitKillContext(
+        CardController destroyedUnit,
+        PlayerType destroyedOwner,
+        CardController destroyedBy,
+        out CardController killer,
+        out PlayerType killerOwner)
+    {
+        killer = null;
+        killerOwner = default;
+        if (destroyedUnit == null
+            || destroyedUnit.Data == null
+            || destroyedUnit.Data.type != Type.Unit
+            || destroyedBy == null
+            || destroyedBy.Data == null
+            || destroyedBy.Data.type != Type.Unit)
+        {
+            return false;
+        }
+
+        killerOwner = ResolveCardOwner(destroyedBy.transform);
+        if (killerOwner == destroyedOwner)
+        {
+            return false;
+        }
+
+        killer = destroyedBy;
+        return true;
+    }
+
+    /// <summary>効果・戦闘でユニットを破壊したとき、キル元として記録するカード（敵ユニット撃破時のみ）。</summary>
+    private CardController ResolveUnitKillSourceForTrash(CardController effectSource, CardController destroyedUnit)
+    {
+        if (effectSource == null
+            || destroyedUnit == null
+            || effectSource.Data == null
+            || destroyedUnit.Data == null
+            || effectSource.Data.type != Type.Unit)
+        {
+            return null;
+        }
+
+        PlayerType sourceOwner = ResolveCardOwner(effectSource.transform);
+        PlayerType destroyedOwner = ResolveCardOwner(destroyedUnit.transform);
+        return sourceOwner != destroyedOwner ? effectSource : null;
+    }
+
+    private void FinishSendCardToTrash(CardController cardController, PlayerType ownerType)
+    {
+        if (cardController == null || cardController.Data == null)
+        {
+            return;
+        }
 
         CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
@@ -3801,7 +3859,7 @@ public partial class BattleGameMain : MonoBehaviour
                     t.ApplyDamage(damageAmount);
                     if (t.CurrentHp <= 0)
                     {
-                        SendCardToTrash(t, ResolveCardOwner(t.transform));
+                        SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
                     }
                     break;
                 }
@@ -4533,7 +4591,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (defender.CurrentHp <= 0)
         {
-            SendCardToTrash(defender, defenderOwner);
+            SendCardToTrash(defender, defenderOwner, attacker);
         }
 
         if (attacker.CurrentHp <= 0)
@@ -4684,7 +4742,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (blocker.CurrentHp <= 0)
         {
-            SendCardToTrash(blocker, blockerOwner);
+            SendCardToTrash(blocker, blockerOwner, attacker);
         }
 
         if (attacker.CurrentHp <= 0)
@@ -5821,6 +5879,17 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (timing == EffectTiming.OnDestroyed || timing == EffectTiming.OnUnitDestroyed)
+        {
+            TriggerOnDestroyedEffects(sourceCard, ownerType, null);
+            return;
+        }
+
+        if (timing == EffectTiming.OnEnemyUnitDestroyed)
+        {
+            return;
+        }
+
         if (timing == EffectTiming.OnPilotMounted)
         {
             return;
@@ -6028,6 +6097,245 @@ public partial class BattleGameMain : MonoBehaviour
         RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
     }
 
+    /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）。条件付きブロック内の効果を順に解決する。</summary>
+    private void TriggerOnDestroyedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
+    {
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || !timed.IsOnUnitDestroyedResolutionBlock())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                Debug.Log(
+                    $"[OnDestroyed] 条件未達のためスキップ: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+
+        if (blocks.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        Debug.Log(
+            $"[OnDestroyed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count}");
+        RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
+    }
+
+    private void RunOnDestroyedTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        List<TimedEffectData> blocks,
+        int blockIndex,
+        System.Action onComplete)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        TimedEffectData block = blocks[blockIndex];
+        TryExecuteOnDestroyedEffectChain(
+            sourceCard,
+            ownerType,
+            block.GetResolvedEffects(),
+            0,
+            () => RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
+    }
+
+    private void TryExecuteOnDestroyedEffectChain(
+        CardController sourceCard,
+        PlayerType ownerType,
+        IReadOnlyList<EffectData> effects,
+        int index,
+        System.Action onDone)
+    {
+        if (effects == null || index >= effects.Count)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        EffectData effect = effects[index];
+        if (effect == null)
+        {
+            TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+            if (candidates.Count == 0)
+            {
+                TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            if (ownerType == PlayerType.Enemy)
+            {
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                }
+
+                TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            Debug.Log(
+                $"[OnDestroyed] 手動対象選択は破壊解決中未対応のためスキップ ({effect.FormatEffectSelectionSummary()})。");
+            TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        ApplyEffect(sourceCard, ownerType, effect);
+        TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+    }
+
+    /// <summary>
+    /// このカードが敵ユニットを破壊した時。キルしたカード（destroyedBy）自身の OnEnemyUnitDestroyed のみ解決する。
+    /// </summary>
+    private void TriggerOnEnemyUnitDestroyedEffects(
+        CardController destroyedUnit,
+        PlayerType destroyedOwner,
+        CardController destroyedBy,
+        System.Action onComplete)
+    {
+        if (!TryResolveEnemyUnitKillContext(destroyedUnit, destroyedOwner, destroyedBy, out CardController killer, out PlayerType killerOwner))
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (!HasEffectTiming(killer.Data, EffectTiming.OnEnemyUnitDestroyed))
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(killerOwner, killer);
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        for (int i = 0; i < killer.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = killer.Data.timedEffects[i];
+            if (timed == null || !timed.IsOnEnemyUnitDestroyedResolutionBlock())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+
+        if (blocks.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        Debug.Log(
+            $"[OnEnemyUnitDestroyed] キル:{killer.Data.cardName}(id:{killer.Data.id}) "
+            + $"→ 破壊:{destroyedUnit.Data.cardName}(id:{destroyedUnit.Data.id}) blocks:{blocks.Count}");
+        RunOnEnemyUnitDestroyedTimedBlocks(killer, killerOwner, blocks, 0, onComplete);
+    }
+
+    private void RunOnEnemyUnitDestroyedTimedBlocks(
+        CardController sourceCard,
+        PlayerType beneficiary,
+        List<TimedEffectData> blocks,
+        int blockIndex,
+        System.Action onComplete)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        TimedEffectData block = blocks[blockIndex];
+        TryExecuteOnEnemyUnitDestroyedEffectChain(
+            sourceCard,
+            beneficiary,
+            block.GetResolvedEffects(),
+            0,
+            () => RunOnEnemyUnitDestroyedTimedBlocks(sourceCard, beneficiary, blocks, blockIndex + 1, onComplete));
+    }
+
+    private void TryExecuteOnEnemyUnitDestroyedEffectChain(
+        CardController sourceCard,
+        PlayerType beneficiary,
+        IReadOnlyList<EffectData> effects,
+        int index,
+        System.Action onDone)
+    {
+        if (effects == null || index >= effects.Count)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        EffectData effect = effects[index];
+        if (effect == null)
+        {
+            TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+            return;
+        }
+
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, beneficiary, effect);
+            if (candidates.Count == 0)
+            {
+                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                return;
+            }
+
+            if (beneficiary == PlayerType.Enemy)
+            {
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(beneficiary, sourceCard, null, null);
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, beneficiary, effect, new List<CardController> { picked });
+                }
+
+                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                return;
+            }
+
+            Debug.Log(
+                $"[OnEnemyUnitDestroyed] 手動対象選択は未対応のためスキップ ({effect.FormatEffectSelectionSummary()})。");
+            TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+            return;
+        }
+
+        ApplyEffect(sourceCard, beneficiary, effect);
+        TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+    }
+
     private void RunOnPlayedTimedBlocks(
         CardController sourceCard,
         PlayerType ownerType,
@@ -6187,7 +6495,7 @@ public partial class BattleGameMain : MonoBehaviour
                     PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
                     if (targetUnit.CurrentHp <= 0)
                     {
-                        SendCardToTrash(targetUnit, targetOwner);
+                        SendCardToTrash(targetUnit, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
                     }
                 }
                 if (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)
@@ -6196,14 +6504,7 @@ public partial class BattleGameMain : MonoBehaviour
                         ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
                         : ToRuleSide(ownerType);
                     int areaDamage = ResolveEffectDamageAmount(magnitude);
-                    if (blockShieldFlowDuringShieldAttack && targetSide == blockedShieldFlowSide)
-                    {
-                        gundamRule.DamageExBaseOnly(targetSide, areaDamage);
-                    }
-                    else
-                    {
-                        gundamRule.DamagePlayerArea(targetSide, areaDamage);
-                    }
+                    ApplyEffectDamageToPlayerArea(targetSide, areaDamage);
                 }
                 Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");
                 break;
@@ -6309,15 +6610,31 @@ public partial class BattleGameMain : MonoBehaviour
         return Mathf.Max(0, baseMagnitude + GetGlobalEffectDamageModifierForVirtualPlayerLog(workingPlayerOverrides));
     }
 
+    private bool HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide side)
+    {
+        CardController deployedBase = GetDeployedBaseForRuleSide(side);
+        return deployedBase != null && deployedBase.HasEffectDamageImmunity;
+    }
+
+    private bool HasEffectDamageImmunityForPlayerSide(Gundam2024RuleScript.PlayerSide side)
+    {
+        PlayerType owner = side == Gundam2024RuleScript.PlayerSide.Player ? PlayerType.Player : PlayerType.Enemy;
+        List<CardController> zone = owner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        return HasEffectDamageImmunityInZone(zone) || HasEffectDamageImmunityOnDeployedBase(side);
+    }
+
     private bool HasGlobalEffectDamageImmunityFromLiveField()
     {
         return HasEffectDamageImmunityInZone(playerBattleZoneCards)
-            || HasEffectDamageImmunityInZone(enemyBattleZoneCards);
+            || HasEffectDamageImmunityInZone(enemyBattleZoneCards)
+            || HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Player)
+            || HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Enemy);
     }
 
     private bool HasGlobalEffectDamageImmunityForVirtualPlayerLog(List<VirtualPlayerUnitSnap> workingPlayerOverrides)
     {
-        if (HasEffectDamageImmunityInZone(enemyBattleZoneCards))
+        if (HasEffectDamageImmunityInZone(enemyBattleZoneCards)
+            || HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Enemy))
         {
             return true;
         }
@@ -6344,7 +6661,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        return false;
+        return HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Player);
     }
 
     private static bool HasEffectDamageImmunityInZone(List<CardController> zone)
