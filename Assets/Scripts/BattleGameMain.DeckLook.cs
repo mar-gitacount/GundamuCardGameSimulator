@@ -14,6 +14,12 @@ public partial class BattleGameMain
         public CardData Data;
     }
 
+    private enum LookedRemainderDispositionChoice
+    {
+        ReturnToDeckTop,
+        ShuffleToDeckBottom
+    }
+
     private sealed class LookResolutionContext
     {
         public CardController SourceCard;
@@ -23,6 +29,7 @@ public partial class BattleGameMain
         public string DeckLabel;
         public int RequestedLookCount;
         public List<LookedDeckEntry> Entries = new List<LookedDeckEntry>();
+        public HashSet<int> TakenCardIds = new HashSet<int>();
     }
 
     private CardGameRule ResolveDeckRuleForLook(PlayerType effectOwner, EffectData effect)
@@ -221,7 +228,62 @@ public partial class BattleGameMain
 
         Debug.Log(
             $"[OnLook] 開始: {context.SourceCard.Data?.cardName}(id:{context.SourceCard.Data?.id}) blocks:{blocks.Count}");
-        RunOnLookTimedBlocks(context, blocks, 0, onComplete);
+
+        void runChain()
+        {
+            RunOnLookTimedBlocks(context, blocks, 0, onComplete);
+        }
+
+        if (context.OwnerType == PlayerType.Player
+            && !OnLookBlocksContainAddToHand(blocks)
+            && OnLookBlocksContainRemainderDisposition(blocks))
+        {
+            ShowLookDeckViewOnlyPopup(context, runChain);
+            return;
+        }
+
+        runChain();
+    }
+
+    private static bool OnLookBlocksContainAddToHand(List<TimedEffectData> blocks)
+    {
+        return OnLookBlocksContainEffectType(blocks, EffectType.AddToHandFromLooked);
+    }
+
+    private static bool OnLookBlocksContainRemainderDisposition(List<TimedEffectData> blocks)
+    {
+        return OnLookBlocksContainEffectType(blocks, EffectType.ReturnLookedRemainderToDeckTop)
+            || OnLookBlocksContainEffectType(blocks, EffectType.ShuffleLookedRemainderToDeckBottom)
+            || OnLookBlocksContainEffectType(blocks, EffectType.ChooseLookedRemainderDisposition);
+    }
+
+    private static bool OnLookBlocksContainEffectType(List<TimedEffectData> blocks, EffectType type)
+    {
+        if (blocks == null)
+        {
+            return false;
+        }
+
+        for (int bi = 0; bi < blocks.Count; bi++)
+        {
+            TimedEffectData block = blocks[bi];
+            if (block == null)
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = block.GetResolvedEffects();
+            for (int ei = 0; ei < effects.Count; ei++)
+            {
+                EffectData effect = effects[ei];
+                if (effect != null && effect.type == type)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private void RunOnLookTimedBlocks(
@@ -268,6 +330,28 @@ public partial class BattleGameMain
             ApplyAddToHandFromLookedEffect(
                 context,
                 effect,
+                () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ReturnLookedRemainderToDeckTop)
+        {
+            ApplyReturnLookedRemainderToDeckTop(context);
+            TryExecuteOnLookEffectChain(context, effects, index + 1, onDone);
+            return;
+        }
+
+        if (effect.type == EffectType.ShuffleLookedRemainderToDeckBottom)
+        {
+            ApplyShuffleLookedRemainderToDeckBottom(context);
+            TryExecuteOnLookEffectChain(context, effects, index + 1, onDone);
+            return;
+        }
+
+        if (effect.type == EffectType.ChooseLookedRemainderDisposition)
+        {
+            ApplyChooseLookedRemainderDispositionEffect(
+                context,
                 () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
             return;
         }
@@ -375,14 +459,14 @@ public partial class BattleGameMain
             return;
         }
 
-        if (!context.DeckRule.TryTakeCardAtDeckIndex(entry.DeckIndex, out int takenId) || takenId != entry.CardId)
+        if (!context.DeckRule.TryTakeCardById(entry.CardId, out _))
         {
-            Debug.LogWarning(
-                $"[OnLook] 山札からの取得に失敗 index:{entry.DeckIndex} id:{entry.CardId}");
+            Debug.LogWarning($"[OnLook] 山札からの取得に失敗 id:{entry.CardId}");
             return;
         }
 
-        AddCardIdToHand(handRule, handOwner, takenId);
+        context.TakenCardIds.Add(entry.CardId);
+        AddCardIdToHand(handRule, handOwner, entry.CardId);
         Debug.Log(
             $"[Effect] AddToHandFromLooked {entry.Data.cardName}(id:{entry.CardId}) "
             + $"feature:{effect?.FormatTargetFeaturesLabel() ?? "any"} "
@@ -415,6 +499,224 @@ public partial class BattleGameMain
         }
 
         TriggerOnHandAutoEffects(drawnCard, targetType, skipHandZoneCheck: true);
+    }
+
+    private static List<int> CollectUntakenLookedCardIdsStillInDeck(LookResolutionContext context)
+    {
+        List<int> result = new List<int>();
+        if (context?.Entries == null || context.DeckRule == null)
+        {
+            return result;
+        }
+
+        for (int i = 0; i < context.Entries.Count; i++)
+        {
+            LookedDeckEntry entry = context.Entries[i];
+            if (entry == null || entry.CardId < 0)
+            {
+                continue;
+            }
+
+            if (context.TakenCardIds.Contains(entry.CardId))
+            {
+                continue;
+            }
+
+            if (!context.DeckRule.ContainsCardId(entry.CardId))
+            {
+                continue;
+            }
+
+            result.Add(entry.CardId);
+        }
+
+        return result;
+    }
+
+    private static void RemoveCardIdsFromDeck(CardGameRule deckRule, List<int> cardIds)
+    {
+        if (deckRule == null || cardIds == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            deckRule.TryTakeCardById(cardIds[i], out _);
+        }
+    }
+
+    private void ApplyReturnLookedRemainderToDeckTop(LookResolutionContext context)
+    {
+        if (context?.DeckRule == null)
+        {
+            return;
+        }
+
+        List<int> remainder = CollectUntakenLookedCardIdsStillInDeck(context);
+        if (remainder.Count == 0)
+        {
+            return;
+        }
+
+        ApplyLookedRemainderDisposition(context, LookedRemainderDispositionChoice.ReturnToDeckTop);
+    }
+
+    private void ApplyShuffleLookedRemainderToDeckBottom(LookResolutionContext context)
+    {
+        ApplyLookedRemainderDisposition(context, LookedRemainderDispositionChoice.ShuffleToDeckBottom);
+    }
+
+    private void ApplyLookedRemainderDisposition(
+        LookResolutionContext context,
+        LookedRemainderDispositionChoice disposition)
+    {
+        if (context?.DeckRule == null)
+        {
+            return;
+        }
+
+        List<int> remainder = CollectUntakenLookedCardIdsStillInDeck(context);
+        if (remainder.Count == 0)
+        {
+            return;
+        }
+
+        RemoveCardIdsFromDeck(context.DeckRule, remainder);
+        if (disposition == LookedRemainderDispositionChoice.ReturnToDeckTop)
+        {
+            context.DeckRule.PrependCardsToTopInOrder(remainder);
+            Debug.Log(
+                $"[Effect] ReturnLookedRemainderToDeckTop count:{remainder.Count} deck:{context.DeckLabel} "
+                + $"by cardId:{context.SourceCard?.Data?.id}");
+            return;
+        }
+
+        for (int i = remainder.Count - 1; i > 0; i--)
+        {
+            int j = UnityEngine.Random.Range(0, i + 1);
+            int tmp = remainder[i];
+            remainder[i] = remainder[j];
+            remainder[j] = tmp;
+        }
+
+        context.DeckRule.AppendCardsToBottom(remainder);
+        Debug.Log(
+            $"[Effect] ShuffleLookedRemainderToDeckBottom count:{remainder.Count} deck:{context.DeckLabel} "
+            + $"by cardId:{context.SourceCard?.Data?.id}");
+    }
+
+    private void ApplyChooseLookedRemainderDispositionEffect(
+        LookResolutionContext context,
+        System.Action onComplete)
+    {
+        if (context?.DeckRule == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        List<int> remainder = CollectUntakenLookedCardIdsStillInDeck(context);
+        if (remainder.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (context.OwnerType == PlayerType.Enemy)
+        {
+            LookedRemainderDispositionChoice pick = UnityEngine.Random.value < 0.5f
+                ? LookedRemainderDispositionChoice.ReturnToDeckTop
+                : LookedRemainderDispositionChoice.ShuffleToDeckBottom;
+            ApplyLookedRemainderDisposition(context, pick);
+            onComplete?.Invoke();
+            return;
+        }
+
+        ShowLookRemainderDispositionChoicePopup(context, remainder.Count, choice =>
+        {
+            ApplyLookedRemainderDisposition(context, choice);
+            onComplete?.Invoke();
+        });
+    }
+
+    private void ShowLookRemainderDispositionChoicePopup(
+        LookResolutionContext context,
+        int remainderCount,
+        System.Action<LookedRemainderDispositionChoice> onChosen)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onChosen?.Invoke(LookedRemainderDispositionChoice.ShuffleToDeckBottom);
+            return;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "LookRemainderDispositionChoice",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("DispositionTitle", UIAnchor.TopCenter, 720, 56);
+        title.text = $"残り{remainderCount}枚の行き先を選んでください";
+        title.fontSize = 24;
+        title.color = Color.white;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -80f);
+
+        TextMeshProUGUI sub = root.CreateChildTextCustom("DispositionSubtitle", UIAnchor.TopCenter, 700, 40);
+        sub.text = $"対象山札: {context.DeckLabel}";
+        sub.fontSize = 18;
+        sub.color = new Color(0.85f, 0.9f, 1f, 1f);
+        sub.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -130f);
+
+        void CloseAndChoose(LookedRemainderDispositionChoice choice)
+        {
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+            Debug.Log($"[OnLook] ChooseLookedRemainderDisposition → {choice}");
+            onChosen?.Invoke(choice);
+        }
+
+        Button topBtn = root.CreateChildButton("ReturnToDeckTop");
+        RectTransform topRt = topBtn.GetComponent<RectTransform>();
+        topRt.sizeDelta = new Vector2(320f, 52f);
+        topRt.anchorMin = new Vector2(0.5f, 0.5f);
+        topRt.anchorMax = new Vector2(0.5f, 0.5f);
+        topRt.pivot = new Vector2(0.5f, 0.5f);
+        topRt.anchoredPosition = new Vector2(0f, 24f);
+        TextMeshProUGUI topLabel = topBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (topLabel != null)
+        {
+            topLabel.text = "山札の上に戻す";
+        }
+
+        topBtn.onClick.AddListener(() => CloseAndChoose(LookedRemainderDispositionChoice.ReturnToDeckTop));
+
+        Button bottomBtn = root.CreateChildButton("ShuffleToDeckBottom");
+        RectTransform bottomRt = bottomBtn.GetComponent<RectTransform>();
+        bottomRt.sizeDelta = new Vector2(320f, 52f);
+        bottomRt.anchorMin = new Vector2(0.5f, 0.5f);
+        bottomRt.anchorMax = new Vector2(0.5f, 0.5f);
+        bottomRt.pivot = new Vector2(0.5f, 0.5f);
+        bottomRt.anchoredPosition = new Vector2(0f, -44f);
+        TextMeshProUGUI bottomLabel = bottomBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (bottomLabel != null)
+        {
+            bottomLabel.text = "山札の下にランダムで送る";
+        }
+
+        bottomBtn.onClick.AddListener(() => CloseAndChoose(LookedRemainderDispositionChoice.ShuffleToDeckBottom));
     }
 
     private void ShowLookDeckViewOnlyPopup(

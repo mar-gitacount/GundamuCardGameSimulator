@@ -52,7 +52,13 @@ public enum EffectType
     /// <summary>山札の上から value 枚を見る（山札からは取り出さない）。target で自分／相手の山札を指定。</summary>
     Look,
     /// <summary>直前の Look で見た山札の中から value 枚を手札に加える。OnLook 専用。targetFeature / targetFeatureId 必須。</summary>
-    AddToHandFromLooked
+    AddToHandFromLooked,
+    /// <summary>OnLook 専用。手札に加えなかった見た枚を、見た順のまま山札の上に戻す。</summary>
+    ReturnLookedRemainderToDeckTop,
+    /// <summary>OnLook 専用。手札に加えなかった見た枚をランダムな順で山札の下に送る。</summary>
+    ShuffleLookedRemainderToDeckBottom,
+    /// <summary>OnLook 専用。残りの見た枚を「山札の上に戻す」か「ランダムで下に送る」かプレイヤーが選ぶ。</summary>
+    ChooseLookedRemainderDisposition
 }
 
 public enum TargetType

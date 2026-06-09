@@ -231,6 +231,73 @@ public class CardGameRule
         return true;
     }
 
+    /// <summary>指定 ID のカードを山札から1枚取り除く（同 ID が複数あれば先頭の1枚）。</summary>
+    public bool TryTakeCardById(int cardId, out int removedAtIndex)
+    {
+        removedAtIndex = -1;
+        if (deckList == null || cardId < 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < deckList.Count; i++)
+        {
+            if (deckList[i] != cardId)
+            {
+                continue;
+            }
+
+            removedAtIndex = i;
+            deckList.RemoveAt(i);
+            UpdateDeckAndTrashTexts();
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>山札の上に、リスト先頭が一番上になるよう順番どおり挿入する。</summary>
+    public void PrependCardsToTopInOrder(IReadOnlyList<int> cardIdsTopFirst)
+    {
+        if (deckList == null || cardIdsTopFirst == null || cardIdsTopFirst.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = cardIdsTopFirst.Count - 1; i >= 0; i--)
+        {
+            deckList.Insert(0, cardIdsTopFirst[i]);
+        }
+
+        UpdateDeckAndTrashTexts();
+    }
+
+    /// <summary>山札の下にカードを追加する。</summary>
+    public void AppendCardsToBottom(IReadOnlyList<int> cardIds)
+    {
+        if (deckList == null || cardIds == null || cardIds.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            deckList.Add(cardIds[i]);
+        }
+
+        UpdateDeckAndTrashTexts();
+    }
+
+    public bool ContainsCardId(int cardId)
+    {
+        if (deckList == null || cardId < 0)
+        {
+            return false;
+        }
+
+        return deckList.Contains(cardId);
+    }
+
     /// <summary>
     /// 山札の一番上からカードを1枚引く
     /// </summary>
