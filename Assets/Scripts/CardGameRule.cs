@@ -197,6 +197,40 @@ public class CardGameRule
 
     // デッキの内容を返す
     public List<int> GetDeckList() => deckList;
+
+    /// <summary>山札の上から最大 count 枚のカード ID を返す（山札は変更しない）。</summary>
+    public List<int> PeekTopCardIds(int count)
+    {
+        List<int> result = new List<int>();
+        if (count <= 0 || deckList == null || deckList.Count == 0)
+        {
+            return result;
+        }
+
+        int take = Mathf.Min(count, deckList.Count);
+        for (int i = 0; i < take; i++)
+        {
+            result.Add(deckList[i]);
+        }
+
+        return result;
+    }
+
+    /// <summary>指定インデックスのカードを山札から取り除き ID を返す。</summary>
+    public bool TryTakeCardAtDeckIndex(int index, out int cardId)
+    {
+        cardId = -1;
+        if (deckList == null || index < 0 || index >= deckList.Count)
+        {
+            return false;
+        }
+
+        cardId = deckList[index];
+        deckList.RemoveAt(index);
+        UpdateDeckAndTrashTexts();
+        return true;
+    }
+
     /// <summary>
     /// 山札の一番上からカードを1枚引く
     /// </summary>

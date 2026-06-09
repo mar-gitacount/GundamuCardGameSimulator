@@ -3260,7 +3260,9 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner = attackFlowAttackerOwner;
         PlayerType defenderOwner = ResolveCardOwner(defender.transform);
 
-        if (attackFlowBlockRedirectUnit != null && defender == attackFlowBlockRedirectUnit)
+        if (!AttackerIgnoresBlockRedirect(attacker)
+            && attackFlowBlockRedirectUnit != null
+            && defender == attackFlowBlockRedirectUnit)
         {
             TryResolveBlockRedirectUnitCombatWithOnActionSteps(
                 attacker,
@@ -3269,6 +3271,17 @@ public partial class BattleGameMain : MonoBehaviour
                 defenderOwner,
                 skipOnActionPause);
             return;
+        }
+
+        if (AttackerIgnoresBlockRedirect(attacker))
+        {
+            defender = attackFlowDeclaredDefenderUnit != null
+                ? attackFlowDeclaredDefenderUnit
+                : defender;
+            if (IsCardControllerInstanceValid(defender))
+            {
+                defenderOwner = ResolveCardOwner(defender.transform);
+            }
         }
 
         TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause, skipAttackedSidePanelPause);
@@ -3872,6 +3885,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.BlockRedirect:
                     // BlockRedirect は戦闘フロー分岐で解釈するため、ここでは何もしない。
                     break;
+                case EffectType.HighMobility:
+                    // HighMobility は攻撃フロー分岐で解釈するため、ここでは何もしない。
+                    break;
                 case EffectType.Bounce:
                     break;
                 case EffectType.Rest:
@@ -3889,6 +3905,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         SyncAllResourceViewsFromRule();
+    }
+
+    private static bool AttackerIgnoresBlockRedirect(CardController attacker)
+    {
+        return attacker != null && attacker.HasHighMobilityAbility();
     }
 
     /// <summary>
@@ -4002,7 +4023,14 @@ public partial class BattleGameMain : MonoBehaviour
                 pendingOnAttackEffectResolvedAttacker = attacker;
             }
 
-            if (!skipAttackedSidePanelPause
+            bool attackerIgnoresBlock = AttackerIgnoresBlockRedirect(attacker);
+            if (attackerIgnoresBlock && enableShieldAttackFlowDebugLog)
+            {
+                Debug.Log($"[HighMobility] {attacker.Data.cardName} — skip block phase (shield attack)");
+            }
+
+            if (!attackerIgnoresBlock
+                && !skipAttackedSidePanelPause
                 && attackerOwner == PlayerType.Player
                 && TryAutoApplyBlockRedirectFromAttack(
                     attackerOwner,
@@ -4022,7 +4050,8 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             CardController selectedDefenderFromShieldPanel = null;
-            if (!skipAttackedSidePanelPause
+            if (!attackerIgnoresBlock
+                && !skipAttackedSidePanelPause
                 && attackerOwner == PlayerType.Enemy
                 && TryOpenAttackedSideUnitsPanel(
                     attackerOwner,
@@ -4448,12 +4477,18 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        bool attackerIgnoresBlock = AttackerIgnoresBlockRedirect(attacker);
+        if (attackerIgnoresBlock)
+        {
+            attackFlowBlockRedirectUnit = null;
+        }
+
         RegisterAttackFlowContextForOnAction(
             attacker,
             attackerOwner,
             AttackFlowStrikeKind.UnitVsUnit,
             defender,
-            attackFlowBlockRedirectUnit);
+            attackerIgnoresBlock ? null : attackFlowBlockRedirectUnit);
 
         if (!IsUnitAliveOnAnyDeployField(attacker))
         {
@@ -4480,7 +4515,8 @@ public partial class BattleGameMain : MonoBehaviour
             pendingOnAttackEffectResolvedAttacker = attacker;
         }
 
-        if (!skipAttackedSidePanelPause
+        if (!attackerIgnoresBlock
+            && !skipAttackedSidePanelPause
             && attackerOwner == PlayerType.Player
             && TryAutoApplyBlockRedirectFromAttack(
                 attackerOwner,
@@ -4493,7 +4529,8 @@ public partial class BattleGameMain : MonoBehaviour
             defender = autoBlockUnit;
             defenderOwner = autoBlockOwner;
         }
-        else if (!skipAttackedSidePanelPause
+        else if (!attackerIgnoresBlock
+            && !skipAttackedSidePanelPause
             && attackerOwner == PlayerType.Enemy
             && TryOpenAttackedSideUnitsPanel(
                 attackerOwner,
@@ -6207,8 +6244,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        ApplyEffect(sourceCard, ownerType, effect);
-        TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+        ApplyEffectRespectingLookAsync(
+            sourceCard,
+            ownerType,
+            effect,
+            () => TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
     }
 
     /// <summary>
@@ -6332,8 +6372,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        ApplyEffect(sourceCard, beneficiary, effect);
-        TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+        ApplyEffectRespectingLookAsync(
+            sourceCard,
+            beneficiary,
+            effect,
+            () => TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone));
     }
 
     private void RunOnPlayedTimedBlocks(
@@ -6406,8 +6449,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        ApplyEffect(sourceCard, ownerType, effect);
-        TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+        ApplyEffectRespectingLookAsync(
+            sourceCard,
+            ownerType,
+            effect,
+            () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
     }
 
     private static bool EffectRequiresManualUnitSelection(EffectData effect)
@@ -6469,6 +6515,15 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[Effect] Draw x{magnitude} by cardId:{sourceCard.Data.id}");
                 break;
 
+            case EffectType.Look:
+                ApplyLookEffect(sourceCard, ownerType, effect, null);
+                break;
+
+            case EffectType.AddToHandFromLooked:
+                Debug.LogWarning(
+                    $"[Effect] AddToHandFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
+                break;
+
             case EffectType.AddShieldToHand:
                 ApplyAddShieldToHandEffect(sourceCard, ownerType, effect, magnitude);
                 break;
@@ -6523,6 +6578,11 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.BlockRedirect:
                 // BlockRedirect は戦闘フロー分岐で解釈するため、ここでは何もしない。
                 Debug.Log($"[Effect] BlockRedirect marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.HighMobility:
+                // HighMobility は攻撃フロー分岐で解釈するため、ここでは何もしない。
+                Debug.Log($"[Effect] HighMobility marker by cardId:{sourceCard.Data.id}");
                 break;
 
             case EffectType.Suppress:
@@ -6752,7 +6812,7 @@ public partial class BattleGameMain : MonoBehaviour
             return new List<CardController>();
         }
 
-        CardFeatureData requiredFeature = effect.GetTargetFeature();
+        IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> enemies = ownerType == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
         List<CardController> result = new List<CardController>();
@@ -6766,22 +6826,22 @@ public partial class BattleGameMain : MonoBehaviour
                 }
                 break;
             case TargetType.AllyUnit:
-                AddFirstAliveUnit(allies, result, null, requiredFeature);
+                AddFirstAliveUnit(allies, result, null, requiredFeatures);
                 break;
             case TargetType.AllyOtherUnit:
-                AddFirstAliveUnit(allies, result, sourceCard, requiredFeature);
+                AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
                 break;
             case TargetType.EnemyUnit:
-                AddFirstAliveUnit(enemies, result, null, requiredFeature);
+                AddFirstAliveUnit(enemies, result, null, requiredFeatures);
                 break;
             case TargetType.RestEnemyUnit:
-                AddFirstAliveRestUnit(enemies, result, requiredFeature);
+                AddFirstAliveRestUnit(enemies, result, requiredFeatures);
                 break;
             case TargetType.AllyAllUnits:
-                AddAllAliveUnits(allies, result, null, requiredFeature);
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
                 break;
             case TargetType.EnemyAllUnits:
-                AddAllAliveUnits(enemies, result, null, requiredFeature);
+                AddAllAliveUnits(enemies, result, null, requiredFeatures);
                 break;
         }
 
@@ -6798,7 +6858,7 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> source,
         List<CardController> result,
         CardController exclude = null,
-        CardFeatureData requiredFeature = null)
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
@@ -6808,7 +6868,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (requiredFeature != null && !c.Data.HasFeature(requiredFeature))
+            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
             {
                 continue;
             }
@@ -6821,7 +6881,7 @@ public partial class BattleGameMain : MonoBehaviour
     private static void AddFirstAliveRestUnit(
         List<CardController> source,
         List<CardController> result,
-        CardFeatureData requiredFeature = null)
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
@@ -6831,7 +6891,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (requiredFeature != null && !c.Data.HasFeature(requiredFeature))
+            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
             {
                 continue;
             }
@@ -6845,7 +6905,7 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> source,
         List<CardController> result,
         CardController exclude = null,
-        CardFeatureData requiredFeature = null)
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
     {
         for (int i = 0; i < source.Count; i++)
         {
@@ -6855,13 +6915,23 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (requiredFeature != null && !c.Data.HasFeature(requiredFeature))
+            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
             {
                 continue;
             }
 
             result.Add(c);
         }
+    }
+
+    private static bool MatchesRequiredFeatures(CardData card, IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (requiredFeatures == null || requiredFeatures.Count == 0)
+        {
+            return true;
+        }
+
+        return card != null && card.HasAnyFeature(requiredFeatures);
     }
 
     private void ClearTimedStatModifiersOnHand(PlayerType side, EffectDuration duration)
@@ -7497,7 +7567,8 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (effect.type == EffectType.Draw || effect.type == EffectType.BlockRedirect
+        if (effect.type == EffectType.Draw || effect.type == EffectType.Look || effect.type == EffectType.AddToHandFromLooked
+            || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
             || effect.type == EffectType.Suppress)
@@ -8016,7 +8087,8 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (eff.type == EffectType.Draw || eff.type == EffectType.BlockRedirect)
+            if (eff.type == EffectType.Draw || eff.type == EffectType.Look || eff.type == EffectType.AddToHandFromLooked
+                || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility)
             {
                 trace.Append('[').Append(ei).Append(':').Append(eff.type).Append(" skip] ");
                 continue;
@@ -8123,6 +8195,9 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.BlockRedirect:
                     notes.Append("[BlockRedirect] ");
+                    continue;
+                case EffectType.HighMobility:
+                    notes.Append("[HighMobility] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
@@ -8256,6 +8331,9 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.BlockRedirect:
                     notes.Append("[BlockRedirect] ");
+                    continue;
+                case EffectType.HighMobility:
+                    notes.Append("[HighMobility] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
@@ -9674,8 +9752,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        ApplyEffect(source, side, effect);
-        TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone);
+        ApplyEffectRespectingLookAsync(
+            source,
+            side,
+            effect,
+            () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone));
     }
 
     private bool TryConsumeResourceForOnMain(PlayerType side, CardController source, ref bool resourceConsumed)
@@ -9731,7 +9812,7 @@ public partial class BattleGameMain : MonoBehaviour
             return new List<CardController>();
         }
 
-        CardFeatureData requiredFeature = effect.GetTargetFeature();
+        IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> result = new List<CardController>();
 
@@ -9743,22 +9824,22 @@ public partial class BattleGameMain : MonoBehaviour
                     && sourceCard.Data.type == Type.Unit
                     && sourceCard.CurrentHp > 0
                     && IsCardOnBattleZone(sourceCard)
-                    && (requiredFeature == null || sourceCard.Data.HasFeature(requiredFeature)))
+                    && MatchesRequiredFeatures(sourceCard.Data, requiredFeatures))
                 {
                     result.Add(sourceCard);
                 }
                 break;
             case TargetType.AllyUnit:
-                AddAllAliveUnits(allies, result, null, requiredFeature);
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
                 break;
             case TargetType.AllyOtherUnit:
-                AddAllAliveUnits(allies, result, sourceCard, requiredFeature);
+                AddAllAliveUnits(allies, result, sourceCard, requiredFeatures);
                 break;
             case TargetType.EnemyUnit:
-                AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeature);
+                AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
                 break;
             case TargetType.RestEnemyUnit:
-                AddAllAliveUnits(GetAliveRestEnemyUnitsForOwner(ownerType), result, null, requiredFeature);
+                AddAllAliveUnits(GetAliveRestEnemyUnitsForOwner(ownerType), result, null, requiredFeatures);
                 break;
         }
 

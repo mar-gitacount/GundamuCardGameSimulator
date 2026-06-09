@@ -23,6 +23,24 @@ public static class CardFeatureExtensions
         return false;
     }
 
+    public static bool HasAnyFeature(this CardData card, IReadOnlyList<CardFeatureData> features)
+    {
+        if (card == null || features == null || features.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < features.Count; i++)
+        {
+            if (card.HasFeature(features[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool HasFeatureId(this CardData card, int featureId)
     {
         if (card == null || card.features == null)

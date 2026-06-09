@@ -23,7 +23,9 @@ public enum EffectTiming
     /// <summary>OnDestroyed の別名（ユニット破壊時）。Inspector / JSON どちらでも指定可。</summary>
     OnUnitDestroyed = OnDestroyed,
     /// <summary>このカードが敵ユニットを破壊した時（キルしたカード自身の timedEffects のみ発動）。</summary>
-    OnEnemyUnitDestroyed = 16
+    OnEnemyUnitDestroyed = 16,
+    /// <summary>Look 効果で山札を見た直後（見た枚の中から手札へ加える等の誘発効果用）。</summary>
+    OnLook = 17
 }
 
 public enum EffectType
@@ -44,7 +46,13 @@ public enum EffectType
     /// <summary>バトルゾーンのユニットを手札に戻す（バウンス）。value=適用体数上限（0 で対象リスト全員）。</summary>
     Bounce,
     /// <summary>対象ユニットを REST にする。value=適用体数上限（0 で対象リスト全員）。</summary>
-    Rest
+    Rest,
+    /// <summary>高機動。攻撃時に敵ブロッカーを無視し、ブロックフェイズをスキップして OnAction へ進む。</summary>
+    HighMobility,
+    /// <summary>山札の上から value 枚を見る（山札からは取り出さない）。target で自分／相手の山札を指定。</summary>
+    Look,
+    /// <summary>直前の Look で見た山札の中から value 枚を手札に加える。OnLook 専用。targetFeature / targetFeatureId 必須。</summary>
+    AddToHandFromLooked
 }
 
 public enum TargetType
@@ -334,6 +342,12 @@ public class EffectData
     [Tooltip("JSON 用。targetFeature 未設定時に ID で解決（0=未指定）。")]
     public int targetFeatureId;
 
+    [Tooltip("複数 Feature のいずれか（OR）。Inspector 用。")]
+    public CardFeatureData[] targetFeatures;
+
+    [Tooltip("複数 Feature のいずれか（OR）。JSON 用 ID 配列。targetFeatureId とも併用可。")]
+    public int[] targetFeatureIds;
+
     [Tooltip("Bounce / Rest 等：対象ユニットをこのステータス（実効値）で絞り込む。Unset=条件なし。")]
     public EffectTargetUnitFilterStat targetUnitFilterStat = EffectTargetUnitFilterStat.Unset;
 
@@ -353,28 +367,106 @@ public static class EffectDataExtensions
 {
     public static CardFeatureData GetTargetFeature(this EffectData effect)
     {
+        IReadOnlyList<CardFeatureData> features = effect.GetTargetFeatures();
+        return features.Count > 0 ? features[0] : null;
+    }
+
+    public static IReadOnlyList<CardFeatureData> GetTargetFeatures(this EffectData effect)
+    {
+        List<CardFeatureData> result = new List<CardFeatureData>();
         if (effect == null)
         {
-            return null;
+            return result;
         }
 
-        if (effect.targetFeature != null)
+        HashSet<int> seenIds = new HashSet<int>();
+        void TryAdd(CardFeatureData feature)
         {
-            return effect.targetFeature;
+            if (feature == null || !seenIds.Add(feature.id))
+            {
+                return;
+            }
+
+            result.Add(feature);
+        }
+
+        TryAdd(effect.targetFeature);
+        if (effect.targetFeatures != null)
+        {
+            for (int i = 0; i < effect.targetFeatures.Length; i++)
+            {
+                TryAdd(effect.targetFeatures[i]);
+            }
         }
 
         if (effect.targetFeatureId > 0)
         {
             CardFeatureRegistry.EnsureLoaded();
-            return CardFeatureRegistry.GetById(effect.targetFeatureId);
+            TryAdd(CardFeatureRegistry.GetById(effect.targetFeatureId));
         }
 
-        return null;
+        if (effect.targetFeatureIds != null)
+        {
+            CardFeatureRegistry.EnsureLoaded();
+            for (int i = 0; i < effect.targetFeatureIds.Length; i++)
+            {
+                int featureId = effect.targetFeatureIds[i];
+                if (featureId > 0)
+                {
+                    TryAdd(CardFeatureRegistry.GetById(featureId));
+                }
+            }
+        }
+
+        return result;
     }
 
     public static bool HasTargetFeatureFilter(this EffectData effect)
     {
-        return effect != null && (effect.targetFeature != null || effect.targetFeatureId > 0);
+        return effect != null && effect.GetTargetFeatures().Count > 0;
+    }
+
+    public static string FormatTargetFeaturesLabel(this EffectData effect, string separator = "・")
+    {
+        if (effect == null)
+        {
+            return string.Empty;
+        }
+
+        IReadOnlyList<CardFeatureData> features = effect.GetTargetFeatures();
+        if (features.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        for (int i = 0; i < features.Count; i++)
+        {
+            CardFeatureData feature = features[i];
+            if (feature == null || string.IsNullOrEmpty(feature.displayName))
+            {
+                continue;
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append(separator);
+            }
+
+            sb.Append(feature.displayName);
+        }
+
+        return sb.ToString();
+    }
+
+    public static bool MatchesTargetFeatureOnCard(this EffectData effect, CardData card)
+    {
+        if (effect == null || card == null || !effect.HasTargetFeatureFilter())
+        {
+            return false;
+        }
+
+        return card.HasAnyFeature(effect.GetTargetFeatures());
     }
 
     public static EffectTargetUnitFilterStat GetTargetUnitFilterStat(this EffectData effect)
@@ -437,8 +529,7 @@ public static class EffectDataExtensions
             return false;
         }
 
-        CardFeatureData feature = effect.GetTargetFeature();
-        if (feature != null && !unit.Data.HasFeature(feature))
+        if (effect.HasTargetFeatureFilter() && !effect.MatchesTargetFeatureOnCard(unit.Data))
         {
             return false;
         }
@@ -481,10 +572,10 @@ public static class EffectDataExtensions
         }
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        CardFeatureData feature = effect.GetTargetFeature();
-        if (feature != null)
+        string featureLabel = effect.FormatTargetFeaturesLabel("/");
+        if (!string.IsNullOrEmpty(featureLabel))
         {
-            sb.Append(feature.displayName);
+            sb.Append(featureLabel);
         }
 
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
@@ -536,6 +627,12 @@ public static class EffectDataExtensions
         }
 
         return $"{effect.type} / {effect.target} / 値:{effect.value} / 条件:{filter}";
+    }
+
+    /// <summary>Look 直後に見た山札カードが effect の targetFeature（複数可・OR）のいずれかと一致するか。</summary>
+    public static bool MatchesLookedCardDataFeatureFilter(this EffectData effect, CardData card)
+    {
+        return effect.MatchesTargetFeatureOnCard(card);
     }
 }
 
@@ -647,6 +744,17 @@ public static class TimedEffectDataExtensions
     public static bool IsOnEnemyUnitDestroyedResolutionBlock(this TimedEffectData timed)
     {
         if (timed == null || timed.timing != EffectTiming.OnEnemyUnitDestroyed || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>Look 直後（OnLook）に解決するブロック。</summary>
+    public static bool IsOnLookResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null || timed.timing != EffectTiming.OnLook || !timed.HasResolvedEffects())
         {
             return false;
         }

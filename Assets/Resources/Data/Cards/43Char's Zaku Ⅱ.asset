@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 42RickDOm
+  m_Name: "43Char's Zaku \u2161"
   m_EditorClassIdentifier: 
-  id: 42
-  cardName: RickDom
+  id: 43
+  cardName: "Char's Zaku \u2161"
   cost: 2
   level: 3
   power: 3
-  hp: 3
-  imageName: {fileID: 21300000, guid: b67d169119b5dae419a943259a9ee789, type: 3}
+  hp: 2
+  imageName: {fileID: 21300000, guid: 96b20f0c191cfce4d964929bf2fa7c8f, type: 3}
   image: {fileID: 0}
   version: 1
   sourceType: 2
@@ -27,13 +27,17 @@ MonoBehaviour:
   type: 0
   attackFlg: 0
   timedEffects:
-  - timing: 16
+  - timing: 9
+    activationConditions: []
+    effectsName: LookTop3_SelfDeck
+    effects: []
+  - timing: 17
     activationConditions: []
     effectsName: 
     effects:
-    - type: 0
-      value: 2
-      target: 6
+    - type: 13
+      value: 1
+      target: 5
       selectionMode: 0
       statTarget: 0
       duration: 0
@@ -47,7 +51,9 @@ MonoBehaviour:
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
-      targetFeatures: []
+      targetFeatures:
+      - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+      - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
       targetFeatureIds: 
       targetUnitFilterStat: 0
       targetUnitStatCompareOp: 0
