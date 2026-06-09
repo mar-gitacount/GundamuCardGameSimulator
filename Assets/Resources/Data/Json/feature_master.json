@@ -23,6 +23,18 @@
             "featureKey": "Earth_Alliance",
             "displayName": "地球連合",
             "description": ""
+        },
+        {
+            "id": 5,
+            "featureKey": "Zeon",
+            "displayName": "ジオン",
+            "description": ""
+        },
+        {
+            "id": 6,
+            "featureKey": "Neo_Zeon",
+            "displayName": "ネオジオン",
+            "description": ""
         }
     ]
 }
