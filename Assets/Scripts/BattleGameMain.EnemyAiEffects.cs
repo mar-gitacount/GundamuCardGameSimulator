@@ -280,6 +280,9 @@ public partial class BattleGameMain
         {
             EffectData eff = effects[ei];
             if (eff == null || eff.type == EffectType.Draw || eff.type == EffectType.Look || eff.type == EffectType.AddToHandFromLooked
+                || eff.type == EffectType.ReturnLookedRemainderToDeckTop
+                || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
+                || eff.type == EffectType.ChooseLookedRemainderDisposition
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.DeployShieldFromHand
                 || eff.type == EffectType.DeployBase

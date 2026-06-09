@@ -369,6 +369,26 @@
             ]
         },
         {
+            "effectSetName": "LookTop1_PlayDeck",
+            "displayName": "プレイ時：自分の山札の上から1枚を見る",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
             "effectSetName": "LookTop3_SelfDeck",
             "displayName": "自分の山札の上から3枚を見る",
             "effects": [
@@ -396,6 +416,66 @@
                     "type": 12,
                     "value": 1,
                     "target": 6,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "ReturnLookedRemainderToDeckTop",
+            "displayName": "OnLook：見た残りを山札の上に戻す",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "ChooseLookedRemainderDisposition",
+            "displayName": "OnLook：残りを「上に戻す」か「下にランダム」か選ぶ",
+            "effects": [
+                {
+                    "type": 16,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "ShuffleLookedRemainderToDeckBottom",
+            "displayName": "OnLook：見た残りをランダムな順で山札の下へ",
+            "effects": [
+                {
+                    "type": 15,
+                    "value": 0,
+                    "target": 5,
                     "selectionMode": -1,
                     "statTarget": 0,
                     "duration": 0,

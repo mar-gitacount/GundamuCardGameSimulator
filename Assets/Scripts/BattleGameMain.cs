@@ -6524,6 +6524,13 @@ public partial class BattleGameMain : MonoBehaviour
                     $"[Effect] AddToHandFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
                 break;
 
+            case EffectType.ReturnLookedRemainderToDeckTop:
+            case EffectType.ShuffleLookedRemainderToDeckBottom:
+            case EffectType.ChooseLookedRemainderDisposition:
+                Debug.LogWarning(
+                    $"[Effect] {effect.type} は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
+                break;
+
             case EffectType.AddShieldToHand:
                 ApplyAddShieldToHandEffect(sourceCard, ownerType, effect, magnitude);
                 break;
@@ -7568,6 +7575,9 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (effect.type == EffectType.Draw || effect.type == EffectType.Look || effect.type == EffectType.AddToHandFromLooked
+            || effect.type == EffectType.ReturnLookedRemainderToDeckTop
+            || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
+            || effect.type == EffectType.ChooseLookedRemainderDisposition
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
@@ -8088,6 +8098,9 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             if (eff.type == EffectType.Draw || eff.type == EffectType.Look || eff.type == EffectType.AddToHandFromLooked
+                || eff.type == EffectType.ReturnLookedRemainderToDeckTop
+                || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
+                || eff.type == EffectType.ChooseLookedRemainderDisposition
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility)
             {
                 trace.Append('[').Append(ei).Append(':').Append(eff.type).Append(" skip] ");
