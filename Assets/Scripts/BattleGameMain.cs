@@ -4936,16 +4936,6 @@ public partial class BattleGameMain : MonoBehaviour
         attackerStrikePower = GetUnitStrikeDamagePower(attacker);
         defenderStrikePower = GetUnitStrikeDamagePower(defender);
 
-        if (defender != null && defenderStrikePower == defenderPowerBeforeOnAttackResolve)
-        {
-            int fallbackApDelta = ComputeOnAttackApDeltaToDefender(attacker);
-            if (fallbackApDelta != 0)
-            {
-                defenderStrikePower = Mathf.Max(0, defenderStrikePower + fallbackApDelta);
-                Debug.Log($"[OnAttackFallback] apply AP delta:{fallbackApDelta} to defender combat power.");
-            }
-        }
-
         Debug.Log(
             $"[CombatPower] attackerStrike:{attackerStrikePower} (preOnAttackResolve:{attackerPowerBeforeOnAttackResolve}) "
             + $"defenderStrike:{defenderStrikePower} (preOnAttackResolve:{defenderPowerBeforeOnAttackResolve})");
@@ -4976,92 +4966,14 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (effect.target == TargetType.EnemyUnit || effect.target == TargetType.RestEnemyUnit)
+            // 敵ユニット対象は TryOpenOnAttackEnemySelectionPanel で攻撃前に解決済み。二重適用しない。
+            if (effect.target.IsOpponentUnitTarget())
             {
-                if (effect.target != TargetType.RestEnemyUnit || defender.IsRestState)
-                {
-                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { defender });
-                }
-
-                continue;
-            }
-
-            if (effect.target == TargetType.EnemyAllUnits)
-            {
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, GetAliveEnemyUnits(ownerType));
                 continue;
             }
 
             ApplyEffect(sourceCard, ownerType, effect);
         }
-    }
-
-    private int ComputeOnAttackApDeltaToDefender(CardController attacker)
-    {
-        int delta = 0;
-        if (attacker == null)
-        {
-            return 0;
-        }
-
-        delta += ComputeOnAttackApDeltaFromData(attacker.Data);
-        if (attacker.MountedPilot != null)
-        {
-            delta += ComputeOnAttackApDeltaFromData(attacker.MountedPilot.Data);
-        }
-        return delta;
-    }
-
-    private static int ComputeOnAttackApDeltaFromData(CardData data)
-    {
-        if (data == null || data.timedEffects == null)
-        {
-            return 0;
-        }
-
-        int delta = 0;
-        for (int i = 0; i < data.timedEffects.Count; i++)
-        {
-            TimedEffectData timed = data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
-            {
-                continue;
-            }
-
-            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
-            for (int j = 0; j < resolvedOnAttack.Count; j++)
-            {
-                EffectData effect = resolvedOnAttack[j];
-                if (effect == null)
-                {
-                    continue;
-                }
-
-                bool targetEnemyUnit = effect.target.IsOpponentUnitTarget();
-                bool affectsAp = effect.statTarget == EffectStatTarget.AP || effect.statTarget == EffectStatTarget.Both;
-                if (!targetEnemyUnit || !affectsAp)
-                {
-                    continue;
-                }
-
-                int magnitude = Mathf.Abs(effect.value);
-                if (magnitude == 0)
-                {
-                    continue;
-                }
-
-                if (effect.type == EffectType.Debuff)
-                {
-                    delta -= magnitude;
-                }
-                else if (effect.type == EffectType.Buff)
-                {
-                    delta += magnitude;
-                }
-            }
-        }
-
-        return delta;
     }
 
     private void TriggerMountedPilotOnAttackEffects(CardController attacker, PlayerType attackerOwner)
