@@ -29,6 +29,10 @@ MonoBehaviour:
   timedEffects:
   - timing: 0
     activationConditions: []
+    effectsName: LookTop1_PlayDeck
+    effects: []
+  - timing: 17
+    activationConditions: []
     effectsName: ChooseLookedRemainderDisposition
     effects: []
   features:
