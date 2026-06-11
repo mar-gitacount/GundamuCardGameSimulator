@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 49GIantKilling
+  m_EditorClassIdentifier: 
+  id: 49
+  cardName: 'Giant Killing '
+  cost: 3
+  level: 4
+  power: 1
+  hp: 1
+  imageName: {fileID: 21300000, guid: a7627197f2f0a44468ab0492896d50bb, type: 3}
+  image: {fileID: 0}
+  version: 9
+  sourceType: 2
+  filterType: 0
+  color: 6
+  type: 2
+  attackFlg: 0
+  timedEffects:
+  - timing: 8
+    activationConditions: []
+    effectsName: 
+    effects:
+    - type: 17
+      value: 1
+      target: 2
+      selectionMode: 2
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: 0
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 4
+      filterTargetUnitLevel: 0
+  features: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0

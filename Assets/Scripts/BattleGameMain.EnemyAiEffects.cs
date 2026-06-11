@@ -106,6 +106,9 @@ public partial class BattleGameMain
             case EffectType.Rest:
                 pick = PickHighestThreatOrFirst(candidates);
                 break;
+            case EffectType.Destroy:
+                pick = PickHighestThreatOrFirst(candidates);
+                break;
             default:
                 pick = candidates[0];
                 break;
