@@ -58,7 +58,9 @@ public enum EffectType
     /// <summary>OnLook 専用。手札に加えなかった見た枚をランダムな順で山札の下に送る。</summary>
     ShuffleLookedRemainderToDeckBottom,
     /// <summary>OnLook 専用。残りの見た枚を「山札の上に戻す」か「ランダムで下に送る」かプレイヤーが選ぶ。</summary>
-    ChooseLookedRemainderDisposition
+    ChooseLookedRemainderDisposition,
+    /// <summary>対象ユニットを破壊する（トラッシュへ）。value=適用体数上限（0 で対象リスト全員）。</summary>
+    Destroy
 }
 
 public enum TargetType
@@ -82,13 +84,13 @@ public static class EffectTypeExtensions
     /// <summary>value が適用体数上限として使われ、効果量 0 でも解決するタイプ。</summary>
     public static bool UsesTargetCountValue(this EffectType type)
     {
-        return type == EffectType.Bounce || type == EffectType.Rest;
+        return type == EffectType.Bounce || type == EffectType.Rest || type == EffectType.Destroy;
     }
 
     /// <summary>対象ユニットの手動選択 UI が必要なタイプ。</summary>
     public static bool RequiresManualUnitSelection(this EffectType type)
     {
-        return type == EffectType.Bounce || type == EffectType.Rest;
+        return type == EffectType.Bounce || type == EffectType.Rest || type == EffectType.Destroy;
     }
 }
 
@@ -218,7 +220,11 @@ public enum EffectActivationCheckKind
     /// feature / pilotCardId で絞り込み。
     /// compareValue + compareOp で搭乗パイロットの実効レベル（CurrentLevel）を比較（例: 4 以上 → compareValue=4, GreaterOrEqual）。
     /// </summary>
-    MountedPilot
+    MountedPilot,
+    /// <summary>効果の発動元カード（SourceCard）の実効 AP/HP/Lv/Cost を compareOp + compareValue と比較。boardSide は不要。</summary>
+    SourceUnitStat,
+    /// <summary>指定ゾーン内の生存ユニットのいずれか1体が、実効 AP/HP/Lv/Cost 条件を満たす。</summary>
+    UnitStatOnField
 }
 
 public enum EffectTurnCheckKind
@@ -303,6 +309,9 @@ public class EffectActivationCondition
 
     [Tooltip("MountedPilot のみ: 搭乗パイロットの実効レベルと compareOp で比較。compareValue=0 かつ pilotCardId/feature も無い場合はレベル判定なし。")]
     public int pilotLevelThreshold;
+
+    [Tooltip("SourceUnitStat / UnitStatOnField: 参照する実効ステータス（AP/HP/Cost/Lv）。未指定時は AP。")]
+    public EffectTargetUnitFilterStat activationStatTarget = EffectTargetUnitFilterStat.Unset;
 }
 
 [Serializable]

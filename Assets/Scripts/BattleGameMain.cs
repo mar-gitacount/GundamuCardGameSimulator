@@ -2845,6 +2845,44 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
+    private void ApplyDestroyEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        List<CardController> targets)
+    {
+        if (effect == null || targets == null || targets.Count == 0)
+        {
+            return;
+        }
+
+        int limit = effect.value > 0 ? effect.value : targets.Count;
+        int applied = 0;
+        for (int i = 0; i < targets.Count && applied < limit; i++)
+        {
+            CardController target = targets[i];
+            if (target == null || target.Data == null || target.Data.type != Type.Unit || target.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!IsCardControllerInstanceValid(target))
+            {
+                continue;
+            }
+
+            PlayerType targetOwner = ResolveCardOwner(target.transform);
+            SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, target));
+            applied++;
+        }
+
+        if (applied > 0)
+        {
+            Debug.Log(
+                $"[Effect] Destroy applied:{applied} target:{effect.target} by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+        }
+    }
+
     private static bool TryApplyRestToUnit(CardController unit)
     {
         if (unit == null || unit.Data == null || unit.Data.type != Type.Unit || unit.CurrentHp <= 0)
@@ -3672,6 +3710,10 @@ public partial class BattleGameMain : MonoBehaviour
         {
             title.text = "REST — 対象ユニットを選択";
         }
+        else if (effect != null && effect.type == EffectType.Destroy)
+        {
+            title.text = "破壊 — 対象ユニットを選択";
+        }
         else
         {
             title.text = effect != null && effect.target == TargetType.RestEnemyUnit
@@ -3892,6 +3934,8 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 case EffectType.Rest:
                     break;
+                case EffectType.Destroy:
+                    break;
             }
         }
 
@@ -3902,6 +3946,10 @@ public partial class BattleGameMain : MonoBehaviour
         else if (effect.type == EffectType.Rest)
         {
             ApplyRestEffect(effect, targets);
+        }
+        else if (effect.type == EffectType.Destroy)
+        {
+            ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
         }
 
         SyncAllResourceViewsFromRule();
@@ -6602,6 +6650,9 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.Rest:
                 ApplyRestEffect(effect, targets);
                 break;
+            case EffectType.Destroy:
+                ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
+                break;
         }
 
         SyncAllResourceViewsFromRule();
@@ -7628,6 +7679,28 @@ public partial class BattleGameMain : MonoBehaviour
 
                 snap.IsRest = true;
                 rested++;
+            }
+
+            return;
+        }
+
+        if (effect.type == EffectType.Destroy)
+        {
+            int limit = effect.value > 0 ? effect.value : targets.Count;
+            int removed = 0;
+            for (int i = 0; i < targets.Count && removed < limit; i++)
+            {
+                CardController t = targets[i];
+                if (t == null)
+                {
+                    continue;
+                }
+
+                VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, t);
+                if (snap != null && working.Remove(snap))
+                {
+                    removed++;
+                }
             }
 
             return;
@@ -9951,7 +10024,9 @@ public partial class BattleGameMain : MonoBehaviour
             ? "配備 — バウンス対象を選択"
             : effect != null && effect.type == EffectType.Rest
                 ? "配備 — REST 対象を選択"
-                : "配備効果 — 対象を選択";
+                : effect != null && effect.type == EffectType.Destroy
+                    ? "配備 — 破壊対象を選択"
+                    : "配備効果 — 対象を選択";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);

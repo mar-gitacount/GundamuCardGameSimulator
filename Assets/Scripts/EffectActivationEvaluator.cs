@@ -106,6 +106,21 @@ public static class EffectActivationEvaluator
             return EvaluateMountedPilot(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceUnitStat)
+        {
+            return EvaluateSourceUnitStat(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.UnitStatOnField)
+        {
+            if (c.boardSide == EffectBoardSide.Unset)
+            {
+                return false;
+            }
+
+            return EvaluateUnitStatOnField(ResolveZone(ctx, c.boardSide), c);
+        }
+
         // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
         if (c.boardSide == EffectBoardSide.Unset)
         {
@@ -129,6 +144,55 @@ public static class EffectActivationEvaluator
             default:
                 return false;
         }
+    }
+
+    private static bool EvaluateSourceUnitStat(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx?.SourceCard == null || ctx.SourceCard.Data == null)
+        {
+            return false;
+        }
+
+        int statValue = GetActivationStatValue(ctx.SourceCard, c.activationStatTarget);
+        return CompareInts(statValue, c.compareValue, c.compareOp);
+    }
+
+    private static bool EvaluateUnitStatOnField(IReadOnlyList<CardController> zone, EffectActivationCondition c)
+    {
+        if (c == null || zone == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (!IsAliveUnit(unit))
+            {
+                continue;
+            }
+
+            int statValue = GetActivationStatValue(unit, c.activationStatTarget);
+            if (CompareInts(statValue, c.compareValue, c.compareOp))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int GetActivationStatValue(CardController card, EffectTargetUnitFilterStat stat)
+    {
+        if (card == null)
+        {
+            return 0;
+        }
+
+        EffectTargetUnitFilterStat resolved = stat == EffectTargetUnitFilterStat.Unset
+            ? EffectTargetUnitFilterStat.AP
+            : stat;
+        return EffectDataExtensions.GetTargetUnitFilterStatValue(card, resolved);
     }
 
     private static bool EvaluateMountedPilot(EffectActivationCondition c, EffectActivationContext ctx)
