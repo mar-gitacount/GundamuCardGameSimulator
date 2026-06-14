@@ -35,6 +35,10 @@ MonoBehaviour:
     activationConditions: []
     effectsName: AddShield1_OnBaseDeployed
     effects: []
+  - timing: 6
+    activationConditions: []
+    effectsName: SelfEffectDamageImmunity_OnPlayed
+    effects: []
   features: []
   link:
   - pilotCardId: 0

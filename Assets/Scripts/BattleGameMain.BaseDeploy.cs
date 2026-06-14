@@ -23,7 +23,31 @@ public partial class BattleGameMain
     private CardController GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide side)
     {
         CardGameRule rule = GetCardRuleForRuleSide(side);
-        return rule != null ? rule.DeployedBase : null;
+        if (rule == null)
+        {
+            return null;
+        }
+
+        if (rule.DeployedBase != null)
+        {
+            return rule.DeployedBase;
+        }
+
+        if (rule.BaseSlotContent == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < rule.BaseSlotContent.childCount; i++)
+        {
+            CardController occupant = rule.BaseSlotContent.GetChild(i).GetComponent<CardController>();
+            if (occupant != null && occupant.Data != null && occupant.Data.type == Type.Base && occupant.CurrentHp > 0)
+            {
+                return occupant;
+            }
+        }
+
+        return null;
     }
 
     private bool HasActiveDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide side)
@@ -368,6 +392,13 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (defenderBase.HasEffectDamageImmunity)
+        {
+            Debug.Log(
+                $"[EffectDamage] Blocked base damage — {defenderBase.Data.cardName} has EffectDamageImmunity (fall through to EX/shield).");
+            return false;
+        }
+
         int hpBefore = defenderBase.CurrentHp;
         defenderBase.ApplyDamage(amount);
         PlayerType defenderOwner = targetSide == Gundam2024RuleScript.PlayerSide.Player
@@ -401,18 +432,6 @@ public partial class BattleGameMain
             return;
         }
 
-        if (HasEffectDamageImmunityForPlayerSide(targetSide))
-        {
-            Debug.Log($"[EffectDamage] Blocked player-area damage — side:{targetSide} has EffectDamageImmunity.");
-            return;
-        }
-
-        if (blockShieldFlowDuringShieldAttack && targetSide == blockedShieldFlowSide)
-        {
-            gundamRule.DamageExBaseOnly(targetSide, amount);
-            return;
-        }
-
         if (TryApplyEffectDamageToDeployedBase(targetSide, amount, out string baseLog))
         {
             Debug.Log(baseLog);
@@ -426,6 +445,14 @@ public partial class BattleGameMain
         {
             gundamRule.DamageExBaseOnly(targetSide, amount);
             Debug.Log($"[EffectDamage] Dealt {amount} to EX Base (now {target.exBase}).");
+            return;
+        }
+
+        // シールド攻撃フロー中はベース層（配備ベース/EX）消化後も実シールドを割らない。
+        if (blockShieldFlowDuringShieldAttack && targetSide == blockedShieldFlowSide)
+        {
+            Debug.Log(
+                $"[EffectDamage] Shield-attack flow — skipped shield break (side:{targetSide}, amount:{amount}).");
             return;
         }
 

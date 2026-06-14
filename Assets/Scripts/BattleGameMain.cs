@@ -4173,7 +4173,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.Damage:
                 {
-                    int damageAmount = ResolveEffectDamageAmount(magnitude);
+                    int damageAmount = ResolveEffectDamageAmount(magnitude, t);
                     bool logCloseCombat = attackFlowBlockRedirectFromShieldStrike
                         && IsCloseCombatCard(sourceCard);
                     if (logCloseCombat)
@@ -6976,7 +6976,7 @@ public partial class BattleGameMain : MonoBehaviour
                 for (int i = 0; i < targets.Count; i++)
                 {
                     CardController targetUnit = targets[i];
-                    int damageAmount = ResolveEffectDamageAmount(magnitude);
+                    int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit);
                     targetUnit.ApplyDamage(damageAmount);
                     PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
                     if (targetUnit.CurrentHp <= 0)
@@ -7082,11 +7082,11 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// 効果ダメージ（EffectType.Damage 等）の実際の与ダメージ量。戦闘交換には使わない。
-    /// 盤面全体の EffectDamage 修飾を常に合算して適用する。
+    /// 無効化は effectDamageTarget 自身のみ。盤面全体の EffectDamage 修飾は別途合算する。
     /// </summary>
-    private int ResolveEffectDamageAmount(int baseMagnitude)
+    private int ResolveEffectDamageAmount(int baseMagnitude, CardController effectDamageTarget = null)
     {
-        if (HasGlobalEffectDamageImmunityFromLiveField())
+        if (effectDamageTarget != null && effectDamageTarget.HasEffectDamageImmunity)
         {
             return 0;
         }
@@ -7094,87 +7094,23 @@ public partial class BattleGameMain : MonoBehaviour
         return Mathf.Max(0, baseMagnitude + GetGlobalEffectDamageModifierFromLiveField());
     }
 
-    private int ResolveEffectDamageAmountForVirtualPlayerLog(int baseMagnitude, List<VirtualPlayerUnitSnap> workingPlayerOverrides)
+    private int ResolveEffectDamageAmountForVirtualPlayerLog(
+        int baseMagnitude,
+        List<VirtualPlayerUnitSnap> workingPlayerOverrides,
+        CardController effectDamageTarget = null)
     {
-        if (HasGlobalEffectDamageImmunityForVirtualPlayerLog(workingPlayerOverrides))
+        if (effectDamageTarget != null)
         {
-            return 0;
+            VirtualPlayerUnitSnap snap = workingPlayerOverrides != null
+                ? FindPlayerVirtualSnap(workingPlayerOverrides, effectDamageTarget)
+                : null;
+            if (snap != null ? snap.EffectDamageImmunityCount > 0 : effectDamageTarget.HasEffectDamageImmunity)
+            {
+                return 0;
+            }
         }
 
         return Mathf.Max(0, baseMagnitude + GetGlobalEffectDamageModifierForVirtualPlayerLog(workingPlayerOverrides));
-    }
-
-    private bool HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide side)
-    {
-        CardController deployedBase = GetDeployedBaseForRuleSide(side);
-        return deployedBase != null && deployedBase.HasEffectDamageImmunity;
-    }
-
-    private bool HasEffectDamageImmunityForPlayerSide(Gundam2024RuleScript.PlayerSide side)
-    {
-        PlayerType owner = side == Gundam2024RuleScript.PlayerSide.Player ? PlayerType.Player : PlayerType.Enemy;
-        List<CardController> zone = owner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
-        return HasEffectDamageImmunityInZone(zone) || HasEffectDamageImmunityOnDeployedBase(side);
-    }
-
-    private bool HasGlobalEffectDamageImmunityFromLiveField()
-    {
-        return HasEffectDamageImmunityInZone(playerBattleZoneCards)
-            || HasEffectDamageImmunityInZone(enemyBattleZoneCards)
-            || HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Player)
-            || HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Enemy);
-    }
-
-    private bool HasGlobalEffectDamageImmunityForVirtualPlayerLog(List<VirtualPlayerUnitSnap> workingPlayerOverrides)
-    {
-        if (HasEffectDamageImmunityInZone(enemyBattleZoneCards)
-            || HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Enemy))
-        {
-            return true;
-        }
-
-        if (playerBattleZoneCards == null)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < playerBattleZoneCards.Count; i++)
-        {
-            CardController c = playerBattleZoneCards[i];
-            if (c == null)
-            {
-                continue;
-            }
-
-            VirtualPlayerUnitSnap snap = workingPlayerOverrides != null
-                ? FindPlayerVirtualSnap(workingPlayerOverrides, c)
-                : null;
-            if (snap != null ? snap.EffectDamageImmunityCount > 0 : c.HasEffectDamageImmunity)
-            {
-                return true;
-            }
-        }
-
-        return HasEffectDamageImmunityOnDeployedBase(Gundam2024RuleScript.PlayerSide.Player);
-    }
-
-    private static bool HasEffectDamageImmunityInZone(List<CardController> zone)
-    {
-        if (zone == null)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < zone.Count; i++)
-        {
-            CardController c = zone[i];
-            if (c != null && c.HasEffectDamageImmunity)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>両バトルゾーン上の EffectDamage 修飾合計（常時適用）。</summary>
@@ -7956,27 +7892,12 @@ public partial class BattleGameMain : MonoBehaviour
         return sum;
     }
 
-    private static bool HasGlobalEffectDamageImmunityInVirtualBattle(List<VirtualBattleUnitSnap> working)
+    private static int ResolveVirtualEffectDamageAmount(
+        int baseMagnitude,
+        List<VirtualBattleUnitSnap> working,
+        VirtualBattleUnitSnap effectDamageTarget = null)
     {
-        if (working == null)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < working.Count; i++)
-        {
-            if (working[i].EffectDamageImmunityCount > 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static int ResolveVirtualEffectDamageAmount(int baseMagnitude, List<VirtualBattleUnitSnap> working)
-    {
-        if (HasGlobalEffectDamageImmunityInVirtualBattle(working))
+        if (effectDamageTarget != null && effectDamageTarget.EffectDamageImmunityCount > 0)
         {
             return 0;
         }
@@ -8100,7 +8021,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.Damage:
                 {
-                    int damageAmount = ResolveVirtualEffectDamageAmount(magnitude, working);
+                    int damageAmount = ResolveVirtualEffectDamageAmount(magnitude, working, snap);
                     snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                     break;
                 }
@@ -8688,12 +8609,13 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Damage:
                 {
                     List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
-                    int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working);
                     for (int ti = 0; ti < dmgTargets.Count; ti++)
                     {
-                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, dmgTargets[ti]);
+                        CardController dmgTarget = dmgTargets[ti];
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, dmgTarget);
                         if (snap != null)
                         {
+                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working, dmgTarget);
                             snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                         }
                     }
@@ -8839,7 +8761,7 @@ public partial class BattleGameMain : MonoBehaviour
                         VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, focusUnit);
                         if (snap != null)
                         {
-                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working);
+                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working, focusUnit);
                             snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                         }
                     }
