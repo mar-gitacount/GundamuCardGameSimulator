@@ -165,7 +165,7 @@ public enum EffectStatTarget
     Both,
     /// <summary>戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。盤面全体に常時適用）。</summary>
     EffectDamage,
-    /// <summary>効果ダメージを完全無効化（Buff で付与。盤面に1体でもいれば全効果ダメージ0）。</summary>
+    /// <summary>効果ダメージを完全無効化（Buff で付与。対象カード自身が受ける効果ダメージのみ0）。</summary>
     EffectDamageImmunity
 }
 
