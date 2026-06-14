@@ -127,6 +127,8 @@ public partial class BattleGameMain : MonoBehaviour
     private bool isEnemyMainPhaseCoroutineRunning;
     private bool blockShieldFlowDuringShieldAttack;
     private Gundam2024RuleScript.PlayerSide blockedShieldFlowSide;
+    /// <summary>シールド攻撃→ブロック OnAction 完了まで isShieldAttackResolving / blockShieldFlow を維持する。</summary>
+    private bool deferredShieldBlockRedirectWait;
 
     private enum AttackFlowStrikeKind
     {
@@ -142,6 +144,70 @@ public partial class BattleGameMain : MonoBehaviour
     private CardController attackFlowDeclaredDefenderUnit;
     private CardController attackFlowBlockRedirectUnit;
     private int attackFlowDefenderShieldCountAtStrike = -1;
+    /// <summary>ブロック確定後のユニット戦フロー中か（ブロッカー破壊後も OnAction 再開で通常攻撃へ落とさない）。</summary>
+    private bool attackFlowBlockRedirectEngaged;
+    /// <summary>SendCardToTrash 開始〜Finish まで。Destroy 等で HP 残りのまま非同期破棄中のユニット。</summary>
+    private readonly HashSet<CardController> unitsPendingSendToTrash = new HashSet<CardController>();
+    /// <summary>シールド攻撃からブロックへ移行したフロー（OnAction 後にシールドダメージへ再開しない）。</summary>
+    private bool attackFlowBlockRedirectFromShieldStrike;
+    /// <summary>OnAction 中にブロッカーが除去されたため交換戦闘を行わない。</summary>
+    private bool attackFlowBlockRedirectCombatVoided;
+    /// <summary>ブロック中断後、同一攻撃でシールドダメージを解決しない。</summary>
+    private bool shieldStrikeAbortedAfterBlockInterrupt;
+    /// <summary>ClearAttackFlowContext では消さない。ブロッカー喪失後の交換ダメージ／シールド strike を禁止。</summary>
+    private bool blockExchangeCancelledForCurrentAttack;
+
+    private const int CloseCombatCardId = 28;
+
+    /// <summary>配備ベース（Argama 等）ありのシールド攻撃→ブロック→Close Combat 調査用。</summary>
+    private void LogArgamaShieldBlockCloseCombatDebug(
+        string phase,
+        string detail,
+        CardController attacker = null,
+        CardController blocker = null,
+        CardController effectSource = null)
+    {
+        if (!attackFlowBlockRedirectFromShieldStrike)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide enemySide = Gundam2024RuleScript.PlayerSide.Enemy;
+        CardController deployedBase = GetDeployedBaseForRuleSide(enemySide);
+        string baseLabel = deployedBase != null && deployedBase.Data != null
+            ? $"{deployedBase.Data.cardName}(id:{deployedBase.Data.id}) HP:{deployedBase.CurrentHp}"
+            : "none";
+
+        CardController logAttacker = attacker ?? attackFlowAttackerUnit;
+        CardController logBlocker = blocker ?? attackFlowBlockRedirectUnit;
+        string effectLabel = effectSource != null && effectSource.Data != null
+            ? $"{effectSource.Data.cardName}(id:{effectSource.Data.id})"
+            : "none";
+
+        Debug.Log(
+            $"[ArgamaShieldBlockCloseCombat] phase:{phase} {detail}\n"
+            + $"  deployedBase:{baseLabel}\n"
+            + $"  flags cancelled:{blockExchangeCancelledForCurrentAttack} voided:{attackFlowBlockRedirectCombatVoided} "
+            + $"deferredWait:{deferredShieldBlockRedirectWait} shieldAborted:{shieldStrikeAbortedAfterBlockInterrupt}\n"
+            + $"  attacker:{FormatUnitDebugSnap(logAttacker)} blocker:{FormatUnitDebugSnap(logBlocker)} "
+            + $"blockerPendingTrash:{logBlocker != null && unitsPendingSendToTrash.Contains(logBlocker)}\n"
+            + $"  effectSource:{effectLabel}");
+    }
+
+    private static string FormatUnitDebugSnap(CardController c)
+    {
+        if (c == null || c.Data == null)
+        {
+            return "null";
+        }
+
+        return $"{c.Data.cardName}(id:{c.Data.id}) HP:{c.CurrentHp} AP:{c.CurrentPower}";
+    }
+
+    private static bool IsCloseCombatCard(CardController card)
+    {
+        return card != null && card.Data != null && card.Data.id == CloseCombatCardId;
+    }
 
     private void ClearAttackFlowContext()
     {
@@ -151,6 +217,36 @@ public partial class BattleGameMain : MonoBehaviour
         attackFlowDeclaredDefenderUnit = null;
         attackFlowBlockRedirectUnit = null;
         attackFlowDefenderShieldCountAtStrike = -1;
+        attackFlowBlockRedirectEngaged = false;
+        attackFlowBlockRedirectFromShieldStrike = false;
+        attackFlowBlockRedirectCombatVoided = false;
+    }
+
+    private void FinalizeBlockInterruptWithoutExchange()
+    {
+        LogArgamaShieldBlockCloseCombatDebug("FinalizeBlockInterrupt", "attack flow ending without exchange");
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        FinishDeferredShieldAttackBlockFlow();
+        ClearAttackFlowContext();
+    }
+
+    /// <summary>OnAction 等でブロッカーが消えた時点で交換戦闘を永久に禁止（同一攻撃内）。</summary>
+    private void MarkBlockExchangeCancelled(string reason, bool finalizeFlowNow = false)
+    {
+        if (!blockExchangeCancelledForCurrentAttack)
+        {
+            blockExchangeCancelledForCurrentAttack = true;
+            shieldStrikeAbortedAfterBlockInterrupt = true;
+            attackFlowBlockRedirectCombatVoided = true;
+            Debug.Log($"[BlockCombat] Exchange cancelled: {reason}");
+            LogArgamaShieldBlockCloseCombatDebug("MarkBlockExchangeCancelled", $"reason:{reason} finalizeNow:{finalizeFlowNow}");
+        }
+
+        if (finalizeFlowNow)
+        {
+            FinalizeBlockInterruptWithoutExchange();
+        }
     }
 
     private void RegisterAttackFlowContextForOnAction(
@@ -2623,6 +2719,26 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (unitsPendingSendToTrash.Contains(cardController))
+        {
+            return;
+        }
+
+        unitsPendingSendToTrash.Add(cardController);
+
+        if (attackFlowBlockRedirectUnit != null
+            && cardController == attackFlowBlockRedirectUnit
+            && cardController.Data != null
+            && cardController.Data.type == Type.Unit)
+        {
+            LogArgamaShieldBlockCloseCombatDebug(
+                "SendCardToTrash_Blocker",
+                "blocker entering trash pipeline",
+                attackFlowAttackerUnit,
+                cardController);
+            MarkBlockExchangeCancelled("Blocker entered trash during block flow.");
+        }
+
         if (cardController.Data.type == Type.Unit && cardController.MountedPilot != null)
         {
             SendCardToTrash(cardController.MountedPilot, ownerType);
@@ -2706,6 +2822,7 @@ public partial class BattleGameMain : MonoBehaviour
         enemyBattleZoneCards.Remove(cardController);
         playerHandCards.Remove(cardController.Data);
         enemyHandCards.Remove(cardController.Data);
+        unitsPendingSendToTrash.Remove(cardController);
         Destroy(cardController.gameObject);
         ReconcileShieldStateWithZone(ruleSide);
         RefreshAllHandsConditionalOnHandAuto();
@@ -2872,6 +2989,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             PlayerType targetOwner = ResolveCardOwner(target.transform);
+            NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
             SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, target));
             applied++;
         }
@@ -3266,9 +3384,135 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void CancelPendingUnitAttackFlow()
     {
+        FinishDeferredShieldAttackBlockFlow();
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         ClearAttackFlowContext();
+    }
+
+    /// <summary>シールド攻撃→ブロック OnAction 解決後にシールド攻撃フラグを片付ける（シールドダメージは再開しない）。</summary>
+    private void FinishDeferredShieldAttackBlockFlow()
+    {
+        if (!deferredShieldBlockRedirectWait)
+        {
+            return;
+        }
+
+        deferredShieldBlockRedirectWait = false;
+        isShieldAttackResolving = false;
+        blockShieldFlowDuringShieldAttack = false;
+        Debug.Log("[ShieldAttack] Block redirect flow settled — shield strike will not resume.");
+    }
+
+    /// <summary>ブロック戦前にブロッカーが消えた等で交換ダメージなしに攻撃フローを終了する（攻撃者は宣言時 REST のまま）。</summary>
+    private void CancelInterruptedBlockRedirectAttackFlow(string reason)
+    {
+        MarkBlockExchangeCancelled(reason, finalizeFlowNow: true);
+    }
+
+    private void BeginShieldAttackBlockRedirectFlow(CardController blocker)
+    {
+        deferredShieldBlockRedirectWait = true;
+        attackFlowBlockRedirectEngaged = true;
+        attackFlowBlockRedirectFromShieldStrike = true;
+        attackFlowBlockRedirectUnit = blocker;
+        LogArgamaShieldBlockCloseCombatDebug(
+            "BeginShieldBlockRedirect",
+            "shield attack redirected to block combat",
+            blocker: blocker);
+    }
+
+    private void NotifyBlockRedirectUnitRemovedDuringAttackFlow(CardController unit)
+    {
+        if (unit == null || attackFlowBlockRedirectUnit == null || unit != attackFlowBlockRedirectUnit)
+        {
+            LogArgamaShieldBlockCloseCombatDebug(
+                "NotifyBlockerRemovedSkipped",
+                unit == null
+                    ? "unit is null"
+                    : attackFlowBlockRedirectUnit == null
+                        ? "attackFlowBlockRedirectUnit is null"
+                        : $"picked:{FormatUnitDebugSnap(unit)} != redirect:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)}",
+                blocker: unit);
+            return;
+        }
+
+        LogArgamaShieldBlockCloseCombatDebug(
+            "NotifyBlockerRemoved",
+            $"blocker HP:{unit.CurrentHp} before MarkBlockExchangeCancelled",
+            blocker: unit);
+        MarkBlockExchangeCancelled("Blocker removed by effect during block OnAction.");
+    }
+
+    private bool ShouldAbortBlockRedirectCombatBeforeExchange(CardController blocker, string logContext)
+    {
+        if (blockExchangeCancelledForCurrentAttack)
+        {
+            FinalizeBlockInterruptWithoutExchange();
+            return true;
+        }
+
+        if (attackFlowBlockRedirectCombatVoided)
+        {
+            MarkBlockExchangeCancelled($"{logContext}: combat voided.", finalizeFlowNow: true);
+            return true;
+        }
+
+        if (!IsUnitAvailableForAttackExchange(blocker))
+        {
+            if (blocker != null)
+            {
+                TrashUnitIfDeadOnField(blocker, ResolveCardOwner(blocker.transform));
+            }
+
+            MarkBlockExchangeCancelled($"{logContext}: blocker unavailable.", finalizeFlowNow: true);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void TrashUnitIfDeadOnField(CardController unit, PlayerType owner, CardController destroyedBy = null)
+    {
+        if (unit == null || unit.Data == null || unit.CurrentHp > 0)
+        {
+            return;
+        }
+
+        if (unitsPendingSendToTrash.Contains(unit))
+        {
+            return;
+        }
+
+        SendCardToTrash(unit, owner, destroyedBy);
+    }
+
+    private bool IsUnitAvailableForAttackExchange(CardController c)
+    {
+        if (attackFlowBlockRedirectCombatVoided && c == attackFlowBlockRedirectUnit)
+        {
+            return false;
+        }
+
+        if (unitsPendingSendToTrash.Contains(c))
+        {
+            return false;
+        }
+
+        if (c == null || c.Data == null || c.Data.type != Type.Unit)
+        {
+            return false;
+        }
+
+        if (!playerBattleZoneCards.Contains(c) && !enemyBattleZoneCards.Contains(c))
+        {
+            return false;
+        }
+
+        return c.gameObject != null
+            && c.CurrentHp > 0
+            && (c.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
+                || c.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel));
     }
 
     /// <summary>OnAction 等の UI 後に、攻撃フロー文脈からユニット戦を再開する（破壊済み参照を避ける）。</summary>
@@ -3277,9 +3521,6 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attacker = attackFlowAttackerUnit != null
             ? attackFlowAttackerUnit
             : pendingUnitAttackAttacker;
-        CardController defender = attackFlowBlockRedirectUnit != null
-            ? attackFlowBlockRedirectUnit
-            : attackFlowDeclaredDefenderUnit;
 
         if (!IsCardControllerInstanceValid(attacker))
         {
@@ -3287,6 +3528,26 @@ public partial class BattleGameMain : MonoBehaviour
             CancelPendingUnitAttackFlow();
             return;
         }
+
+        if (attackFlowBlockRedirectEngaged)
+        {
+            if (!IsUnitAvailableForAttackExchange(attackFlowBlockRedirectUnit))
+            {
+                CancelInterruptedBlockRedirectAttackFlow("Blocker no longer on field after OnAction.");
+                return;
+            }
+
+            PlayerType blockOwner = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+            TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                attacker,
+                attackFlowBlockRedirectUnit,
+                attackFlowAttackerOwner,
+                blockOwner,
+                skipOnActionPause);
+            return;
+        }
+
+        CardController defender = attackFlowDeclaredDefenderUnit;
 
         if (!IsCardControllerInstanceValid(defender))
         {
@@ -3407,6 +3668,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (IsRestEnemyUnitTarget(clicked, attackerOwner))
         {
             PlayerType defenderOwner = ResolveCardOwner(clicked.transform);
+            CommitUnitAttackDeclaration(pendingUnitAttackAttacker, attackerOwner);
             TryUnitVsUnitAttack(pendingUnitAttackAttacker, clicked, attackerOwner, defenderOwner);
             return true;
         }
@@ -3511,6 +3773,7 @@ public partial class BattleGameMain : MonoBehaviour
                 Destroy(root);
 
                 PlayerType defenderOwner = ResolveCardOwner(selectedUnit.transform);
+                CommitUnitAttackDeclaration(attacker, attackerOwner);
                 if (TryOpenOnAttackEnemySelectionPanel(
                     attacker,
                     attackerOwner,
@@ -3911,11 +4174,34 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Damage:
                 {
                     int damageAmount = ResolveEffectDamageAmount(magnitude);
+                    bool logCloseCombat = attackFlowBlockRedirectFromShieldStrike
+                        && IsCloseCombatCard(sourceCard);
+                    if (logCloseCombat)
+                    {
+                        LogArgamaShieldBlockCloseCombatDebug(
+                            "CloseCombatBeforeDamage",
+                            $"rawMagnitude:{magnitude} resolvedDamage:{damageAmount} target:{FormatUnitDebugSnap(t)}",
+                            blocker: t,
+                            effectSource: sourceCard);
+                    }
+
                     t.ApplyDamage(damageAmount);
+
+                    if (logCloseCombat)
+                    {
+                        LogArgamaShieldBlockCloseCombatDebug(
+                            "CloseCombatAfterDamage",
+                            $"targetAfter:{FormatUnitDebugSnap(t)} willNotifyAndTrash:{t.CurrentHp <= 0}",
+                            blocker: t,
+                            effectSource: sourceCard);
+                    }
+
                     if (t.CurrentHp <= 0)
                     {
+                        NotifyBlockRedirectUnitRemovedDuringAttackFlow(t);
                         SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
                     }
+
                     break;
                 }
                 case EffectType.Buff:
@@ -3992,8 +4278,8 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // シールド攻撃は攻撃可能フラグ(True)のみで判定する。
-        if (attacker.AttackFlgState != AttackFlg.True)
+        // シールド攻撃は攻撃可能フラグ(True)のみで判定する（宣言済みの OnAttack/OnAction 再開時は除く）。
+        if (!skipOnAttackSelection && attacker.AttackFlgState != AttackFlg.True)
         {
             Debug.Log("This unit cannot attack.");
             return;
@@ -4019,8 +4305,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (attacker.CurrentHp <= 0)
         {
             Debug.Log("[ShieldAttack] HP is 0 — consume attack and set REST.");
-            attacker.SetAttackFlg(AttackFlg.False);
-            SetUnitRestAndTriggerEffects(attacker, attackerOwner);
+            CommitUnitAttackDeclaration(attacker, attackerOwner);
             pendingUnitAttackAttacker = null;
             pendingOnAttackEffectResolvedAttacker = null;
             return;
@@ -4055,6 +4340,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         try
         {
+            CommitUnitAttackDeclaration(attacker, attackerOwner);
+
             // シールド攻撃時も OnAttack の対象選択効果を先に解決する。
             if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
             {
@@ -4087,8 +4374,8 @@ public partial class BattleGameMain : MonoBehaviour
                     out PlayerType autoBlockOwnerFromShield)
                 && autoBlockFromShield != null)
             {
-                attackFlowBlockRedirectUnit = autoBlockFromShield;
                 Debug.Log($"[ShieldToUnit] AI auto redirect to {autoBlockFromShield.Data.cardName}");
+                BeginShieldAttackBlockRedirectFlow(autoBlockFromShield);
                 TryResolveBlockRedirectUnitCombatWithOnActionSteps(
                     attacker,
                     autoBlockFromShield,
@@ -4119,7 +4406,7 @@ public partial class BattleGameMain : MonoBehaviour
                                     selectedDefenderFromShieldPanel,
                                     attacker,
                                     selectedDefenderOwner);
-                                attackFlowBlockRedirectUnit = selectedDefenderFromShieldPanel;
+                                BeginShieldAttackBlockRedirectFlow(selectedDefenderFromShieldPanel);
                                 Debug.Log(
                                     $"[ShieldToUnit] redirect to unit battle defender:{selectedDefenderFromShieldPanel.Data.cardName}");
                                 TryResolveBlockRedirectUnitCombatWithOnActionSteps(
@@ -4142,6 +4429,13 @@ public partial class BattleGameMain : MonoBehaviour
             }
             
 
+            if (shieldStrikeAbortedAfterBlockInterrupt || deferredShieldBlockRedirectWait || blockExchangeCancelledForCurrentAttack)
+            {
+                Debug.Log("[ShieldAttack] Shield strike skipped — block redirect flow interrupted or pending.");
+                FinalizeBlockInterruptWithoutExchange();
+                return;
+            }
+
             RegisterAttackFlowContextForOnAction(
                 attacker,
                 attackerOwner,
@@ -4153,7 +4447,16 @@ public partial class BattleGameMain : MonoBehaviour
                 && TryRunAttackActionSteps(
                     attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
                     attackerOwner,
-                    () => TryUnitShieldAttackFromUnit(attacker, true, true, true),
+                    () =>
+                    {
+                        if (blockExchangeCancelledForCurrentAttack || shieldStrikeAbortedAfterBlockInterrupt)
+                        {
+                            FinalizeBlockInterruptWithoutExchange();
+                            return;
+                        }
+
+                        TryUnitShieldAttackFromUnit(attacker, true, true, true);
+                    },
                     attacker))
             {
                 return;
@@ -4162,8 +4465,6 @@ public partial class BattleGameMain : MonoBehaviour
             if (attacker.CurrentPower <= 0)
             {
                 Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or direct attack.");
-                attacker.SetAttackFlg(AttackFlg.False);
-                SetUnitRestAndTriggerEffects(attacker, attackerOwner);
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
                 ClearAttackFlowContext();
@@ -4173,8 +4474,6 @@ public partial class BattleGameMain : MonoBehaviour
             if (!gundamRule.HasShieldZoneProtection(targetSide))
             {
                 Debug.Log($"[DirectAttack] No shield zone protection. Resolving direct attack. attackPower:{attacker.CurrentPower}");
-                attacker.SetAttackFlg(AttackFlg.False);
-                SetUnitRestAndTriggerEffects(attacker, attackerOwner);
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
                 HandleDirectAttackWinLose(attackerOwner);
@@ -4214,7 +4513,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
         finally
         {
-            if (!deferredShieldBreakWait)
+            if (!deferredShieldBreakWait && !deferredShieldBlockRedirectWait)
             {
                 isShieldAttackResolving = false;
                 if (hadExBaseLayerAtShieldAttackStart)
@@ -4230,8 +4529,6 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner,
         string shieldStrikeLog)
     {
-        attacker.SetAttackFlg(AttackFlg.False);
-        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
         if (!string.IsNullOrEmpty(shieldStrikeLog))
         {
             Debug.Log(shieldStrikeLog);
@@ -4326,6 +4623,12 @@ public partial class BattleGameMain : MonoBehaviour
         out string logMessage)
     {
         logMessage = null;
+        if (blockExchangeCancelledForCurrentAttack || shieldStrikeAbortedAfterBlockInterrupt)
+        {
+            Debug.Log("[ShieldAttack] Shield strike skipped — block exchange was cancelled for this attack.");
+            return false;
+        }
+
         if (attacker == null || defender == null || gundamRule == null)
         {
             return false;
@@ -4399,6 +4702,30 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         unit.SetUnitRestVisual(true);
+    }
+
+    /// <summary>攻撃対象確定（宣言）時に攻撃権を消費してレストする。中断・不成立時も ACTIVE に戻さない。</summary>
+    private void CommitUnitAttackDeclaration(CardController attacker, PlayerType attackerOwner)
+    {
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null)
+        {
+            return;
+        }
+
+        if (attacker.AttackFlgState == AttackFlg.False && attacker.IsRestState)
+        {
+            return;
+        }
+
+        if (attacker.AttackFlgState == AttackFlg.True)
+        {
+            blockExchangeCancelledForCurrentAttack = false;
+            shieldStrikeAbortedAfterBlockInterrupt = false;
+        }
+
+        attacker.SetAttackFlg(AttackFlg.False);
+        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
+        Debug.Log($"[AttackDeclare] {attacker.Data.cardName} attack declared — REST + attack right consumed.");
     }
 
     /// <summary>シールドゾーンから OnRest できるのは、表向き（裏面カバーなし）のベースのみ。</summary>
@@ -4531,6 +4858,8 @@ public partial class BattleGameMain : MonoBehaviour
             attackFlowBlockRedirectUnit = null;
         }
 
+        CommitUnitAttackDeclaration(attacker, attackerOwner);
+
         RegisterAttackFlowContextForOnAction(
             attacker,
             attackerOwner,
@@ -4545,9 +4874,9 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // 敵 AI のスコア中止は TryEnemyShieldAttacks およびシールド→ブロック直前のみ（バトル開始後は判定しない。中止時は REST も付けない）。
+        // 敵 AI のスコア中止は TryEnemyShieldAttacks およびシールド→ブロック直前のみ（バトル開始後は判定しない。宣言前のみ有効）。
 
-        // 攻撃対象確定後に、OnAttackの対象選択(デバフ等)を行う。
+        // 攻撃宣言後に、OnAttackの対象選択(デバフ等)を行う。
         if (pendingOnAttackEffectResolvedAttacker != attacker)
         {
             // 効果適用するためのカードを選択するUI生成
@@ -4574,6 +4903,7 @@ public partial class BattleGameMain : MonoBehaviour
             && autoBlockUnit != null)
         {
             attackFlowBlockRedirectUnit = autoBlockUnit;
+            attackFlowBlockRedirectEngaged = true;
             defender = autoBlockUnit;
             defenderOwner = autoBlockOwner;
         }
@@ -4619,6 +4949,18 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (attackFlowBlockRedirectEngaged && attackFlowBlockRedirectUnit != null)
+        {
+            PlayerType blockOwner = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+            TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                attacker,
+                attackFlowBlockRedirectUnit,
+                attackerOwner,
+                blockOwner,
+                skipOnActionPause);
+            return;
+        }
+
         if (attackFlowBlockRedirectUnit != null && defender != null && defender == attackFlowBlockRedirectUnit)
         {
             TryResolveBlockRedirectUnitCombatWithOnActionSteps(attacker, defender, attackerOwner, defenderOwner);
@@ -4642,17 +4984,15 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         // 基本ルール: ユニットはレスト状態の相手ユニットのみ攻撃できる。
-        if (!defender.IsRestState)
+        if (attackFlowBlockRedirectEngaged)
         {
-            Debug.Log("Only REST units can be attacked.");
-            ClearAttackFlowContext();
+            CancelInterruptedBlockRedirectAttackFlow("Block redirect active — refusing undeclared unit exchange.");
             return;
         }
 
-        // 攻撃側は攻撃可能フラグ(True)で判定する。
-        if (attacker.AttackFlgState != AttackFlg.True)
+        if (!defender.IsRestState)
         {
-            Debug.Log("This unit cannot attack.");
+            Debug.Log("Only REST units can be attacked.");
             ClearAttackFlowContext();
             return;
         }
@@ -4671,8 +5011,6 @@ public partial class BattleGameMain : MonoBehaviour
         attacker.ApplyDamage(defenderPowerForCombat);
         int defenderHpAfterExchange = defender.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
-        attacker.SetAttackFlg(AttackFlg.False);
-        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
 
         if (defender.CurrentHp <= 0)
         {
@@ -4717,41 +5055,99 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType blockerOwner,
         bool skipOnActionPause = false)
     {
-        if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(blocker)
-            || attacker.Data == null || blocker.Data == null)
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null)
         {
             CancelPendingUnitAttackFlow();
             return;
         }
 
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Before block OnAction"))
+        {
+            LogArgamaShieldBlockCloseCombatDebug("TryResolveBlock_AbortBeforeOnAction", "ShouldAbort before OnAction", attacker, blocker);
+            return;
+        }
+
+        attackFlowBlockRedirectEngaged = true;
         attackFlowBlockRedirectUnit = blocker;
         RegisterAttackFlowContextForOnAction(
             attacker,
             attackerOwner,
-            AttackFlowStrikeKind.UnitVsUnit,
-            blocker,
-            attackFlowBlockRedirectUnit);
+            attackFlowBlockRedirectFromShieldStrike ? AttackFlowStrikeKind.Shield : AttackFlowStrikeKind.UnitVsUnit,
+            attackFlowBlockRedirectFromShieldStrike ? null : blocker,
+            blocker);
 
-        if (!skipOnActionPause
-            && TryRunAttackActionSteps(
+        if (!skipOnActionPause)
+        {
+            LogArgamaShieldBlockCloseCombatDebug(
+                "TryResolveBlock_StartOnAction",
+                $"skipOnActionPause:false blockerOwner:{blockerOwner} attackerOwner:{attackerOwner}",
+                attacker,
+                blocker);
+
+            if (TryRunAttackActionSteps(
                 blockerOwner,
                 attackerOwner,
                 () =>
                 {
-                    RegisterAttackFlowContextForOnAction(
-                        attacker,
-                        attackerOwner,
-                        AttackFlowStrikeKind.UnitVsUnit,
-                        blocker,
-                        attackFlowBlockRedirectUnit);
-                    TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    LogArgamaShieldBlockCloseCombatDebug(
+                        "TryResolveBlock_OnActionComplete",
+                        $"callback entered cancelled:{blockExchangeCancelledForCurrentAttack}",
                         attackFlowAttackerUnit,
-                        attackFlowBlockRedirectUnit,
+                        attackFlowBlockRedirectUnit);
+
+                    if (blockExchangeCancelledForCurrentAttack)
+                    {
+                        FinalizeBlockInterruptWithoutExchange();
+                        return;
+                    }
+
+                    CardController resumeAttacker = attackFlowAttackerUnit;
+                    CardController resumeBlocker = attackFlowBlockRedirectUnit;
+                    if (!IsCardControllerInstanceValid(resumeAttacker))
+                    {
+                        LogArgamaShieldBlockCloseCombatDebug(
+                            "TryResolveBlock_OnActionComplete",
+                            "resumeAttacker invalid — finalize",
+                            resumeAttacker,
+                            resumeBlocker);
+                        FinalizeBlockInterruptWithoutExchange();
+                        return;
+                    }
+
+                    LogArgamaShieldBlockCloseCombatDebug(
+                        "TryResolveBlock_ResumeAfterOnAction",
+                        $"resume exchange blockerAlive:{IsUnitAvailableForAttackExchange(resumeBlocker)}",
+                        resumeAttacker,
+                        resumeBlocker);
+
+                    TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                        resumeAttacker,
+                        resumeBlocker,
                         attackFlowAttackerOwner,
-                        ResolveCardOwner(attackFlowBlockRedirectUnit.transform),
+                        ResolveCardOwner(resumeBlocker.transform),
                         skipOnActionPause: true);
                 },
                 attacker))
+            {
+                return;
+            }
+
+            LogArgamaShieldBlockCloseCombatDebug(
+                "TryResolveBlock_OnActionSkippedSync",
+                "OnAction not paused — inner resume already ran synchronously",
+                attacker,
+                blocker);
+            // OnAction 不要時は onComplete が同期的に skipOnActionPause 再入済み。
+            return;
+        }
+
+        LogArgamaShieldBlockCloseCombatDebug(
+            "TryResolveBlock_BeforeExchange",
+            $"skipOnActionPause:true blockerAlive:{IsUnitAvailableForAttackExchange(blocker)}",
+            attacker,
+            blocker);
+
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Before block exchange"))
         {
             return;
         }
@@ -4770,30 +5166,65 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner,
         PlayerType blockerOwner)
     {
-        if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(blocker)
-            || attacker.Data == null || blocker.Data == null)
+        if (blockExchangeCancelledForCurrentAttack)
+        {
+            Debug.Log("[BlockCombat] Exchange skipped — blockExchangeCancelledForCurrentAttack.");
+            LogArgamaShieldBlockCloseCombatDebug(
+                "ExecuteBlockRedirect_EntrySkip",
+                "exchange skipped at entry (cancel flag set)",
+                attacker,
+                blocker);
+            TrashUnitIfDeadOnField(blocker, blockerOwner, attacker);
+            TrashUnitIfDeadOnField(attacker, attackerOwner);
+            FinalizeBlockInterruptWithoutExchange();
+            return;
+        }
+
+        LogArgamaShieldBlockCloseCombatDebug(
+            "ExecuteBlockRedirect_Entry",
+            "exchange resolution starting",
+            attacker,
+            blocker);
+
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null)
         {
             CancelPendingUnitAttackFlow();
             return;
         }
 
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "At block combat resolution"))
+        {
+            return;
+        }
+
+        if (!IsUnitAvailableForAttackExchange(blocker))
+        {
+            TrashUnitIfDeadOnField(blocker, blockerOwner, attacker);
+            MarkBlockExchangeCancelled("Blocker not alive at exchange resolution.", finalizeFlowNow: true);
+            return;
+        }
+
         if (attacker.Data.type != Type.Unit || blocker.Data.type != Type.Unit)
         {
+            CancelInterruptedBlockRedirectAttackFlow("Invalid unit type for block combat.");
             return;
         }
 
         if (currentPhase != BattlePhase.MainPhase)
         {
             Debug.LogWarning("[BlockCombat] skipped: not MainPhase.");
+            CancelInterruptedBlockRedirectAttackFlow("Not MainPhase.");
             return;
         }
 
-        if (attacker.CurrentHp <= 0 || blocker.CurrentHp <= 0)
+        if (!IsUnitAvailableForAttackExchange(attacker))
         {
-            Debug.LogWarning("[BlockCombat] skipped: attacker or blocker HP is 0.");
+            TrashUnitIfDeadOnField(attacker, attackerOwner);
+            CancelPendingUnitAttackFlow();
             return;
         }
 
+        attackFlowBlockRedirectEngaged = true;
         attackFlowBlockRedirectUnit = blocker;
         RegisterAttackFlowContextForOnAction(
             attacker,
@@ -4807,22 +5238,49 @@ public partial class BattleGameMain : MonoBehaviour
             attackerOwner,
             blocker,
             out int attackerPowerForCombat,
-            out int blockerPowerForCombat);
+            out int blockerPowerForCombat,
+            applyOnAttackPairEffects: !attackFlowBlockRedirectFromShieldStrike);
         int blockerHpBeforeExchange = blocker.CurrentHp;
         int attackerHpBeforeExchange = attacker.CurrentHp;
 
         Debug.Log(
             $"[BlockCombat] {attacker.Data.cardName}(strikeAP:{attackerPowerForCombat}) vs {blocker.Data.cardName}(strikeAP:{blockerPowerForCombat}) "
-            + $"owners attacker:{attackerOwner} blocker:{blockerOwner} note:OnActionデバフ後のCurrentPowerを使用(最低1強制なし)");
+            + $"owners attacker:{attackerOwner} blocker:{blockerOwner} note:OnActionデバフ後のCurrentPowerを使用(最低1強制なし)"
+            + (attackFlowBlockRedirectFromShieldStrike ? " shieldOriginBlock:true" : string.Empty));
+
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Immediately before block exchange"))
+        {
+            return;
+        }
+
+        if (blockExchangeCancelledForCurrentAttack)
+        {
+            TrashUnitIfDeadOnField(blocker, blockerOwner, attacker);
+            TrashUnitIfDeadOnField(attacker, attackerOwner);
+            FinalizeBlockInterruptWithoutExchange();
+            return;
+        }
+
+        // 交換開始時点でブロッカーが生存している場合は相互ダメージ（同時解決）。
+        LogArgamaShieldBlockCloseCombatDebug(
+            "ExecuteBlockRedirect_ApplyExchangeDamage",
+            $"BEFORE exchange attackerHP:{attackerHpBeforeExchange} blockerHP:{blockerHpBeforeExchange} "
+            + $"attackerAP:{attackerPowerForCombat} blockerAP:{blockerPowerForCombat}",
+            attacker,
+            blocker);
 
         blocker.ApplyDamage(attackerPowerForCombat);
         attacker.ApplyDamage(blockerPowerForCombat);
 
+        LogArgamaShieldBlockCloseCombatDebug(
+            "ExecuteBlockRedirect_AfterExchangeDamage",
+            $"AFTER exchange attackerHP:{attacker.CurrentHp} blockerHP:{blocker.CurrentHp}",
+            attacker,
+            blocker);
+
         int blockerHpAfterExchange = blocker.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
 
-        attacker.SetAttackFlg(AttackFlg.False);
-        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
         SetUnitRestAndTriggerEffects(blocker, blockerOwner);
 
         if (blocker.CurrentHp <= 0)
@@ -4852,6 +5310,7 @@ public partial class BattleGameMain : MonoBehaviour
             attackerHpAfterExchange,
             blockerHpAfterExchange);
         LogAttackPostBattleFieldCompact(attacker, attackerOwner);
+        FinishDeferredShieldAttackBlockFlow();
         ClearAttackFlowContext();
     }
 
@@ -4926,12 +5385,16 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner,
         CardController defender,
         out int attackerStrikePower,
-        out int defenderStrikePower)
+        out int defenderStrikePower,
+        bool applyOnAttackPairEffects = true)
     {
         int defenderPowerBeforeOnAttackResolve = defender != null ? defender.CurrentPower : 0;
         int attackerPowerBeforeOnAttackResolve = attacker != null ? attacker.CurrentPower : 0;
 
-        ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
+        if (applyOnAttackPairEffects)
+        {
+            ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
+        }
 
         attackerStrikePower = GetUnitStrikeDamagePower(attacker);
         defenderStrikePower = GetUnitStrikeDamagePower(defender);
@@ -5137,6 +5600,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         ApplyDefenderOnAttackReactionEffects(blocker, attacker, blockerOwner);
         attackFlowBlockRedirectUnit = blocker;
+        attackFlowBlockRedirectEngaged = true;
         defender = blocker;
         defenderOwner = blockerOwner;
         Debug.Log(
@@ -9549,6 +10013,11 @@ public partial class BattleGameMain : MonoBehaviour
         bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
         string title = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
         string effectSummary = effect != null ? effect.FormatEffectSelectionSummary() : string.Empty;
+        CardController blockRedirectUnit = isAttackContext
+            && attackFlowBlockRedirectEngaged
+            && IsCardControllerInstanceValid(attackFlowBlockRedirectUnit)
+            ? attackFlowBlockRedirectUnit
+            : null;
 
         OpenCommandWithTargetsSelectionUI(
             title,
@@ -9576,6 +10045,18 @@ public partial class BattleGameMain : MonoBehaviour
                 string detail =
                     $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{picked.Data.cardName}(id:{picked.Data.id})";
                 List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { picked });
+
+                if (IsCloseCombatCard(command) && attackFlowBlockRedirectFromShieldStrike)
+                {
+                    LogArgamaShieldBlockCloseCombatDebug(
+                        "CloseCombatOnActionPick",
+                        $"side:{side} {detail} redirectBlocker:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)} "
+                        + $"pickedIsBlocker:{picked == attackFlowBlockRedirectUnit}",
+                        attackFlowAttackerUnit,
+                        attackFlowBlockRedirectUnit,
+                        command);
+                }
+
                 ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { picked });
                 if (attackingUnitInAttackFlow != null && picked == attackingUnitInAttackFlow)
                 {
@@ -9598,7 +10079,8 @@ public partial class BattleGameMain : MonoBehaviour
                     pickedForEval);
                 onDone?.Invoke();
             },
-            onDone);
+            onDone,
+            blockRedirectUnit);
     }
 
     private bool TryAddOnMainEffectApplyButton(

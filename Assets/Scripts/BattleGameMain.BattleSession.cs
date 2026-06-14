@@ -156,6 +156,9 @@ public partial class BattleGameMain
         isTurnPhaseSequenceRunning = false;
         isEnemyMainPhaseCoroutineRunning = false;
         blockShieldFlowDuringShieldAttack = false;
+        deferredShieldBlockRedirectWait = false;
+        shieldStrikeAbortedAfterBlockInterrupt = false;
+        blockExchangeCancelledForCurrentAttack = false;
         burstDeployBasePreferSourceCard = false;
         burstEffectResolutionDepth = 0;
         ClearAttackFlowContext();
