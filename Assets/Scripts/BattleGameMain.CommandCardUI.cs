@@ -230,7 +230,8 @@ public partial class BattleGameMain
         RectTransform content,
         CardController target,
         bool highlightAsAttackingUnit,
-        System.Action<CardController> onPicked)
+        System.Action<CardController> onPicked,
+        string roleLabel = null)
     {
         if (content == null || target == null || target.Data == null || CardImagePrefab == null)
         {
@@ -248,6 +249,17 @@ public partial class BattleGameMain
             ? new Color(1f, 0.35f, 0.35f, 1f)
             : Color.white;
         AppendCardLiveStatOverlay(go, target, statColor);
+
+        if (!string.IsNullOrEmpty(roleLabel))
+        {
+            TextMeshProUGUI tag = go.CreateChildTextCustom("RoleTag", UIAnchor.TopCenter, 108, 20);
+            tag.text = roleLabel;
+            tag.fontSize = 12;
+            tag.fontStyle = FontStyles.Bold;
+            tag.color = new Color(1f, 0.88f, 0.35f, 1f);
+            tag.alignment = TextAlignmentOptions.Center;
+            tag.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -6f);
+        }
 
         if (highlightAsAttackingUnit)
         {
@@ -276,7 +288,8 @@ public partial class BattleGameMain
         List<CardController> targetCandidates,
         CardController attackingUnitInAttackFlow,
         System.Action<CardController> onTargetPicked,
-        System.Action onCancel)
+        System.Action onCancel,
+        CardController blockRedirectUnitInAttackFlow = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null || sourceCard == null || sourceCard.Data == null || CardImagePrefab == null)
@@ -352,6 +365,9 @@ public partial class BattleGameMain
             {
                 CardController candidate = targetCandidates[i];
                 bool highlight = showAttackContext && candidate == attackingUnitInAttackFlow;
+                string roleLabel = blockRedirectUnitInAttackFlow != null && candidate == blockRedirectUnitInAttackFlow
+                    ? "Blocked"
+                    : null;
                 AppendSelectableTargetCardToGrid(
                     content,
                     candidate,
@@ -362,7 +378,8 @@ public partial class BattleGameMain
                         activeOnActionPopupRoot = null;
                         isOnActionPopupOpen = false;
                         onTargetPicked?.Invoke(picked);
-                    });
+                    },
+                    roleLabel);
             }
         }
 

@@ -10,38 +10,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 41Argama
+  m_Name: 52Zoloat (League Militaire)
   m_EditorClassIdentifier: 
-  id: 41
-  cardName: Argama
-  cost: 1
-  level: 3
-  power: 0
-  hp: 5
-  imageName: {fileID: 21300000, guid: 0d37b7b17f091ca4e84eb7695d389d1c, type: 3}
+  id: 52
+  cardName: Zoloat (League Militaire)
+  cost: 2
+  level: 2
+  power: 3
+  hp: 2
+  imageName: {fileID: 21300000, guid: 05439dc25a08a324b8b8456ab6e908ef, type: 3}
   image: {fileID: 0}
-  version: 2
+  version: 1
   sourceType: 2
   filterType: 0
   color: 5
-  type: 3
+  type: 0
   attackFlg: 0
-  timedEffects:
-  - timing: 5
-    activationConditions: []
-    effectsName: DeployBase1_OnBurst
-    effects: []
-  - timing: 6
-    activationConditions: []
-    effectsName: AddShield1_OnBaseDeployed
-    effects: []
+  timedEffects: []
   features: []
-  link:
-  - pilotCardId: 0
-    pilotFeatures: []
-    pilotFeatureIds: 
+  link: []
   pilotMountOnPilotMountedSource: 0
-  pilotMountOnPilotMountedOrder: 1
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 1
-  isNotDirectAttack: 0
+  isNotDirectAttack: 1
   isShieldToken: 0
