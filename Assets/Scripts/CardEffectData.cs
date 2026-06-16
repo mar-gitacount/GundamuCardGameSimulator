@@ -66,6 +66,7 @@ public enum EffectType
 public enum TargetType
 {
     Self,
+    /// <summary>味方バトルゾーンの生存ユニット1体（自身または他味方のいずれか。手動選択で1体のみ）。</summary>
     AllyUnit,
     EnemyUnit,
     AllyAllUnits,
@@ -163,7 +164,7 @@ public enum EffectStatTarget
     Cost,
     Level,
     Both,
-    /// <summary>戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。盤面全体に常時適用）。</summary>
+    /// <summary>戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。対象カード自身が受ける効果ダメージのみ）。</summary>
     EffectDamage,
     /// <summary>効果ダメージを完全無効化（Buff で付与。対象カード自身が受ける効果ダメージのみ0）。</summary>
     EffectDamageImmunity
