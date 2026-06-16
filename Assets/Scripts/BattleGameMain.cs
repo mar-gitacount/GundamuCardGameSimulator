@@ -6989,8 +6989,7 @@ public partial class BattleGameMain : MonoBehaviour
                     Gundam2024RuleScript.PlayerSide targetSide = effect.target == TargetType.EnemyPlayer
                         ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
                         : ToRuleSide(ownerType);
-                    int areaDamage = ResolveEffectDamageAmount(magnitude);
-                    ApplyEffectDamageToPlayerArea(targetSide, areaDamage);
+                    ApplyEffectDamageToPlayerArea(targetSide, magnitude);
                 }
                 Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");
                 break;
@@ -7082,7 +7081,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// 効果ダメージ（EffectType.Damage 等）の実際の与ダメージ量。戦闘交換には使わない。
-    /// 無効化は effectDamageTarget 自身のみ。盤面全体の EffectDamage 修飾は別途合算する。
+    /// 無効化・修飾は effectDamageTarget 自身のレイヤーのみ適用する。
     /// </summary>
     private int ResolveEffectDamageAmount(int baseMagnitude, CardController effectDamageTarget = null)
     {
@@ -7091,7 +7090,8 @@ public partial class BattleGameMain : MonoBehaviour
             return 0;
         }
 
-        return Mathf.Max(0, baseMagnitude + GetGlobalEffectDamageModifierFromLiveField());
+        int modifier = effectDamageTarget != null ? effectDamageTarget.CurrentEffectDamageModifier : 0;
+        return Mathf.Max(0, baseMagnitude + modifier);
     }
 
     private int ResolveEffectDamageAmountForVirtualPlayerLog(
@@ -7108,68 +7108,12 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 return 0;
             }
+
+            int modifier = snap != null ? snap.EffectDamageMod : effectDamageTarget.CurrentEffectDamageModifier;
+            return Mathf.Max(0, baseMagnitude + modifier);
         }
 
-        return Mathf.Max(0, baseMagnitude + GetGlobalEffectDamageModifierForVirtualPlayerLog(workingPlayerOverrides));
-    }
-
-    /// <summary>両バトルゾーン上の EffectDamage 修飾合計（常時適用）。</summary>
-    private int GetGlobalEffectDamageModifierFromLiveField()
-    {
-        return SumBattleZoneEffectDamageModifier(playerBattleZoneCards)
-            + SumBattleZoneEffectDamageModifier(enemyBattleZoneCards);
-    }
-
-    /// <summary>プレイヤー仮想ログ用。プレイヤー側は working の仮想値、敵側は本番盤面から合算。</summary>
-    private int GetGlobalEffectDamageModifierForVirtualPlayerLog(List<VirtualPlayerUnitSnap> workingPlayerOverrides)
-    {
-        int sum = SumBattleZoneEffectDamageModifier(enemyBattleZoneCards);
-        if (playerBattleZoneCards == null)
-        {
-            return sum;
-        }
-
-        for (int i = 0; i < playerBattleZoneCards.Count; i++)
-        {
-            CardController c = playerBattleZoneCards[i];
-            if (c == null)
-            {
-                continue;
-            }
-
-            VirtualPlayerUnitSnap snap = workingPlayerOverrides != null
-                ? FindPlayerVirtualSnap(workingPlayerOverrides, c)
-                : null;
-            sum += snap != null ? snap.EffectDamageMod : c.CurrentEffectDamageModifier;
-        }
-
-        return sum;
-    }
-
-    private int SumBattleZoneEffectDamageModifier(PlayerType side)
-    {
-        List<CardController> zone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
-        return SumBattleZoneEffectDamageModifier(zone);
-    }
-
-    private static int SumBattleZoneEffectDamageModifier(List<CardController> zone)
-    {
-        if (zone == null)
-        {
-            return 0;
-        }
-
-        int sum = 0;
-        for (int i = 0; i < zone.Count; i++)
-        {
-            CardController c = zone[i];
-            if (c != null)
-            {
-                sum += c.CurrentEffectDamageModifier;
-            }
-        }
-
-        return sum;
+        return Mathf.Max(0, baseMagnitude);
     }
 
     private List<CardController> ResolveEffectTargets(
@@ -7876,22 +7820,6 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private static int SumVirtualBattleEffectDamageModifier(List<VirtualBattleUnitSnap> working)
-    {
-        if (working == null)
-        {
-            return 0;
-        }
-
-        int sum = 0;
-        for (int i = 0; i < working.Count; i++)
-        {
-            sum += working[i].EffectDamageMod;
-        }
-
-        return sum;
-    }
-
     private static int ResolveVirtualEffectDamageAmount(
         int baseMagnitude,
         List<VirtualBattleUnitSnap> working,
@@ -7902,7 +7830,8 @@ public partial class BattleGameMain : MonoBehaviour
             return 0;
         }
 
-        return Mathf.Max(0, baseMagnitude + SumVirtualBattleEffectDamageModifier(working));
+        int modifier = effectDamageTarget != null ? effectDamageTarget.EffectDamageMod : 0;
+        return Mathf.Max(0, baseMagnitude + modifier);
     }
 
     private static void ApplyVirtualBattleEffectToTargetsOnSnaps(
@@ -10233,6 +10162,7 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case TargetType.AllyUnit:
                 AddAllAliveUnits(allies, result, null, requiredFeatures);
+                EnsureAllyUnitSelfInCandidateList(sourceCard, result, requiredFeatures);
                 break;
             case TargetType.AllyOtherUnit:
                 AddAllAliveUnits(allies, result, sourceCard, requiredFeatures);
@@ -10276,9 +10206,50 @@ public partial class BattleGameMain : MonoBehaviour
                 : "REST — 対象ユニットを選択";
         }
 
+        if (effect.target == TargetType.AllyUnit)
+        {
+            return isAttackContext
+                ? $"味方ユニット1体を選択（自身または他ユニット・{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
+                : "味方ユニット1体を選択（自身または他ユニット）";
+        }
+
+        if (effect.target == TargetType.AllyOtherUnit)
+        {
+            return isAttackContext
+                ? $"味方ユニット1体を選択（自身以外・{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
+                : "味方ユニット1体を選択（自身以外）";
+        }
+
         return isAttackContext
             ? $"OnAction — 対象を選択（攻撃中: {attackingUnitInAttackFlow.Data.cardName}）"
             : "OnAction — 対象を選択";
+    }
+
+    private static bool IsValidAllyUnitSelfTarget(
+        CardController sourceCard,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        return sourceCard != null
+            && sourceCard.Data != null
+            && sourceCard.Data.type == Type.Unit
+            && sourceCard.CurrentHp > 0
+            && MatchesRequiredFeatures(sourceCard.Data, requiredFeatures);
+    }
+
+    private void EnsureAllyUnitSelfInCandidateList(
+        CardController sourceCard,
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (result == null
+            || !IsValidAllyUnitSelfTarget(sourceCard, requiredFeatures)
+            || !IsCardOnBattleZone(sourceCard)
+            || result.Contains(sourceCard))
+        {
+            return;
+        }
+
+        result.Insert(0, sourceCard);
     }
 
     private bool IsCardOnBattleZone(CardController card)
