@@ -6,6 +6,7 @@ public partial class BattleGameMain
 {
     private const int EnemyAiPlayerBoardThreatForOnActionReserve = 8;
     private const int EnemyAiMinDeployUnitBenefit = 1;
+    private const int EnemyAiForceDeployOnlyHandPlayBenefit = 0;
 
     private struct EnemyAiDeployResourceBudget
     {
@@ -180,7 +181,13 @@ public partial class BattleGameMain
     private bool TryEnemyDeployBestUnitFromHand(EnemyAiDeployResourceBudget reserve)
     {
         Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Enemy;
-        List<CardController> candidates = CollectEnemyDeployableUnitsFromHand(side, reserve);
+        EnemyAiDeployResourceBudget noReserve = default;
+        List<CardController> candidatesWithoutReserve = CollectEnemyDeployableUnitsFromHand(side, noReserve);
+        bool forceOnlyHandDeploy = ShouldEnemyForceDeployUnitAsOnlyHandPlay(candidatesWithoutReserve);
+        EnemyAiDeployResourceBudget effectiveReserve = forceOnlyHandDeploy ? noReserve : reserve;
+        List<CardController> candidates = forceOnlyHandDeploy
+            ? candidatesWithoutReserve
+            : CollectEnemyDeployableUnitsFromHand(side, reserve);
         if (candidates.Count == 0)
         {
             return false;
@@ -199,7 +206,25 @@ public partial class BattleGameMain
             }
         }
 
-        if (best == null || bestBenefit < EnemyAiMinDeployUnitBenefit)
+        if (forceOnlyHandDeploy)
+        {
+            CardController forced = PickEnemyForceDeployUnitCandidate(candidates);
+            if (forced != null)
+            {
+                best = forced;
+                bestBenefit = ScoreEnemyDeployUnitVirtualBenefit(forced);
+            }
+        }
+
+        if (best == null)
+        {
+            return false;
+        }
+
+        int requiredBenefit = forceOnlyHandDeploy
+            ? EnemyAiForceDeployOnlyHandPlayBenefit
+            : EnemyAiMinDeployUnitBenefit;
+        if (bestBenefit < requiredBenefit)
         {
             return false;
         }
@@ -212,9 +237,146 @@ public partial class BattleGameMain
         SendCardToField(best, PlayerType.Enemy, enemyCardGameRule);
         SyncResourceViewsFromRule(side);
         Debug.Log(
-            $"[Enemy] ユニット配備: {best.Data.cardName}(lv:{best.CurrentLevel} cost:{best.CurrentCost} benefit:{bestBenefit} "
-            + $"enemyLv:{gundamRule.Enemy.TotalLevel} res:{gundamRule.Enemy.resource} reserveLeft:{reserve.ResourceToKeep})");
+            forceOnlyHandDeploy
+                ? $"[Enemy] ユニット配備(手札の唯一の行動): {best.Data.cardName}(lv:{best.CurrentLevel} cost:{best.CurrentCost} benefit:{bestBenefit} "
+                  + $"enemyLv:{gundamRule.Enemy.TotalLevel} res:{gundamRule.Enemy.resource} reserveLeft:{effectiveReserve.ResourceToKeep})"
+                : $"[Enemy] ユニット配備: {best.Data.cardName}(lv:{best.CurrentLevel} cost:{best.CurrentCost} benefit:{bestBenefit} "
+                  + $"enemyLv:{gundamRule.Enemy.TotalLevel} res:{gundamRule.Enemy.resource} reserveLeft:{effectiveReserve.ResourceToKeep})");
         return true;
+    }
+
+    /// <summary>手札にユニット配備以外の有用行動が無いときは配備を強制する（場の攻撃可否は見ない）。</summary>
+    private bool ShouldEnemyForceDeployUnitAsOnlyHandPlay(List<CardController> deployableUnits)
+    {
+        if (deployableUnits == null || deployableUnits.Count == 0)
+        {
+            return false;
+        }
+
+        return !EnemyAiHasOtherUsefulHandPlaysBesidesUnitDeploy();
+    }
+
+    private bool EnemyAiHasOtherUsefulHandPlaysBesidesUnitDeploy()
+    {
+        if (EnemyAiCanExecuteUsefulOnMainFromHand())
+        {
+            return true;
+        }
+
+        EnemyAiDeployResourceBudget noReserve = default;
+        return EnemyAiHasBeneficialPilotMountFromHand(noReserve);
+    }
+
+    private bool EnemyAiHasBeneficialPilotMountFromHand(EnemyAiDeployResourceBudget reserve)
+    {
+        List<CardController> pilots = CollectEnemyMountablePilotsFromHand(reserve);
+        List<CardController> units = GetMountableUnits(PlayerType.Enemy);
+        if (pilots.Count == 0 || units.Count == 0)
+        {
+            return false;
+        }
+
+        for (int pi = 0; pi < pilots.Count; pi++)
+        {
+            CardController pilot = pilots[pi];
+            for (int ui = 0; ui < units.Count; ui++)
+            {
+                CardController unit = units[ui];
+                if (unit == null || !unit.CanMountPilot())
+                {
+                    continue;
+                }
+
+                if (ScoreEnemyPilotMountVirtualBenefit(pilot, unit, reserve) >= EnemyAiMinPilotMountBenefit)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private CardController PickEnemyForceDeployUnitCandidate(List<CardController> candidates)
+    {
+        if (candidates == null || candidates.Count == 0)
+        {
+            return null;
+        }
+
+        CardController best = null;
+        int bestBenefit = int.MinValue;
+        bool bestHasDeployDamageArchetype = false;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            CardController unit = candidates[i];
+            if (unit == null || unit.Data == null)
+            {
+                continue;
+            }
+
+            int benefit = ScoreEnemyDeployUnitVirtualBenefit(unit);
+            bool hasArchetype = CardHasOnPlayedSelfHarmAndOpponentDamagePattern(unit.Data);
+            if (best == null
+                || benefit > bestBenefit
+                || (benefit == bestBenefit && hasArchetype && !bestHasDeployDamageArchetype))
+            {
+                best = unit;
+                bestBenefit = benefit;
+                bestHasDeployDamageArchetype = hasArchetype;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>OnPlayed に相手へのダメージと自傷（味方/自身）ダメージの両方を含むカード設計か。</summary>
+    private static bool CardHasOnPlayedSelfHarmAndOpponentDamagePattern(CardData data)
+    {
+        if (data == null || data.timedEffects == null)
+        {
+            return false;
+        }
+
+        bool damagesOpponent = false;
+        bool damagesSelfOrAlly = false;
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnPlayed || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect == null || effect.type != EffectType.Damage)
+                {
+                    continue;
+                }
+
+                if (effect.target == TargetType.EnemyUnit
+                    || effect.target == TargetType.EnemyAllUnits
+                    || effect.target == TargetType.RestEnemyUnit
+                    || effect.target == TargetType.EnemyPlayer)
+                {
+                    damagesOpponent = true;
+                }
+
+                if (effect.target == TargetType.Self
+                    || effect.target == TargetType.AllyUnit
+                    || effect.target == TargetType.AllyOtherUnit
+                    || effect.target == TargetType.AllyAllUnits
+                    || effect.target == TargetType.SelfPlayer)
+                {
+                    damagesSelfOrAlly = true;
+                }
+            }
+        }
+
+        return damagesOpponent && damagesSelfOrAlly;
     }
 
     private List<CardController> CollectEnemyDeployableUnitsFromHand(
