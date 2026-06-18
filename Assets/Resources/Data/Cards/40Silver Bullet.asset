@@ -47,6 +47,8 @@ MonoBehaviour:
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
       targetUnitFilterStat: -1
       targetUnitStatCompareOp: 0
       targetUnitStatCompareValue: 0
