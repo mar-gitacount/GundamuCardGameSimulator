@@ -287,8 +287,281 @@ public partial class BattleGameMain
             Ap = unit.CurrentPower,
         });
 
-        int afterScore = ComputeEnemyAiFieldAdvantageScore(after)
-            + ScoreEnemyAiDefensiveZoneValue(Gundam2024RuleScript.PlayerSide.Enemy, null);
+        int afterScore = ScoreEnemyAiBoardWithOnPlayedDeployEffects(unit, after);
         return afterScore - beforeScore;
+    }
+
+    /// <summary>ユニット配備候補の OnPlayed を仮想適用した盤面スコア（配備 AI 用）。</summary>
+    private int ScoreEnemyAiBoardWithOnPlayedDeployEffects(
+        CardController deployCandidate,
+        List<VirtualBattleUnitSnap> fieldSnaps)
+    {
+        int score = ComputeEnemyAiFieldAdvantageScore(fieldSnaps)
+            + ScoreEnemyAiDefensiveZoneValue(Gundam2024RuleScript.PlayerSide.Enemy, null);
+        if (deployCandidate == null)
+        {
+            return score;
+        }
+
+        List<VirtualBattleUnitSnap> afterEffects = CloneVirtualBattleSnaps(fieldSnaps);
+        ApplyEnemyAiDeployOnPlayedEffectsToVirtualSnaps(afterEffects, deployCandidate, PlayerType.Enemy);
+        int effectBenefit = ComputeEnemyAiFieldAdvantageScore(afterEffects)
+            - ComputeEnemyAiFieldAdvantageScore(fieldSnaps);
+        if (EnemyAiVirtualPlanHasPlayerUnitKill(afterEffects)
+            && !EnemyAiVirtualPlanHasPlayerUnitKill(fieldSnaps))
+        {
+            effectBenefit += EnemyAiOnRestBonusNewKill;
+        }
+
+        return score + effectBenefit;
+    }
+
+    private void ApplyEnemyAiDeployOnPlayedEffectsToVirtualSnaps(
+        List<VirtualBattleUnitSnap> working,
+        CardController deployingUnit,
+        PlayerType ownerType)
+    {
+        if (working == null || deployingUnit == null)
+        {
+            return;
+        }
+
+        List<EffectData> effects = CollectEnemyAiResolvedTimedEffects(
+            deployingUnit,
+            ownerType,
+            EffectTiming.OnPlayed);
+        if (effects.Count == 0)
+        {
+            return;
+        }
+
+        EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, deployingUnit, null, null);
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type == EffectType.Damage
+                && (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer))
+            {
+                continue;
+            }
+
+            int magnitude = ResolveEffectMagnitude(effect, ownerType, deployingUnit);
+            if (magnitude == 0 && !effect.type.UsesTargetCountValue())
+            {
+                continue;
+            }
+
+            List<CardController> targets;
+            if (EffectRequiresManualUnitSelection(effect))
+            {
+                List<CardController> candidates = ResolveVirtualDeploySelectableEffectTargets(
+                    working,
+                    deployingUnit,
+                    ownerType,
+                    effect);
+                targets = PickEnemyAiEffectTargets(effect, pickCtx, candidates, singleOnly: true);
+            }
+            else
+            {
+                targets = ResolveVirtualDeployEffectTargets(working, deployingUnit, ownerType, effect);
+            }
+
+            if (targets == null || targets.Count == 0)
+            {
+                continue;
+            }
+
+            ApplyVirtualBattleEffectToTargetsOnSnaps(working, effect, targets, magnitude, deployingUnit);
+        }
+    }
+
+    private List<CardController> ResolveVirtualDeployEffectTargets(
+        List<VirtualBattleUnitSnap> working,
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null)
+        {
+            return new List<CardController>();
+        }
+
+        IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
+        List<CardController> result = new List<CardController>();
+        switch (effect.target)
+        {
+            case TargetType.Self:
+                if (IsVirtualDeployUnitTarget(working, sourceCard, requiredFeatures))
+                {
+                    result.Add(sourceCard);
+                }
+
+                break;
+            case TargetType.AllyUnit:
+                AddVirtualDeployAliveUnits(working, ownerType, result, null, requiredFeatures);
+                EnsureVirtualDeploySelfCandidate(working, sourceCard, result, requiredFeatures);
+                break;
+            case TargetType.AllyOtherUnit:
+                AddVirtualDeployAliveUnits(working, ownerType, result, sourceCard, requiredFeatures);
+                break;
+            case TargetType.EnemyUnit:
+                AddVirtualDeployAliveUnits(
+                    working,
+                    ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+                    result,
+                    null,
+                    requiredFeatures);
+                break;
+            case TargetType.RestEnemyUnit:
+                AddVirtualDeployAliveRestUnits(
+                    working,
+                    ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+                    result,
+                    requiredFeatures);
+                break;
+            case TargetType.AllyAllUnits:
+                AddVirtualDeployAliveUnits(working, ownerType, result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyAllUnits:
+                AddVirtualDeployAliveUnits(
+                    working,
+                    ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+                    result,
+                    null,
+                    requiredFeatures);
+                break;
+        }
+
+        FilterTargetsByUnitCondition(result, effect);
+        if (effect.type == EffectType.Rest)
+        {
+            FilterOutAlreadyRestedUnits(result);
+        }
+
+        return result;
+    }
+
+    private List<CardController> ResolveVirtualDeploySelectableEffectTargets(
+        List<VirtualBattleUnitSnap> working,
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        return ResolveVirtualDeployEffectTargets(working, sourceCard, ownerType, effect);
+    }
+
+    private static bool IsVirtualDeployUnitTarget(
+        List<VirtualBattleUnitSnap> working,
+        CardController unit,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+        {
+            return false;
+        }
+
+        VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, unit);
+        if (snap == null || snap.Hp <= 0)
+        {
+            return false;
+        }
+
+        return MatchesRequiredFeatures(unit.Data, requiredFeatures);
+    }
+
+    private static void EnsureVirtualDeploySelfCandidate(
+        List<VirtualBattleUnitSnap> working,
+        CardController sourceCard,
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (result == null
+            || !IsVirtualDeployUnitTarget(working, sourceCard, requiredFeatures)
+            || result.Contains(sourceCard))
+        {
+            return;
+        }
+
+        result.Insert(0, sourceCard);
+    }
+
+    private static void AddVirtualDeployAliveUnits(
+        List<VirtualBattleUnitSnap> working,
+        PlayerType ownerType,
+        List<CardController> result,
+        CardController exclude,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (working == null || result == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < working.Count; i++)
+        {
+            VirtualBattleUnitSnap snap = working[i];
+            if (snap == null || snap.FieldOwner != ownerType || snap.Controller == null)
+            {
+                continue;
+            }
+
+            CardController unit = snap.Controller;
+            if (unit == exclude || unit.Data == null || unit.Data.type != Type.Unit || snap.Hp <= 0)
+            {
+                continue;
+            }
+
+            if (!MatchesRequiredFeatures(unit.Data, requiredFeatures))
+            {
+                continue;
+            }
+
+            if (!result.Contains(unit))
+            {
+                result.Add(unit);
+            }
+        }
+    }
+
+    private static void AddVirtualDeployAliveRestUnits(
+        List<VirtualBattleUnitSnap> working,
+        PlayerType ownerType,
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (working == null || result == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < working.Count; i++)
+        {
+            VirtualBattleUnitSnap snap = working[i];
+            if (snap == null || snap.FieldOwner != ownerType || snap.Controller == null || !snap.IsRest)
+            {
+                continue;
+            }
+
+            CardController unit = snap.Controller;
+            if (unit.Data == null || unit.Data.type != Type.Unit || snap.Hp <= 0)
+            {
+                continue;
+            }
+
+            if (!MatchesRequiredFeatures(unit.Data, requiredFeatures))
+            {
+                continue;
+            }
+
+            if (!result.Contains(unit))
+            {
+                result.Add(unit);
+            }
+        }
     }
 }
