@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 53Gundam Barbatos Adapt
   m_EditorClassIdentifier: 
   id: 53
-  cardName: Zoloat (League Militaire)
+  cardName: Gundam Barbatos Adapt
   cost: 2
   level: 4
   power: 2
@@ -97,5 +97,5 @@ MonoBehaviour:
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
-  isNotDirectAttack: 1
+  isNotDirectAttack: 0
   isShieldToken: 0

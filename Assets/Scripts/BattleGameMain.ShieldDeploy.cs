@@ -207,6 +207,11 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (ownerType == PlayerType.Player && wasInHand)
+        {
+            RecordEnemyAiObservedPlayerCardPlay(card, "DeployShield");
+        }
+
         card.SetEligibleForShieldZoneDeploy(false);
         gundamRule.AddShieldCount(ruleSide, 1);
         TriggerShieldDeployedEffects(card, ownerType);

@@ -452,6 +452,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         cardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(cardGameRule));
         enemyCardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(enemyCardGameRule));
+        BindEnemyAiPlayerTrashObservation();
 
         gundamRule.InitializeGame(
             cardGameRule.GetRemainingCount(),
@@ -3042,6 +3043,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (ownerType == PlayerType.Player)
+        {
+            RecordEnemyAiObservedPlayerCardPlay(cardController, "DeployUnit");
+        }
+
         cardController.transform.SetParent(ownerRule.PlayerDeployPanel, false);
 
         if (ownerType == PlayerType.Player)
@@ -3173,6 +3179,11 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     Debug.Log("パイロット搭乗に失敗しました。");
                     return;
+                }
+
+                if (ownerType == PlayerType.Player)
+                {
+                    RecordEnemyAiObservedPlayerCardPlay(pilotCard, "MountPilot");
                 }
 
                 Debug.Log($"[Pilot] {pilotCard.Data.cardName} を {target.Data.cardName} に搭乗。AP:{target.CurrentPower} HP:{target.CurrentHp}");
@@ -10552,6 +10563,12 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (source.Data.type == Type.Command)
         {
+            if (side == PlayerType.Player)
+            {
+                string playKind = HasEffectTiming(source.Data, EffectTiming.OnMain) ? "CommandOnMain" : "CommandOnAction";
+                RecordEnemyAiObservedPlayerCardPlay(source, playKind);
+            }
+
             SendUsedCommandToTrash(source, side);
         }
     }

@@ -288,6 +288,11 @@ public partial class BattleGameMain
         bool wasInHand = ownerRule.HandScrollContent != null
             && cardController.transform.IsChildOf(ownerRule.HandScrollContent);
         PrepareCardForBaseZoneDeploy(cardController, ownerType, ownerRule, ruleSide, ref wasInHand);
+        if (ownerType == PlayerType.Player && wasInHand)
+        {
+            RecordEnemyAiObservedPlayerCardPlay(cardController, "DeployBase");
+        }
+
         RemoveCardFromHandLists(cardController, ownerType);
         cardController.RevealShieldFace();
         ownerRule.AttachDeployedBaseCard(cardController);

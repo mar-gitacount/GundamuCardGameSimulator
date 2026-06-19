@@ -132,6 +132,7 @@ public partial class BattleGameMain
 
     private void ClearBattleRuntimeCollections()
     {
+        UnbindEnemyAiPlayerTrashObservation();
         playerBattleZoneCards.Clear();
         enemyBattleZoneCards.Clear();
         playerHandCards.Clear();
@@ -141,6 +142,7 @@ public partial class BattleGameMain
         copyCardController = null;
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
+        ClearEnemyAiObservedPlayerCardMemory();
     }
 
     private void ResetBattleFlowFlags()

@@ -235,25 +235,70 @@ public CardData FindById(int id)
     return null;
 }
 
-public List<CardData> FindByNameContains(string keyword)
-{
-    var result = new List<CardData>();
-    var master = LoadJson();
-    if (master == null) return result;
-
-    foreach (var card in master.cards)
+    public List<CardData> FindByNameContains(string keyword)
     {
-        if (card.cardName.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+        var result = new List<CardData>();
+        var master = LoadJson();
+        if (master == null) return result;
+
+        foreach (var card in master.cards)
         {
-            CardData convertedCard = ConvertToCardData(card);
-            result.Add(convertedCard);
-            // cardDict[card.id] = convertedCard;
-            Debug.Log($"色: {card.color}, $コンバート後カード検索: ID={card.id}, 名前={card.cardName}, 画像={card.imageName}, version={card.version},sourceType={card.sourceType}");
+            if (card.cardName.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                CardData convertedCard = ConvertToCardData(card);
+                result.Add(convertedCard);
+                // cardDict[card.id] = convertedCard;
+                Debug.Log($"色: {card.color}, $コンバート後カード検索: ID={card.id}, 名前={card.cardName}, 画像={card.imageName}, version={card.version},sourceType={card.sourceType}");
+            }
         }
+        Debug.Log($"検索後の全カードデータの数（検索関数内）: {cardDict.Count}");
+        return result;
     }
-    Debug.Log($"検索後の全カードデータの数（検索関数内）: {cardDict.Count}");
-    return result;
-}
+
+    public List<CardData> FindByColor(CardColor color)
+    {
+        var result = new List<CardData>();
+        foreach (CardData card in cardDict.Values)
+        {
+            if (card != null && card.color == color)
+            {
+                result.Add(card);
+            }
+        }
+
+        result.Sort((a, b) => a.id.CompareTo(b.id));
+        return result;
+    }
+
+    public List<CardData> FindByColors(IEnumerable<CardColor> colors)
+    {
+        var result = new List<CardData>();
+        if (colors == null)
+        {
+            return result;
+        }
+
+        HashSet<CardColor> colorSet = new HashSet<CardColor>(colors);
+        if (colorSet.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (CardData card in cardDict.Values)
+        {
+            if (card != null && colorSet.Contains(card.color))
+            {
+                result.Add(card);
+            }
+        }
+
+        result.Sort((a, b) =>
+        {
+            int colorCompare = a.color.CompareTo(b.color);
+            return colorCompare != 0 ? colorCompare : a.id.CompareTo(b.id);
+        });
+        return result;
+    }
 
 public List<CardData> IncludedCardsBySet(CardSetData set)
 {
