@@ -884,7 +884,11 @@ public class CardGameRule
 
         trashList.Add(cardId);
         UpdateDeckAndTrashTexts();
+        OnCardAddedToTrash?.Invoke(cardId);
     }
+
+    /// <summary>カードがトラッシュに追加されたとき（cardId）。プレイヤー側 AI 観測用。</summary>
+    public event Action<int> OnCardAddedToTrash;
 
     /// <summary>
     /// 外部のルールエンジンで確定したレベル/リソースを、このクラスの表示値へ同期する。
