@@ -6,7 +6,7 @@ using System.Linq;
 using TMPro;
 using System.IO;
 using System;
-using System.IO;
+using System.Threading.Tasks;
 
 public class DeckSettinObject : MonoBehaviour
 {
@@ -46,25 +46,7 @@ public class DeckSettinObject : MonoBehaviour
     // バトルボタン押下時に、他のデッキをエネミーデッキに入れるためのフラグ。
     // デッキ一覧内のデッキを押下した際に、このフラグが立っている場合は、押下されたデッキをエネミーデッキに入れる。そうでない場合は、通常通り編集デッキに入れる。
     private bool BattoleStartFlag = false;
-    [Serializable]public class DeckSaveData
-{
-    public string title;
-    public int thumbnailId; // サムネイル用のカードID
-    public List<CardSlot> cards = new List<CardSlot>();
-    private Dictionary<int, CardData> cardTable = new Dictionary<int, CardData>();
 
-   
-    
-
-   
-   
-}
-
-[Serializable]public class CardSlot
-{
-    public int id;
-    public int count;
-}
     public void CopyJsonFile()
     {
         deckPathName = "";
@@ -76,7 +58,53 @@ public class DeckSettinObject : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        ShowFileList();
+        EnsurePlayerAuthServiceExists();
+        StartCoroutine(InitializeDeckStorageAndShowListCoroutine());
+    }
+
+    private void EnsurePlayerAuthServiceExists()
+    {
+        if (PlayerAuthService.Instance != null)
+        {
+            return;
+        }
+
+        GameObject go = new GameObject("PlayerAuthService");
+        go.AddComponent<PlayerAuthService>();
+    }
+
+    private IEnumerator InitializeDeckStorageAndShowListCoroutine()
+    {
+        Task initTask = PlayerAuthService.Instance.InitializeAsync();
+        while (!initTask.IsCompleted)
+        {
+            yield return null;
+        }
+
+        yield return ShowFileListCoroutine();
+    }
+
+    public void RefreshDeckListFromStorage()
+    {
+        StartCoroutine(ShowFileListCoroutine());
+    }
+
+    public void OnGuestModeActivated()
+    {
+        deckPathName = string.Empty;
+        ClearDeckList();
+        RefreshDeckListFromStorage();
+    }
+
+    public void OnCloudStorageActivated()
+    {
+        if (!string.IsNullOrEmpty(deckPathName)
+            && !CloudDeckStorageProvider.IsValidCloudKey(CloudDeckStorageProvider.ToCloudKey(deckPathName)))
+        {
+            deckPathName = string.Empty;
+        }
+
+        RefreshDeckListFromStorage();
     }
 
     // Update is called once per frame
@@ -106,54 +134,33 @@ public class DeckSettinObject : MonoBehaviour
     {
         return enemyCardData;
     }
-    // デッキパネル内のカードをjsonファイルに保存する処理
+    // デッキパネル内のカードを保存（ゲスト=ローカル JSON / ログイン=Cloud Save）
     public void SaveDeckToJson(Dictionary<int, int> cardData)
     {
-        // 2. データをクラスに詰め替える
-        DeckSaveData saveData = new DeckSaveData();
-        saveData.title = DeckTitleInputField.text; // タイトルも保存する場合
-        saveData.thumbnailId = cardData.Keys.FirstOrDefault(); // ?サムネイルIDを保存後で動的にする。
-        foreach (var item in cardData)
+        StartCoroutine(SaveDeckCoroutine(cardData));
+    }
+
+    private IEnumerator SaveDeckCoroutine(Dictionary<int, int> sourceCardData)
+    {
+        string title = DeckTitleInputField != null ? DeckTitleInputField.text : string.Empty;
+        DeckSaveData saveData = DeckStorageService.BuildSaveData(title, sourceCardData);
+        string storageKey = DeckStorageService.PrepareStorageKeyForSave(deckPathName);
+
+        Task saveTask = DeckStorageService.SaveDeckAsync(storageKey, saveData);
+        while (!saveTask.IsCompleted)
         {
-            Debug.Log($"保存するカードID: {item.Key}, 枚数: {item.Value}");
-            // なぜかid0のカードが枚数0で保存されるため、ここで枚数0のカードは保存しないようにする。デッキ編集画面で枚数0のカードは表示されないため、保存も不要と判断。
-            if (item.Value > 0) // 枚数が0以上のカードのみ保存する
-            {
-                saveData.cards.Add(new CardSlot { id = item.Key, count = item.Value });
-            }
+            yield return null;
         }
 
-        // 3. JSON文字列に変換 (trueにすると見やすく整形されます)
-        string json = JsonUtility.ToJson(saveData, true);
-        string fullPath;
-        // 既存のファイル名を取得して、同じ名前があれば上書きするか新規作成するかのロジックを入れることもできますが、
-        if(string.IsNullOrEmpty(deckPathName))
+        if (saveTask.IsFaulted)
         {
-            // 新規保存
-            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            string fileName = "Deck_" + timestamp + ".json";
-            fullPath = Path.Combine(Application.persistentDataPath, fileName);
+            Debug.LogError($"[Deck] Save failed: {DeckStorageService.FormatStorageError(saveTask.Exception)}");
+            yield break;
         }
-        else
-        {
-            Debug.Log($"既存のデッキを上書き保存します: {deckPathName}");
-            // 上書き保存
-            fullPath = deckPathName; // 既に保存されているファイルのパスを使用
-        }
-        File.WriteAllText(fullPath, string.Empty); // 既存の内容をクリアしてから書き込む
-        // 5. 書き込み
-        try
-        {
 
-            File.WriteAllText(fullPath, json);
-            Debug.Log($"保存完了: {fullPath}");
-
-            // !deckPathName = ""; // 保存後はパスをリセットして新規保存モードに戻す
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"保存失敗: {e.Message}");
-        }
+        deckPathName = storageKey;
+        string mode = DeckStorageService.IsUsingCloudStorage ? "Cloud" : "Local";
+        Debug.Log($"[Deck] Save complete ({mode}): {storageKey}");
     }
     public int CardCount(int id)
     {
@@ -357,37 +364,26 @@ public void cardObj(GameObject obj)
         SaveDeckToJson(cardData);
     }
 
-// 全ての保存されたデッキのファイル名を取得する関数
+// 全ての保存されたデッキの一覧を取得する
 public List<string> GetSaveFileNames()
 {
-        string path = Application.persistentDataPath;
         List<string> fileList = new List<string>();
-
-        if (Directory.Exists(path))
+        Task<List<DeckStorageEntry>> listTask = DeckStorageService.ListDecksAsync();
+        listTask.Wait();
+        List<DeckStorageEntry> entries = listTask.Result;
+        for (int i = 0; i < entries.Count; i++)
         {
-            // 1. "Deck_" で始まり ".json" で終わるファイルのみを取得
-            string[] files = Directory.GetFiles(path, "Deck_*.json");
-
-            // 2. パスからファイル名だけを抜き出してリストに追加
-            foreach (string fullPath in files)
-            {
-                fileList.Add(Path.GetFileName(fullPath));
-            }
-
-            // 3. (オプション) 日付順（新しい順）に並び替える
-            // ファイル名に yyyyMMdd_HHmmss が入っているので文字列ソートでOK
-            fileList = fileList.OrderByDescending(f => f).ToList();
+            fileList.Add(entries[i].StorageKey);
         }
 
         return fileList;
     }
 
-
-DeckSaveData jsonData(string path)
+    private DeckSaveData LoadDeckSaveData(string storageKey)
     {
-        string json = File.ReadAllText(path);
-        return JsonUtility.FromJson<DeckSaveData>(json);
-
+        Task<DeckSaveData> loadTask = DeckStorageService.LoadDeckAsync(storageKey);
+        loadTask.Wait();
+        return loadTask.Result;
     }
 
 public void battleStart()
@@ -479,67 +475,105 @@ public CardData GetCardDataById(int id)
 }
 public void DeleteJsonFile()
 {
-    // 1. ファイルが存在するか確認
-    if (File.Exists(deckPathName))
-    {
-        // 2. 削除実行
-        File.Delete(deckPathName);
-       
-        Debug.Log($"ファイルを削除しました: {deckPathName}");
-        ClearDeckList(); // デッキリストを空にする
-        ShowFileList(); // デッキリストを更新して表示する
-    }
-    else
-    {
-        Debug.LogWarning($"削除しようとしたファイルが見つかりません: {deckPathName}");
-    }
-}
+        if (string.IsNullOrEmpty(deckPathName))
+        {
+            Debug.LogWarning("[Deck] 削除対象のデッキが選択されていません。");
+            return;
+        }
 
-// 保存されたデッキのファイル名をリスト表示する関数
+        StartCoroutine(DeleteDeckCoroutine(deckPathName));
+    }
+
+    private IEnumerator DeleteDeckCoroutine(string storageKey)
+    {
+        Task deleteTask = DeckStorageService.DeleteDeckAsync(storageKey);
+        while (!deleteTask.IsCompleted)
+        {
+            yield return null;
+        }
+
+        if (deleteTask.IsFaulted)
+        {
+            Debug.LogError($"[Deck] 削除失敗: {deleteTask.Exception?.GetBaseException().Message}");
+            yield break;
+        }
+
+        Debug.Log($"[Deck] 削除完了: {storageKey}");
+        deckPathName = string.Empty;
+        ClearDeckList();
+        yield return ShowFileListCoroutine();
+    }
+
+// 保存されたデッキ一覧を表示する
 public void ShowFileList()
 {
-    var files = GetSaveFileNames();
-    string path = Application.persistentDataPath; // パスを再定義
+        StartCoroutine(ShowFileListCoroutine());
+    }
 
-    Debug.Log($"保存されたデッキ数: {files.Count}");
-
-    foreach (var fileName in files)
-    {
-        // ★修正ポイント：パスとファイル名を結合して「フルパス」を作る
-        string fullPath = Path.Combine(path, fileName);
-        string capturePath = fullPath;
-
-   if (File.Exists(fullPath))
+    private IEnumerator ShowFileListCoroutine()
 {
-    string json = File.ReadAllText(fullPath);
-    Debug.Log($"ファイルパスの内容: {fullPath} {json}");
-    // JSONファイルを更新
-    DeckSaveData data = JsonUtility.FromJson<DeckSaveData>(json);
+    if (DeckListPanel != null)
+    {
+        DeckListPanel.transform.DetachChildren();
+    }
+
+    Task<List<DeckStorageEntry>> listTask = DeckStorageService.ListDecksAsync();
+    while (!listTask.IsCompleted)
+    {
+        yield return null;
+    }
+
+    if (listTask.IsFaulted)
+    {
+        Debug.LogError($"[Deck] 一覧取得失敗: {listTask.Exception?.GetBaseException().Message}");
+        yield break;
+    }
+
+    List<DeckStorageEntry> entries = listTask.Result;
+    Debug.Log($"保存されたデッキ数: {entries.Count} ({(DeckStorageService.IsUsingCloudStorage ? "Cloud" : "Local")})");
+
+    for (int i = 0; i < entries.Count; i++)
+    {
+        DeckStorageEntry entry = entries[i];
+        string storageKey = entry.StorageKey;
+        string captureKey = storageKey;
+
+        Task<DeckSaveData> loadTask = DeckStorageService.LoadDeckAsync(storageKey);
+        while (!loadTask.IsCompleted)
+        {
+            yield return null;
+        }
+
+        if (loadTask.IsFaulted)
+        {
+            Debug.LogWarning($"[Deck] 読込スキップ {storageKey}: {loadTask.Exception?.GetBaseException().Message}");
+            continue;
+        }
+
+        DeckSaveData data = loadTask.Result;
+        if (data == null)
+        {
+            continue;
+        }
 
     Sprite cardSprite = Resources.Load<Sprite>($"Data/Cards/{data.thumbnailId}");
   
-    var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(data => data.id);
+    var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(c => c.id);
     Debug.Log($"カードテーブルの長さ: {cardTable.Count}");
 
- 
-
-    // 1. 親（カード枠）を生成して 5倍にする
     GameObject cardObj = Instantiate(DeckDataPrefab, DeckListPanel.transform);
     Image targetImg = cardObj.GetComponent<Image>();
-    targetImg.sprite = cardSprite;
-    // デッキオブジェクトのボタンを取得
+    if (cardSprite != null)
+    {
+        targetImg.sprite = cardSprite;
+    }
+
     Button btn = cardObj.GetComponentInChildren<Button>();
     if (btn != null)
     {
-    // 3. クリックイベントを登録
     btn.onClick.AddListener(() => {
         Debug.Log(cardObj.name + " がクリックされました！");
-        // ここに実行したい処理を書く
-        // クリック時にcardDataにjsonのカードIDと枚数を渡す
-       
-        // 編集中のデッキの文字列を更新
-        deckPathName = fullPath;
-        // NewDeckText.text = "Edit Existing Deck";
+        deckPathName = captureKey;
         Debug.Log($"エネミーフラグ:{BattoleStartFlag}");
         if(BattoleStartFlag)
         {
@@ -550,71 +584,47 @@ public void ShowFileList()
                 Debug.Log($"エネミーデッキに入れるカードID: {card.id}, 枚数: {card.count}");
                 enemyCardData[card.id] = card.count;
             }
-            // バトル画面に遷移する処理をここに書く
-
             EnterBattleFromMenu();
             return;
         }
         cardData.Clear();
-        data = jsonData(fullPath);
         DeckinfoPanel.SetActive(true);
-        DeckTitleInputField.text = data.title; // タイトルを入力フィールドに表示
+        DeckTitleInputField.text = data.title;
         foreach (var card in data.cards)
         {
             Debug.Log($"クリックされたデッキのカードID: {card.id}, 枚数: {card.count}");
             cardData[card.id] = card.count;
-
         }
     });
     }
-    
 
     if (cardTable.TryGetValue(data.thumbnailId, out CardData card))
     {
-        // IDが見つかった場合、card 変数に中身が入る
-        string targetImageName = card.imageName.name; // 例: "Fireball.png" から拡張子を除いた "Fireball" を取得
+        string targetImageName = card.imageName.name;
         Debug.Log($"ID:{data.thumbnailId} の画像名は {targetImageName} です");
-
-        // そのまま画像ロードに使う例
         Sprite sp = Resources.Load<Sprite>($"Data/Images/{targetImageName}");
         cardObj.GetComponent<Image>().sprite = sp;
     }
     else
     {
-        // IDが辞書に登録されていない場合
         Debug.LogError($"ID {data.thumbnailId} のデータがResources/Data/Cards 内に見つかりません！");
     }
 
-    // cardObj.transform.localScale = new Vector3(5f, 5f, 5f);
-    // 2. 子（テキスト用オブジェクト）を作成
     GameObject textGo = new GameObject("CardCountText");
     textGo.transform.SetParent(cardObj.transform);
-
-    // ★重要：親が5倍なので、子は 1/5（0.2）にすると
-    // 画面上ではちょうど「等倍(1)」の見た目になります。
-    // もしテキストも巨大にしたいなら 1f のままでOKです。
     textGo.transform.localScale = new Vector3(1f, 1f, 1f); 
 
-    // 3. テキストコンポーネントの設定
     TextMeshProUGUI myText = textGo.AddComponent<TextMeshProUGUI>();
     TMP_FontAsset loadedFont = Resources.Load<TMP_FontAsset>("SourceHanSansJP-Regular SDF");
     myText.font = loadedFont;
-
-    // 固定の "x5" ではなく、読み込んだタイトルを表示する場合はこちら
-    myText.text = data.title; 
-    
+    myText.text = string.IsNullOrEmpty(data.title) ? entry.DisplayName : data.title; 
     myText.fontSize = 30;
     myText.alignment = TextAlignmentOptions.Center;
     myText.color = Color.black;
 
-    // 4. UIの位置とサイズ調整
     RectTransform rect = textGo.GetComponent<RectTransform>();
     rect.anchoredPosition = Vector2.zero; 
-    
-    // sizeDeltaが 10x10 だと文字が入り切らず消える（Maskされる）可能性があるため
-    // 少し余裕を持たせたサイズにすることをおすすめします。
     rect.sizeDelta = new Vector2(10, 10); 
-}
     }
 }
 }
