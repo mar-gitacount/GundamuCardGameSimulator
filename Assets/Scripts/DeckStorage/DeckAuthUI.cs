@@ -53,15 +53,12 @@ public class DeckAuthUI : MonoBehaviour
         {
             guestModeChosen = true;
             SetLoginOverlayVisible(false);
+            RefreshDeckListAfterCloudAuth();
         }
         else
         {
             SetLoginOverlayVisible(true);
-        }
-
-        if (DeckSettinObject.Instance != null)
-        {
-            DeckSettinObject.Instance.RefreshDeckListFromStorage();
+            RefreshDeckList();
         }
     }
 
