@@ -264,8 +264,17 @@ public static class LoginPageUIBuilder
         field.textViewport = textAreaRect;
         field.textComponent = inputText;
         field.placeholder = placeholderText;
+        field.targetGraphic = bg;
         field.contentType = isPassword ? TMP_InputField.ContentType.Password : TMP_InputField.ContentType.Standard;
         field.lineType = TMP_InputField.LineType.SingleLine;
+        field.shouldHideMobileInput = false;
+        field.interactable = true;
+        field.readOnly = false;
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        root.AddComponent<WebGLMobileTMPInputEnhancer>();
+#endif
+
         return field;
     }
 
