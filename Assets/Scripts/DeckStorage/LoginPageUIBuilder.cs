@@ -271,9 +271,7 @@ public static class LoginPageUIBuilder
         field.interactable = true;
         field.readOnly = false;
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-        root.AddComponent<WebGLMobileTMPInputEnhancer>();
-#endif
+        WebGLMobileInputReceiver.Attach(field);
 
         return field;
     }

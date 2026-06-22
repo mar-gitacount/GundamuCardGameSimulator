@@ -89,7 +89,17 @@ public class DeckAuthUI : MonoBehaviour
         openLoginButton = built.OpenLoginButton;
         accountBarLabel = built.AccountBarLabel;
 
+        AttachMobileInputEnhancers(built);
+
         transform.SetAsLastSibling();
+    }
+
+    public static void AttachMobileInputEnhancers(LoginPageUIBuilder.BuiltLoginPage page)
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        WebGLMobileInputReceiver.Attach(page.UsernameField);
+        WebGLMobileInputReceiver.Attach(page.PasswordField);
+#endif
     }
 
     private void RepositionAccountBar()

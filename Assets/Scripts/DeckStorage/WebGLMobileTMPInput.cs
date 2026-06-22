@@ -30,28 +30,31 @@ public class WebGLMobileInputReceiver : MonoBehaviour
     private static void EnhanceSceneInputFields()
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        if (!ShouldUseMobileHtmlInput())
-        {
-            return;
-        }
+        AttachToAllInputFields();
+#endif
+    }
 
+    public static void AttachToAllInputFields()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
         TMP_InputField[] fields = UnityEngine.Object.FindObjectsOfType<TMP_InputField>(true);
         for (int i = 0; i < fields.Length; i++)
         {
-            TMP_InputField field = fields[i];
-            if (field == null || field.GetComponent<WebGLMobileTMPInputEnhancer>() != null)
-            {
-                continue;
-            }
-
-            field.gameObject.AddComponent<WebGLMobileTMPInputEnhancer>();
+            Attach(fields[i]);
         }
 #endif
     }
 
-    public static bool ShouldUseMobileHtmlInput()
+    public static void Attach(TMP_InputField field)
     {
-        return Application.isMobilePlatform || Input.touchSupported;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (field == null || field.GetComponent<WebGLMobileTMPInputEnhancer>() != null)
+        {
+            return;
+        }
+
+        field.gameObject.AddComponent<WebGLMobileTMPInputEnhancer>();
+#endif
     }
 
     public static void EnsureReceiverExists()
@@ -103,12 +106,19 @@ public class WebGLMobileInputReceiver : MonoBehaviour
 }
 
 [RequireComponent(typeof(TMP_InputField))]
-public class WebGLMobileTMPInputEnhancer : MonoBehaviour, IPointerDownHandler
+public class WebGLMobileTMPInputEnhancer : MonoBehaviour, IPointerDownHandler, IPointerClickHandler
 {
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
     private static extern void WebGLMobileTMPInput_Show(
-        float x, float y, float width, float height, string text, bool isPassword, float fontSize);
+        float x,
+        float y,
+        float width,
+        float height,
+        string text,
+        bool isPassword,
+        float fontSize,
+        float unityScreenHeight);
 
     [DllImport("__Internal")]
     private static extern void WebGLMobileTMPInput_Hide();
@@ -124,9 +134,16 @@ public class WebGLMobileTMPInputEnhancer : MonoBehaviour, IPointerDownHandler
             || inputField.contentType == TMP_InputField.ContentType.Pin;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-        if (!WebGLMobileInputReceiver.ShouldUseMobileHtmlInput())
+        inputField.onSelect.AddListener(OnTmpSelected);
+#endif
+    }
+
+    private void OnDestroy()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (inputField != null)
         {
-            enabled = false;
+            inputField.onSelect.RemoveListener(OnTmpSelected);
         }
 #endif
     }
@@ -134,48 +151,71 @@ public class WebGLMobileTMPInputEnhancer : MonoBehaviour, IPointerDownHandler
     private void OnDisable()
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        if (enabled)
-        {
-            HideHtmlInput();
-        }
+        HideHtmlInput();
 #endif
     }
 
     public void OnPointerDown(PointerEventData eventData)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        if (!enabled || inputField == null || !inputField.interactable)
+        TryShowHtmlInput();
+#endif
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        TryShowHtmlInput();
+#endif
+    }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    private void OnTmpSelected(string _)
+    {
+        TryShowHtmlInput();
+    }
+
+    private void TryShowHtmlInput()
+    {
+        if (inputField == null || !inputField.isActiveAndEnabled || !inputField.interactable)
         {
             return;
         }
 
         ShowHtmlInput();
-#endif
     }
 
-#if UNITY_WEBGL && !UNITY_EDITOR
     private void ShowHtmlInput()
     {
         WebGLMobileInputReceiver.EnsureReceiverExists();
         WebGLMobileInputReceiver.RegisterCallbacks(OnHtmlInputChanged, OnHtmlInputBlur);
 
-        RectTransform rect = inputField.textComponent != null
-            ? inputField.textComponent.rectTransform
-            : inputField.GetComponent<RectTransform>();
+        RectTransform rect = inputField.GetComponent<RectTransform>();
+        Canvas canvas = inputField.GetComponentInParent<Canvas>();
+        Camera eventCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? canvas.worldCamera
+            : null;
 
         Vector3[] corners = new Vector3[4];
         rect.GetWorldCorners(corners);
 
-        Vector2 bottomLeft = RectTransformUtility.WorldToScreenPoint(null, corners[0]);
-        Vector2 topRight = RectTransformUtility.WorldToScreenPoint(null, corners[2]);
+        Vector2 bottomLeft = RectTransformUtility.WorldToScreenPoint(eventCamera, corners[0]);
+        Vector2 topRight = RectTransformUtility.WorldToScreenPoint(eventCamera, corners[2]);
 
-        float width = topRight.x - bottomLeft.x;
-        float height = topRight.y - bottomLeft.y;
-        float x = bottomLeft.x;
-        float y = Screen.height - topRight.y;
+        float width = Mathf.Max(topRight.x - bottomLeft.x, 120f);
+        float height = Mathf.Max(topRight.y - bottomLeft.y, 44f);
         float fontSize = inputField.textComponent != null ? inputField.textComponent.fontSize : 16f;
 
-        WebGLMobileTMPInput_Show(x, y, width, height, inputField.text ?? string.Empty, isPasswordField, fontSize);
+        WebGLMobileTMPInput_Show(
+            bottomLeft.x,
+            bottomLeft.y,
+            width,
+            height,
+            inputField.text ?? string.Empty,
+            isPasswordField,
+            fontSize,
+            Screen.height);
+
         inputField.ActivateInputField();
     }
 
@@ -187,11 +227,14 @@ public class WebGLMobileTMPInputEnhancer : MonoBehaviour, IPointerDownHandler
 
     private void OnHtmlInputChanged(string value)
     {
-        if (inputField != null)
+        if (inputField == null)
         {
-            inputField.text = value;
-            inputField.caretPosition = value != null ? value.Length : 0;
+            return;
         }
+
+        inputField.text = value;
+        inputField.caretPosition = value != null ? value.Length : 0;
+        inputField.ForceLabelUpdate();
     }
 
     private void OnHtmlInputBlur()
