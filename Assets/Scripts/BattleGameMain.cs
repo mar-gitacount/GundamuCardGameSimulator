@@ -433,6 +433,7 @@ public partial class BattleGameMain : MonoBehaviour
         CardFeatureRegistry.EnsureLoaded();
         NamedEffectSetRegistry.EnsureLoaded();
         InitializeBattleOpponent();
+        ResetOnlineBattleInstanceIds();
         isFirstPlayer = DecideTurnOrder();
         PlayerType firstPlayerThisGame = currentPlayerType;
 
@@ -3117,6 +3118,7 @@ public partial class BattleGameMain : MonoBehaviour
             // 配備ターン: 見た目はアクティブ(起き)だが、攻撃フラグは false
             cardController.SetAttackFlg(AttackFlg.False);
             cardController.SetUnitRestVisual(false);
+            AssignBattleInstanceIdIfNeeded(cardController);
         }
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
@@ -4335,6 +4337,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (ShouldSkipOnActionPauseForOnline())
+        {
+            skipOnActionPause = true;
+            skipOnAttackSelection = true;
+            skipAttackedSidePanelPause = true;
+        }
+
         // シールド攻撃は攻撃可能フラグ(True)のみで判定する（宣言済みの OnAttack/OnAction 再開時は除く）。
         if (!skipOnAttackSelection && attacker.AttackFlgState != AttackFlg.True)
         {
@@ -4422,6 +4431,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             if (!attackerIgnoresBlock
+                && !ShouldSkipOnActionPauseForOnline()
                 && !skipAttackedSidePanelPause
                 && attackerOwner == PlayerType.Player
                 && TryAutoApplyBlockRedirectFromAttack(
@@ -4533,6 +4543,7 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[DirectAttack] No shield zone protection. Resolving direct attack. attackPower:{attacker.CurrentPower}");
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
+                NotifyLocalShieldAttackResolved(attacker, 0, 0, directAttackWin: true);
                 HandleDirectAttackWinLose(attackerOwner);
                 ClearAttackFlowContext();
                 return;
@@ -4599,6 +4610,18 @@ public partial class BattleGameMain : MonoBehaviour
         pendingOnAttackEffectResolvedAttacker = null;
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
+
+        Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defenderAfter = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        NotifyLocalShieldAttackResolved(
+            attacker,
+            defenderAfter.shield,
+            defenderAfter.exBase,
+            directAttackWin: false);
 
         SyncAllResourceViewsFromRule();
         ClearAttackFlowContext();
@@ -4903,6 +4926,12 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (ShouldSkipOnActionPauseForOnline())
+        {
+            skipOnActionPause = true;
+            skipAttackedSidePanelPause = true;
+        }
+
         if (attacker.Data.type != Type.Unit || defender.Data.type != Type.Unit)
         {
             Debug.Log("Only units can attack each other.");
@@ -4934,7 +4963,7 @@ public partial class BattleGameMain : MonoBehaviour
         // 敵 AI のスコア中止は TryEnemyShieldAttacks およびシールド→ブロック直前のみ（バトル開始後は判定しない。宣言前のみ有効）。
 
         // 攻撃宣言後に、OnAttackの対象選択(デバフ等)を行う。
-        if (pendingOnAttackEffectResolvedAttacker != attacker)
+        if (!ShouldSkipOnActionPauseForOnline() && pendingOnAttackEffectResolvedAttacker != attacker)
         {
             // 効果適用するためのカードを選択するUI生成
             if (TryOpenOnAttackEnemySelectionPanel(
@@ -4950,6 +4979,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (!attackerIgnoresBlock
+            && !ShouldSkipOnActionPauseForOnline()
             && !skipAttackedSidePanelPause
             && attackerOwner == PlayerType.Player
             && TryAutoApplyBlockRedirectFromAttack(
@@ -5068,6 +5098,12 @@ public partial class BattleGameMain : MonoBehaviour
         attacker.ApplyDamage(defenderPowerForCombat);
         int defenderHpAfterExchange = defender.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
+
+        NotifyLocalUnitAttackResolved(
+            attacker,
+            defender,
+            attackerHpAfterExchange,
+            defenderHpAfterExchange);
 
         if (defender.CurrentHp <= 0)
         {
@@ -7590,6 +7626,12 @@ public partial class BattleGameMain : MonoBehaviour
         System.Action onComplete,
         CardController attackingUnitInAttackFlow = null)
     {
+        if (ShouldSkipOnActionPauseForOnline())
+        {
+            onComplete?.Invoke();
+            return false;
+        }
+
         if (isAttackedSidePanelOpen)
         {
             return true;
@@ -9530,6 +9572,11 @@ public partial class BattleGameMain : MonoBehaviour
         System.Action onStepDone,
         CardController attackingUnitInAttackFlow = null)
     {
+        if (ShouldSkipOnActionPauseForOnline())
+        {
+            return false;
+        }
+
         if (side == PlayerType.Enemy)
         {
             return TryExecuteEnemyOnActionStep(context, onStepDone, attackingUnitInAttackFlow);

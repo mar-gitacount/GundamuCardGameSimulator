@@ -27,6 +27,9 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     /// <summary>ユニットの現在 HP（配備・ドロー時に Data.hp で初期化）。</summary>
     public int CurrentHp { get; private set; }
+
+    /// <summary>バトル中のユニット識別子（オンライン同期用）。0 は未割当。</summary>
+    public int BattleInstanceId { get; private set; }
     public int CurrentPower
     {
         get
@@ -106,7 +109,18 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         // 手札・新規生成時は常に False（ユニット以外は攻撃フラグを使わない）
         _attackFlg = AttackFlg.False;
         eligibleForShieldZoneDeploy = false;
+        BattleInstanceId = 0;
         ResetRuntimeStatsFromData();
+    }
+
+    public void AssignBattleInstanceId(int instanceId)
+    {
+        BattleInstanceId = Mathf.Max(0, instanceId);
+    }
+
+    public void SetCurrentHpForSync(int hp)
+    {
+        CurrentHp = Mathf.Max(0, hp);
     }
 
     /// <summary>Data に基づきランタイム HP を初期化（ユニット以外は hp を参照しない想定）。</summary>
