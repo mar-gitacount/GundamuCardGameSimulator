@@ -1,3 +1,4 @@
+# Unity generated
 /[Ll]ibrary/
 /[Tt]emp/
 /[Oo]bj/
@@ -5,16 +6,32 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Mm]emoryCaptures/
-/[UserSettings]/
+/[Uu]ser[Ss]ettings/
 
-# Visual Studio / VS Code temp files
+# Build outputs (APK / WebGL / standalone — not needed in Git; install or upload directly)
+*.apk
+*.aab
+*.exe
+*.ipa
+*.zip
+/Andoroid/
+/Builds/
+/WebGLBuild/
+/games/
+*_DoNotShip/
+
+# Visual Studio / VS Code
 .vscode/
 .vs/
 *.csproj
 *.sln
 *.unitypackage
 
-# Local environment files
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Local environment / secrets
 .env
 .env.*
 tools/.env
