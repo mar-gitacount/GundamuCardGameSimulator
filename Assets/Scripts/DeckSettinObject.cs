@@ -134,6 +134,31 @@ public class DeckSettinObject : MonoBehaviour
     {
         return enemyCardData;
     }
+
+    public bool HasSelectedPlayerDeck()
+    {
+        return cardData != null && cardData.Count > 0;
+    }
+
+    public string GetSelectedDeckDisplayName()
+    {
+        if (DeckTitleInputField != null && !string.IsNullOrWhiteSpace(DeckTitleInputField.text))
+        {
+            return DeckTitleInputField.text.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(deckPathName) ? "Untitled Deck" : deckPathName;
+    }
+
+    public void ClearBattleStartFlag()
+    {
+        BattoleStartFlag = false;
+    }
+
+    public bool IsBattleStartFlagActive()
+    {
+        return BattoleStartFlag;
+    }
     // デッキパネル内のカードを保存（ゲスト=ローカル JSON / ログイン=Cloud Save）
     public void SaveDeckToJson(Dictionary<int, int> cardData)
     {
@@ -438,6 +463,7 @@ public void battleStart()
     public void ReturnToMainMenuFromBattle()
     {
         BattoleStartFlag = false;
+        EosOnlineMatchState.Clear();
         BattleGameMain battle = ResolveBattleMain();
         if (battle != null)
         {

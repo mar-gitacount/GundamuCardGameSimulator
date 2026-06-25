@@ -6,6 +6,7 @@ public partial class BattleGameMain
     public void TeardownBattleSessionForMainMenu()
     {
         StopAllCoroutines();
+        UnregisterNetworkBattleHooksIfNeeded();
         CloseAllBattleMenuOverlays();
         DestroyActiveOnActionPopupIfAny();
         DestroyActiveAttackFlowDebugPanelIfAny();

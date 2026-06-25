@@ -432,6 +432,7 @@ public partial class BattleGameMain : MonoBehaviour
         Debug.Log("バトルゲームのメインシーン");
         CardFeatureRegistry.EnsureLoaded();
         NamedEffectSetRegistry.EnsureLoaded();
+        InitializeBattleOpponent();
         isFirstPlayer = DecideTurnOrder();
         PlayerType firstPlayerThisGame = currentPlayerType;
 
@@ -1224,7 +1225,9 @@ public partial class BattleGameMain : MonoBehaviour
     public bool DecideTurnOrder()
     {
         // 先攻後攻は1回の乱数で決定（isFirstPlayer / currentPlayerType / currentPlayer を矛盾なく同期）
-        bool playerGoesFirst = Random.value < 0.5f;
+        bool playerGoesFirst = TryOverrideTurnOrderFromOnlineMatch(out bool onlinePlayerGoesFirst)
+            ? onlinePlayerGoesFirst
+            : Random.value < 0.5f;
         isFirstPlayer = playerGoesFirst;
         currentPlayerType = playerGoesFirst ? PlayerType.Player : PlayerType.Enemy;
         currentPlayer = playerGoesFirst;
@@ -1433,7 +1436,7 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log("エネミーのメインフェイズの処理を実行します。");
             // エネミーのメインフェイズの処理をここに書く
             // 例: エネミーがカードを出す、攻撃するなど
-            StartCoroutine(EnemyActionCoroutine());
+            battleOpponent?.OnEnterEnemyMainPhase(this);
         }
 
 
@@ -2614,6 +2617,7 @@ public partial class BattleGameMain : MonoBehaviour
         // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
+        NotifyLocalPlayerEndedTurn();
 
         // プレイヤーとエネミーのターンを切り替える
         currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;

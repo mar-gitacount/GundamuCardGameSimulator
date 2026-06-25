@@ -5,6 +5,10 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
+  - enabled: 0
+    path: Assets/Samples/Epic Online Services Plugin for Unity/6.1.0/Standard Pack
+      _ EOS Plugin for Unity Samples/Scenes/Lobbies.unity
+    guid: fcd189b36a515624697742cfeadccf3c
   - enabled: 1
     path: Assets/Scenes/Home.unity
     guid: 3cf326c3aa9bc214db681065ba009240
