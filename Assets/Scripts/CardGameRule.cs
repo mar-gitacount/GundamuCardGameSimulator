@@ -132,25 +132,33 @@ public class CardGameRule
     }
     public void CreateShuffledDeck(Dictionary<int, int> cardData)
     {
-        // 前回の残りを一旦クリア（念のため）
+        CreateShuffledDeck(cardData, null);
+    }
+
+    public void CreateShuffledDeck(Dictionary<int, int> cardData, int? seed)
+    {
         deckList.Clear();
         trashList.Clear();
 
         Debug.Log($"デッキの数: {cardData.Count}枚");
 
-        // 1. データを展開する（IDを枚数分リストに追加）
         foreach (var pair in cardData)
         {
             for (int i = 0; i < pair.Value; i++)
             {
-                Debug.Log($"カードID {pair.Key} を追加");
                 deckList.Add(pair.Key);
             }
         }
 
-        // 2. シャッフルして、自分自身（deckList）を書き換える
-        // OrderByでランダムに並べ替えたものをリストにして上書きします
-        deckList = deckList.OrderBy(x => System.Guid.NewGuid()).ToList();
+        if (seed.HasValue)
+        {
+            System.Random rng = new System.Random(seed.Value);
+            deckList = deckList.OrderBy(_ => rng.Next()).ToList();
+        }
+        else
+        {
+            deckList = deckList.OrderBy(x => System.Guid.NewGuid()).ToList();
+        }
 
         Debug.Log($"山札を生成しました。枚数: {deckList.Count}");
         UpdateDeckAndTrashTexts();
