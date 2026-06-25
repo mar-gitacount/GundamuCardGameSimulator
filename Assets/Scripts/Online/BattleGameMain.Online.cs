@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public partial class BattleGameMain
@@ -5,18 +6,65 @@ public partial class BattleGameMain
     private IBattleOpponent battleOpponent;
     private bool networkBattleHooksRegistered;
 
+    private bool IsOnlineBattle()
+    {
+        return EosOnlineMatchState.HasActiveMatch;
+    }
+
     private void InitializeBattleOpponent()
     {
-        battleOpponent = EosOnlineMatchState.HasActiveMatch
+        battleOpponent = IsOnlineBattle()
             ? (IBattleOpponent)new NetworkBattleOpponent()
             : new CpuBattleOpponent();
 
         RegisterNetworkBattleHooksIfNeeded();
     }
 
+    private void ConfigureOnlineBattleDecks(ref Dictionary<int, int> playerDeck, ref Dictionary<int, int> enemyDeck)
+    {
+        if (!IsOnlineBattle())
+        {
+            return;
+        }
+
+        playerDeck = playerDeck ?? new Dictionary<int, int>();
+        enemyDeck = new Dictionary<int, int>(playerDeck);
+        Debug.Log("[OnlineBattle] Using mirrored deck data for opponent zone bootstrap.");
+    }
+
+    private int? GetOnlineDeckSeed(bool isPlayerDeck)
+    {
+        if (!IsOnlineBattle())
+        {
+            return null;
+        }
+
+        return isPlayerDeck ? EosOnlineMatchState.Seed : EosOnlineMatchState.Seed + 1;
+    }
+
+    private bool IsLocalOnlineTurn()
+    {
+        return !IsOnlineBattle() || currentPlayerType == PlayerType.Player;
+    }
+
+    private bool ShouldSkipEnemyMulliganOnline()
+    {
+        return IsOnlineBattle();
+    }
+
+    private bool ShouldSkipEnemyOpeningHandOnline()
+    {
+        return IsOnlineBattle();
+    }
+
+    private bool ShouldSkipEnemyDrawOnline()
+    {
+        return IsOnlineBattle();
+    }
+
     private void RegisterNetworkBattleHooksIfNeeded()
     {
-        if (networkBattleHooksRegistered || !EosOnlineMatchState.HasActiveMatch)
+        if (networkBattleHooksRegistered || !IsOnlineBattle())
         {
             return;
         }
@@ -55,7 +103,7 @@ public partial class BattleGameMain
 
     private bool TryOverrideTurnOrderFromOnlineMatch(out bool playerGoesFirst)
     {
-        if (!EosOnlineMatchState.HasActiveMatch)
+        if (!IsOnlineBattle())
         {
             playerGoesFirst = false;
             return false;
@@ -67,31 +115,50 @@ public partial class BattleGameMain
 
     private void NotifyLocalPlayerEndedTurn()
     {
-        if (!EosOnlineMatchState.HasActiveMatch || currentPlayerType != PlayerType.Player)
+        if (!IsOnlineBattle() || currentPlayerType != PlayerType.Player)
         {
             return;
         }
 
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurn());
+    }
+
+    private void NotifyLocalPlayCardDeployed(CardController cardController)
+    {
+        if (!IsOnlineBattle() || currentPlayerType != PlayerType.Player || cardController == null || cardController.Data == null)
+        {
+            return;
+        }
+
+        if (cardController.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
+            OnlineBattleActionPayload.CreateDeployUnit(cardController.Data.id)));
+    }
+
+    private void SendOnlineBattleMessage(string json)
+    {
         if (EosP2PTestService.Instance == null)
         {
-            Debug.LogWarning("[OnlineBattle] Cannot send EndTurn: P2P service not found.");
+            Debug.LogWarning("[OnlineBattle] P2P service not found.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(EosOnlineMatchState.RemoteProductUserId))
         {
-            Debug.LogWarning("[OnlineBattle] Cannot send EndTurn: remote ProductUserId is not set.");
+            Debug.LogWarning("[OnlineBattle] Remote ProductUserId is not set.");
             return;
         }
 
-        EosP2PTestService.Instance.SendText(
-            EosOnlineMatchState.RemoteProductUserId,
-            EosOnlineBattleMessage.CreateEndTurn());
+        EosP2PTestService.Instance.SendText(EosOnlineMatchState.RemoteProductUserId, json);
     }
 
     private void OnOnlineBattleMessageReceived(string peerId, string payload)
     {
-        if (!EosOnlineMatchState.HasActiveMatch || battleOpponent == null || !battleOpponent.IsNetwork)
+        if (!IsOnlineBattle() || battleOpponent == null || !battleOpponent.IsNetwork)
         {
             return;
         }
@@ -109,18 +176,79 @@ public partial class BattleGameMain
         switch (message.type)
         {
             case "EndTurn":
-                if (currentPlayerType == PlayerType.Enemy)
-                {
-                    Debug.Log("[OnlineBattle] Remote EndTurn received. Advancing local turn.");
-                    ChangePhase(BattlePhase.EndTurn);
-                }
+                HandleRemoteEndTurn();
                 break;
             case "PlayCard":
-                Debug.Log($"[OnlineBattle] PlayCard received: {message.payload}");
+                HandleRemotePlayCard(message.payload);
                 break;
             case "Attack":
                 Debug.Log($"[OnlineBattle] Attack received: {message.payload}");
                 break;
         }
+    }
+
+    private void HandleRemoteEndTurn()
+    {
+        if (currentPlayerType != PlayerType.Enemy)
+        {
+            Debug.Log("[OnlineBattle] Ignored remote EndTurn because it is not opponent turn locally.");
+            return;
+        }
+
+        Debug.Log("[OnlineBattle] Remote EndTurn received. Advancing local turn.");
+        ChangePhase(BattlePhase.EndTurn);
+    }
+
+    private void HandleRemotePlayCard(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action))
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid PlayCard payload: {payload}");
+            return;
+        }
+
+        if (currentPlayerType != PlayerType.Enemy)
+        {
+            Debug.Log("[OnlineBattle] Ignored remote PlayCard because it is not opponent turn locally.");
+            return;
+        }
+
+        if (action.action == OnlineBattleActionPayload.DeployUnit)
+        {
+            ApplyRemoteDeployUnit(action.cardId);
+        }
+    }
+
+    private void ApplyRemoteDeployUnit(int cardId)
+    {
+        if (DeckSettinObject.Instance == null)
+        {
+            return;
+        }
+
+        CardData cardData = DeckSettinObject.Instance.GetCardDataById(cardId);
+        if (cardData == null)
+        {
+            Debug.LogWarning($"[OnlineBattle] Unknown card id for remote deploy: {cardId}");
+            return;
+        }
+
+        GameObject cardObject = Instantiate(CardImagePrefab, enemyCardGameRule.PlayerDeployPanel);
+        CardController controller = cardObject.GetComponent<CardController>();
+        controller.SetUp(cardData, OnCardClicked);
+
+        if (!enemyBattleZoneCards.Contains(controller))
+        {
+            enemyBattleZoneCards.Add(controller);
+        }
+
+        if (cardData.type == Type.Unit)
+        {
+            controller.ResetRuntimeStatsFromData();
+            controller.SetAttackFlg(AttackFlg.False);
+            controller.SetUnitRestVisual(false);
+        }
+
+        Debug.Log($"[OnlineBattle] Remote unit deployed on opponent field: {cardData.cardName} ({cardId})");
     }
 }

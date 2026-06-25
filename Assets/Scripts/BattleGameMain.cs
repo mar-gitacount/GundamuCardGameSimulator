@@ -441,15 +441,16 @@ public partial class BattleGameMain : MonoBehaviour
 
         playerDeckData = DeckSettinObject.Instance.LoadDeckReturn();
         enemyDeckData = DeckSettinObject.Instance.LoadEnemyDeckReturn();
+        ConfigureOnlineBattleDecks(ref playerDeckData, ref enemyDeckData);
         enemyDeckData = EnsureDeckHasMinimumCardsForOpening(enemyDeckData, playerDeckData, minDeckTotalForOpening, "Enemy");
         playerDeckData = EnsureDeckHasMinimumCardsForOpening(playerDeckData, enemyDeckData, minDeckTotalForOpening, "Player");
 
         cardGameRule.SetUp(PlayerFieldPanel);
-        cardGameRule.CreateShuffledDeck(playerDeckData);
+        cardGameRule.CreateShuffledDeck(playerDeckData, GetOnlineDeckSeed(true));
         cardGameRule.ResourcAndLevelTextGet(PlayerresourcePointText, PlayerlevelText, ExresourcePointText);
         enemyCardGameRule.SetUp(EnemyPlayerFieldPanel);
         enemyCardGameRule.PlayerFieldPanel.SetRotation(180f);
-        enemyCardGameRule.CreateShuffledDeck(enemyDeckData);
+        enemyCardGameRule.CreateShuffledDeck(enemyDeckData, GetOnlineDeckSeed(false));
 
         cardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(cardGameRule));
         enemyCardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(enemyCardGameRule));
@@ -464,17 +465,25 @@ public partial class BattleGameMain : MonoBehaviour
         {
             CardAddtoHand(cardGameRule, PlayerType.Player);
         }
-        for (int i = 0; i < openingHandSize; i++)
+        if (ShouldSkipEnemyOpeningHandOnline())
         {
-            CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+            Debug.Log("[OnlineBattle] Skipped local opponent opening hand. Opponent hand is on their device.");
+        }
+        else
+        {
+            for (int i = 0; i < openingHandSize; i++)
+            {
+                CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+            }
         }
         currentPlayerType = firstPlayerThisGame;
+        int enemyHandCountForSync = ShouldSkipEnemyOpeningHandOnline() ? enemyHandCards.Count : openingHandSize;
         gundamRule.SyncOpeningHandState(
             openingHandSize,
             cardGameRule.GetRemainingCount(),
-            openingHandSize,
+            enemyHandCountForSync,
             enemyCardGameRule.GetRemainingCount());
-        Debug.Log($"[ドロー] 初期手札: プレイヤー{openingHandSize}枚、エネミー{openingHandSize}枚を引きました。");
+        Debug.Log($"[ドロー] 初期手札: プレイヤー{openingHandSize}枚、エネミー{enemyHandCountForSync}枚を引きました。");
 
         // マリガン：プレイヤーは Yes/No、エネミーは 1/2
         Canvas canvas = ResolveBattleCanvas();
@@ -496,7 +505,11 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log("[マリガン] プレイヤー：見送り。");
             }
 
-            if (Random.value < 0.5f)
+            if (ShouldSkipEnemyMulliganOnline())
+            {
+                Debug.Log("[OnlineBattle] Skipped local opponent mulligan.");
+            }
+            else if (Random.value < 0.5f)
             {
                 PerformMulligan(enemyCardGameRule, enemyHandCards, openingHandSize, PlayerType.Enemy);
                 Debug.Log("[マリガン] エネミー：実行（確率 1/2）。");
@@ -516,7 +529,7 @@ public partial class BattleGameMain : MonoBehaviour
         gundamRule.SyncOpeningHandState(
             openingHandSize,
             cardGameRule.GetRemainingCount(),
-            openingHandSize,
+            enemyHandCountForSync,
             enemyCardGameRule.GetRemainingCount());
 
         int exBasePoints = exBaseData != null ? exBaseData.startingPoints : 3;
@@ -548,7 +561,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (EndTurnButton != null)
         {
             EndTurnButton.onClick.RemoveAllListeners();
-            EndTurnButton.onClick.AddListener(() => ChangePhase(BattlePhase.EndTurn));
+            EndTurnButton.onClick.AddListener(OnEndTurnButtonClicked);
         }
         UpdateEndTurnButtonVisibility();
 
@@ -810,6 +823,12 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (isMatchFinished || isShieldBreakFlowOpen || shieldBreakQueueRunning)
         {
+            return;
+        }
+
+        if (!IsLocalOnlineTurn())
+        {
+            Debug.Log("[OnlineBattle] Wait for your turn.");
             return;
         }
 
@@ -1405,7 +1424,14 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log("エネミーのターン開始処理を実行します。");
             gundamRule.SetCurrentTurnPlayer(Gundam2024RuleScript.PlayerSide.Enemy);
             gundamRule.BeginTurn();
-            CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+            if (!ShouldSkipEnemyDrawOnline())
+            {
+                CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+            }
+            else
+            {
+                Debug.Log("[OnlineBattle] Skipped local opponent draw. Opponent draws on their device.");
+            }
             SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Enemy);
             Debug.Log($"[ドロー] エネミーのターン開始ドロー1枚。LV:{gundamRule.Enemy.level} Resource:{gundamRule.Enemy.resource}");
             ApplyTurnStartAttackFlgForCurrentPlayer();
@@ -2557,6 +2583,17 @@ public partial class BattleGameMain : MonoBehaviour
         StartCoroutine(ExecuteEndTurnCoroutine());
     }
 
+    private void OnEndTurnButtonClicked()
+    {
+        if (!IsLocalOnlineTurn())
+        {
+            Debug.Log("[OnlineBattle] Wait for your turn.");
+            return;
+        }
+
+        ChangePhase(BattlePhase.EndTurn);
+    }
+
     /// <summary>OnAction / 攻撃フロー / シールド処理など、ターン進行を止める UI・処理が走っているか。</summary>
     private bool IsBattleFlowBlockingTurnProgress()
     {
@@ -3083,6 +3120,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
+
+        if (ownerType == PlayerType.Player)
+        {
+            NotifyLocalPlayCardDeployed(cardController);
+        }
     }
 
     /// <summary>手札 UI 閉鎖後に OnPlayed を解決（選択 UI が確実に表示されるよう1フレーム遅延）。</summary>
