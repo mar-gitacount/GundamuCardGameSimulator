@@ -9,10 +9,19 @@ public class OnlineBattleActionPayload
 {
     public string action;
     public int cardId;
+    public int attackerInstanceId;
+    public int defenderInstanceId;
+    public int attackerHp;
+    public int defenderHp;
+    public int defenderShieldAfter;
+    public int defenderExBaseAfter;
+    public bool directAttackWin;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
     public const string DeployShield = "DeployShield";
+    public const string ShieldAttack = "ShieldAttack";
+    public const string UnitAttack = "UnitAttack";
 
     public static string CreateDeployUnit(int cardId)
     {
@@ -20,6 +29,38 @@ public class OnlineBattleActionPayload
         {
             action = DeployUnit,
             cardId = cardId
+        });
+    }
+
+    public static string CreateShieldAttack(
+        int attackerInstanceId,
+        int defenderShieldAfter,
+        int defenderExBaseAfter,
+        bool directAttackWin)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = ShieldAttack,
+            attackerInstanceId = attackerInstanceId,
+            defenderShieldAfter = defenderShieldAfter,
+            defenderExBaseAfter = defenderExBaseAfter,
+            directAttackWin = directAttackWin
+        });
+    }
+
+    public static string CreateUnitAttack(
+        int attackerInstanceId,
+        int defenderInstanceId,
+        int attackerHp,
+        int defenderHp)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = UnitAttack,
+            attackerInstanceId = attackerInstanceId,
+            defenderInstanceId = defenderInstanceId,
+            attackerHp = attackerHp,
+            defenderHp = defenderHp
         });
     }
 
@@ -34,7 +75,17 @@ public class OnlineBattleActionPayload
         try
         {
             payload = JsonUtility.FromJson<OnlineBattleActionPayload>(raw);
-            return payload != null && !string.IsNullOrWhiteSpace(payload.action) && payload.cardId > 0;
+            if (payload == null || string.IsNullOrWhiteSpace(payload.action))
+            {
+                return false;
+            }
+
+            if (payload.action == ShieldAttack || payload.action == UnitAttack)
+            {
+                return payload.attackerInstanceId > 0;
+            }
+
+            return payload.cardId > 0;
         }
         catch
         {

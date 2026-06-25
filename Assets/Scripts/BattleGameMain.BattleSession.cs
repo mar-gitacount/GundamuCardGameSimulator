@@ -134,6 +134,7 @@ public partial class BattleGameMain
     private void ClearBattleRuntimeCollections()
     {
         UnbindEnemyAiPlayerTrashObservation();
+        ResetOnlineBattleInstanceIds();
         playerBattleZoneCards.Clear();
         enemyBattleZoneCards.Clear();
         playerHandCards.Clear();
