@@ -1,0 +1,98 @@
+using System;
+using UnityEngine;
+
+/// <summary>
+/// P2P 上で流すオンライン対戦メッセージの最小フォーマット。
+/// </summary>
+[Serializable]
+public class EosOnlineBattleMessage
+{
+    public string type;
+    public int seed;
+    public bool hostGoesFirst;
+    public string lobbyId;
+    public string payload;
+
+    public static string CreateHello(string text)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "hello",
+            payload = text ?? "hello"
+        });
+    }
+
+    public static string CreatePing()
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "ping",
+            payload = DateTime.UtcNow.ToString("O")
+        });
+    }
+
+    public static string CreatePong()
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "pong",
+            payload = DateTime.UtcNow.ToString("O")
+        });
+    }
+
+    public static string CreateMatchStart(int seed, bool hostGoesFirst, string lobbyId)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "MatchStart",
+            seed = seed,
+            hostGoesFirst = hostGoesFirst,
+            lobbyId = lobbyId ?? string.Empty
+        });
+    }
+
+    public static string CreateEndTurn()
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "EndTurn"
+        });
+    }
+
+    public static string CreatePlayCard(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "PlayCard",
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateAttack(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "Attack",
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static bool TryParse(string raw, out EosOnlineBattleMessage message)
+    {
+        message = null;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        try
+        {
+            message = JsonUtility.FromJson<EosOnlineBattleMessage>(raw);
+            return message != null && !string.IsNullOrWhiteSpace(message.type);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}

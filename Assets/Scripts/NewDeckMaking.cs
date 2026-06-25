@@ -25,6 +25,8 @@ public class NewDeckMaking : MonoBehaviour
 
      // 以下押下で、デッキ一覧のどれかをクリックすると、emeryCardData にカードデータを入れる。
     [SerializeField] private Button ButtleButton;
+
+    [SerializeField] private Button OnlineBattleButton;
     
 
     // Start is called before the first frame update
@@ -38,6 +40,11 @@ public class NewDeckMaking : MonoBehaviour
         DeckDeleteButton.onClick.AddListener(DeleteexecutionJsonFileToUseDeckSeetinObject);
         DeckCopyButton.onClick.AddListener(DeckCopyButtonClicked);
         ButtleButton.onClick.AddListener(ButtleButtonClicked);
+        EnsureOnlineBattleButton();
+        if (OnlineBattleButton != null)
+        {
+            OnlineBattleButton.onClick.AddListener(OnlineBattleButtonClicked);
+        }
     }
 
     // Update is called once per frame
@@ -50,6 +57,55 @@ public class NewDeckMaking : MonoBehaviour
     {
         DeckSettinObject.Instance.battleStart();
         // Debug.Log($"バトル開始フラグ:{DeckSettinObject.Instance.BattleStartFlag}");
+    }
+
+    private void OnlineBattleButtonClicked()
+    {
+        DeckSettinObject deckSettings = DeckSettinObject.Instance;
+        if (deckSettings == null)
+        {
+            Debug.LogWarning("[Online] DeckSettinObject not found.");
+            return;
+        }
+
+        if (!deckSettings.HasSelectedPlayerDeck())
+        {
+            Debug.LogWarning("[Online] Select a deck from the list before Online Battle.");
+            return;
+        }
+
+        deckSettings.ClearBattleStartFlag();
+        EosOnlinePlaytestController.OpenPanel();
+    }
+
+    private void EnsureOnlineBattleButton()
+    {
+        if (OnlineBattleButton != null || ButtleButton == null)
+        {
+            return;
+        }
+
+        GameObject clone = Instantiate(ButtleButton.gameObject, ButtleButton.transform.parent);
+        clone.name = "OnlineBattleButton";
+
+        OnlineBattleButton = clone.GetComponent<Button>();
+        if (OnlineBattleButton == null)
+        {
+            OnlineBattleButton = clone.AddComponent<Button>();
+        }
+
+        RectTransform cloneRect = clone.GetComponent<RectTransform>();
+        RectTransform battleRect = ButtleButton.GetComponent<RectTransform>();
+        if (cloneRect != null && battleRect != null)
+        {
+            cloneRect.anchoredPosition = battleRect.anchoredPosition + new Vector2(0f, -56f);
+        }
+
+        TextMeshProUGUI label = clone.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (label != null)
+        {
+            label.text = "Online Battle";
+        }
     }
 
     private void DeleteexecutionJsonFileToUseDeckSeetinObject()
