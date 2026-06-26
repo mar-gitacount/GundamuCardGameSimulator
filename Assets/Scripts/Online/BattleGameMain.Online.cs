@@ -10,6 +10,8 @@ public partial class BattleGameMain
     private int _onlineAttackRequestIdCounter;
     private int _pendingOnlineBlockRequestId;
     private System.Action<int> _pendingOnlineBlockCallback;
+    private List<OnlineBattleUnitEffectChange> _pendingOnlineEffectChanges;
+    private bool _onlineEffectSyncActive;
 
     private bool ShouldUseOnlineBlockPhase(PlayerType attackerOwner)
     {
@@ -99,6 +101,8 @@ public partial class BattleGameMain
         _onlineAttackRequestIdCounter = 0;
         _pendingOnlineBlockRequestId = 0;
         _pendingOnlineBlockCallback = null;
+        _pendingOnlineEffectChanges = null;
+        _onlineEffectSyncActive = false;
     }
 
     private void AssignBattleInstanceIdIfNeeded(CardController controller)
@@ -146,6 +150,122 @@ public partial class BattleGameMain
         return null;
     }
 
+    private CardController FindUnitByInstanceIdEitherZone(int instanceId)
+    {
+        CardController unit = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Player);
+        if (unit != null)
+        {
+            return unit;
+        }
+
+        return FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Enemy);
+    }
+
+    private bool ShouldSyncOnlineEffects(PlayerType ownerType)
+    {
+        return IsOnlineBattle()
+            && !_applyingRemoteBattleAction
+            && ownerType == PlayerType.Player
+            && currentPlayerType == PlayerType.Player;
+    }
+
+    private void BeginOnlineEffectSyncBatch(PlayerType ownerType)
+    {
+        if (!ShouldSyncOnlineEffects(ownerType))
+        {
+            _onlineEffectSyncActive = false;
+            return;
+        }
+
+        _pendingOnlineEffectChanges ??= new List<OnlineBattleUnitEffectChange>();
+        _pendingOnlineEffectChanges.Clear();
+        _onlineEffectSyncActive = true;
+    }
+
+    private void FlushOnlineEffectSyncBatch()
+    {
+        if (!_onlineEffectSyncActive || _pendingOnlineEffectChanges == null || _pendingOnlineEffectChanges.Count == 0)
+        {
+            _onlineEffectSyncActive = false;
+            return;
+        }
+
+        string json = OnlineBattleEffectSyncPayload.ToJson(_pendingOnlineEffectChanges.ToArray());
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectSync(json));
+            Debug.Log($"[OnlineBattle] Effect sync sent. changes={_pendingOnlineEffectChanges.Count}");
+        }
+
+        _pendingOnlineEffectChanges.Clear();
+        _onlineEffectSyncActive = false;
+    }
+
+    private void QueueOnlineUnitDamage(CardController target)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindDamage,
+            hpAfter = target.CurrentHp
+        });
+    }
+
+    private void QueueOnlineUnitStat(
+        CardController target,
+        int signedValue,
+        EffectStatTarget statTarget,
+        EffectDuration duration)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindStat,
+            signedStatValue = signedValue,
+            statTarget = (int)statTarget,
+            duration = (int)duration
+        });
+    }
+
+    private void QueueOnlineUnitRest(CardController target)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindRest
+        });
+    }
+
+    private void QueueOnlineUnitDestroy(CardController target)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroy,
+            hpAfter = 0
+        });
+    }
+
     private void RegisterNetworkBattleHooksIfNeeded()
     {
         if (networkBattleHooksRegistered || !IsOnlineBattle())
@@ -173,6 +293,13 @@ public partial class BattleGameMain
         }
 
         networkBattleHooksRegistered = false;
+    }
+
+    /// <summary>アプリ終了時にバトル側の P2P 購読だけを外す（UI 破棄は行わない）。</summary>
+    public void ShutdownOnlineNetworkingForQuit()
+    {
+        UnregisterNetworkBattleHooksIfNeeded();
+        ResetOnlineBattleInstanceIds();
     }
 
     public void StartEnemyAiTurn()
@@ -280,6 +407,9 @@ public partial class BattleGameMain
                 break;
             case "BlockResponse":
                 HandleRemoteBlockResponse(message.payload);
+                break;
+            case "EffectSync":
+                HandleRemoteEffectSync(message.payload);
                 break;
         }
     }
@@ -614,5 +744,91 @@ public partial class BattleGameMain
         SyncAllResourceViewsFromRule();
         Debug.Log(
             $"[OnlineBattle] Remote unit attack applied. attackerHp={action.attackerHp} defenderHp={action.defenderHp}");
+    }
+
+    private void HandleRemoteEffectSync(string payload)
+    {
+        if (currentPlayerType != PlayerType.Enemy)
+        {
+            Debug.Log("[OnlineBattle] Ignored EffectSync because it is not opponent turn locally.");
+            return;
+        }
+
+        if (!OnlineBattleEffectSyncPayload.TryParse(payload, out OnlineBattleEffectSyncPayload sync))
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid EffectSync payload: {payload}");
+            return;
+        }
+
+        _applyingRemoteBattleAction = true;
+        try
+        {
+            ApplyRemoteEffectSync(sync);
+        }
+        finally
+        {
+            _applyingRemoteBattleAction = false;
+        }
+    }
+
+    private void ApplyRemoteEffectSync(OnlineBattleEffectSyncPayload sync)
+    {
+        OnlineBattleUnitEffectChange[] changes = sync.unitChanges;
+        if (changes == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < changes.Length; i++)
+        {
+            OnlineBattleUnitEffectChange change = changes[i];
+            if (change == null || change.targetInstanceId <= 0)
+            {
+                continue;
+            }
+
+            CardController unit = FindUnitByInstanceIdEitherZone(change.targetInstanceId);
+            if (unit == null)
+            {
+                Debug.LogWarning(
+                    $"[OnlineBattle] Effect sync target not found: instanceId={change.targetInstanceId} kind={change.changeKind}");
+                continue;
+            }
+
+            switch (change.changeKind)
+            {
+                case OnlineBattleEffectSyncPayload.ChangeKindDamage:
+                    unit.SetCurrentHpForSync(change.hpAfter);
+                    if (change.hpAfter <= 0)
+                    {
+                        SendCardToTrash(unit, ResolveCardOwner(unit.transform));
+                    }
+
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindStat:
+                    ApplyStatEffect(
+                        unit,
+                        change.signedStatValue,
+                        (EffectStatTarget)change.statTarget,
+                        (EffectDuration)change.duration);
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindRest:
+                    TryApplyRestToUnit(unit);
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindDestroy:
+                    if (unit.CurrentHp > 0)
+                    {
+                        SendCardToTrash(unit, ResolveCardOwner(unit.transform));
+                    }
+
+                    break;
+            }
+        }
+
+        SyncAllResourceViewsFromRule();
+        Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
     }
 }

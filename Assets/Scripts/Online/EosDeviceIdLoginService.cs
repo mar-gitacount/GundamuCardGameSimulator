@@ -79,6 +79,12 @@ public class EosDeviceIdLoginService : MonoBehaviour
 
     private void OnCreateDeviceIdCompleted(ref CreateDeviceIdCallbackInfo callbackInfo)
     {
+        if (EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            IsLoggingIn = false;
+            return;
+        }
+
         if (callbackInfo.ResultCode != Result.Success &&
             callbackInfo.ResultCode != Result.DuplicateNotAllowed)
         {
@@ -98,6 +104,12 @@ public class EosDeviceIdLoginService : MonoBehaviour
 
     private void OnConnectLoginCompleted(LoginCallbackInfo callbackInfo)
     {
+        if (EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            IsLoggingIn = false;
+            return;
+        }
+
         if (callbackInfo.ResultCode == Result.Success)
         {
             IsLoggingIn = false;
@@ -123,6 +135,12 @@ public class EosDeviceIdLoginService : MonoBehaviour
 
     private void OnCreateConnectUserCompleted(CreateUserCallbackInfo callbackInfo)
     {
+        if (EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            IsLoggingIn = false;
+            return;
+        }
+
         if (callbackInfo.ResultCode != Result.Success)
         {
             IsLoggingIn = false;

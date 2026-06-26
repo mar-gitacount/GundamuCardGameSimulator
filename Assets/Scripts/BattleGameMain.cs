@@ -2995,6 +2995,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             if (TryApplyRestToUnit(targets[i]))
             {
+                QueueOnlineUnitRest(targets[i]);
                 applied++;
             }
         }
@@ -3033,6 +3034,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             PlayerType targetOwner = ResolveCardOwner(target.transform);
             NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
+            QueueOnlineUnitDestroy(target);
             SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, target));
             applied++;
         }
@@ -4210,6 +4212,8 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        BeginOnlineEffectSyncBatch(ownerType);
+
         if (effect.type == EffectType.Draw)
         {
             CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
@@ -4217,6 +4221,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 CardAddtoHand(rule, ownerType);
             }
+            FlushOnlineEffectSyncBatch();
             return;
         }
 
@@ -4245,6 +4250,7 @@ public partial class BattleGameMain : MonoBehaviour
                     }
 
                     t.ApplyDamage(damageAmount);
+                    QueueOnlineUnitDamage(t);
 
                     if (logCloseCombat)
                     {
@@ -4265,9 +4271,11 @@ public partial class BattleGameMain : MonoBehaviour
                 }
                 case EffectType.Buff:
                     ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration);
+                    QueueOnlineUnitStat(t, magnitude, effect.statTarget, effect.duration);
                     break;
                 case EffectType.Debuff:
                     ApplyStatEffect(t, -magnitude, effect.statTarget, effect.duration);
+                    QueueOnlineUnitStat(t, -magnitude, effect.statTarget, effect.duration);
                     break;
                 case EffectType.BlockRedirect:
                     // BlockRedirect は戦闘フロー分岐で解釈するため、ここでは何もしない。
@@ -4297,6 +4305,7 @@ public partial class BattleGameMain : MonoBehaviour
             ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
         }
 
+        FlushOnlineEffectSyncBatch();
         SyncAllResourceViewsFromRule();
     }
 
@@ -7123,6 +7132,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         List<CardController> targets = ResolveEffectTargets(sourceCard, ownerType, effect);
+        BeginOnlineEffectSyncBatch(ownerType);
         switch (effect.type)
         {
             case EffectType.Draw:
@@ -7173,6 +7183,7 @@ public partial class BattleGameMain : MonoBehaviour
                     CardController targetUnit = targets[i];
                     int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit);
                     targetUnit.ApplyDamage(damageAmount);
+                    QueueOnlineUnitDamage(targetUnit);
                     PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
                     if (targetUnit.CurrentHp <= 0)
                     {
@@ -7196,6 +7207,7 @@ public partial class BattleGameMain : MonoBehaviour
                 for (int i = 0; i < targets.Count; i++)
                 {
                     ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration);
+                    QueueOnlineUnitStat(targets[i], signedValue, effect.statTarget, effect.duration);
                 }
                 Debug.Log($"[Effect] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} by cardId:{sourceCard.Data.id}");
                 break;
@@ -7225,6 +7237,7 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
         }
 
+        FlushOnlineEffectSyncBatch();
         SyncAllResourceViewsFromRule();
     }
 
