@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -90,12 +91,6 @@ public partial class BattleGameMain
         return IsOnlineBattle();
     }
 
-    private bool ShouldSkipOnActionPauseForOnline()
-    {
-        // OnAction コマンド選択のみスキップ。OnAttack のデバフ等の対象選択はローカル/AI と同様に行う。
-        return IsOnlineBattle();
-    }
-
     private void ResetOnlineBattleInstanceIds()
     {
         _nextBattleInstanceId = 1;
@@ -104,6 +99,7 @@ public partial class BattleGameMain
         _pendingOnlineBlockCallback = null;
         _pendingOnlineEffectChanges = null;
         _onlineEffectSyncActive = false;
+        ResetOnlineOnActionState();
     }
 
     private void AssignBattleInstanceIdIfNeeded(CardController controller)
@@ -164,10 +160,10 @@ public partial class BattleGameMain
 
     private bool ShouldSyncOnlineEffects(PlayerType ownerType)
     {
+        // ローカル人間が発動した効果はターン・フェーズに関係なく同期する（防御側 OnAction の Close Combat 等）。
         return IsOnlineBattle()
             && !_applyingRemoteBattleAction
-            && ownerType == PlayerType.Player
-            && currentPlayerType == PlayerType.Player;
+            && ownerType == PlayerType.Player;
     }
 
     private void BeginOnlineEffectSyncBatch(PlayerType ownerType)
@@ -444,6 +440,12 @@ public partial class BattleGameMain
             case "MountPilot":
                 HandleRemoteMountPilot(message.payload);
                 break;
+            case "OnActionBegin":
+                HandleRemoteOnActionBegin(message.payload);
+                break;
+            case "OnActionEnd":
+                HandleRemoteOnActionEnd(message.payload);
+                break;
         }
     }
 
@@ -569,8 +571,35 @@ public partial class BattleGameMain
             return;
         }
 
-        Debug.Log("[OnlineBattle] Remote EndTurn received. Advancing local turn.");
-        ChangePhase(BattlePhase.EndTurn);
+        Debug.Log("[OnlineBattle] Remote EndTurn received. Applying turn switch (OnAction already handled via P2P).");
+        StartCoroutine(ApplyRemoteOpponentEndedTurnCoroutine());
+    }
+
+    /// <summary>
+    /// 相手がターン終了したとき、ローカルで EndTurn コルーチン（OnAction 含む）を再実行せずターンだけ進める。
+    /// 非アクティブ側の OnAction は相手の <see cref="ExecuteEndTurnCoroutine"/> からの OnActionBegin で既に処理済み。
+    /// </summary>
+    private IEnumerator ApplyRemoteOpponentEndedTurnCoroutine()
+    {
+        isEndTurnFlowRunning = true;
+        yield return WaitForShieldBreakFlowCompleteCoroutine();
+        yield return WaitForBattleFlowIdleCoroutine();
+
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        PlayerType endingTurnSide = PlayerType.Enemy;
+
+        TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
+        DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
+
+        currentPlayerType = PlayerType.Player;
+        AdvanceRuleToNextTurnStart();
+        UpdateEndTurnButtonVisibility();
+
+        Debug.Log("[OnlineBattle] Remote opponent turn ended. Starting local turn.");
+        ChangePhase(BattlePhase.StartTurn);
+        isEndTurnFlowRunning = false;
     }
 
     private void HandleRemotePlayCard(string payload)
@@ -781,9 +810,8 @@ public partial class BattleGameMain
 
     private void HandleRemoteEffectSync(string payload)
     {
-        if (currentPlayerType != PlayerType.Enemy)
+        if (!IsOnlineBattle())
         {
-            Debug.Log("[OnlineBattle] Ignored EffectSync because it is not opponent turn locally.");
             return;
         }
 
@@ -834,7 +862,8 @@ public partial class BattleGameMain
                     unit.SetCurrentHpForSync(change.hpAfter);
                     if (change.hpAfter <= 0)
                     {
-                        SendCardToTrash(unit, ResolveCardOwner(unit.transform));
+                        NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
+                        ApplyRemoteUnitToTrash(unit);
                     }
 
                     break;
@@ -852,11 +881,9 @@ public partial class BattleGameMain
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindDestroy:
-                    if (unit.CurrentHp > 0)
-                    {
-                        SendCardToTrash(unit, ResolveCardOwner(unit.transform));
-                    }
-
+                    NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
+                    unit.SetCurrentHpForSync(0);
+                    ApplyRemoteUnitToTrash(unit);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindBounce:
@@ -867,6 +894,23 @@ public partial class BattleGameMain
 
         SyncAllResourceViewsFromRule();
         Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
+    }
+
+    /// <summary>リモート効果同期でのユニット破棄。OnDestroyed 連鎖を起こさず即トラッシュする。</summary>
+    private void ApplyRemoteUnitToTrash(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return;
+        }
+
+        PlayerType owner = ResolveCardOwner(unit.transform);
+        if (unit.Data.type == Type.Unit && unit.MountedPilot != null)
+        {
+            FinishSendCardToTrash(unit.MountedPilot, owner);
+        }
+
+        FinishSendCardToTrash(unit, owner);
     }
 
     private void HandleRemoteMountPilot(string payload)
