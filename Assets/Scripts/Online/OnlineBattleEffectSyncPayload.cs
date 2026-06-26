@@ -25,6 +25,7 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindStat = "Stat";
     public const string ChangeKindRest = "Rest";
     public const string ChangeKindDestroy = "Destroy";
+    public const string ChangeKindBounce = "Bounce";
 
     public static string ToJson(OnlineBattleUnitEffectChange[] changes)
     {

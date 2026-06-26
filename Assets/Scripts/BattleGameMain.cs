@@ -2972,6 +2972,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             if (TryReturnBattleUnitToHand(targets[i]))
             {
+                QueueOnlineUnitBounce(targets[i]);
                 applied++;
             }
         }
@@ -3229,6 +3230,11 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     Debug.Log("パイロット搭乗に失敗しました。");
                     return;
+                }
+
+                if (ownerType == PlayerType.Player)
+                {
+                    NotifyLocalPilotMounted(target, pilotCard);
                 }
 
                 if (ownerType == PlayerType.Player)
@@ -4351,7 +4357,6 @@ public partial class BattleGameMain : MonoBehaviour
         if (ShouldSkipOnActionPauseForOnline())
         {
             skipOnActionPause = true;
-            skipOnAttackSelection = true;
         }
 
         // シールド攻撃は攻撃可能フラグ(True)のみで判定する（宣言済みの OnAttack/OnAction 再開時は除く）。
@@ -4403,16 +4408,27 @@ public partial class BattleGameMain : MonoBehaviour
             blockedShieldFlowSide = targetSide;
         }
 
+        CommitUnitAttackDeclaration(attacker, attackerOwner);
+
+        // シールド攻撃でもユニット攻撃と同様、ブロック待ちより先に OnAttack（デバフ選択等）を解決する。
+        if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
+        {
+            if (TryOpenOnAttackEnemySelectionPanel(
+                attacker,
+                attackerOwner,
+                null,
+                () => TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true, skipAttackedSidePanelPause)))
+            {
+                return;
+            }
+
+            pendingOnAttackEffectResolvedAttacker = attacker;
+        }
+
         if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !AttackerIgnoresBlockRedirect(attacker))
         {
             if (CollectSelectableBlockRedirectUnits(attackerOwner).Count > 0)
             {
-                CommitUnitAttackDeclaration(attacker, attackerOwner);
-                if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
-                {
-                    pendingOnAttackEffectResolvedAttacker = attacker;
-                }
-
                 if (TryBeginOnlineBlockWait(
                     attacker,
                     isShieldAttack: true,
@@ -5023,7 +5039,7 @@ public partial class BattleGameMain : MonoBehaviour
         // 敵 AI のスコア中止は TryEnemyShieldAttacks およびシールド→ブロック直前のみ（バトル開始後は判定しない。宣言前のみ有効）。
 
         // 攻撃宣言後に、OnAttackの対象選択(デバフ等)を行う。
-        if (!ShouldSkipOnActionPauseForOnline() && pendingOnAttackEffectResolvedAttacker != attacker)
+        if (pendingOnAttackEffectResolvedAttacker != attacker)
         {
             // 効果適用するためのカードを選択するUI生成
             if (TryOpenOnAttackEnemySelectionPanel(

@@ -47,6 +47,8 @@ MonoBehaviour:
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
       targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
@@ -54,6 +56,8 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
   link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
   isNotDirectAttack: 0
   isShieldToken: 0
