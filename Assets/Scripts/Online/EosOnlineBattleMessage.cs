@@ -95,6 +95,15 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public static string CreateEffectSync(string effectPayloadJson)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "EffectSync",
+            payload = effectPayloadJson ?? string.Empty
+        });
+    }
+
     public static bool TryParse(string raw, out EosOnlineBattleMessage message)
     {
         message = null;

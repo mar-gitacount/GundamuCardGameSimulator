@@ -21,6 +21,7 @@ public class EosP2PTestService : MonoBehaviour
     private readonly Queue<(string PeerId, string Payload)> _pendingMessages = new Queue<(string PeerId, string Payload)>();
     private P2PInterface _p2pInterface;
     private ulong _connectionRequestNotificationId;
+    private bool _isShuttingDown;
 
     private void Awake()
     {
@@ -31,6 +32,34 @@ public class EosP2PTestService : MonoBehaviour
         }
 
         Instance = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+
+        if (!_isShuttingDown)
+        {
+            ShutdownForQuit();
+        }
+    }
+
+    /// <summary>アプリ終了時に P2P 通知・接続を解放する。</summary>
+    public void ShutdownForQuit(string remotePeerId = null)
+    {
+        if (_isShuttingDown)
+        {
+            return;
+        }
+
+        _isShuttingDown = true;
+        _pendingMessages.Clear();
+        UnsubscribeFromConnectionRequests();
+        TryCloseAllP2PConnections(remotePeerId);
+        _p2pInterface = null;
     }
 
     private void OnEnable()
@@ -46,6 +75,11 @@ public class EosP2PTestService : MonoBehaviour
 
     private void Update()
     {
+        if (_isShuttingDown || EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            return;
+        }
+
         TryRefreshInterface();
         PumpIncomingPackets();
         DispatchQueuedMessages();
@@ -66,6 +100,11 @@ public class EosP2PTestService : MonoBehaviour
 
     public bool SendText(string remoteProductUserId, string message)
     {
+        if (_isShuttingDown || EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            return false;
+        }
+
         ProductUserId localUserId = GetLocalUserId();
         ProductUserId remoteUserId = ProductUserId.FromString(remoteProductUserId);
 
@@ -193,6 +232,12 @@ public class EosP2PTestService : MonoBehaviour
 
     private void DispatchQueuedMessages()
     {
+        if (_isShuttingDown || EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            _pendingMessages.Clear();
+            return;
+        }
+
         while (_pendingMessages.Count > 0)
         {
             (string peerId, string payload) = _pendingMessages.Dequeue();
@@ -239,6 +284,11 @@ public class EosP2PTestService : MonoBehaviour
 
     private void OnIncomingConnectionRequest(ref OnIncomingConnectionRequestInfo data)
     {
+        if (_isShuttingDown || EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            return;
+        }
+
         if (!TryRefreshInterface())
         {
             return;
@@ -275,7 +325,53 @@ public class EosP2PTestService : MonoBehaviour
 
     private void SetStatus(string message)
     {
+        if (_isShuttingDown || EosOnlineShutdownCoordinator.IsShuttingDown)
+        {
+            return;
+        }
+
         Debug.Log("[EOS P2P] " + message);
         StatusChanged?.Invoke(message);
+    }
+
+    private void TryCloseAllP2PConnections(string remotePeerId = null)
+    {
+        if (_p2pInterface == null && !TryRefreshInterface())
+        {
+            return;
+        }
+
+        ProductUserId localUserId = GetLocalUserId();
+        if (localUserId == null || !localUserId.IsValid())
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(remotePeerId))
+        {
+            remotePeerId = EosOnlineMatchState.RemoteProductUserId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(remotePeerId))
+        {
+            ProductUserId remoteUserId = ProductUserId.FromString(remotePeerId);
+            if (remoteUserId != null && remoteUserId.IsValid())
+            {
+                var closePeerOptions = new CloseConnectionOptions
+                {
+                    LocalUserId = localUserId,
+                    RemoteUserId = remoteUserId,
+                    SocketId = BuildSocketId()
+                };
+                _p2pInterface.CloseConnection(ref closePeerOptions);
+            }
+        }
+
+        var closeAllOptions = new CloseConnectionsOptions
+        {
+            LocalUserId = localUserId,
+            SocketId = BuildSocketId()
+        };
+        _p2pInterface.CloseConnections(ref closeAllOptions);
     }
 }
