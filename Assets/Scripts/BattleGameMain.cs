@@ -118,6 +118,12 @@ public partial class BattleGameMain : MonoBehaviour
     private bool isActionThinkPauseOpen;
     /// <summary>攻撃後 OnAction の「プレイヤー手前」に actionthink を挟むテスト用フラグ。</summary>
     [SerializeField] private bool enableAttackFlowActionThinkTest = true;
+
+    /// <summary>AI 戦のみ。プレイヤー同士（オンライン）では actionthink テストポーズを出さない。</summary>
+    private bool ShouldUseAttackFlowActionThinkPause()
+    {
+        return enableAttackFlowActionThinkTest && !IsOnlineBattle();
+    }
     [SerializeField] private bool enableShieldAttackFlowDebugLog = true;
     [Tooltip("true のとき敵 OnAction はログ用ポップアップのみ。false で AI がコマンドを本番実行。")]
     [SerializeField] private bool enableEnemyOnActionDebugPopupOnly;
@@ -227,6 +233,9 @@ public partial class BattleGameMain : MonoBehaviour
         LogArgamaShieldBlockCloseCombatDebug("FinalizeBlockInterrupt", "attack flow ending without exchange");
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
+        blockExchangeCancelledForCurrentAttack = false;
+        shieldStrikeAbortedAfterBlockInterrupt = false;
+        attackFlowBlockRedirectCombatVoided = false;
         FinishDeferredShieldAttackBlockFlow();
         ClearAttackFlowContext();
     }
@@ -2641,10 +2650,7 @@ public partial class BattleGameMain : MonoBehaviour
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = currentPlayerType;
         bool waitingForClose = false;
-        bool startedOnActionStep = TryHandleSingleSideOnActionStep(
-            endingTurnSide,
-            "turn end",
-            () => waitingForClose = false);
+        bool startedOnActionStep = TryRunTurnEndOnActionPhases(() => waitingForClose = false);
         if (startedOnActionStep)
         {
             waitingForClose = true;
@@ -3454,7 +3460,125 @@ public partial class BattleGameMain : MonoBehaviour
         FinishDeferredShieldAttackBlockFlow();
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
+        blockExchangeCancelledForCurrentAttack = false;
+        shieldStrikeAbortedAfterBlockInterrupt = false;
+        attackFlowBlockRedirectCombatVoided = false;
         ClearAttackFlowContext();
+    }
+
+    private static bool IsSameBattleUnit(CardController a, CardController b)
+    {
+        if (a == null || b == null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(a, b))
+        {
+            return true;
+        }
+
+        return a.BattleInstanceId > 0 && a.BattleInstanceId == b.BattleInstanceId;
+    }
+
+    /// <summary>OnAction 中の効果で攻撃フロー参加者が除去されたとき、再開前に中断フラグを立てる。</summary>
+    private void NotifyAttackFlowParticipantRemovedDuringOnAction(CardController unit)
+    {
+        if (unit == null || attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return;
+        }
+
+        if (attackFlowBlockRedirectUnit != null && IsSameBattleUnit(unit, attackFlowBlockRedirectUnit))
+        {
+            NotifyBlockRedirectUnitRemovedDuringAttackFlow(attackFlowBlockRedirectUnit);
+            return;
+        }
+
+        if (attackFlowAttackerUnit != null && IsSameBattleUnit(unit, attackFlowAttackerUnit))
+        {
+            MarkBlockExchangeCancelled("Attacker removed by effect during attack OnAction.", finalizeFlowNow: false);
+            return;
+        }
+
+        if (!attackFlowBlockRedirectEngaged
+            && attackFlowDeclaredDefenderUnit != null
+            && IsSameBattleUnit(unit, attackFlowDeclaredDefenderUnit))
+        {
+            MarkBlockExchangeCancelled("Defender removed by effect during attack OnAction.", finalizeFlowNow: false);
+        }
+    }
+
+    private void NotifyAttackFlowParticipantRemovedByInstanceId(int instanceId)
+    {
+        if (instanceId <= 0 || attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return;
+        }
+
+        CardController unit = FindUnitByInstanceIdEitherZone(instanceId);
+        if (unit != null)
+        {
+            NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
+            return;
+        }
+
+        if (attackFlowBlockRedirectUnit != null && attackFlowBlockRedirectUnit.BattleInstanceId == instanceId)
+        {
+            NotifyBlockRedirectUnitRemovedDuringAttackFlow(attackFlowBlockRedirectUnit);
+            return;
+        }
+
+        if (attackFlowAttackerUnit != null && attackFlowAttackerUnit.BattleInstanceId == instanceId)
+        {
+            MarkBlockExchangeCancelled("Attacker removed during attack flow (sync).", finalizeFlowNow: false);
+            return;
+        }
+
+        if (!attackFlowBlockRedirectEngaged
+            && attackFlowDeclaredDefenderUnit != null
+            && attackFlowDeclaredDefenderUnit.BattleInstanceId == instanceId)
+        {
+            MarkBlockExchangeCancelled("Defender removed during attack flow (sync).", finalizeFlowNow: false);
+        }
+    }
+
+    /// <summary>OnAction 全段完了後、攻撃フローが続行不能なら片付ける。true = 中断して終了済み。</summary>
+    private bool TrySettleAttackFlowAfterOnActionPhases()
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return false;
+        }
+
+        if (blockExchangeCancelledForCurrentAttack)
+        {
+            FinalizeBlockInterruptWithoutExchange();
+            return true;
+        }
+
+        CardController attacker = attackFlowAttackerUnit != null ? attackFlowAttackerUnit : pendingUnitAttackAttacker;
+        if (!IsUnitAliveOnAnyDeployField(attacker))
+        {
+            CancelPendingUnitAttackFlow();
+            return true;
+        }
+
+        if (attackFlowBlockRedirectEngaged)
+        {
+            if (!IsUnitAvailableForAttackExchange(attackFlowBlockRedirectUnit))
+            {
+                FinalizeBlockInterruptWithoutExchange();
+                return true;
+            }
+        }
+        else if (attackFlowDeclaredDefenderUnit != null && !IsUnitAliveOnAnyDeployField(attackFlowDeclaredDefenderUnit))
+        {
+            CancelPendingUnitAttackFlow();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>シールド攻撃→ブロック OnAction 解決後にシールド攻撃フラグを片付ける（シールドダメージは再開しない）。</summary>
@@ -3585,11 +3709,16 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>OnAction 等の UI 後に、攻撃フロー文脈からユニット戦を再開する（破壊済み参照を避ける）。</summary>
     private void TryResumeUnitVsUnitAttackAfterOnAction(bool skipOnActionPause, bool skipAttackedSidePanelPause)
     {
+        if (TrySettleAttackFlowAfterOnActionPhases())
+        {
+            return;
+        }
+
         CardController attacker = attackFlowAttackerUnit != null
             ? attackFlowAttackerUnit
             : pendingUnitAttackAttacker;
 
-        if (!IsCardControllerInstanceValid(attacker))
+        if (!IsUnitAliveOnAnyDeployField(attacker))
         {
             Debug.Log("[UnitAttack] Attacker was destroyed — cancel attack continuation.");
             CancelPendingUnitAttackFlow();
@@ -3616,7 +3745,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         CardController defender = attackFlowDeclaredDefenderUnit;
 
-        if (!IsCardControllerInstanceValid(defender))
+        if (!IsUnitAliveOnAnyDeployField(defender))
         {
             Debug.Log("[UnitAttack] Defender was destroyed — cancel attack continuation.");
             CancelPendingUnitAttackFlow();
@@ -4257,6 +4386,10 @@ public partial class BattleGameMain : MonoBehaviour
 
                     t.ApplyDamage(damageAmount);
                     QueueOnlineUnitDamage(t);
+                    if (t.CurrentHp <= 0)
+                    {
+                        QueueOnlineUnitDestroy(t);
+                    }
 
                     if (logCloseCombat)
                     {
@@ -4269,7 +4402,7 @@ public partial class BattleGameMain : MonoBehaviour
 
                     if (t.CurrentHp <= 0)
                     {
-                        NotifyBlockRedirectUnitRemovedDuringAttackFlow(t);
+                        NotifyAttackFlowParticipantRemovedDuringOnAction(t);
                         SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
                     }
 
@@ -4352,11 +4485,6 @@ public partial class BattleGameMain : MonoBehaviour
         if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
         {
             return;
-        }
-
-        if (ShouldSkipOnActionPauseForOnline())
-        {
-            skipOnActionPause = true;
         }
 
         // シールド攻撃は攻撃可能フラグ(True)のみで判定する（宣言済みの OnAttack/OnAction 再開時は除く）。
@@ -4591,9 +4719,8 @@ public partial class BattleGameMain : MonoBehaviour
                     attackerOwner,
                     () =>
                     {
-                        if (blockExchangeCancelledForCurrentAttack || shieldStrikeAbortedAfterBlockInterrupt)
+                        if (TrySettleAttackFlowAfterOnActionPhases())
                         {
-                            FinalizeBlockInterruptWithoutExchange();
                             return;
                         }
 
@@ -5003,11 +5130,6 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (ShouldSkipOnActionPauseForOnline())
-        {
-            skipOnActionPause = true;
-        }
-
         if (attacker.Data.type != Type.Unit || defender.Data.type != Type.Unit)
         {
             Debug.Log("Only units can attack each other.");
@@ -5200,7 +5322,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (!defender.IsRestState)
         {
             Debug.Log("Only REST units can be attacked.");
-            ClearAttackFlowContext();
+            CancelPendingUnitAttackFlow();
             return;
         }
 
@@ -5302,21 +5424,14 @@ public partial class BattleGameMain : MonoBehaviour
                 attackerOwner,
                 () =>
                 {
-                    LogArgamaShieldBlockCloseCombatDebug(
-                        "TryResolveBlock_OnActionComplete",
-                        $"callback entered cancelled:{blockExchangeCancelledForCurrentAttack}",
-                        attackFlowAttackerUnit,
-                        attackFlowBlockRedirectUnit);
-
-                    if (blockExchangeCancelledForCurrentAttack)
+                    if (TrySettleAttackFlowAfterOnActionPhases())
                     {
-                        FinalizeBlockInterruptWithoutExchange();
                         return;
                     }
 
                     CardController resumeAttacker = attackFlowAttackerUnit;
                     CardController resumeBlocker = attackFlowBlockRedirectUnit;
-                    if (!IsCardControllerInstanceValid(resumeAttacker))
+                    if (!IsUnitAliveOnAnyDeployField(resumeAttacker))
                     {
                         LogArgamaShieldBlockCloseCombatDebug(
                             "TryResolveBlock_OnActionComplete",
@@ -5337,7 +5452,7 @@ public partial class BattleGameMain : MonoBehaviour
                         resumeAttacker,
                         resumeBlocker,
                         attackFlowAttackerOwner,
-                        ResolveCardOwner(resumeBlocker.transform),
+                        ResolveCardOwner(resumeBlocker != null ? resumeBlocker.transform : null),
                         skipOnActionPause: true);
                 },
                 attacker))
@@ -7203,6 +7318,8 @@ public partial class BattleGameMain : MonoBehaviour
                     PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
                     if (targetUnit.CurrentHp <= 0)
                     {
+                        NotifyAttackFlowParticipantRemovedDuringOnAction(targetUnit);
+                        QueueOnlineUnitDestroy(targetUnit);
                         SendCardToTrash(targetUnit, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
                     }
                 }
@@ -7654,6 +7771,34 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
+    /// ターン終了時の OnAction。どちらのターンでも「Enemy ゾーン → Player ゾーン」の順で両プレイヤーが実行する。
+    /// </summary>
+    private bool TryRunTurnEndOnActionPhases(System.Action onComplete)
+    {
+        void runPlayerOnActionOrFinish()
+        {
+            if (TryHandleSingleSideOnActionStep(PlayerType.Player, "turn end:player-action", onComplete))
+            {
+                return;
+            }
+
+            onComplete?.Invoke();
+        }
+
+        if (TryHandleSingleSideOnActionStep(PlayerType.Enemy, "turn end:enemy-action", runPlayerOnActionOrFinish))
+        {
+            return true;
+        }
+
+        if (TryHandleSingleSideOnActionStep(PlayerType.Player, "turn end:player-action", onComplete))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// 攻撃フロー後半：呼び出し元で「アタック宣言〜ブロック可否」まで済んだあとの OnAction 順序。
     /// 敵アクション →（テスト）actionthink → プレイヤーアクション。
     /// </summary>
@@ -7671,7 +7816,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         void afterEnemyOnAction()
         {
-            if (enableAttackFlowActionThinkTest && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
+            if (ShouldUseAttackFlowActionThinkPause() && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
             {
                 return;
             }
@@ -7684,7 +7829,7 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
-        if (enableAttackFlowActionThinkTest && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
+        if (ShouldUseAttackFlowActionThinkPause() && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
         {
             return true;
         }
@@ -7704,7 +7849,7 @@ public partial class BattleGameMain : MonoBehaviour
     /// </summary>
     private bool TryOpenActionThinkTestPause(System.Action onContinue)
     {
-        if (!enableAttackFlowActionThinkTest || onContinue == null)
+        if (!ShouldUseAttackFlowActionThinkPause() || onContinue == null)
         {
             return false;
         }
@@ -7757,15 +7902,9 @@ public partial class BattleGameMain : MonoBehaviour
         System.Action onComplete,
         CardController attackingUnitInAttackFlow = null)
     {
-        if (ShouldSkipOnActionPauseForOnline())
-        {
-            onComplete?.Invoke();
-            return false;
-        }
-
         if (isAttackedSidePanelOpen)
         {
-            return true;
+            return false;
         }
 
         if (enableShieldAttackFlowDebugLog)
@@ -9703,9 +9842,9 @@ public partial class BattleGameMain : MonoBehaviour
         System.Action onStepDone,
         CardController attackingUnitInAttackFlow = null)
     {
-        if (ShouldSkipOnActionPauseForOnline())
+        if (IsOnlineBattle())
         {
-            return false;
+            return TryHandleSingleSideOnActionStepOnline(side, context, onStepDone, attackingUnitInAttackFlow);
         }
 
         if (side == PlayerType.Enemy)
@@ -9814,7 +9953,9 @@ public partial class BattleGameMain : MonoBehaviour
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, 720, 48);
-        title.text = $"OnAction Command Select ({side}) [{context}]";
+        title.text = IsOnlineBattle()
+            ? "アクション — コマンドを選択"
+            : $"OnAction Command Select ({side}) [{context}]";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -9877,7 +10018,7 @@ public partial class BattleGameMain : MonoBehaviour
                 attackingUnitInAttackFlow);
             });
 
-        Button closeBtn = root.CreateChildButton("Close");
+        Button closeBtn = root.CreateChildButton(IsOnlineBattle() ? "スキップ" : "Close");
         RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
         closeRt.sizeDelta = new Vector2(180f, 48f);
         closeRt.anchorMin = new Vector2(0.5f, 0f);
@@ -9886,7 +10027,10 @@ public partial class BattleGameMain : MonoBehaviour
         closeRt.anchoredPosition = new Vector2(100f, 36f);
         closeBtn.onClick.AddListener(() =>
         {
-            LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseCommandPopup", context, side, attackingUnitInAttackFlow);
+            if (!IsOnlineBattle())
+            {
+                LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseCommandPopup", context, side, attackingUnitInAttackFlow);
+            }
             isOnActionPopupOpen = false;
             activeOnActionPopupRoot = null;
             Destroy(root);

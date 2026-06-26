@@ -113,6 +113,24 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public static string CreateOnActionBegin(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "OnActionBegin",
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateOnActionEnd(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "OnActionEnd",
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static bool TryParse(string raw, out EosOnlineBattleMessage message)
     {
         message = null;

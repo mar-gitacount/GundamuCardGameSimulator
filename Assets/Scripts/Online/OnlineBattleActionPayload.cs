@@ -21,6 +21,11 @@ public class OnlineBattleActionPayload
     public bool directAttackWin;
     public bool blockCombat;
     public string attackKind;
+    public string onActionContext;
+    public int actingZoneSide;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
@@ -30,6 +35,8 @@ public class OnlineBattleActionPayload
     public const string AttackDeclare = "AttackDeclare";
     public const string BlockResponse = "BlockResponse";
     public const string MountPilot = "MountPilot";
+    public const string OnActionBegin = "OnActionBegin";
+    public const string OnActionEnd = "OnActionEnd";
     public const string AttackKindShield = "Shield";
     public const string AttackKindUnitVsUnit = "UnitVsUnit";
 
@@ -113,6 +120,38 @@ public class OnlineBattleActionPayload
         });
     }
 
+    public static string CreateOnActionBegin(
+        int requestId,
+        int actingZoneSide,
+        string context,
+        int attackerInstanceId)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = OnActionBegin,
+            requestId = requestId,
+            actingZoneSide = actingZoneSide,
+            onActionContext = context ?? string.Empty,
+            attackerInstanceId = attackerInstanceId
+        });
+    }
+
+    public static string CreateOnActionEnd(
+        int requestId,
+        int resourceAfter,
+        int exResourceAfter,
+        int levelAfter)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = OnActionEnd,
+            requestId = requestId,
+            resourceAfter = resourceAfter,
+            exResourceAfter = exResourceAfter,
+            levelAfter = levelAfter
+        });
+    }
+
     public static bool TryParse(string raw, out OnlineBattleActionPayload payload)
     {
         payload = null;
@@ -136,6 +175,8 @@ public class OnlineBattleActionPayload
                 case AttackDeclare:
                     return payload.attackerInstanceId > 0;
                 case BlockResponse:
+                case OnActionBegin:
+                case OnActionEnd:
                     return payload.requestId > 0;
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;
