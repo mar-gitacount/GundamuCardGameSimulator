@@ -9,26 +9,62 @@ public class OnlineBattleActionPayload
 {
     public string action;
     public int cardId;
+    public int instanceId;
+    public int requestId;
     public int attackerInstanceId;
     public int defenderInstanceId;
+    public int blockerInstanceId;
     public int attackerHp;
     public int defenderHp;
     public int defenderShieldAfter;
     public int defenderExBaseAfter;
     public bool directAttackWin;
+    public bool blockCombat;
+    public string attackKind;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
     public const string DeployShield = "DeployShield";
     public const string ShieldAttack = "ShieldAttack";
     public const string UnitAttack = "UnitAttack";
+    public const string AttackDeclare = "AttackDeclare";
+    public const string BlockResponse = "BlockResponse";
+    public const string AttackKindShield = "Shield";
+    public const string AttackKindUnitVsUnit = "UnitVsUnit";
 
-    public static string CreateDeployUnit(int cardId)
+    public static string CreateDeployUnit(int cardId, int instanceId)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
             action = DeployUnit,
-            cardId = cardId
+            cardId = cardId,
+            instanceId = instanceId
+        });
+    }
+
+    public static string CreateAttackDeclare(
+        int requestId,
+        string attackKind,
+        int attackerInstanceId,
+        int defenderInstanceId)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = AttackDeclare,
+            requestId = requestId,
+            attackKind = attackKind ?? string.Empty,
+            attackerInstanceId = attackerInstanceId,
+            defenderInstanceId = defenderInstanceId
+        });
+    }
+
+    public static string CreateBlockResponse(int requestId, int blockerInstanceId)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = BlockResponse,
+            requestId = requestId,
+            blockerInstanceId = blockerInstanceId
         });
     }
 
@@ -52,7 +88,8 @@ public class OnlineBattleActionPayload
         int attackerInstanceId,
         int defenderInstanceId,
         int attackerHp,
-        int defenderHp)
+        int defenderHp,
+        bool blockCombat = false)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
@@ -60,7 +97,8 @@ public class OnlineBattleActionPayload
             attackerInstanceId = attackerInstanceId,
             defenderInstanceId = defenderInstanceId,
             attackerHp = attackerHp,
-            defenderHp = defenderHp
+            defenderHp = defenderHp,
+            blockCombat = blockCombat
         });
     }
 
@@ -80,12 +118,19 @@ public class OnlineBattleActionPayload
                 return false;
             }
 
-            if (payload.action == ShieldAttack || payload.action == UnitAttack)
+            switch (payload.action)
             {
-                return payload.attackerInstanceId > 0;
+                case ShieldAttack:
+                case UnitAttack:
+                case AttackDeclare:
+                    return payload.attackerInstanceId > 0;
+                case BlockResponse:
+                    return payload.requestId > 0;
+                case DeployUnit:
+                    return payload.cardId > 0 && payload.instanceId > 0;
+                default:
+                    return payload.cardId > 0;
             }
-
-            return payload.cardId > 0;
         }
         catch
         {

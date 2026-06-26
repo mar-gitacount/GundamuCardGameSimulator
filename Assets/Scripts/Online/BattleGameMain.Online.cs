@@ -7,6 +7,30 @@ public partial class BattleGameMain
     private bool networkBattleHooksRegistered;
     private int _nextBattleInstanceId = 1;
     private bool _applyingRemoteBattleAction;
+    private int _onlineAttackRequestIdCounter;
+    private int _pendingOnlineBlockRequestId;
+    private System.Action<int> _pendingOnlineBlockCallback;
+
+    private bool ShouldUseOnlineBlockPhase(PlayerType attackerOwner)
+    {
+        return IsOnlineBattle() && attackerOwner == PlayerType.Player && !_applyingRemoteBattleAction;
+    }
+
+    private void RegisterBattleInstanceId(int instanceId)
+    {
+        _nextBattleInstanceId = Mathf.Max(_nextBattleInstanceId, instanceId + 1);
+    }
+
+    private void AssignBattleInstanceIdFromNetwork(CardController controller, int instanceId)
+    {
+        if (controller == null || instanceId <= 0)
+        {
+            return;
+        }
+
+        controller.AssignBattleInstanceId(instanceId);
+        RegisterBattleInstanceId(instanceId);
+    }
 
     private bool IsOnlineBattle()
     {
@@ -72,6 +96,9 @@ public partial class BattleGameMain
     private void ResetOnlineBattleInstanceIds()
     {
         _nextBattleInstanceId = 1;
+        _onlineAttackRequestIdCounter = 0;
+        _pendingOnlineBlockRequestId = 0;
+        _pendingOnlineBlockCallback = null;
     }
 
     private void AssignBattleInstanceIdIfNeeded(CardController controller)
@@ -87,6 +114,11 @@ public partial class BattleGameMain
         }
 
         controller.AssignBattleInstanceId(_nextBattleInstanceId++);
+    }
+
+    private int AllocateBattleInstanceId()
+    {
+        return _nextBattleInstanceId++;
     }
 
     private CardController FindBattleZoneUnitByInstanceId(int instanceId, PlayerType zoneOwner)
@@ -187,8 +219,15 @@ public partial class BattleGameMain
             return;
         }
 
+        AssignBattleInstanceIdIfNeeded(cardController);
+        if (cardController.BattleInstanceId <= 0)
+        {
+            Debug.LogWarning("[OnlineBattle] Deploy sync skipped: unit has no BattleInstanceId.");
+            return;
+        }
+
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
-            OnlineBattleActionPayload.CreateDeployUnit(cardController.Data.id)));
+            OnlineBattleActionPayload.CreateDeployUnit(cardController.Data.id, cardController.BattleInstanceId)));
     }
 
     private void SendOnlineBattleMessage(string json)
@@ -236,7 +275,127 @@ public partial class BattleGameMain
             case "Attack":
                 HandleRemoteAttack(message.payload);
                 break;
+            case "AttackDeclare":
+                HandleRemoteAttackDeclare(message.payload);
+                break;
+            case "BlockResponse":
+                HandleRemoteBlockResponse(message.payload);
+                break;
         }
+    }
+
+    private bool TryBeginOnlineBlockWait(
+        CardController attacker,
+        bool isShieldAttack,
+        CardController originalDefender,
+        System.Action<int> onBlockerInstanceIdResolved)
+    {
+        if (!ShouldUseOnlineBlockPhase(PlayerType.Player) || attacker == null || onBlockerInstanceIdResolved == null)
+        {
+            return false;
+        }
+
+        if (AttackerIgnoresBlockRedirect(attacker))
+        {
+            return false;
+        }
+
+        if (CollectSelectableBlockRedirectUnits(PlayerType.Player).Count <= 0)
+        {
+            return false;
+        }
+
+        int requestId = ++_onlineAttackRequestIdCounter;
+        _pendingOnlineBlockRequestId = requestId;
+        _pendingOnlineBlockCallback = onBlockerInstanceIdResolved;
+
+        string attackKind = isShieldAttack
+            ? OnlineBattleActionPayload.AttackKindShield
+            : OnlineBattleActionPayload.AttackKindUnitVsUnit;
+        int defenderInstanceId = originalDefender != null ? originalDefender.BattleInstanceId : 0;
+
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttackDeclare(
+            OnlineBattleActionPayload.CreateAttackDeclare(
+                requestId,
+                attackKind,
+                attacker.BattleInstanceId,
+                defenderInstanceId)));
+
+        Debug.Log($"[OnlineBattle] Waiting for block response. requestId={requestId}");
+        return true;
+    }
+
+    private void HandleRemoteAttackDeclare(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action))
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid AttackDeclare payload: {payload}");
+            return;
+        }
+
+        if (currentPlayerType != PlayerType.Enemy)
+        {
+            Debug.Log("[OnlineBattle] Ignored AttackDeclare because it is not opponent turn locally.");
+            return;
+        }
+
+        CardController attacker = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
+        if (attacker == null)
+        {
+            Debug.LogWarning($"[OnlineBattle] AttackDeclare attacker not found: {action.attackerInstanceId}");
+            SendOnlineBlockResponse(action.requestId, 0);
+            return;
+        }
+
+        CardController selectedBlocker = null;
+        bool opened = TryOpenAttackedSideUnitsPanel(
+            PlayerType.Enemy,
+            attacker,
+            selected => { selectedBlocker = selected; },
+            () =>
+            {
+                int blockerInstanceId = 0;
+                if (selectedBlocker != null
+                    && IsBlockRedirectReactionReady(selectedBlocker, PlayerType.Player))
+                {
+                    blockerInstanceId = selectedBlocker.BattleInstanceId;
+                }
+
+                SendOnlineBlockResponse(action.requestId, blockerInstanceId);
+            });
+
+        if (!opened)
+        {
+            Debug.Log("[OnlineBattle] No block UI opened — sending pass.");
+            SendOnlineBlockResponse(action.requestId, 0);
+        }
+    }
+
+    private void SendOnlineBlockResponse(int requestId, int blockerInstanceId)
+    {
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateBlockResponse(
+            OnlineBattleActionPayload.CreateBlockResponse(requestId, blockerInstanceId)));
+        Debug.Log($"[OnlineBattle] Block response sent. requestId={requestId} blocker={blockerInstanceId}");
+    }
+
+    private void HandleRemoteBlockResponse(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action))
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid BlockResponse payload: {payload}");
+            return;
+        }
+
+        if (action.requestId != _pendingOnlineBlockRequestId || _pendingOnlineBlockCallback == null)
+        {
+            Debug.Log($"[OnlineBattle] Ignored BlockResponse requestId={action.requestId}");
+            return;
+        }
+
+        System.Action<int> callback = _pendingOnlineBlockCallback;
+        _pendingOnlineBlockCallback = null;
+        _pendingOnlineBlockRequestId = 0;
+        callback.Invoke(Mathf.Max(0, action.blockerInstanceId));
     }
 
     private void HandleRemoteEndTurn()
@@ -267,11 +426,11 @@ public partial class BattleGameMain
 
         if (action.action == OnlineBattleActionPayload.DeployUnit)
         {
-            ApplyRemoteDeployUnit(action.cardId);
+            ApplyRemoteDeployUnit(action.cardId, action.instanceId);
         }
     }
 
-    private void ApplyRemoteDeployUnit(int cardId)
+    private void ApplyRemoteDeployUnit(int cardId, int instanceId)
     {
         if (DeckSettinObject.Instance == null)
         {
@@ -299,7 +458,14 @@ public partial class BattleGameMain
             controller.ResetRuntimeStatsFromData();
             controller.SetAttackFlg(AttackFlg.False);
             controller.SetUnitRestVisual(false);
-            AssignBattleInstanceIdIfNeeded(controller);
+            if (instanceId > 0)
+            {
+                AssignBattleInstanceIdFromNetwork(controller, instanceId);
+            }
+            else
+            {
+                AssignBattleInstanceIdIfNeeded(controller);
+            }
         }
 
         Debug.Log($"[OnlineBattle] Remote unit deployed on opponent field: {cardData.cardName} ({cardId})");
@@ -329,7 +495,8 @@ public partial class BattleGameMain
         CardController attacker,
         CardController defender,
         int attackerHpAfter,
-        int defenderHpAfter)
+        int defenderHpAfter,
+        bool blockCombat = false)
     {
         if (_applyingRemoteBattleAction || !IsOnlineBattle() || currentPlayerType != PlayerType.Player
             || attacker == null || defender == null
@@ -343,7 +510,8 @@ public partial class BattleGameMain
                 attacker.BattleInstanceId,
                 defender.BattleInstanceId,
                 attackerHpAfter,
-                defenderHpAfter)));
+                defenderHpAfter,
+                blockCombat)));
     }
 
     private void HandleRemoteAttack(string payload)
@@ -427,6 +595,11 @@ public partial class BattleGameMain
         CommitUnitAttackDeclaration(attacker, PlayerType.Enemy);
         defender.SetCurrentHpForSync(action.defenderHp);
         attacker.SetCurrentHpForSync(action.attackerHp);
+
+        if (action.blockCombat && defender.CurrentHp > 0)
+        {
+            SetUnitRestAndTriggerEffects(defender, PlayerType.Player);
+        }
 
         if (defender.CurrentHp <= 0)
         {
