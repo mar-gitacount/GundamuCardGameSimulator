@@ -29,6 +29,7 @@ public class OnlineBattleActionPayload
     public const string UnitAttack = "UnitAttack";
     public const string AttackDeclare = "AttackDeclare";
     public const string BlockResponse = "BlockResponse";
+    public const string MountPilot = "MountPilot";
     public const string AttackKindShield = "Shield";
     public const string AttackKindUnitVsUnit = "UnitVsUnit";
 
@@ -84,6 +85,16 @@ public class OnlineBattleActionPayload
         });
     }
 
+    public static string CreateMountPilot(int hostInstanceId, int pilotCardId)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = MountPilot,
+            instanceId = hostInstanceId,
+            cardId = pilotCardId
+        });
+    }
+
     public static string CreateUnitAttack(
         int attackerInstanceId,
         int defenderInstanceId,
@@ -127,6 +138,8 @@ public class OnlineBattleActionPayload
                 case BlockResponse:
                     return payload.requestId > 0;
                 case DeployUnit:
+                    return payload.cardId > 0 && payload.instanceId > 0;
+                case MountPilot:
                     return payload.cardId > 0 && payload.instanceId > 0;
                 default:
                     return payload.cardId > 0;

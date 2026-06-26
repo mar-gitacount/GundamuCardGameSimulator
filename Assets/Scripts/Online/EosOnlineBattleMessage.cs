@@ -104,6 +104,15 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public static string CreateMountPilot(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "MountPilot",
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static bool TryParse(string raw, out EosOnlineBattleMessage message)
     {
         message = null;

@@ -92,6 +92,7 @@ public partial class BattleGameMain
 
     private bool ShouldSkipOnActionPauseForOnline()
     {
+        // OnAction コマンド選択のみスキップ。OnAttack のデバフ等の対象選択はローカル/AI と同様に行う。
         return IsOnlineBattle();
     }
 
@@ -266,6 +267,20 @@ public partial class BattleGameMain
         });
     }
 
+    private void QueueOnlineUnitBounce(CardController target)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindBounce
+        });
+    }
+
     private void RegisterNetworkBattleHooksIfNeeded()
     {
         if (networkBattleHooksRegistered || !IsOnlineBattle())
@@ -357,6 +372,21 @@ public partial class BattleGameMain
             OnlineBattleActionPayload.CreateDeployUnit(cardController.Data.id, cardController.BattleInstanceId)));
     }
 
+    private void NotifyLocalPilotMounted(CardController hostUnit, CardController pilotCard)
+    {
+        if (_applyingRemoteBattleAction || !IsOnlineBattle() || currentPlayerType != PlayerType.Player
+            || hostUnit == null || pilotCard == null || pilotCard.Data == null
+            || hostUnit.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateMountPilot(
+            OnlineBattleActionPayload.CreateMountPilot(hostUnit.BattleInstanceId, pilotCard.Data.id)));
+        Debug.Log(
+            $"[OnlineBattle] MountPilot sync sent. host={hostUnit.BattleInstanceId} pilot={pilotCard.Data.id}");
+    }
+
     private void SendOnlineBattleMessage(string json)
     {
         if (EosP2PTestService.Instance == null)
@@ -410,6 +440,9 @@ public partial class BattleGameMain
                 break;
             case "EffectSync":
                 HandleRemoteEffectSync(message.payload);
+                break;
+            case "MountPilot":
+                HandleRemoteMountPilot(message.payload);
                 break;
         }
     }
@@ -825,10 +858,86 @@ public partial class BattleGameMain
                     }
 
                     break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindBounce:
+                    TryReturnBattleUnitToHand(unit);
+                    break;
             }
         }
 
         SyncAllResourceViewsFromRule();
         Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
+    }
+
+    private void HandleRemoteMountPilot(string payload)
+    {
+        if (currentPlayerType != PlayerType.Enemy)
+        {
+            Debug.Log("[OnlineBattle] Ignored MountPilot because it is not opponent turn locally.");
+            return;
+        }
+
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
+            || action.action != OnlineBattleActionPayload.MountPilot)
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid MountPilot payload: {payload}");
+            return;
+        }
+
+        _applyingRemoteBattleAction = true;
+        try
+        {
+            ApplyRemoteMountPilot(action);
+        }
+        finally
+        {
+            _applyingRemoteBattleAction = false;
+        }
+    }
+
+    private void ApplyRemoteMountPilot(OnlineBattleActionPayload action)
+    {
+        CardController hostUnit = FindUnitByInstanceIdEitherZone(action.instanceId);
+        if (hostUnit == null)
+        {
+            Debug.LogWarning($"[OnlineBattle] MountPilot host not found: {action.instanceId}");
+            return;
+        }
+
+        if (!hostUnit.CanMountPilot())
+        {
+            Debug.LogWarning($"[OnlineBattle] MountPilot host cannot mount pilot: {action.instanceId}");
+            return;
+        }
+
+        if (DeckSettinObject.Instance == null)
+        {
+            return;
+        }
+
+        CardData pilotData = DeckSettinObject.Instance.GetCardDataById(action.cardId);
+        if (pilotData == null)
+        {
+            Debug.LogWarning($"[OnlineBattle] MountPilot unknown pilot card id: {action.cardId}");
+            return;
+        }
+
+        PlayerType hostOwner = ResolveCardOwner(hostUnit.transform);
+        GameObject pilotObject = Instantiate(CardImagePrefab, hostUnit.transform);
+        CardController pilotController = pilotObject.GetComponent<CardController>();
+        pilotController.SetUp(pilotData, OnCardClicked);
+
+        if (!hostUnit.TryAttachPilot(pilotController))
+        {
+            Destroy(pilotObject);
+            Debug.LogWarning("[OnlineBattle] MountPilot TryAttachPilot failed on remote.");
+            return;
+        }
+
+        ApplyUnitAttackFlgFromLink(hostUnit, hostOwner);
+        SyncAllResourceViewsFromRule();
+        Debug.Log(
+            $"[OnlineBattle] Remote pilot mounted. host={action.instanceId} pilot={action.cardId} "
+            + $"AP:{hostUnit.CurrentPower} HP:{hostUnit.CurrentHp}");
     }
 }
