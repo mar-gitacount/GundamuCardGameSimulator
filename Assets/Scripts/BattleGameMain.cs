@@ -410,6 +410,17 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (ShouldDeferEnemyShieldBreakToRemoteDefender(side))
+        {
+            _onlineDeferredEnemyShieldBreak = new OnlineDeferredEnemyShieldBreak
+            {
+                Count = broken,
+                SimultaneousReveal = simultaneousReveal,
+            };
+            isShieldBreakFlowOpen = true;
+            return;
+        }
+
         isShieldBreakFlowOpen = true;
         pendingShieldBreakBatches.Enqueue(new PendingShieldBreakBatch
         {
@@ -495,38 +506,49 @@ public partial class BattleGameMain : MonoBehaviour
             enemyCardGameRule.GetRemainingCount());
         Debug.Log($"[ドロー] 初期手札: プレイヤー{openingHandSize}枚、エネミー{enemyHandCountForSync}枚を引きました。");
 
-        // マリガン：プレイヤーは Yes/No、エネミーは 1/2
+        int exBasePoints = exBaseData != null ? exBaseData.startingPoints : 3;
+
+        // マリガン：プレイヤーは Yes/No、エネミーは 1/2（オンラインは P2P 同期）
         Canvas canvas = ResolveBattleCanvas();
         if (canvas != null)
         {
-            bool? playerChoice = null;
-            yield return MulliganPromptCoroutine(
-                canvas,
-                "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)",
-                value => playerChoice = value);
-
-            if (playerChoice == true)
+            if (IsOnlineBattle())
             {
-                PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
-                Debug.Log("[マリガン] プレイヤー：実行（手札を山札に戻しシャッフル後、5枚ドロー）。");
+                yield return RunOnlineMulliganAndBootstrapCoroutine(canvas, openingHandSize, exBasePoints);
             }
             else
             {
-                Debug.Log("[マリガン] プレイヤー：見送り。");
-            }
+                bool? playerChoice = null;
+                isMulliganPromptOpen = true;
+                yield return MulliganPromptCoroutine(
+                    canvas,
+                    "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)",
+                    value => playerChoice = value);
+                isMulliganPromptOpen = false;
 
-            if (ShouldSkipEnemyMulliganOnline())
-            {
-                Debug.Log("[OnlineBattle] Skipped local opponent mulligan.");
-            }
-            else if (Random.value < 0.5f)
-            {
-                PerformMulligan(enemyCardGameRule, enemyHandCards, openingHandSize, PlayerType.Enemy);
-                Debug.Log("[マリガン] エネミー：実行（確率 1/2）。");
-            }
-            else
-            {
-                Debug.Log("[マリガン] エネミー：見送り（確率 1/2）。");
+                if (playerChoice == true)
+                {
+                    PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
+                    Debug.Log("[マリガン] プレイヤー：実行（手札を山札に戻しシャッフル後、5枚ドロー）。");
+                }
+                else
+                {
+                    Debug.Log("[マリガン] プレイヤー：見送り。");
+                }
+
+                if (Random.value < 0.5f)
+                {
+                    PerformMulligan(enemyCardGameRule, enemyHandCards, openingHandSize, PlayerType.Enemy);
+                    Debug.Log("[マリガン] エネミー：実行（確率 1/2）。");
+                }
+                else
+                {
+                    Debug.Log("[マリガン] エネミー：見送り（確率 1/2）。");
+                }
+
+                int exBasePointsLocal = exBasePoints;
+                cardGameRule.SetupShieldFromDeckAfterMulligan(CardImagePrefab, OnCardClicked, OpeningShieldCardCount, exBasePointsLocal);
+                enemyCardGameRule.SetupShieldFromDeckAfterMulligan(CardImagePrefab, OnCardClicked, OpeningShieldCardCount, exBasePointsLocal);
             }
         }
         else
@@ -541,10 +563,6 @@ public partial class BattleGameMain : MonoBehaviour
             cardGameRule.GetRemainingCount(),
             enemyHandCountForSync,
             enemyCardGameRule.GetRemainingCount());
-
-        int exBasePoints = exBaseData != null ? exBaseData.startingPoints : 3;
-        cardGameRule.SetupShieldFromDeckAfterMulligan(CardImagePrefab, OnCardClicked, OpeningShieldCardCount, exBasePoints);
-        enemyCardGameRule.SetupShieldFromDeckAfterMulligan(CardImagePrefab, OnCardClicked, OpeningShieldCardCount, exBasePoints);
 
         gundamRule.ApplyExBaseAndShieldAfterMulligan(
             Gundam2024RuleScript.PlayerSide.Player,
@@ -2615,6 +2633,9 @@ public partial class BattleGameMain : MonoBehaviour
         return isOnActionPopupOpen
             || isAttackedSidePanelOpen
             || isActionThinkPauseOpen
+            || isMulliganPromptOpen
+            || isMulliganThinkPauseOpen
+            || isOnlineShieldBreakThinkPauseOpen
             || isShieldBreakFlowOpen
             || shieldBreakQueueRunning
             || isShieldAttackResolving
@@ -4819,11 +4840,18 @@ public partial class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerState defenderAfter = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
-        NotifyLocalShieldAttackResolved(
-            attacker,
-            defenderAfter.shield,
-            defenderAfter.exBase,
-            directAttackWin: false);
+        if (!_onlineShieldAttackNotifySent)
+        {
+            NotifyLocalShieldAttackResolved(
+                attacker,
+                defenderAfter.shield,
+                defenderAfter.exBase,
+                directAttackWin: false);
+        }
+        else
+        {
+            _onlineShieldAttackNotifySent = false;
+        }
 
         SyncAllResourceViewsFromRule();
         ClearAttackFlowContext();
@@ -4835,7 +4863,16 @@ public partial class BattleGameMain : MonoBehaviour
         string shieldStrikeLog,
         bool hadExBaseLayerAtShieldAttackStart)
     {
-        yield return WaitForShieldBreakFlowCompleteCoroutine();
+        if (_onlineDeferredEnemyShieldBreak.HasValue)
+        {
+            OnlineDeferredEnemyShieldBreak deferred = _onlineDeferredEnemyShieldBreak.Value;
+            _onlineDeferredEnemyShieldBreak = null;
+            yield return RunOnlineAttackerEnemyShieldBreakHandshakeCoroutine(attacker, deferred);
+        }
+        else
+        {
+            yield return WaitForShieldBreakFlowCompleteCoroutine();
+        }
         try
         {
             CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);

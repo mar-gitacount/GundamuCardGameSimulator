@@ -131,6 +131,24 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public static string CreateMulliganSync(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "MulliganSync",
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateShieldBreakComplete(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "ShieldBreakComplete",
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static bool TryParse(string raw, out EosOnlineBattleMessage message)
     {
         message = null;
