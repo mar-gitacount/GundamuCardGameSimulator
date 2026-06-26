@@ -156,6 +156,10 @@ public partial class BattleGameMain
         shieldBreakQueueRunning = false;
         isAttackedSidePanelOpen = false;
         isActionThinkPauseOpen = false;
+        isMulliganPromptOpen = false;
+        isMulliganThinkPauseOpen = false;
+        CloseOnlineShieldBreakThinkOverlay();
+        _onlineDeferredEnemyShieldBreak = null;
         isShieldAttackResolving = false;
         isTurnPhaseSequenceRunning = false;
         isEnemyMainPhaseCoroutineRunning = false;

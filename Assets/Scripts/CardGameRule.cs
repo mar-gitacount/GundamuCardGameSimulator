@@ -402,6 +402,103 @@ public class CardGameRule
     }
 
     /// <summary>
+    /// オンライン対戦：相手クライアントから受け取ったシールドカード ID でゾーンを構築する。
+    /// </summary>
+    public void SetupShieldFromCardIds(
+        GameObject cardPrefab,
+        System.Action<CardController> onShieldCardClicked,
+        IReadOnlyList<int> cardIds,
+        int exBasePoints)
+    {
+        shieldCardIds.Clear();
+        shieldControllersInDrawOrder.Clear();
+        if (shieldCardsContent == null || cardPrefab == null)
+        {
+            Debug.LogWarning("シールド設置(同期): コンテナまたはカードプレハブがありません。");
+            return;
+        }
+
+        for (int i = shieldCardsContent.childCount - 1; i >= 0; i--)
+        {
+            UnityEngine.Object.Destroy(shieldCardsContent.GetChild(i).gameObject);
+        }
+
+        SetExBaseDisplay(exBasePoints);
+
+        if (cardIds == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            int id = cardIds[i];
+            if (id < 0)
+            {
+                continue;
+            }
+
+            TryTakeCardById(id, out _);
+            shieldCardIds.Add(id);
+            CardData data = DeckSettinObject.Instance.GetCardDataById(id);
+            if (data == null)
+            {
+                Debug.LogWarning($"シールド設置(同期): 不明なカード ID {id}");
+                continue;
+            }
+
+            GameObject go = UnityEngine.Object.Instantiate(cardPrefab, shieldCardsContent);
+            CardController cc = go.GetComponent<CardController>();
+            if (cc != null)
+            {
+                cc.SetUp(data, onShieldCardClicked);
+                RectTransform cardRect = go.GetComponent<RectTransform>();
+                if (cardRect != null && shieldGrid != null)
+                {
+                    cardRect.localScale = Vector3.one;
+                    cardRect.sizeDelta = shieldGrid.cellSize;
+                }
+
+                shieldControllersInDrawOrder.Add(cc);
+                cc.SetShieldFaceHidden(true);
+            }
+        }
+
+        UpdateDeckAndTrashTexts();
+    }
+
+    /// <summary>オンライン：相手の山札残数に合わせる（シールド ID 除去後に余剰を削る）。</summary>
+    public void TrimDeckToRemainingCount(int targetRemainCount)
+    {
+        if (targetRemainCount < 0)
+        {
+            targetRemainCount = 0;
+        }
+
+        while (deckList.Count > targetRemainCount)
+        {
+            deckList.RemoveAt(deckList.Count - 1);
+        }
+
+        UpdateDeckAndTrashTexts();
+    }
+
+    /// <summary>指定 ID のシールドをゾーンから切り離す（同期用）。</summary>
+    public bool TryDetachShieldCardById(int cardId, out ShieldBreakTaken taken, bool revealFace = true)
+    {
+        taken = default;
+        for (int i = 0; i < shieldCardIds.Count; i++)
+        {
+            if (shieldCardIds[i] == cardId)
+            {
+                return TryDetachShieldCardAtZoneIndex(i, out taken, revealFace);
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// シールドが破壊された枚数ぶん、先頭からカードをトラッシュへ送る（バースト UI なしの旧経路）。
     /// </summary>
     public void MoveTopShieldCardsToTrash(int count)

@@ -20,6 +20,8 @@ public class OnlineBattleActionPayload
     public int defenderExBaseAfter;
     public bool directAttackWin;
     public bool blockCombat;
+    public bool shieldBreakSimultaneousReveal;
+    public int[] brokenShieldCardIds;
     public string attackKind;
     public string onActionContext;
     public int actingZoneSide;
@@ -37,6 +39,7 @@ public class OnlineBattleActionPayload
     public const string MountPilot = "MountPilot";
     public const string OnActionBegin = "OnActionBegin";
     public const string OnActionEnd = "OnActionEnd";
+    public const string ShieldBreakComplete = "ShieldBreakComplete";
     public const string AttackKindShield = "Shield";
     public const string AttackKindUnitVsUnit = "UnitVsUnit";
 
@@ -80,7 +83,10 @@ public class OnlineBattleActionPayload
         int attackerInstanceId,
         int defenderShieldAfter,
         int defenderExBaseAfter,
-        bool directAttackWin)
+        bool directAttackWin,
+        int[] brokenShieldCardIds = null,
+        int shieldBreakRequestId = 0,
+        bool shieldBreakSimultaneousReveal = false)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
@@ -88,7 +94,19 @@ public class OnlineBattleActionPayload
             attackerInstanceId = attackerInstanceId,
             defenderShieldAfter = defenderShieldAfter,
             defenderExBaseAfter = defenderExBaseAfter,
-            directAttackWin = directAttackWin
+            directAttackWin = directAttackWin,
+            brokenShieldCardIds = brokenShieldCardIds,
+            requestId = shieldBreakRequestId,
+            shieldBreakSimultaneousReveal = shieldBreakSimultaneousReveal
+        });
+    }
+
+    public static string CreateShieldBreakComplete(int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = ShieldBreakComplete,
+            requestId = requestId
         });
     }
 
@@ -177,6 +195,7 @@ public class OnlineBattleActionPayload
                 case BlockResponse:
                 case OnActionBegin:
                 case OnActionEnd:
+                case ShieldBreakComplete:
                     return payload.requestId > 0;
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;

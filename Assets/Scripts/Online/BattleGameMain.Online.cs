@@ -100,6 +100,8 @@ public partial class BattleGameMain
         _pendingOnlineEffectChanges = null;
         _onlineEffectSyncActive = false;
         ResetOnlineOnActionState();
+        ResetOnlineMulliganSyncState();
+        ResetOnlineShieldBreakSyncState();
     }
 
     private void AssignBattleInstanceIdIfNeeded(CardController controller)
@@ -446,6 +448,12 @@ public partial class BattleGameMain
             case "OnActionEnd":
                 HandleRemoteOnActionEnd(message.payload);
                 break;
+            case "MulliganSync":
+                HandleRemoteMulliganSync(message.payload);
+                break;
+            case "ShieldBreakComplete":
+                HandleRemoteShieldBreakComplete(message.payload);
+                break;
         }
     }
 
@@ -680,7 +688,8 @@ public partial class BattleGameMain
                 attacker.BattleInstanceId,
                 defenderShieldAfter,
                 defenderExBaseAfter,
-                directAttackWin)));
+                directAttackWin,
+                ConsumeOnlineBrokenShieldCardIdsForAttackNotify())));
     }
 
     private void NotifyLocalUnitAttackResolved(
@@ -758,19 +767,72 @@ public partial class BattleGameMain
         defender.shield = Mathf.Max(0, action.defenderShieldAfter);
         defender.exBase = Mathf.Max(0, action.defenderExBaseAfter);
 
-        if (oldShield > defender.shield)
+        int brokenCount = Mathf.Max(0, oldShield - defender.shield);
+        if (brokenCount > 0)
         {
-            OnGundamShieldDamaged(
+            StartCoroutine(ApplyRemoteDefenderShieldBreakCoroutine(
                 Gundam2024RuleScript.PlayerSide.Player,
-                oldShield,
-                defender.shield,
-                false);
+                brokenCount,
+                action.shieldBreakSimultaneousReveal,
+                action.brokenShieldCardIds,
+                action.requestId));
         }
 
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Player, force: true);
         Debug.Log(
             $"[OnlineBattle] Remote shield attack applied. shield={defender.shield} exBase={defender.exBase}");
+    }
+
+    private IEnumerator ApplyRemoteShieldBreakByCardIdsCoroutine(
+        Gundam2024RuleScript.PlayerSide side,
+        int[] cardIds)
+    {
+        if (cardIds == null || cardIds.Length == 0 || isMatchFinished)
+        {
+            yield break;
+        }
+
+        CardGameRule rule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
+        PlayerType shieldOwner = side == Gundam2024RuleScript.PlayerSide.Player ? PlayerType.Player : PlayerType.Enemy;
+        if (rule == null)
+        {
+            yield break;
+        }
+
+        List<ShieldBreakTaken> takenCards = new List<ShieldBreakTaken>(cardIds.Length);
+        for (int i = 0; i < cardIds.Length; i++)
+        {
+            if (rule.TryDetachShieldCardById(cardIds[i], out ShieldBreakTaken taken, revealFace: true))
+            {
+                takenCards.Add(taken);
+            }
+        }
+
+        if (takenCards.Count == 0)
+        {
+            yield break;
+        }
+
+        isShieldBreakFlowOpen = true;
+        try
+        {
+            yield return ShowShieldBreakRevealCoroutine(takenCards, shieldOwner, simultaneousReveal: false);
+            yield return ResolveBurstEffectsForTakenCardsCoroutine(takenCards, shieldOwner);
+            for (int i = 0; i < takenCards.Count; i++)
+            {
+                CommitShieldBreakTakenAfterBurst(takenCards[i], rule);
+            }
+        }
+        finally
+        {
+            ReconcileShieldStateWithZone(side, force: true);
+            SyncAllResourceViewsFromRule();
+            if (!shieldBreakQueueRunning && pendingShieldBreakBatches.Count == 0)
+            {
+                isShieldBreakFlowOpen = false;
+            }
+        }
     }
 
     private void ApplyRemoteUnitAttack(OnlineBattleActionPayload action)
