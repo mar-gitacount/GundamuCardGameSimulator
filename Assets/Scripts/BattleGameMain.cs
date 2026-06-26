@@ -4313,7 +4313,9 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attacker,
         bool skipOnActionPause = false,
         bool skipOnAttackSelection = false,
-        bool skipAttackedSidePanelPause = false)
+        bool skipAttackedSidePanelPause = false,
+        bool skipOnlineBlockPhase = false,
+        int onlineChosenBlockerInstanceId = 0)
     {
         if (enableShieldAttackFlowDebugLog)
         {
@@ -4341,7 +4343,6 @@ public partial class BattleGameMain : MonoBehaviour
         {
             skipOnActionPause = true;
             skipOnAttackSelection = true;
-            skipAttackedSidePanelPause = true;
         }
 
         // シールド攻撃は攻撃可能フラグ(True)のみで判定する（宣言済みの OnAttack/OnAction 再開時は除く）。
@@ -4393,6 +4394,33 @@ public partial class BattleGameMain : MonoBehaviour
             blockedShieldFlowSide = targetSide;
         }
 
+        if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !AttackerIgnoresBlockRedirect(attacker))
+        {
+            if (CollectSelectableBlockRedirectUnits(attackerOwner).Count > 0)
+            {
+                CommitUnitAttackDeclaration(attacker, attackerOwner);
+                if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
+                {
+                    pendingOnAttackEffectResolvedAttacker = attacker;
+                }
+
+                if (TryBeginOnlineBlockWait(
+                    attacker,
+                    isShieldAttack: true,
+                    originalDefender: null,
+                    blockerId => TryUnitShieldAttackFromUnit(
+                        attacker,
+                        true,
+                        true,
+                        true,
+                        skipOnlineBlockPhase: true,
+                        onlineChosenBlockerInstanceId: blockerId)))
+                {
+                    return;
+                }
+            }
+        }
+
         if (isShieldAttackResolving)
         {
             if (enableShieldAttackFlowDebugLog)
@@ -4430,10 +4458,30 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[HighMobility] {attacker.Data.cardName} — skip block phase (shield attack)");
             }
 
-            if (!attackerIgnoresBlock
-                && !ShouldSkipOnActionPauseForOnline()
+            if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
+            {
+                CardController onlineBlocker = FindBattleZoneUnitByInstanceId(
+                    onlineChosenBlockerInstanceId,
+                    PlayerType.Enemy);
+                if (onlineBlocker != null && IsBlockRedirectReactionReady(onlineBlocker, PlayerType.Enemy))
+                {
+                    ApplyDefenderOnAttackReactionEffects(onlineBlocker, attacker, PlayerType.Enemy);
+                    BeginShieldAttackBlockRedirectFlow(onlineBlocker);
+                    TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                        attacker,
+                        onlineBlocker,
+                        attackerOwner,
+                        PlayerType.Enemy,
+                        skipOnActionPause: true);
+                    return;
+                }
+            }
+
+            if (!skipOnlineBlockPhase
+                && !attackerIgnoresBlock
                 && !skipAttackedSidePanelPause
                 && attackerOwner == PlayerType.Player
+                && !IsOnlineBattle()
                 && TryAutoApplyBlockRedirectFromAttack(
                     attackerOwner,
                     attacker,
@@ -4452,9 +4500,11 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             CardController selectedDefenderFromShieldPanel = null;
-            if (!attackerIgnoresBlock
+            if (!skipOnlineBlockPhase
+                && !attackerIgnoresBlock
                 && !skipAttackedSidePanelPause
                 && attackerOwner == PlayerType.Enemy
+                && !IsOnlineBattle()
                 && TryOpenAttackedSideUnitsPanel(
                     attackerOwner,
                     attacker,
@@ -4902,7 +4952,9 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner,
         PlayerType defenderOwner,
         bool skipOnActionPause = false,
-        bool skipAttackedSidePanelPause = false)
+        bool skipAttackedSidePanelPause = false,
+        bool skipOnlineBlockPhase = false,
+        int onlineChosenBlockerInstanceId = 0)
     {
         if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
         {
@@ -4929,7 +4981,6 @@ public partial class BattleGameMain : MonoBehaviour
         if (ShouldSkipOnActionPauseForOnline())
         {
             skipOnActionPause = true;
-            skipAttackedSidePanelPause = true;
         }
 
         if (attacker.Data.type != Type.Unit || defender.Data.type != Type.Unit)
@@ -4978,10 +5029,52 @@ public partial class BattleGameMain : MonoBehaviour
             pendingOnAttackEffectResolvedAttacker = attacker;
         }
 
-        if (!attackerIgnoresBlock
-            && !ShouldSkipOnActionPauseForOnline()
+        if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !attackerIgnoresBlock)
+        {
+            if (CollectSelectableBlockRedirectUnits(attackerOwner).Count > 0)
+            {
+                if (TryBeginOnlineBlockWait(
+                    attacker,
+                    isShieldAttack: false,
+                    originalDefender: defender,
+                    blockerId => TryUnitVsUnitAttack(
+                        attacker,
+                        defender,
+                        attackerOwner,
+                        defenderOwner,
+                        true,
+                        true,
+                        skipOnlineBlockPhase: true,
+                        onlineChosenBlockerInstanceId: blockerId)))
+                {
+                    return;
+                }
+            }
+        }
+
+        if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
+        {
+            CardController onlineBlocker = FindBattleZoneUnitByInstanceId(
+                onlineChosenBlockerInstanceId,
+                PlayerType.Enemy);
+            if (onlineBlocker != null)
+            {
+                CommitBlockRedirectSelection(attacker, onlineBlocker, ref defender, ref defenderOwner);
+                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    attacker,
+                    onlineBlocker,
+                    attackerOwner,
+                    defenderOwner,
+                    skipOnActionPause: true);
+                return;
+            }
+        }
+
+        if (!skipOnlineBlockPhase
+            && !attackerIgnoresBlock
             && !skipAttackedSidePanelPause
             && attackerOwner == PlayerType.Player
+            && !IsOnlineBattle()
             && TryAutoApplyBlockRedirectFromAttack(
                 attackerOwner,
                 attacker,
@@ -4994,9 +5087,11 @@ public partial class BattleGameMain : MonoBehaviour
             defender = autoBlockUnit;
             defenderOwner = autoBlockOwner;
         }
-        else if (!attackerIgnoresBlock
+        else if (!skipOnlineBlockPhase
+            && !attackerIgnoresBlock
             && !skipAttackedSidePanelPause
             && attackerOwner == PlayerType.Enemy
+            && !IsOnlineBattle()
             && TryOpenAttackedSideUnitsPanel(
                 attackerOwner,
                 attacker,
@@ -5373,6 +5468,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         int blockerHpAfterExchange = blocker.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
+
+        NotifyLocalUnitAttackResolved(
+            attacker,
+            blocker,
+            attackerHpAfterExchange,
+            blockerHpAfterExchange,
+            blockCombat: true);
 
         SetUnitRestAndTriggerEffects(blocker, blockerOwner);
 

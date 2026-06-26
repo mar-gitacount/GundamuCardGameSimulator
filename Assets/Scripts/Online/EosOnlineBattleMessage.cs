@@ -77,6 +77,24 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public static string CreateAttackDeclare(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "AttackDeclare",
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateBlockResponse(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "BlockResponse",
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static bool TryParse(string raw, out EosOnlineBattleMessage message)
     {
         message = null;
