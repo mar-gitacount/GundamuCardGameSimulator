@@ -444,20 +444,27 @@ public partial class BattleGameMain
             return;
         }
 
-        if (TryApplyEffectDamageToDeployedBase(targetSide, baseMagnitude, out string baseLog))
-        {
-            Debug.Log(baseLog);
-            return;
-        }
-
         Gundam2024RuleScript.PlayerState target = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
+        int shieldBefore = target != null ? target.shield : 0;
+        int exBaseBefore = target != null ? target.exBase : 0;
+
+        if (TryApplyEffectDamageToDeployedBase(targetSide, baseMagnitude, out string baseLog))
+        {
+            Debug.Log(baseLog);
+            SyncResourceViewsFromRule(targetSide);
+            TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
+            return;
+        }
+
         int exDamage = ResolveEffectDamageAmount(baseMagnitude);
         if (target != null && target.exBase > 0 && exDamage > 0)
         {
             gundamRule.DamageExBaseOnly(targetSide, exDamage);
             Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {target.exBase}).");
+            SyncResourceViewsFromRule(targetSide);
+            TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
             return;
         }
 
@@ -473,7 +480,31 @@ public partial class BattleGameMain
         {
             gundamRule.DamageShield(targetSide, 1, simultaneousReveal: false);
             Debug.Log($"[EffectDamage] Broke 1 shield (effect value:{baseMagnitude} does not multiply shield breaks).");
+            SyncResourceViewsFromRule(targetSide);
+            TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
         }
+    }
+
+    private void TryNotifyOnlineDefenderAreaStateAfterEffectDamage(
+        Gundam2024RuleScript.PlayerSide targetSide,
+        int shieldBefore,
+        int exBaseBefore)
+    {
+        if (!IsOnlineBattle()
+            || currentPlayerType != PlayerType.Player
+            || _applyingRemoteBattleAction
+            || targetSide != Gundam2024RuleScript.PlayerSide.Enemy)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerState defender = gundamRule.Enemy;
+        if (defender.shield == shieldBefore && defender.exBase == exBaseBefore)
+        {
+            return;
+        }
+
+        NotifyLocalDefenderAreaStateSync();
     }
 
     private bool TryApplyShieldAttackDamageToDeployedBase(
