@@ -118,12 +118,6 @@ public partial class BattleGameMain : MonoBehaviour
     private bool isActionThinkPauseOpen;
     /// <summary>攻撃後 OnAction の「プレイヤー手前」に actionthink を挟むテスト用フラグ。</summary>
     [SerializeField] private bool enableAttackFlowActionThinkTest = true;
-
-    /// <summary>AI 戦のみ。プレイヤー同士（オンライン）では actionthink テストポーズを出さない。</summary>
-    private bool ShouldUseAttackFlowActionThinkPause()
-    {
-        return enableAttackFlowActionThinkTest && !IsOnlineBattle();
-    }
     [SerializeField] private bool enableShieldAttackFlowDebugLog = true;
     [Tooltip("true のとき敵 OnAction はログ用ポップアップのみ。false で AI がコマンドを本番実行。")]
     [SerializeField] private bool enableEnemyOnActionDebugPopupOnly;
@@ -162,6 +156,24 @@ public partial class BattleGameMain : MonoBehaviour
     private bool shieldStrikeAbortedAfterBlockInterrupt;
     /// <summary>ClearAttackFlowContext では消さない。ブロッカー喪失後の交換ダメージ／シールド strike を禁止。</summary>
     private bool blockExchangeCancelledForCurrentAttack;
+    /// <summary>ブロック確定後の OnAction を一度完了したら、同一攻撃で OnAction を再実行しない。</summary>
+    private bool attackFlowBlockOnActionCompleted;
+    /// <summary>同一攻撃でブロック選択 UI を既に閉じた（ブロック有無問わず再表示しない）。</summary>
+    private bool attackFlowBlockSelectionResolved;
+    /// <summary>ブロックを行わずにブロック段階を通過した後の OnAction を完了済み。</summary>
+    private bool attackFlowPostBlockPassOnActionDone;
+    /// <summary>ブロックパス後の OnAction→戦闘継続処理が実行中（二重起動防止）。</summary>
+    private bool attackFlowPostBlockPassInProgress;
+
+    private enum AttackFlowPipelinePhase
+    {
+        None,
+        AwaitingBlockUi,
+        PostBlockOnAction,
+    }
+
+    private AttackFlowPipelinePhase attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+    private Coroutine attackFlowAfterBlockPassCoroutine;
 
     private const int CloseCombatCardId = 28;
 
@@ -226,10 +238,279 @@ public partial class BattleGameMain : MonoBehaviour
         attackFlowBlockRedirectEngaged = false;
         attackFlowBlockRedirectFromShieldStrike = false;
         attackFlowBlockRedirectCombatVoided = false;
+        attackFlowBlockOnActionCompleted = false;
+        attackFlowBlockSelectionResolved = false;
+        attackFlowPostBlockPassOnActionDone = false;
+        attackFlowPostBlockPassInProgress = false;
+        attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+        if (attackFlowAfterBlockPassCoroutine != null)
+        {
+            StopCoroutine(attackFlowAfterBlockPassCoroutine);
+            attackFlowAfterBlockPassCoroutine = null;
+        }
+    }
+
+    private void MarkAttackFlowBlockSelectionResolved()
+    {
+        attackFlowBlockSelectionResolved = true;
+    }
+
+    /// <summary>新しい攻撃宣言の直前に、前回攻撃のブロック／OnAction 再開フラグを消す。</summary>
+    private void ResetAttackFlowBlockPassFlagsForNewDeclaration()
+    {
+        attackFlowBlockSelectionResolved = false;
+        attackFlowPostBlockPassOnActionDone = false;
+        attackFlowPostBlockPassInProgress = false;
+        attackFlowBlockOnActionCompleted = false;
+        attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+        ClearPendingBlockRedirectSelection();
+    }
+
+    /// <summary>ブロック UI をキャンセル／未選択で閉じた直後に呼ぶ。OnAction → 戦闘まで一気通貫で進める。</summary>
+    private void CancelAttackFlowBlockSelectionAndContinue()
+    {
+        CardController attacker = attackFlowAttackerUnit != null
+            ? attackFlowAttackerUnit
+            : pendingUnitAttackAttacker;
+        PlayerType attackerOwner = attackFlowAttackerOwner;
+        if (attacker != null)
+        {
+            attackerOwner = ResolveCardOwner(attacker.transform);
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield)
+        {
+            PlayerType defenderSide = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+            RunOnActionStepsImmediatelyAfterBlockPass(
+                attacker,
+                null,
+                attackerOwner,
+                defenderSide,
+                AttackFlowStrikeKind.Shield);
+            return;
+        }
+
+        CardController defender = attackFlowDeclaredDefenderUnit;
+        if (attacker == null || defender == null)
+        {
+            Debug.LogWarning("[AttackFlow] Block cancel aborted — attack context missing.");
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        RunOnActionStepsImmediatelyAfterBlockPass(
+            attacker,
+            defender,
+            attackerOwner,
+            ResolveCardOwner(defender.transform),
+            AttackFlowStrikeKind.UnitVsUnit);
+    }
+
+    /// <summary>ブロック Cancel／パス後にコルーチンで OnAction → 戦闘へ進める。</summary>
+    private void RunOnActionStepsImmediatelyAfterBlockPass(
+        CardController attacker,
+        CardController declaredDefenderOrNull,
+        PlayerType attackerOwner,
+        PlayerType defenderSideForOnAction,
+        AttackFlowStrikeKind strikeKind)
+    {
+        if (attackFlowAfterBlockPassCoroutine != null)
+        {
+            StopCoroutine(attackFlowAfterBlockPassCoroutine);
+        }
+
+        attackFlowAfterBlockPassCoroutine = StartCoroutine(
+            CoAdvanceAttackFlowAfterBlockPass(attacker, declaredDefenderOrNull, attackerOwner, defenderSideForOnAction, strikeKind));
+    }
+
+    private IEnumerator CoAdvanceAttackFlowAfterBlockPass(
+        CardController attacker,
+        CardController declaredDefenderOrNull,
+        PlayerType attackerOwner,
+        PlayerType defenderSideForOnAction,
+        AttackFlowStrikeKind strikeKind)
+    {
+        Debug.Log(
+            $"[AttackFlow] Block pass/cancel → queue OnAction. strike:{strikeKind} "
+            + $"attacker:{attacker?.Data?.cardName} defender:{declaredDefenderOrNull?.Data?.cardName}");
+
+        attackFlowPipelinePhase = AttackFlowPipelinePhase.PostBlockOnAction;
+        MarkAttackFlowBlockSelectionResolved();
+        ClearPendingBlockRedirectSelection();
+        attackFlowBlockRedirectEngaged = false;
+        attackFlowBlockRedirectFromShieldStrike = false;
+        attackFlowBlockOnActionCompleted = false;
+
+        isAttackedSidePanelOpen = false;
+        isOnActionPopupOpen = false;
+        if (activeAttackFlowDebugPanelRoot != null)
+        {
+            Destroy(activeAttackFlowDebugPanelRoot);
+            activeAttackFlowDebugPanelRoot = null;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        yield return null;
+
+        if (!IsUnitAliveOnAnyDeployField(attacker))
+        {
+            CancelPendingUnitAttackFlow();
+            attackFlowAfterBlockPassCoroutine = null;
+            yield break;
+        }
+
+        if (strikeKind != AttackFlowStrikeKind.Shield
+            && (declaredDefenderOrNull == null || !IsUnitAliveOnAnyDeployField(declaredDefenderOrNull)))
+        {
+            CancelPendingUnitAttackFlow();
+            attackFlowAfterBlockPassCoroutine = null;
+            yield break;
+        }
+
+        attackFlowStrikeKind = strikeKind;
+        attackFlowAttackerUnit = attacker;
+        attackFlowAttackerOwner = attackerOwner;
+        attackFlowDeclaredDefenderUnit = declaredDefenderOrNull;
+        attackFlowBlockRedirectUnit = null;
+        pendingOnAttackEffectResolvedAttacker = attacker;
+
+        if (attackFlowPostBlockPassOnActionDone)
+        {
+            CompleteAttackFlowAfterPostBlockOnAction(
+                attacker,
+                declaredDefenderOrNull,
+                attackerOwner,
+                defenderSideForOnAction,
+                strikeKind);
+            attackFlowAfterBlockPassCoroutine = null;
+            yield break;
+        }
+
+        if (TrySettleAttackFlowAfterOnActionPhases())
+        {
+            attackFlowAfterBlockPassCoroutine = null;
+            yield break;
+        }
+
+        bool onActionFinished = false;
+        System.Action finishOnAction = () =>
+        {
+            if (onActionFinished)
+            {
+                return;
+            }
+
+            onActionFinished = true;
+            attackFlowPostBlockPassOnActionDone = true;
+            if (TrySettleAttackFlowAfterOnActionPhases())
+            {
+                return;
+            }
+
+            CompleteAttackFlowAfterPostBlockOnAction(
+                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
+                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : declaredDefenderOrNull,
+                attackFlowAttackerOwner,
+                defenderSideForOnAction,
+                strikeKind);
+        };
+
+        attackFlowPostBlockPassInProgress = true;
+        TryRunAttackActionSteps(defenderSideForOnAction, attackerOwner, finishOnAction, attacker);
+
+        // オフラインは同期的に onComplete が返るが、オンラインは P2P 待ちのため
+        // isOnActionPopupOpen だけでは完了判定できない（待機オーバーレイのみの段階がある）。
+        while (!onActionFinished)
+        {
+            yield return null;
+        }
+
+        attackFlowPostBlockPassInProgress = false;
+        attackFlowAfterBlockPassCoroutine = null;
+    }
+
+    private void CompleteAttackFlowAfterPostBlockOnAction(
+        CardController attacker,
+        CardController declaredDefenderOrNull,
+        PlayerType attackerOwner,
+        PlayerType defenderSideForOnAction,
+        AttackFlowStrikeKind strikeKind)
+    {
+        if (strikeKind == AttackFlowStrikeKind.Shield)
+        {
+            TryUnitShieldAttackFromUnit(attacker, true, true, true, skipOnlineBlockPhase: true);
+            return;
+        }
+
+        PlayerType defenderOwner = declaredDefenderOrNull != null
+            ? ResolveCardOwner(declaredDefenderOrNull.transform)
+            : defenderSideForOnAction;
+        ExecuteUnitVsUnitDeclaredCombat(attacker, declaredDefenderOrNull, attackerOwner, defenderOwner);
+    }
+
+    /// <summary>ブロックを行わずにブロック選択 UI を閉じたとき、誤って確定したブロック状態を破棄する。</summary>
+    private void ClearPendingBlockRedirectSelection()
+    {
+        attackFlowBlockRedirectUnit = null;
+        attackFlowBlockRedirectEngaged = false;
+        attackFlowBlockRedirectFromShieldStrike = false;
+    }
+
+    /// <summary>ブロック確定後は交換戦闘が成立しなくてもブロッカーは必ずレストする（ルール準拠）。</summary>
+    private void CommitBlockerRestIfBlockWasCommitted()
+    {
+        if (!attackFlowBlockRedirectEngaged || attackFlowBlockRedirectUnit == null)
+        {
+            return;
+        }
+
+        CardController blocker = attackFlowBlockRedirectUnit;
+        if (!IsUnitAliveOnAnyDeployField(blocker))
+        {
+            return;
+        }
+
+        PlayerType blockerOwner = ResolveCardOwner(blocker.transform);
+        if (!TryApplyRestToUnit(blocker))
+        {
+            return;
+        }
+
+        // 交換戦闘なしのブロックレストは Attack 通知に載らないため、攻撃フロー権限側から同期する。
+        SyncOnlineRestFromAttackAuthority(blocker);
+
+        Debug.Log($"[BlockCombat] Blocker rested without exchange: {blocker.Data?.cardName}");
+    }
+
+    /// <summary>攻撃宣言済みの攻撃ユニットをレストし、相手画面へ同期する（交換戦闘不成立時の補完）。</summary>
+    private void CommitAttackerRestIfAttackWasDeclared()
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None
+            && attackFlowAttackerUnit == null
+            && pendingUnitAttackAttacker == null)
+        {
+            return;
+        }
+
+        CardController attacker = attackFlowAttackerUnit ?? pendingUnitAttackAttacker;
+        if (!IsUnitAliveOnAnyDeployField(attacker))
+        {
+            return;
+        }
+
+        if (!attacker.IsRestState)
+        {
+            TryApplyRestToUnit(attacker);
+        }
+
+        SyncOnlineRestFromAttackAuthority(attacker);
+        Debug.Log($"[AttackFlow] Attacker rest ensured/synced: {attacker.Data?.cardName}");
     }
 
     private void FinalizeBlockInterruptWithoutExchange()
     {
+        CommitBlockerRestIfBlockWasCommitted();
+        CommitAttackerRestIfAttackWasDeclared();
         LogArgamaShieldBlockCloseCombatDebug("FinalizeBlockInterrupt", "attack flow ending without exchange");
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
@@ -2635,6 +2916,7 @@ public partial class BattleGameMain : MonoBehaviour
             || isActionThinkPauseOpen
             || isMulliganPromptOpen
             || isMulliganThinkPauseOpen
+            || ShouldBlockOnlineLocalPlayDueToOnAction()
             || isOnlineShieldBreakThinkPauseOpen
             || isShieldBreakFlowOpen
             || shieldBreakQueueRunning
@@ -3478,6 +3760,8 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void CancelPendingUnitAttackFlow()
     {
+        CommitBlockerRestIfBlockWasCommitted();
+        CommitAttackerRestIfAttackWasDeclared();
         FinishDeferredShieldAttackBlockFlow();
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
@@ -3730,6 +4014,11 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>OnAction 等の UI 後に、攻撃フロー文脈からユニット戦を再開する（破壊済み参照を避ける）。</summary>
     private void TryResumeUnitVsUnitAttackAfterOnAction(bool skipOnActionPause, bool skipAttackedSidePanelPause)
     {
+        if (attackFlowPipelinePhase == AttackFlowPipelinePhase.PostBlockOnAction)
+        {
+            return;
+        }
+
         if (TrySettleAttackFlowAfterOnActionPhases())
         {
             return;
@@ -3746,11 +4035,54 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (attackFlowPostBlockPassOnActionDone)
+        {
+            CardController postBlockDefender = attackFlowDeclaredDefenderUnit;
+            if (!IsUnitAliveOnAnyDeployField(postBlockDefender))
+            {
+                CancelPendingUnitAttackFlow();
+                return;
+            }
+
+            ExecuteUnitVsUnitDeclaredCombat(
+                attacker,
+                postBlockDefender,
+                attackFlowAttackerOwner,
+                ResolveCardOwner(postBlockDefender.transform));
+            return;
+        }
+
+        if (attackFlowBlockSelectionResolved)
+        {
+            CardController declaredDefender = attackFlowDeclaredDefenderUnit;
+            if (!IsUnitAliveOnAnyDeployField(declaredDefender))
+            {
+                CancelPendingUnitAttackFlow();
+                return;
+            }
+
+            if (isOnActionPopupOpen && attackFlowStrikeKind != AttackFlowStrikeKind.None)
+            {
+                Debug.Log("[AttackFlow] Post-block OnAction already in progress — skip duplicate resume.");
+                return;
+            }
+
+            RunOnActionStepsImmediatelyAfterBlockPass(
+                attacker,
+                declaredDefender,
+                attackFlowAttackerOwner,
+                ResolveCardOwner(declaredDefender.transform),
+                AttackFlowStrikeKind.UnitVsUnit);
+            return;
+        }
+
         if (attackFlowBlockRedirectEngaged)
         {
-            if (!IsUnitAvailableForAttackExchange(attackFlowBlockRedirectUnit))
+            if (blockExchangeCancelledForCurrentAttack
+                || attackFlowBlockRedirectCombatVoided
+                || !IsUnitAvailableForAttackExchange(attackFlowBlockRedirectUnit))
             {
-                CancelInterruptedBlockRedirectAttackFlow("Blocker no longer on field after OnAction.");
+                FinalizeBlockInterruptWithoutExchange();
                 return;
             }
 
@@ -3760,7 +4092,7 @@ public partial class BattleGameMain : MonoBehaviour
                 attackFlowBlockRedirectUnit,
                 attackFlowAttackerOwner,
                 blockOwner,
-                skipOnActionPause);
+                skipOnActionPause: attackFlowBlockOnActionCompleted || skipOnActionPause);
             return;
         }
 
@@ -3785,7 +4117,7 @@ public partial class BattleGameMain : MonoBehaviour
                 defender,
                 attackerOwner,
                 defenderOwner,
-                skipOnActionPause);
+                skipOnActionPause: attackFlowBlockOnActionCompleted || skipOnActionPause);
             return;
         }
 
@@ -3800,7 +4132,139 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        // 登録済み攻撃コンテキストがあるときは TryUnitVsUnitAttack 先頭（ブロック UI 再表示）に戻さない。
+        if (attackFlowStrikeKind != AttackFlowStrikeKind.None)
+        {
+            Debug.LogWarning("[AttackFlow] Resume with active attack context but no block redirect — advancing to block/onAction phase.");
+            skipAttackedSidePanelPause = true;
+        }
+
+        if (attackFlowPipelinePhase == AttackFlowPipelinePhase.PostBlockOnAction
+            || attackFlowBlockSelectionResolved)
+        {
+            Debug.Log("[AttackFlow] Skip TryUnitVsUnitAttack re-entry — post-block pipeline active.");
+            return;
+        }
+
         TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner, skipOnActionPause, skipAttackedSidePanelPause);
+    }
+
+    /// <summary>ブロックを行わなかった／キャンセル後：OnAction 1 回 → 宣言対象への通常戦闘。</summary>
+    private void BeginPostBlockPassUnitAttackSequence(
+        CardController attacker,
+        CardController defender,
+        PlayerType attackerOwner,
+        PlayerType defenderOwner)
+    {
+        RunOnActionStepsImmediatelyAfterBlockPass(
+            attacker,
+            defender,
+            attackerOwner,
+            defenderOwner,
+            AttackFlowStrikeKind.UnitVsUnit);
+    }
+
+    /// <summary>ブロックを行わなかった／キャンセル後：OnAction 1 回 → 宣言対象への通常戦闘（TryUnitVsUnitAttack 先頭から再入しない）。</summary>
+    private void ContinueUnitAttackAfterBlockPassWithoutBlocking(
+        CardController attacker,
+        CardController defender,
+        PlayerType attackerOwner,
+        PlayerType defenderOwner)
+    {
+        BeginPostBlockPassUnitAttackSequence(attacker, defender, attackerOwner, defenderOwner);
+    }
+
+    /// <summary>シールド攻撃でブロックをキャンセルした後：OnAction → シールドダメージ解決。</summary>
+    private void ContinueShieldAttackAfterBlockPassWithoutBlocking(
+        CardController attacker,
+        PlayerType attackerOwner)
+    {
+        PlayerType defenderSide = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        RunOnActionStepsImmediatelyAfterBlockPass(
+            attacker,
+            null,
+            attackerOwner,
+            defenderSide,
+            AttackFlowStrikeKind.Shield);
+    }
+
+    /// <summary>OnAction 後の通常ユニット戦闘（宣言済み防御対象へ）。</summary>
+    private void ExecuteUnitVsUnitDeclaredCombat(
+        CardController attacker,
+        CardController defender,
+        PlayerType attackerOwner,
+        PlayerType defenderOwner)
+    {
+        if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(defender))
+        {
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        if (defender != null && defender.Data != null)
+        {
+            Debug.Log(
+                $"[DefenderInfo] {defender.Data.cardName} AP:{defender.CurrentPower} HP:{defender.CurrentHp} {(defender.IsRestState ? "REST" : "ACTIVE")} owner:{defenderOwner}");
+        }
+
+        if (attackFlowBlockRedirectEngaged && attackFlowBlockRedirectUnit != null)
+        {
+            CancelInterruptedBlockRedirectAttackFlow("Block redirect active — refusing undeclared unit exchange.");
+            return;
+        }
+
+        if (attackFlowBlockRedirectEngaged)
+        {
+            attackFlowBlockRedirectEngaged = false;
+            attackFlowBlockRedirectFromShieldStrike = false;
+        }
+
+        if (!defender.IsRestState)
+        {
+            Debug.Log("Only REST units can be attacked.");
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        ResolveUnitVsUnitCombatStrikePowers(
+            attacker,
+            attackerOwner,
+            defender,
+            out int attackerPowerForCombat,
+            out int defenderPowerForCombat);
+
+        int defenderHpBeforeExchange = defender.CurrentHp;
+        int attackerHpBeforeExchange = attacker.CurrentHp;
+
+        defender.ApplyDamage(attackerPowerForCombat);
+        attacker.ApplyDamage(defenderPowerForCombat);
+        int defenderHpAfterExchange = defender.CurrentHp;
+        int attackerHpAfterExchange = attacker.CurrentHp;
+
+        NotifyLocalUnitAttackResolved(
+            attacker,
+            defender,
+            attackerHpAfterExchange,
+            defenderHpAfterExchange);
+
+        if (defender.CurrentHp <= 0)
+        {
+            SendCardToTrash(defender, defenderOwner, attacker);
+        }
+
+        if (attacker.CurrentHp <= 0)
+        {
+            SendCardToTrash(attacker, attackerOwner);
+        }
+
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
+        SyncAllResourceViewsFromRule();
+
+        LogAttackPostBattleFieldCompact(attacker, attackerOwner);
+        ClearAttackFlowContext();
     }
 
     private bool IsUnitAliveOnAnyDeployField(CardController c)
@@ -4582,13 +5046,7 @@ public partial class BattleGameMain : MonoBehaviour
                     attacker,
                     isShieldAttack: true,
                     originalDefender: null,
-                    blockerId => TryUnitShieldAttackFromUnit(
-                        attacker,
-                        true,
-                        true,
-                        true,
-                        skipOnlineBlockPhase: true,
-                        onlineChosenBlockerInstanceId: blockerId)))
+                    blockerId => ResumeOnlineShieldAttackAfterBlockResponse(attacker, attackerOwner, blockerId)))
                 {
                     return;
                 }
@@ -4632,21 +5090,34 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[HighMobility] {attacker.Data.cardName} — skip block phase (shield attack)");
             }
 
+            if (attackFlowBlockSelectionResolved)
+            {
+                skipAttackedSidePanelPause = true;
+                skipOnlineBlockPhase = true;
+                if (!attackFlowPostBlockPassOnActionDone)
+                {
+                    ContinueShieldAttackAfterBlockPassWithoutBlocking(attacker, attackerOwner);
+                    return;
+                }
+
+                skipOnActionPause = true;
+            }
+
             if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
             {
-                CardController onlineBlocker = FindBattleZoneUnitByInstanceId(
-                    onlineChosenBlockerInstanceId,
-                    PlayerType.Enemy);
-                if (onlineBlocker != null && IsBlockRedirectReactionReady(onlineBlocker, PlayerType.Enemy))
+                CardController onlineBlocker = FindUnitByInstanceIdEitherZone(onlineChosenBlockerInstanceId);
+                PlayerType onlineBlockerOwner = onlineBlocker != null
+                    ? ResolveCardOwner(onlineBlocker.transform)
+                    : PlayerType.Enemy;
+                if (onlineBlocker != null && IsBlockRedirectReactionReady(onlineBlocker, onlineBlockerOwner))
                 {
-                    ApplyDefenderOnAttackReactionEffects(onlineBlocker, attacker, PlayerType.Enemy);
+                    ApplyDefenderOnAttackReactionEffects(onlineBlocker, attacker, onlineBlockerOwner);
                     BeginShieldAttackBlockRedirectFlow(onlineBlocker);
                     TryResolveBlockRedirectUnitCombatWithOnActionSteps(
                         attacker,
                         onlineBlocker,
                         attackerOwner,
-                        PlayerType.Enemy,
-                        skipOnActionPause: true);
+                        onlineBlockerOwner);
                     return;
                 }
             }
@@ -4673,13 +5144,34 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
+            RegisterAttackFlowContextForOnAction(
+                attacker,
+                attackerOwner,
+                AttackFlowStrikeKind.Shield,
+                null,
+                null);
+
             CardController selectedDefenderFromShieldPanel = null;
+            PlayerType shieldBlockDefenderSide = attackerOwner == PlayerType.Player
+                ? PlayerType.Enemy
+                : PlayerType.Player;
+            System.Action passShieldBlockAndStartOnAction = () => RunOnActionStepsImmediatelyAfterBlockPass(
+                attacker,
+                null,
+                attackerOwner,
+                shieldBlockDefenderSide,
+                AttackFlowStrikeKind.Shield);
+
             if (!skipOnlineBlockPhase
                 && !attackerIgnoresBlock
                 && !skipAttackedSidePanelPause
+                && !attackFlowBlockSelectionResolved
+                && attackFlowPipelinePhase != AttackFlowPipelinePhase.PostBlockOnAction
                 && attackerOwner == PlayerType.Enemy
-                && !IsOnlineBattle()
-                && TryOpenAttackedSideUnitsPanel(
+                && !IsOnlineBattle())
+            {
+                attackFlowPipelinePhase = AttackFlowPipelinePhase.AwaitingBlockUi;
+                if (TryOpenAttackedSideUnitsPanel(
                     attackerOwner,
                     attacker,
                     selected =>
@@ -4713,12 +5205,15 @@ public partial class BattleGameMain : MonoBehaviour
                                 + $"{selectedDefenderFromShieldPanel.Data.cardName}");
                         }
 
-                        TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true, true);
-                    }))
-            {
-                return;
+                        passShieldBlockAndStartOnAction.Invoke();
+                    },
+                    passShieldBlockAndStartOnAction))
+                {
+                    return;
+                }
+
+                attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
             }
-            
 
             if (shieldStrikeAbortedAfterBlockInterrupt || deferredShieldBlockRedirectWait || blockExchangeCancelledForCurrentAttack)
             {
@@ -5040,10 +5535,12 @@ public partial class BattleGameMain : MonoBehaviour
         {
             blockExchangeCancelledForCurrentAttack = false;
             shieldStrikeAbortedAfterBlockInterrupt = false;
+            ResetAttackFlowBlockPassFlagsForNewDeclaration();
         }
 
         attacker.SetAttackFlg(AttackFlg.False);
         SetUnitRestAndTriggerEffects(attacker, attackerOwner);
+        SyncOnlineRestFromAttackAuthority(attacker);
         Debug.Log($"[AttackDeclare] {attacker.Data.cardName} attack declared — REST + attack right consumed.");
     }
 
@@ -5173,6 +5670,35 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (attackFlowBlockSelectionResolved
+            || attackFlowPipelinePhase == AttackFlowPipelinePhase.PostBlockOnAction)
+        {
+            skipAttackedSidePanelPause = true;
+            CardController resolvedAttacker = attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker;
+            CardController resolvedDefender = attackFlowDeclaredDefenderUnit != null
+                ? attackFlowDeclaredDefenderUnit
+                : defender;
+            PlayerType resolvedDefenderOwner = ResolveCardOwner(resolvedDefender.transform);
+
+            if (!attackFlowPostBlockPassOnActionDone)
+            {
+                RunOnActionStepsImmediatelyAfterBlockPass(
+                    resolvedAttacker,
+                    resolvedDefender,
+                    attackFlowAttackerOwner,
+                    resolvedDefenderOwner,
+                    AttackFlowStrikeKind.UnitVsUnit);
+                return;
+            }
+
+            ExecuteUnitVsUnitDeclaredCombat(
+                resolvedAttacker,
+                resolvedDefender,
+                attackFlowAttackerOwner,
+                resolvedDefenderOwner);
+            return;
+        }
+
         bool attackerIgnoresBlock = AttackerIgnoresBlockRedirect(attacker);
         if (attackerIgnoresBlock)
         {
@@ -5205,7 +5731,41 @@ public partial class BattleGameMain : MonoBehaviour
                 attacker,
                 attackerOwner,
                 defender,
-                () => TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, skipAttackedSidePanelPause)))
+                () =>
+                {
+                    if (attackFlowBlockSelectionResolved)
+                    {
+                        if (attackFlowPostBlockPassOnActionDone)
+                        {
+                            CardController resumeAttacker = attackFlowAttackerUnit != null
+                                ? attackFlowAttackerUnit
+                                : attacker;
+                            CardController resumeDefender = attackFlowDeclaredDefenderUnit != null
+                                ? attackFlowDeclaredDefenderUnit
+                                : defender;
+                            ExecuteUnitVsUnitDeclaredCombat(
+                                resumeAttacker,
+                                resumeDefender,
+                                attackFlowAttackerOwner,
+                                ResolveCardOwner(resumeDefender.transform));
+                        }
+                        else
+                        {
+                            RunOnActionStepsImmediatelyAfterBlockPass(
+                                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
+                                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
+                                attackFlowAttackerOwner,
+                                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null
+                                    ? attackFlowDeclaredDefenderUnit
+                                    : defender).transform),
+                                AttackFlowStrikeKind.UnitVsUnit);
+                        }
+
+                        return;
+                    }
+
+                    TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, skipAttackedSidePanelPause);
+                }))
             {
                 return;
             }
@@ -5221,15 +5781,12 @@ public partial class BattleGameMain : MonoBehaviour
                     attacker,
                     isShieldAttack: false,
                     originalDefender: defender,
-                    blockerId => TryUnitVsUnitAttack(
+                    blockerId => ResumeOnlineUnitAttackAfterBlockResponse(
                         attacker,
                         defender,
                         attackerOwner,
                         defenderOwner,
-                        true,
-                        true,
-                        skipOnlineBlockPhase: true,
-                        onlineChosenBlockerInstanceId: blockerId)))
+                        blockerId)))
                 {
                     return;
                 }
@@ -5238,9 +5795,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
         {
-            CardController onlineBlocker = FindBattleZoneUnitByInstanceId(
-                onlineChosenBlockerInstanceId,
-                PlayerType.Enemy);
+            CardController onlineBlocker = FindUnitByInstanceIdEitherZone(onlineChosenBlockerInstanceId);
             if (onlineBlocker != null)
             {
                 CommitBlockRedirectSelection(attacker, onlineBlocker, ref defender, ref defenderOwner);
@@ -5248,8 +5803,7 @@ public partial class BattleGameMain : MonoBehaviour
                     attacker,
                     onlineBlocker,
                     attackerOwner,
-                    defenderOwner,
-                    skipOnActionPause: true);
+                    defenderOwner);
                 return;
             }
         }
@@ -5274,15 +5828,31 @@ public partial class BattleGameMain : MonoBehaviour
         else if (!skipOnlineBlockPhase
             && !attackerIgnoresBlock
             && !skipAttackedSidePanelPause
+            && !attackFlowBlockSelectionResolved
+            && attackFlowPipelinePhase != AttackFlowPipelinePhase.PostBlockOnAction
             && attackerOwner == PlayerType.Enemy
-            && !IsOnlineBattle()
-            && TryOpenAttackedSideUnitsPanel(
+            && !IsOnlineBattle())
+        {
+            CardController blockFlowAttacker = attacker;
+            CardController blockFlowDefender = defender;
+            PlayerType blockFlowAttackerOwner = attackerOwner;
+            PlayerType blockFlowDefenderOwner = defenderOwner;
+            System.Action passBlockAndStartOnAction = () => RunOnActionStepsImmediatelyAfterBlockPass(
+                blockFlowAttacker,
+                blockFlowDefender,
+                blockFlowAttackerOwner,
+                blockFlowDefenderOwner,
+                AttackFlowStrikeKind.UnitVsUnit);
+
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.AwaitingBlockUi;
+            if (TryOpenAttackedSideUnitsPanel(
                 attackerOwner,
                 attacker,
                 selected =>
                 {
                     if (selected == null)
                     {
+                        ClearPendingBlockRedirectSelection();
                         return;
                     }
 
@@ -5301,18 +5871,19 @@ public partial class BattleGameMain : MonoBehaviour
                         return;
                     }
 
-                    Debug.Log(
-                        "[BlockRedirect] ブロッカー未選択のため、宣言済み防御対象への通常ユニット戦へ継続。");
-                    RegisterAttackFlowContextForOnAction(
-                        attacker,
-                        attackerOwner,
-                        AttackFlowStrikeKind.UnitVsUnit,
-                        defender,
-                        attackFlowBlockRedirectUnit);
-                    TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, true);
-                }))
+                    passBlockAndStartOnAction.Invoke();
+                },
+                passBlockAndStartOnAction))
+            {
+                return;
+            }
+
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+        }
+
+        if (attackFlowPipelinePhase == AttackFlowPipelinePhase.AwaitingBlockUi)
         {
-            return;
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
         }
 
         if (attackFlowBlockRedirectEngaged && attackFlowBlockRedirectUnit != null)
@@ -5323,98 +5894,61 @@ public partial class BattleGameMain : MonoBehaviour
                 attackFlowBlockRedirectUnit,
                 attackerOwner,
                 blockOwner,
-                skipOnActionPause);
+                skipOnActionPause: attackFlowBlockOnActionCompleted || skipOnActionPause);
             return;
         }
 
         if (attackFlowBlockRedirectUnit != null && defender != null && defender == attackFlowBlockRedirectUnit)
         {
-            TryResolveBlockRedirectUnitCombatWithOnActionSteps(attacker, defender, attackerOwner, defenderOwner);
+            TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                attacker,
+                defender,
+                attackerOwner,
+                defenderOwner,
+                skipOnActionPause: attackFlowBlockOnActionCompleted || skipOnActionPause);
             return;
         }
 
         if (!skipOnActionPause
+            && !attackFlowPostBlockPassOnActionDone
+            && !attackFlowBlockSelectionResolved
+            && attackFlowPipelinePhase != AttackFlowPipelinePhase.PostBlockOnAction
             && TryRunAttackActionSteps(
                 defenderOwner,
                 attackerOwner,
-                () => TryResumeUnitVsUnitAttackAfterOnAction(true, true),
+                () =>
+                {
+                    if (attackFlowBlockSelectionResolved)
+                    {
+                        if (attackFlowPostBlockPassOnActionDone)
+                        {
+                            ExecuteUnitVsUnitDeclaredCombat(
+                                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
+                                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
+                                attackFlowAttackerOwner,
+                                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender).transform));
+                        }
+                        else
+                        {
+                            RunOnActionStepsImmediatelyAfterBlockPass(
+                                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
+                                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
+                                attackFlowAttackerOwner,
+                                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender).transform),
+                                AttackFlowStrikeKind.UnitVsUnit);
+                        }
+
+                        return;
+                    }
+
+                    TryResumeUnitVsUnitAttackAfterOnAction(true, true);
+                },
                 attacker))
         {
             return;
         }
 
-        if (defender != null && defender.Data != null)
-        {
-            Debug.Log(
-                $"[DefenderInfo] {defender.Data.cardName} AP:{defender.CurrentPower} HP:{defender.CurrentHp} {(defender.IsRestState ? "REST" : "ACTIVE")} owner:{defenderOwner}");
-        }
-
-        // 基本ルール: ユニットはレスト状態の相手ユニットのみ攻撃できる。
-        if (attackFlowBlockRedirectEngaged)
-        {
-            CancelInterruptedBlockRedirectAttackFlow("Block redirect active — refusing undeclared unit exchange.");
-            return;
-        }
-
-        if (!defender.IsRestState)
-        {
-            Debug.Log("Only REST units can be attacked.");
-            CancelPendingUnitAttackFlow();
-            return;
-        }
-
-        ResolveUnitVsUnitCombatStrikePowers(
-            attacker,
-            attackerOwner,
-            defender,
-            out int attackerPowerForCombat,
-            out int defenderPowerForCombat);
-
-        int defenderHpBeforeExchange = defender.CurrentHp;
-        int attackerHpBeforeExchange = attacker.CurrentHp;
-
-        defender.ApplyDamage(attackerPowerForCombat);
-        attacker.ApplyDamage(defenderPowerForCombat);
-        int defenderHpAfterExchange = defender.CurrentHp;
-        int attackerHpAfterExchange = attacker.CurrentHp;
-
-        NotifyLocalUnitAttackResolved(
-            attacker,
-            defender,
-            attackerHpAfterExchange,
-            defenderHpAfterExchange);
-
-        if (defender.CurrentHp <= 0)
-        {
-            SendCardToTrash(defender, defenderOwner, attacker);
-        }
-
-        if (attacker.CurrentHp <= 0)
-        {
-            SendCardToTrash(attacker, attackerOwner);
-        }
-
-        pendingUnitAttackAttacker = null;
-        pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
-        SyncAllResourceViewsFromRule();
-        if (attackFlowBlockRedirectUnit != null && defender == attackFlowBlockRedirectUnit)
-        {
-            LogUnitAttackBlockedExchangeCalc(
-                attacker,
-                defender,
-                attackerOwner,
-                attackerPowerForCombat,
-                defenderPowerForCombat,
-                attackerHpBeforeExchange,
-                defenderHpBeforeExchange,
-                attackerHpAfterExchange,
-                defenderHpAfterExchange);
-        }
-
-        LogAttackPostBattleFieldCompact(attacker, attackerOwner);
-        ClearAttackFlowContext();
+        ExecuteUnitVsUnitDeclaredCombat(attacker, defender, attackerOwner, defenderOwner);
     }
 
     /// <summary>
@@ -5433,6 +5967,17 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (blockExchangeCancelledForCurrentAttack || attackFlowBlockRedirectCombatVoided)
+        {
+            FinalizeBlockInterruptWithoutExchange();
+            return;
+        }
+
+        if (attackFlowBlockOnActionCompleted)
+        {
+            skipOnActionPause = true;
+        }
+
         if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Before block OnAction"))
         {
             LogArgamaShieldBlockCloseCombatDebug("TryResolveBlock_AbortBeforeOnAction", "ShouldAbort before OnAction", attacker, blocker);
@@ -5441,11 +5986,15 @@ public partial class BattleGameMain : MonoBehaviour
 
         attackFlowBlockRedirectEngaged = true;
         attackFlowBlockRedirectUnit = blocker;
+        CardController declaredDefenderForContext = attackFlowDeclaredDefenderUnit != null
+            && attackFlowDeclaredDefenderUnit != blocker
+            ? attackFlowDeclaredDefenderUnit
+            : attackFlowBlockRedirectFromShieldStrike ? null : blocker;
         RegisterAttackFlowContextForOnAction(
             attacker,
             attackerOwner,
             attackFlowBlockRedirectFromShieldStrike ? AttackFlowStrikeKind.Shield : AttackFlowStrikeKind.UnitVsUnit,
-            attackFlowBlockRedirectFromShieldStrike ? null : blocker,
+            declaredDefenderForContext,
             blocker);
 
         if (!skipOnActionPause)
@@ -5456,53 +6005,55 @@ public partial class BattleGameMain : MonoBehaviour
                 attacker,
                 blocker);
 
+            System.Action resumeCombatAfterOnAction = () =>
+            {
+                if (TrySettleAttackFlowAfterOnActionPhases())
+                {
+                    return;
+                }
+
+                attackFlowBlockOnActionCompleted = true;
+
+                CardController resumeAttacker = attackFlowAttackerUnit;
+                CardController resumeBlocker = attackFlowBlockRedirectUnit;
+                if (!IsUnitAliveOnAnyDeployField(resumeAttacker))
+                {
+                    LogArgamaShieldBlockCloseCombatDebug(
+                        "TryResolveBlock_OnActionComplete",
+                        "resumeAttacker invalid — rest blocker and finalize",
+                        resumeAttacker,
+                        resumeBlocker);
+                    TrashUnitIfDeadOnField(resumeAttacker, attackFlowAttackerOwner);
+                    FinalizeBlockInterruptWithoutExchange();
+                    return;
+                }
+
+                LogArgamaShieldBlockCloseCombatDebug(
+                    "TryResolveBlock_ResumeAfterOnAction",
+                    $"resume exchange blockerAlive:{IsUnitAvailableForAttackExchange(resumeBlocker)}",
+                    resumeAttacker,
+                    resumeBlocker);
+
+                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    resumeAttacker,
+                    resumeBlocker,
+                    attackFlowAttackerOwner,
+                    ResolveCardOwner(resumeBlocker != null ? resumeBlocker.transform : null),
+                    skipOnActionPause: true);
+            };
+
             if (TryRunAttackActionSteps(
                 blockerOwner,
                 attackerOwner,
-                () =>
-                {
-                    if (TrySettleAttackFlowAfterOnActionPhases())
-                    {
-                        return;
-                    }
-
-                    CardController resumeAttacker = attackFlowAttackerUnit;
-                    CardController resumeBlocker = attackFlowBlockRedirectUnit;
-                    if (!IsUnitAliveOnAnyDeployField(resumeAttacker))
-                    {
-                        LogArgamaShieldBlockCloseCombatDebug(
-                            "TryResolveBlock_OnActionComplete",
-                            "resumeAttacker invalid — finalize",
-                            resumeAttacker,
-                            resumeBlocker);
-                        FinalizeBlockInterruptWithoutExchange();
-                        return;
-                    }
-
-                    LogArgamaShieldBlockCloseCombatDebug(
-                        "TryResolveBlock_ResumeAfterOnAction",
-                        $"resume exchange blockerAlive:{IsUnitAvailableForAttackExchange(resumeBlocker)}",
-                        resumeAttacker,
-                        resumeBlocker);
-
-                    TryResolveBlockRedirectUnitCombatWithOnActionSteps(
-                        resumeAttacker,
-                        resumeBlocker,
-                        attackFlowAttackerOwner,
-                        ResolveCardOwner(resumeBlocker != null ? resumeBlocker.transform : null),
-                        skipOnActionPause: true);
-                },
+                resumeCombatAfterOnAction,
                 attacker))
             {
                 return;
             }
 
-            LogArgamaShieldBlockCloseCombatDebug(
-                "TryResolveBlock_OnActionSkippedSync",
-                "OnAction not paused — inner resume already ran synchronously",
-                attacker,
-                blocker);
-            // OnAction 不要時は onComplete が同期的に skipOnActionPause 再入済み。
+            Debug.LogWarning(
+                "[AttackFlow] Block OnAction could not start — proceeding to combat without action pause.");
+            resumeCombatAfterOnAction.Invoke();
             return;
         }
 
@@ -5591,11 +6142,15 @@ public partial class BattleGameMain : MonoBehaviour
 
         attackFlowBlockRedirectEngaged = true;
         attackFlowBlockRedirectUnit = blocker;
+        CardController declaredDefenderForContext = attackFlowDeclaredDefenderUnit != null
+            && attackFlowDeclaredDefenderUnit != blocker
+            ? attackFlowDeclaredDefenderUnit
+            : blocker;
         RegisterAttackFlowContextForOnAction(
             attacker,
             attackerOwner,
             AttackFlowStrikeKind.UnitVsUnit,
-            blocker,
+            declaredDefenderForContext,
             attackFlowBlockRedirectUnit);
 
         ResolveUnitVsUnitCombatStrikePowers(
@@ -5653,7 +6208,10 @@ public partial class BattleGameMain : MonoBehaviour
             blockerHpAfterExchange,
             blockCombat: true);
 
-        SetUnitRestAndTriggerEffects(blocker, blockerOwner);
+        if (TryApplyRestToUnit(blocker))
+        {
+            SyncOnlineRestFromAttackAuthority(blocker);
+        }
 
         if (blocker.CurrentHp <= 0)
         {
@@ -6211,10 +6769,17 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner,
         CardController attackingUnitForDisplay,
         System.Action<CardController> onSelectDefender,
-        System.Action onCloseResume)
+        System.Action onCloseResume,
+        System.Action onBlockPassOrCancel = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
+        {
+            return false;
+        }
+
+        List<CardController> selectableBlockRedirects = CollectSelectableBlockRedirectUnits(attackerOwner);
+        if (selectableBlockRedirects.Count <= 0)
         {
             return false;
         }
@@ -6267,33 +6832,18 @@ public partial class BattleGameMain : MonoBehaviour
             && attackingUnitForDisplay != null
             && attackingUnitForDisplay.Data != null;
         List<CardController> blockRedirectUnits = CollectBlockRedirectCapableUnits(attackerOwner);
-        List<CardController> selectableBlockRedirects = CollectSelectableBlockRedirectUnits(attackerOwner);
-        bool hasSelectableBlocker = selectableBlockRedirects.Count > 0;
-
-        if (!enemyAttackingPlayer && !hasSelectableBlocker)
-        {
-            Destroy(root);
-            activeAttackFlowDebugPanelRoot = null;
-            if (activeOnActionPopupRoot == root)
-            {
-                activeOnActionPopupRoot = null;
-                isOnActionPopupOpen = false;
-            }
-            isAttackedSidePanelOpen = false;
-            return false;
-        }
 
         if (enemyAttackingPlayer)
         {
-            title.text = hasSelectableBlocker
-                ? "敵の攻撃 — ACTIVE ブロッカーを選んで Close"
-                : "敵の攻撃 — ブロッカーなし（Close で通常処理）";
+            title.text = enableAttackFlowActionThinkTest
+                ? "blockthink — Select an ACTIVE blocker, then Close"
+                : "Enemy attack — Select an ACTIVE blocker, then Close";
             AppendAttackerPreviewToDefensePanel(root, attackingUnitForDisplay);
             scrollRt.anchoredPosition = new Vector2(0f, -200f);
         }
         else
         {
-            title.text = "ブロッカーを選択して Close";
+            title.text = enableAttackFlowActionThinkTest ? "blockthink" : "Select a blocker, then Close";
         }
 
         CardController selectedDefender = null;
@@ -6301,8 +6851,8 @@ public partial class BattleGameMain : MonoBehaviour
         {
             TextMeshProUGUI empty = root.CreateChildTextCustom("AttackedSideEmpty", UIAnchor.TopCenter, 480, 40);
             empty.text = enemyAttackingPlayer
-                ? "バトルゾーンにブロッカー（isBlocker）がいません"
-                : "ブロッカーがいません";
+                ? "No blockers (isBlocker) on the battlefield"
+                : "No blockers available";
             empty.fontSize = 20;
             empty.color = Color.white;
             empty.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -280f);
@@ -6326,11 +6876,11 @@ public partial class BattleGameMain : MonoBehaviour
                     content,
                     unit,
                     canSelect,
-                    canSelect ? "（ブロック可）" : " (REST・ブロック不可)",
+                    canSelect ? "(Can block)" : " (REST — cannot block)",
                     () =>
                     {
                         selectedDefender = unit;
-                        title.text = $"ブロッカー選択: {unit.Data.cardName}";
+                        title.text = $"Blocker selected: {unit.Data.cardName}";
                     });
             }
         }
@@ -6341,22 +6891,68 @@ public partial class BattleGameMain : MonoBehaviour
         closeRt.anchorMin = new Vector2(0.5f, 0f);
         closeRt.anchorMax = new Vector2(0.5f, 0f);
         closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(0f, 36f);
-        closeBtn.onClick.AddListener(() =>
+        closeRt.anchoredPosition = new Vector2(100f, 36f);
+
+        Button cancelBtn = root.CreateChildButton("Cancel");
+        RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(180f, 48f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(-100f, 36f);
+        closeBtn.transform.SetAsLastSibling();
+        cancelBtn.transform.SetAsLastSibling();
+
+        void CloseAttackedSidePanel()
         {
+            isAttackedSidePanelOpen = false;
+            isOnActionPopupOpen = false;
+
             if (activeAttackFlowDebugPanelRoot == root)
             {
                 activeAttackFlowDebugPanelRoot = null;
             }
+
             if (activeOnActionPopupRoot == root)
             {
                 activeOnActionPopupRoot = null;
-                isOnActionPopupOpen = false;
             }
-            isAttackedSidePanelOpen = false;
+
             Destroy(root);
-            onSelectDefender?.Invoke(selectedDefender);
-            onCloseResume?.Invoke();
+        }
+
+        closeBtn.onClick.AddListener(() =>
+        {
+            CardController chosen = selectedDefender;
+            CloseAttackedSidePanel();
+            onSelectDefender?.Invoke(chosen);
+            if (chosen != null)
+            {
+                onCloseResume?.Invoke();
+            }
+            else if (onBlockPassOrCancel != null)
+            {
+                onBlockPassOrCancel.Invoke();
+            }
+            else
+            {
+                onCloseResume?.Invoke();
+            }
+        });
+        cancelBtn.onClick.AddListener(() =>
+        {
+            selectedDefender = null;
+            CloseAttackedSidePanel();
+            if (onBlockPassOrCancel != null)
+            {
+                onBlockPassOrCancel.Invoke();
+            }
+            else
+            {
+                ClearPendingBlockRedirectSelection();
+                onSelectDefender?.Invoke(null);
+                onCloseResume?.Invoke();
+            }
         });
 
         return true;
@@ -7814,122 +8410,43 @@ public partial class BattleGameMain : MonoBehaviour
     {
         void runPlayerOnActionOrFinish()
         {
-            if (TryHandleSingleSideOnActionStep(PlayerType.Player, "turn end:player-action", onComplete))
-            {
-                return;
-            }
-
-            onComplete?.Invoke();
+            TryRunMandatoryOnActionStepPhase(PlayerType.Player, "turn end:player-action", onComplete);
         }
 
-        if (TryHandleSingleSideOnActionStep(PlayerType.Enemy, "turn end:enemy-action", runPlayerOnActionOrFinish))
-        {
-            return true;
-        }
-
-        if (TryHandleSingleSideOnActionStep(PlayerType.Player, "turn end:player-action", onComplete))
-        {
-            return true;
-        }
-
-        return false;
+        TryRunMandatoryOnActionStepPhase(PlayerType.Enemy, "turn end:enemy-action", runPlayerOnActionOrFinish);
+        return true;
     }
 
     /// <summary>
-    /// 攻撃フロー後半：呼び出し元で「アタック宣言〜ブロック可否」まで済んだあとの OnAction 順序。
-    /// 敵アクション →（テスト）actionthink → プレイヤーアクション。
+    /// 攻撃フロー後半：ブロック応答後の OnAction。防御側 → 攻撃側の順。
     /// </summary>
-    private bool TryRunAttackOnActionPhasesAfterBlock(System.Action onComplete, CardController attackingUnitInAttackFlow = null)
+    private bool TryRunAttackOnActionPhasesAfterBlock(
+        PlayerType defenderSide,
+        PlayerType attackerSide,
+        System.Action onComplete,
+        CardController attackingUnitInAttackFlow = null)
     {
-        void runPlayerOnActionOrFinish()
-        {
-            if (TryHandleSingleSideOnActionStep(PlayerType.Player, "attack:player-action", onComplete, attackingUnitInAttackFlow))
-            {
-                return;
-            }
+        string defenderContext = defenderSide == PlayerType.Player
+            ? "attack:player-action"
+            : "attack:enemy-action";
+        string attackerContext = attackerSide == PlayerType.Player
+            ? "attack:player-action"
+            : "attack:enemy-action";
 
-            onComplete?.Invoke();
+        void runAttackerOnActionOrFinish()
+        {
+            TryRunMandatoryOnActionStepPhase(
+                attackerSide,
+                attackerContext,
+                onComplete,
+                attackingUnitInAttackFlow);
         }
 
-        void afterEnemyOnAction()
-        {
-            if (ShouldUseAttackFlowActionThinkPause() && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
-            {
-                return;
-            }
-
-            runPlayerOnActionOrFinish();
-        }
-
-        if (TryHandleSingleSideOnActionStep(PlayerType.Enemy, "attack:enemy-action", afterEnemyOnAction, attackingUnitInAttackFlow))
-        {
-            return true;
-        }
-
-        if (ShouldUseAttackFlowActionThinkPause() && TryOpenActionThinkTestPause(runPlayerOnActionOrFinish))
-        {
-            return true;
-        }
-
-        if (TryHandleSingleSideOnActionStep(PlayerType.Player, "attack:player-action", onComplete, attackingUnitInAttackFlow))
-        {
-            return true;
-        }
-
-        onComplete?.Invoke();
-        return false;
-    }
-
-    /// <summary>
-    /// テスト用：プレイヤー OnAction の直前。表示中は <see cref="isActionThinkPauseOpen"/> で進行停止。
-    /// 戻り値 true のときコールバックは Continue 後に呼ばれる。
-    /// </summary>
-    private bool TryOpenActionThinkTestPause(System.Action onContinue)
-    {
-        if (!ShouldUseAttackFlowActionThinkPause() || onContinue == null)
-        {
-            return false;
-        }
-
-        Canvas canvas = ResolveBattleCanvas();
-        if (canvas == null)
-        {
-            return false;
-        }
-
-        Debug.Log("actionthink");
-
-        isActionThinkPauseOpen = true;
-        GameObject root = new GameObject("ActionThinkTestPause", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        root.transform.SetParent(canvas.transform, false);
-        root.transform.SetAsLastSibling();
-        root.SetFullSize();
-        Image dim = root.GetComponent<Image>();
-        dim.color = new Color(0f, 0f, 0f, 0.45f);
-        dim.raycastTarget = true;
-
-        TextMeshProUGUI title = root.CreateChildTextCustom("ActionThinkTitle", UIAnchor.TopCenter, 720, 56);
-        title.text = "actionthink";
-        title.color = new Color(1f, 0.95f, 0.2f, 1f);
-        title.fontSize = 26;
-        title.alignment = TextAlignmentOptions.Center;
-        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
-
-        Button cont = root.CreateChildButton("Continue");
-        RectTransform crt = cont.GetComponent<RectTransform>();
-        crt.sizeDelta = new Vector2(220f, 50f);
-        crt.anchorMin = new Vector2(0.5f, 0.5f);
-        crt.anchorMax = new Vector2(0.5f, 0.5f);
-        crt.pivot = new Vector2(0.5f, 0.5f);
-        crt.anchoredPosition = new Vector2(0f, -40f);
-
-        cont.onClick.AddListener(() =>
-        {
-            isActionThinkPauseOpen = false;
-            Destroy(root);
-            onContinue.Invoke();
-        });
-
+        TryRunMandatoryOnActionStepPhase(
+            defenderSide,
+            defenderContext,
+            runAttackerOnActionOrFinish,
+            attackingUnitInAttackFlow);
         return true;
     }
 
@@ -7939,18 +8456,18 @@ public partial class BattleGameMain : MonoBehaviour
         System.Action onComplete,
         CardController attackingUnitInAttackFlow = null)
     {
-        if (isAttackedSidePanelOpen)
-        {
-            return false;
-        }
-
         if (enableShieldAttackFlowDebugLog)
         {
             Debug.Log(
-                $"[AttackFlow] OnAction order: enemy → actionthink? → player (defender:{defenderSide} attacker:{attackerSide})");
+                $"[AttackFlow] OnAction order: defender action step → attacker action step "
+                + $"(defender:{defenderSide} attacker:{attackerSide})");
         }
 
-        return TryRunAttackOnActionPhasesAfterBlock(onComplete, attackingUnitInAttackFlow);
+        return TryRunAttackOnActionPhasesAfterBlock(
+            defenderSide,
+            attackerSide,
+            onComplete,
+            attackingUnitInAttackFlow);
     }
 
     /// <summary>プレイヤー盤面ユニットの仮想 HP/AP（本番の CardController は変更しない）。</summary>
@@ -9873,25 +10390,6 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private bool TryHandleSingleSideOnActionStep(
-        PlayerType side,
-        string context,
-        System.Action onStepDone,
-        CardController attackingUnitInAttackFlow = null)
-    {
-        if (IsOnlineBattle())
-        {
-            return TryHandleSingleSideOnActionStepOnline(side, context, onStepDone, attackingUnitInAttackFlow);
-        }
-
-        if (side == PlayerType.Enemy)
-        {
-            return TryExecuteEnemyOnActionStep(context, onStepDone, attackingUnitInAttackFlow);
-        }
-
-        return TryOpenOnActionCommandSelection(side, context, onStepDone, attackingUnitInAttackFlow);
-    }
-
     // アクションステップ時に利用できるコマンドカードを一覧にUI表示するメソッド
     private bool TryOpenOnActionCommandSelection(
         PlayerType side,
@@ -9958,7 +10456,6 @@ public partial class BattleGameMain : MonoBehaviour
         if (onActionSelectableSources.Count == 0)
         {
             Debug.Log($"[OnActionCandidates] context:{context} side:{side} none");
-            return false;
         }
 
         Canvas canvas = ResolveBattleCanvas();
@@ -9989,85 +10486,91 @@ public partial class BattleGameMain : MonoBehaviour
         dim.color = new Color(0f, 0f, 0f, 0.55f);
         dim.raycastTarget = true;
 
+        bool hasSelectableCards = onActionSelectableSources.Count > 0;
+        string roleLabel = GetActionStepThinkSubtitle(side, context);
         TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, 720, 48);
-        title.text = IsOnlineBattle()
-            ? "アクション — コマンドを選択"
-            : $"OnAction Command Select ({side}) [{context}]";
+        title.text = hasSelectableCards
+            ? $"Action Step — {roleLabel}"
+            : $"Action Step — {roleLabel} (no playable cards)";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
-        bool showAttackHighlight = attackingUnitInAttackFlow != null
-            && attackingUnitInAttackFlow.Data != null
-            && !string.IsNullOrEmpty(context)
-            && context.Contains("attack");
-
-        GameObject scrollGo = root.CreateGridScrollView(680, 410, UIAnchor.TopCenter);
-        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
-        scrollRt.anchoredPosition = new Vector2(0f, showAttackHighlight ? -98f : -86f);
-        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
-        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
-        RectTransform content = sr != null ? sr.content : null;
-
-        HashSet<CardController> selectedSet = new HashSet<CardController>();
-        List<CardController> selectedCommands = new List<CardController>();
-        for (int i = 0; i < onActionSelectableSources.Count; i++)
+        if (hasSelectableCards)
         {
-            CardController command = onActionSelectableSources[i];
-            if (content == null || command == null || command.Data == null)
+            bool showAttackHighlight = attackingUnitInAttackFlow != null
+                && attackingUnitInAttackFlow.Data != null
+                && !string.IsNullOrEmpty(context)
+                && context.Contains("attack");
+
+            GameObject scrollGo = root.CreateGridScrollView(680, 410, UIAnchor.TopCenter);
+            RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+            scrollRt.anchoredPosition = new Vector2(0f, showAttackHighlight ? -98f : -86f);
+            scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+            ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+            RectTransform content = sr != null ? sr.content : null;
+
+            HashSet<CardController> selectedSet = new HashSet<CardController>();
+            List<CardController> selectedCommands = new List<CardController>();
+
+            for (int i = 0; i < onActionSelectableSources.Count; i++)
             {
-                continue;
+                CardController command = onActionSelectableSources[i];
+                if (content == null || command == null || command.Data == null)
+                {
+                    continue;
+                }
+
+                string typeLabel = command.Data.type == Type.Command ? "Command" : "Unit";
+                AppendSelectableCommandCardToGrid(content, command, typeLabel, selectedSet);
             }
 
-            string typeLabel = command.Data.type == Type.Command ? "Command" : "Unit";
-            AppendSelectableCommandCardToGrid(content, command, typeLabel, selectedSet);
+            Button confirmBtn = root.CreateChildButton("Confirm");
+            RectTransform confirmRt = confirmBtn.GetComponent<RectTransform>();
+            confirmRt.sizeDelta = new Vector2(180f, 48f);
+            confirmRt.anchorMin = new Vector2(0.5f, 0f);
+            confirmRt.anchorMax = new Vector2(0.5f, 0f);
+            confirmRt.pivot = new Vector2(0.5f, 0f);
+            confirmRt.anchoredPosition = new Vector2(-100f, 36f);
+            confirmBtn.onClick.AddListener(() =>
+            {
+                selectedCommands.Clear();
+                selectedCommands.AddRange(selectedSet);
+                if (selectedCommands.Count == 0)
+                {
+                    Debug.Log("OnAction: Select at least one card.");
+                    return;
+                }
+
+                ExecuteOnActionCommandQueue(
+                    side,
+                    selectedCommands,
+                    0,
+                    () =>
+                    {
+                        isOnActionPopupOpen = false;
+                        activeOnActionPopupRoot = null;
+                        Destroy(root);
+                        onStepDone?.Invoke();
+                    },
+                    attackingUnitInAttackFlow);
+            });
         }
 
-        Button confirmBtn = root.CreateChildButton("Confirm");
-        RectTransform confirmRt = confirmBtn.GetComponent<RectTransform>();
-        confirmRt.sizeDelta = new Vector2(180f, 48f);
-        confirmRt.anchorMin = new Vector2(0.5f, 0f);
-        confirmRt.anchorMax = new Vector2(0.5f, 0f);
-        confirmRt.pivot = new Vector2(0.5f, 0f);
-        confirmRt.anchoredPosition = new Vector2(-100f, 36f);
-        confirmBtn.onClick.AddListener(() =>
-        {
-            selectedCommands.Clear();
-            selectedCommands.AddRange(selectedSet);
-            if (selectedCommands.Count == 0)
-            {
-                Debug.Log("OnAction: カードを1枚以上選択してください。");
-                return;
-            }
-
-            bool isAttackContext = showAttackHighlight;
-            ExecuteOnActionCommandQueue(
-                side,
-                selectedCommands,
-                0,
-                () =>
-                {
-                    isOnActionPopupOpen = false;
-                    activeOnActionPopupRoot = null;
-                    Destroy(root);
-                    onStepDone?.Invoke();
-                },
-                attackingUnitInAttackFlow);
-            });
-
-        Button closeBtn = root.CreateChildButton(IsOnlineBattle() ? "スキップ" : "Close");
+        Button closeBtn = root.CreateChildButton("Close");
         RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
         closeRt.sizeDelta = new Vector2(180f, 48f);
         closeRt.anchorMin = new Vector2(0.5f, 0f);
         closeRt.anchorMax = new Vector2(0.5f, 0f);
         closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(100f, 36f);
+        closeRt.anchoredPosition = hasSelectableCards ? new Vector2(100f, 36f) : new Vector2(0f, 36f);
         closeBtn.onClick.AddListener(() =>
         {
             if (!IsOnlineBattle())
             {
                 LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseCommandPopup", context, side, attackingUnitInAttackFlow);
             }
+
             isOnActionPopupOpen = false;
             activeOnActionPopupRoot = null;
             Destroy(root);

@@ -1,8 +1,10 @@
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// オンライン対戦の OnAction（アクションステップ）同期。
-/// 攻撃フローでは AI 戦と同じく「Enemy ゾーン → Player ゾーン」の順で進行する。
+/// 攻撃・ターン終了とも「Enemy ゾーン → Player ゾーン」の順。カードが無くてもステップを差し込む。
 /// </summary>
 public partial class BattleGameMain
 {
@@ -10,6 +12,9 @@ public partial class BattleGameMain
     private int _pendingOnlineOnActionRequestId;
     private System.Action _pendingOnlineOnActionCallback;
     private int _onlineOnActionResponseRequestId;
+    private int _onlineOnActionOpponentWaitRequestId;
+    private bool isOnlineOnActionOpponentWaitOpen;
+    private GameObject _activeOnActionOpponentWaitRoot;
 
     private void ResetOnlineOnActionState()
     {
@@ -17,36 +22,89 @@ public partial class BattleGameMain
         _pendingOnlineOnActionRequestId = 0;
         _pendingOnlineOnActionCallback = null;
         _onlineOnActionResponseRequestId = 0;
+        _onlineOnActionOpponentWaitRequestId = 0;
+        CloseOnlineOnActionOpponentWaitOverlay();
     }
 
-    /// <summary>
-    /// オンライン時の単側 OnAction。Enemy ゾーンは相手クライアント、Player ゾーンはローカル。
-    /// </summary>
-    private bool TryHandleSingleSideOnActionStepOnline(
+    private bool ShouldBlockOnlineLocalPlayDueToOnAction()
+    {
+        return IsOnlineBattle()
+            && (isOnlineOnActionOpponentWaitOpen || _pendingOnlineOnActionRequestId > 0);
+    }
+
+    private bool TryBlockOnlinePlayDueToOpponentOnAction(string context)
+    {
+        if (!ShouldBlockOnlineLocalPlayDueToOnAction())
+        {
+            return false;
+        }
+
+        Debug.Log($"[OnlineBattle] Wait for opponent OnAction selection. ({context})");
+        return true;
+    }
+
+    private void RunOnlineOnActionStepBody(
         PlayerType side,
         string context,
         System.Action onStepDone,
         CardController attackingUnitInAttackFlow)
     {
+        if (onStepDone == null)
+        {
+            return;
+        }
+
         if (side == PlayerType.Enemy)
         {
             if (currentPlayerType != PlayerType.Player)
             {
-                return false;
+                onStepDone.Invoke();
+                return;
             }
 
-            return TryBeginOnlineOnActionWaitForRemoteZone(
-                PlayerType.Enemy,
-                context,
-                onStepDone,
-                attackingUnitInAttackFlow);
+            if (!TryBeginOnlineOnActionWaitForRemoteZone(
+                    PlayerType.Enemy,
+                    context,
+                    onStepDone,
+                    attackingUnitInAttackFlow))
+            {
+                onStepDone.Invoke();
+            }
+
+            return;
         }
 
-        return TryOpenOnActionCommandSelection(
-            PlayerType.Player,
-            context,
-            onStepDone,
-            attackingUnitInAttackFlow);
+        if (currentPlayerType != PlayerType.Player)
+        {
+            onStepDone.Invoke();
+            return;
+        }
+
+        int requestId = ++_onlineOnActionRequestIdCounter;
+        int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionBegin(
+            OnlineBattleActionPayload.CreateOnActionBegin(
+                requestId,
+                (int)PlayerType.Player,
+                context,
+                attackerInstanceId)));
+
+        System.Action complete = () =>
+        {
+            NotifyLocalOnActionPhaseComplete(requestId);
+            onStepDone.Invoke();
+        };
+
+        if (!TryOpenOnActionCommandSelection(
+                PlayerType.Player,
+                context,
+                complete,
+                attackingUnitInAttackFlow))
+        {
+            Debug.Log("[OnlineBattle] Local Player OnAction UI could not open — auto pass.");
+            NotifyLocalOnActionPhaseComplete(requestId);
+            onStepDone.Invoke();
+        }
     }
 
     private bool TryBeginOnlineOnActionWaitForRemoteZone(
@@ -72,6 +130,7 @@ public partial class BattleGameMain
                 context,
                 attackerInstanceId)));
 
+        ShowOnlineOnActionOpponentWaitOverlay("Action Step", "Waiting for opponent action step…");
         Debug.Log($"[OnlineBattle] OnAction wait started. requestId={requestId} zone={actingZoneSideOnAttackerClient} context={context}");
         return true;
     }
@@ -103,9 +162,18 @@ public partial class BattleGameMain
             return;
         }
 
+        if (action.actingZoneSide == (int)PlayerType.Player)
+        {
+            BeginOnlineOnActionOpponentWait(
+                action.requestId,
+                "Action Step",
+                "Waiting for opponent action step…");
+            return;
+        }
+
         if (action.actingZoneSide != (int)PlayerType.Enemy)
         {
-            Debug.Log("[OnlineBattle] Ignored OnActionBegin for non-Enemy zone (attacker acts locally).");
+            Debug.LogWarning($"[OnlineBattle] Ignored OnActionBegin for unknown zone:{action.actingZoneSide}");
             return;
         }
 
@@ -127,15 +195,13 @@ public partial class BattleGameMain
             _onlineOnActionResponseRequestId = 0;
         };
 
-        bool opened = TryOpenOnActionCommandSelection(
-            PlayerType.Player,
-            context,
-            completeAndNotify,
-            attackingUnit);
-
-        if (!opened)
+        if (!TryOpenOnActionCommandSelection(
+                PlayerType.Player,
+                context,
+                completeAndNotify,
+                attackingUnit))
         {
-            Debug.Log("[OnlineBattle] OnActionBegin: no eligible cards — auto pass.");
+            Debug.Log("[OnlineBattle] OnActionBegin: UI could not open — auto pass.");
             completeAndNotify.Invoke();
         }
     }
@@ -149,23 +215,103 @@ public partial class BattleGameMain
             return;
         }
 
-        if (action.requestId != _pendingOnlineOnActionRequestId || _pendingOnlineOnActionCallback == null)
+        bool handled = false;
+
+        if (action.requestId == _onlineOnActionOpponentWaitRequestId)
+        {
+            ApplyRemoteOnActionResourceSnapshot(
+                Gundam2024RuleScript.PlayerSide.Enemy,
+                action.resourceAfter,
+                action.exResourceAfter,
+                action.levelAfter);
+            ClearOnlineOnActionOpponentWaitState();
+            handled = true;
+        }
+
+        if (action.requestId == _pendingOnlineOnActionRequestId && _pendingOnlineOnActionCallback != null)
+        {
+            ApplyRemoteOnActionResourceSnapshot(
+                Gundam2024RuleScript.PlayerSide.Enemy,
+                action.resourceAfter,
+                action.exResourceAfter,
+                action.levelAfter);
+
+            System.Action callback = _pendingOnlineOnActionCallback;
+            _pendingOnlineOnActionCallback = null;
+            _pendingOnlineOnActionRequestId = 0;
+            ClearOnlineOnActionOpponentWaitState();
+            callback.Invoke();
+            handled = true;
+            Debug.Log($"[OnlineBattle] OnAction wait completed. requestId={action.requestId}");
+        }
+
+        if (!handled)
         {
             Debug.Log($"[OnlineBattle] Ignored OnActionEnd requestId={action.requestId}");
+        }
+    }
+
+    private void BeginOnlineOnActionOpponentWait(int requestId, string label, string subtitle)
+    {
+        _onlineOnActionOpponentWaitRequestId = requestId;
+        ShowOnlineOnActionOpponentWaitOverlay(label, subtitle);
+        Debug.Log($"[OnlineBattle] Opponent OnAction wait started. requestId={requestId}");
+    }
+
+    private void ClearOnlineOnActionOpponentWaitState()
+    {
+        _onlineOnActionOpponentWaitRequestId = 0;
+        CloseOnlineOnActionOpponentWaitOverlay();
+    }
+
+    private void ShowOnlineOnActionOpponentWaitOverlay(string label, string subtitle)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            isOnlineOnActionOpponentWaitOpen = true;
             return;
         }
 
-        ApplyRemoteOnActionResourceSnapshot(
-            Gundam2024RuleScript.PlayerSide.Enemy,
-            action.resourceAfter,
-            action.exResourceAfter,
-            action.levelAfter);
+        CloseOnlineOnActionOpponentWaitOverlay();
+        isOnlineOnActionOpponentWaitOpen = true;
 
-        System.Action callback = _pendingOnlineOnActionCallback;
-        _pendingOnlineOnActionCallback = null;
-        _pendingOnlineOnActionRequestId = 0;
-        callback.Invoke();
-        Debug.Log($"[OnlineBattle] OnAction wait completed. requestId={action.requestId}");
+        GameObject root = new GameObject(
+            "OnActionOpponentWait",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        _activeOnActionOpponentWaitRoot = root;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.5f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionOpponentWaitTitle", UIAnchor.TopCenter, 720, 56);
+        title.text = label;
+        title.color = new Color(1f, 0.95f, 0.2f, 1f);
+        title.fontSize = 26;
+        title.alignment = TextAlignmentOptions.Center;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
+
+        TextMeshProUGUI sub = root.CreateChildTextCustom("OnActionOpponentWaitSub", UIAnchor.TopCenter, 720, 40);
+        sub.text = subtitle;
+        sub.color = Color.white;
+        sub.fontSize = 18;
+        sub.alignment = TextAlignmentOptions.Center;
+        sub.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -150f);
+    }
+
+    private void CloseOnlineOnActionOpponentWaitOverlay()
+    {
+        isOnlineOnActionOpponentWaitOpen = false;
+        if (_activeOnActionOpponentWaitRoot != null)
+        {
+            Destroy(_activeOnActionOpponentWaitRoot);
+            _activeOnActionOpponentWaitRoot = null;
+        }
     }
 
     private void ApplyRemoteOnActionResourceSnapshot(

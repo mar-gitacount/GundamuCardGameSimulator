@@ -158,6 +158,7 @@ public partial class BattleGameMain
         isActionThinkPauseOpen = false;
         isMulliganPromptOpen = false;
         isMulliganThinkPauseOpen = false;
+        CloseOnlineOnActionOpponentWaitOverlay();
         CloseOnlineShieldBreakThinkOverlay();
         _onlineDeferredEnemyShieldBreak = null;
         isShieldAttackResolving = false;
