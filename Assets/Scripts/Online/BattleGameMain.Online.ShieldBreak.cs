@@ -33,10 +33,13 @@ public partial class BattleGameMain
 
     private bool ShouldDeferEnemyShieldBreakToRemoteDefender(Gundam2024RuleScript.PlayerSide side)
     {
+        // AI戦と同様、効果ダメージ等のシールド破壊はローカルで即処理する。
+        // 遅延するのはシールド攻撃フロー中のみ（防御側がバーストを解決するため）。
         return IsOnlineBattle()
             && currentPlayerType == PlayerType.Player
             && !_applyingRemoteBattleAction
-            && side == Gundam2024RuleScript.PlayerSide.Enemy;
+            && side == Gundam2024RuleScript.PlayerSide.Enemy
+            && isShieldAttackResolving;
     }
 
     private List<ShieldBreakTaken> CollectEnemyShieldTakenCardsForOnlineDisplay(
@@ -103,23 +106,80 @@ public partial class BattleGameMain
             CollectEnemyShieldTakenCardsForOnlineDisplay(brokenCount, simultaneousReveal));
     }
 
-    private void ApplyAttackerEnemyZoneShieldBreakVisualSync(int[] cardIds)
+    /// <summary>
+    /// 攻撃側画面の相手シールドゾーンを、AI戦の ProcessShieldBreakBatch と同様に実カードごと破壊する。
+    /// </summary>
+    private void ApplyAttackerEnemyZoneShieldBreakVisualSync(
+        int brokenCount,
+        int[] preferredCardIds,
+        bool simultaneousReveal)
     {
-        if (cardIds == null || cardIds.Length == 0 || enemyCardGameRule == null)
+        if (brokenCount <= 0 || enemyCardGameRule == null)
         {
             return;
         }
 
-        for (int i = 0; i < cardIds.Length; i++)
+        List<ShieldBreakTaken> takenCards = new List<ShieldBreakTaken>(brokenCount);
+        bool isSuppress = simultaneousReveal && brokenCount > 1;
+
+        if (isSuppress)
         {
-            if (enemyCardGameRule.TryDetachShieldCardById(cardIds[i], out ShieldBreakTaken taken, revealFace: true))
+            SuppressBreakingLayout layout = BuildSuppressBreakingLayout(enemyCardGameRule, brokenCount);
+            if (layout.BreakingZoneIndices.Count > 0)
             {
-                enemyCardGameRule.CommitShieldCardToTrash(taken);
+                SuppressBreakPlayerChoice choice = BuildEnemySuppressChoice(layout);
+                takenCards = DetachShieldCardsBySuppressChoice(enemyCardGameRule, choice);
             }
+        }
+        else if (preferredCardIds != null && preferredCardIds.Length > 0)
+        {
+            for (int i = 0; i < preferredCardIds.Length && takenCards.Count < brokenCount; i++)
+            {
+                if (enemyCardGameRule.TryDetachShieldCardById(preferredCardIds[i], out ShieldBreakTaken taken, revealFace: true))
+                {
+                    takenCards.Add(taken);
+                }
+            }
+        }
+
+        while (takenCards.Count < brokenCount)
+        {
+            if (!enemyCardGameRule.TryTakeTopShieldCardForBreak(out ShieldBreakTaken taken))
+            {
+                break;
+            }
+
+            takenCards.Add(taken);
+        }
+
+        for (int i = 0; i < takenCards.Count; i++)
+        {
+            enemyCardGameRule.CommitShieldCardToTrash(takenCards[i]);
         }
 
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Enemy, force: true);
         SyncAllResourceViewsFromRule();
+        Debug.Log(
+            $"[OnlineBattle] Attacker-side enemy shield visual sync. detached={takenCards.Count}/{brokenCount}");
+    }
+
+    /// <summary>効果ダメージ等で変化した相手の shield / exBase を防御側へ同期する。</summary>
+    private void NotifyLocalDefenderAreaStateSync()
+    {
+        if (_applyingRemoteBattleAction || !IsOnlineBattle() || currentPlayerType != PlayerType.Player)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerState defender = gundamRule.Enemy;
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttack(
+            OnlineBattleActionPayload.CreateShieldAttack(
+                attackerInstanceId: 0,
+                defender.shield,
+                defender.exBase,
+                directAttackWin: false)));
+        Debug.Log(
+            $"[OnlineBattle] Defender area state sync sent. shield={defender.shield} exBase={defender.exBase}");
     }
 
     private IEnumerator RunOnlineAttackerEnemyShieldBreakHandshakeCoroutine(
@@ -156,9 +216,12 @@ public partial class BattleGameMain
             displayCards,
             deferred.SimultaneousReveal);
 
-        if (_onlineShieldBreakCompleteReceived && cardIds != null && cardIds.Length > 0)
+        ApplyAttackerEnemyZoneShieldBreakVisualSync(deferred.Count, cardIds, deferred.SimultaneousReveal);
+
+        if (!_onlineShieldBreakCompleteReceived)
         {
-            ApplyAttackerEnemyZoneShieldBreakVisualSync(cardIds);
+            Debug.LogWarning(
+                "[OnlineBattle] ShieldBreakComplete not received — attacker visual sync applied from local rule.");
         }
 
         _pendingOnlineShieldBreakRequestId = 0;
