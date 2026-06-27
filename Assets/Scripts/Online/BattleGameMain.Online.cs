@@ -168,6 +168,20 @@ public partial class BattleGameMain
             && ownerType == PlayerType.Player;
     }
 
+    /// <summary>攻撃フロー権限側（currentPlayerType==Player）からユニットの REST を相手へ同期する。</summary>
+    private void SyncOnlineRestFromAttackAuthority(CardController unit)
+    {
+        if (!IsOnlineBattle() || unit == null || unit.BattleInstanceId <= 0
+            || currentPlayerType != PlayerType.Player || _applyingRemoteBattleAction)
+        {
+            return;
+        }
+
+        BeginOnlineEffectSyncBatch(PlayerType.Player);
+        QueueOnlineUnitRest(unit);
+        FlushOnlineEffectSyncBatch();
+    }
+
     private void BeginOnlineEffectSyncBatch(PlayerType ownerType)
     {
         if (!ShouldSyncOnlineEffects(ownerType))
@@ -494,6 +508,7 @@ public partial class BattleGameMain
                 attacker.BattleInstanceId,
                 defenderInstanceId)));
 
+        attackFlowPipelinePhase = AttackFlowPipelinePhase.AwaitingBlockUi;
         Debug.Log($"[OnlineBattle] Waiting for block response. requestId={requestId}");
         return true;
     }
@@ -520,13 +535,33 @@ public partial class BattleGameMain
             return;
         }
 
+        // オフライン AI 攻撃時のブロック UI（attackerOwner==Enemy）と同じ Close / Cancel 構造。
         CardController selectedBlocker = null;
+        int requestId = action.requestId;
+        System.Action passBlockAndSendResponse = () =>
+        {
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+            ClearPendingBlockRedirectSelection();
+            SendOnlineBlockResponse(requestId, 0);
+        };
+
+        attackFlowPipelinePhase = AttackFlowPipelinePhase.AwaitingBlockUi;
         bool opened = TryOpenAttackedSideUnitsPanel(
             PlayerType.Enemy,
             attacker,
-            selected => { selectedBlocker = selected; },
+            selected =>
+            {
+                if (selected == null)
+                {
+                    ClearPendingBlockRedirectSelection();
+                    return;
+                }
+
+                selectedBlocker = selected;
+            },
             () =>
             {
+                attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
                 int blockerInstanceId = 0;
                 if (selectedBlocker != null
                     && IsBlockRedirectReactionReady(selectedBlocker, PlayerType.Player))
@@ -534,13 +569,15 @@ public partial class BattleGameMain
                     blockerInstanceId = selectedBlocker.BattleInstanceId;
                 }
 
-                SendOnlineBlockResponse(action.requestId, blockerInstanceId);
-            });
+                SendOnlineBlockResponse(requestId, blockerInstanceId);
+            },
+            passBlockAndSendResponse);
 
         if (!opened)
         {
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
             Debug.Log("[OnlineBattle] No block UI opened — sending pass.");
-            SendOnlineBlockResponse(action.requestId, 0);
+            SendOnlineBlockResponse(requestId, 0);
         }
     }
 
@@ -568,7 +605,93 @@ public partial class BattleGameMain
         System.Action<int> callback = _pendingOnlineBlockCallback;
         _pendingOnlineBlockCallback = null;
         _pendingOnlineBlockRequestId = 0;
+
+        if (attackFlowPipelinePhase == AttackFlowPipelinePhase.AwaitingBlockUi)
+        {
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+        }
+
         callback.Invoke(Mathf.Max(0, action.blockerInstanceId));
+    }
+
+    /// <summary>オンライン攻撃側: 相手の BlockResponse 後にブロック確定または OnAction へ進める（再入ループを避ける）。</summary>
+    private void ResumeOnlineUnitAttackAfterBlockResponse(
+        CardController attacker,
+        CardController defender,
+        PlayerType attackerOwner,
+        PlayerType defenderOwner,
+        int blockerInstanceId)
+    {
+        if (blockerInstanceId > 0)
+        {
+            CardController onlineBlocker = FindUnitByInstanceIdEitherZone(blockerInstanceId);
+            if (onlineBlocker != null)
+            {
+                CommitBlockRedirectSelection(attacker, onlineBlocker, ref defender, ref defenderOwner);
+                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    attacker,
+                    onlineBlocker,
+                    attackerOwner,
+                    defenderOwner);
+                return;
+            }
+        }
+
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            defender,
+            null);
+        pendingOnAttackEffectResolvedAttacker = attacker;
+        RunOnActionStepsImmediatelyAfterBlockPass(
+            attacker,
+            defender,
+            attackerOwner,
+            defenderOwner,
+            AttackFlowStrikeKind.UnitVsUnit);
+    }
+
+    /// <summary>オンライン攻撃側: シールド攻撃の BlockResponse 後にブロック確定または OnAction へ進める。</summary>
+    private void ResumeOnlineShieldAttackAfterBlockResponse(
+        CardController attacker,
+        PlayerType attackerOwner,
+        int blockerInstanceId)
+    {
+        if (blockerInstanceId > 0)
+        {
+            CardController onlineBlocker = FindUnitByInstanceIdEitherZone(blockerInstanceId);
+            if (onlineBlocker != null)
+            {
+                PlayerType blockerOwner = ResolveCardOwner(onlineBlocker.transform);
+                if (IsBlockRedirectReactionReady(onlineBlocker, blockerOwner))
+                {
+                    ApplyDefenderOnAttackReactionEffects(onlineBlocker, attacker, blockerOwner);
+                    BeginShieldAttackBlockRedirectFlow(onlineBlocker);
+                    TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                        attacker,
+                        onlineBlocker,
+                        attackerOwner,
+                        blockerOwner);
+                    return;
+                }
+            }
+        }
+
+        PlayerType defenderSide = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.Shield,
+            null,
+            null);
+        pendingOnAttackEffectResolvedAttacker = attacker;
+        RunOnActionStepsImmediatelyAfterBlockPass(
+            attacker,
+            null,
+            attackerOwner,
+            defenderSide,
+            AttackFlowStrikeKind.Shield);
     }
 
     private void HandleRemoteEndTurn()
