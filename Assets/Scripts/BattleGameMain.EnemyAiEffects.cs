@@ -286,6 +286,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
+                || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit
                 || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.DeployShieldFromHand

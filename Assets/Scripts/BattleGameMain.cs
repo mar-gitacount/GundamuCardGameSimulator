@@ -7275,7 +7275,8 @@ public partial class BattleGameMain : MonoBehaviour
             enemyBattleZoneCards,
             CollectHandControllers(cardGameRule),
             CollectHandControllers(enemyCardGameRule),
-            isOwnerTurn: ownerType == currentPlayerType);
+            isOwnerTurn: ownerType == currentPlayerType,
+            observedCards: GetActiveObservedCardsForActivation());
     }
 
     private EffectActivationContext BuildPilotMountActivationContext(
@@ -7293,7 +7294,8 @@ public partial class BattleGameMain : MonoBehaviour
             CollectHandControllers(enemyCardGameRule),
             isOwnerTurn: ownerType == currentPlayerType,
             mountHostUnit: hostUnit,
-            mountedPilot: pilot);
+            mountedPilot: pilot,
+            observedCards: GetActiveObservedCardsForActivation());
     }
 
     private void RefreshAllHandsConditionalOnHandAuto()
@@ -7482,18 +7484,25 @@ public partial class BattleGameMain : MonoBehaviour
         {
             RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
             {
-                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
-            });
+                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, FinishPilotMountChain);
+            }, hostUnit, pilot);
         }
 
         void RunPilotThenUnit()
         {
             RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
             {
-                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, onComplete);
-            });
+                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, FinishPilotMountChain);
+            }, hostUnit, pilot);
         }
 
+        void FinishPilotMountChain()
+        {
+            EndEffectChainObservationScope();
+            onComplete?.Invoke();
+        }
+
+        BeginEffectChainObservationScope();
         if (unitFirst)
         {
             RunUnitThenPilot();
@@ -7551,18 +7560,25 @@ public partial class BattleGameMain : MonoBehaviour
         {
             RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
             {
-                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
-            });
+                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, FinishOnLinkChain);
+            }, hostUnit, pilot);
         }
 
         void RunPilotThenUnit()
         {
             RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
             {
-                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, onComplete);
-            });
+                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, FinishOnLinkChain);
+            }, hostUnit, pilot);
         }
 
+        void FinishOnLinkChain()
+        {
+            EndEffectChainObservationScope();
+            onComplete?.Invoke();
+        }
+
+        BeginEffectChainObservationScope();
         if (unitFirst)
         {
             RunUnitThenPilot();
@@ -7597,7 +7613,8 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            if (!timed.ShouldDeferActivationToRunTime()
+                && !EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
                 Debug.Log(
                     $"[{timingLabel}] 条件未達: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
@@ -7622,7 +7639,9 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         List<TimedEffectData> blocks,
         int blockIndex,
-        System.Action onComplete)
+        System.Action onComplete,
+        CardController mountHostUnit = null,
+        CardController mountPilot = null)
     {
         if (blocks == null || blockIndex >= blocks.Count)
         {
@@ -7631,12 +7650,35 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TimedEffectData block = blocks[blockIndex];
+        EffectActivationContext activationContext = mountHostUnit != null || mountPilot != null
+            ? BuildPilotMountActivationContext(ownerType, sourceCard, mountHostUnit ?? sourceCard, mountPilot)
+            : BuildActivationContext(ownerType, sourceCard);
+        if (!CanRunTimedBlockAtChainTime(block, activationContext, "MountChain"))
+        {
+            RunMountTimedBlocks(
+                sourceCard,
+                ownerType,
+                blocks,
+                blockIndex + 1,
+                onComplete,
+                mountHostUnit,
+                mountPilot);
+            return;
+        }
+
         TryExecuteOnPlayedEffectChain(
             sourceCard,
             ownerType,
             block.GetResolvedEffects(),
             0,
-            () => RunMountTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
+            () => RunMountTimedBlocks(
+                sourceCard,
+                ownerType,
+                blocks,
+                blockIndex + 1,
+                onComplete,
+                mountHostUnit,
+                mountPilot));
     }
 
     /// <summary>場に出した時（OnPlayed）。条件付きブロック内の効果を順に解決し、敵ユニット選択が必要なら UI を出す。</summary>
@@ -7658,7 +7700,8 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            if (!timed.ShouldDeferActivationToRunTime()
+                && !EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
                 Debug.Log(
                     $"[OnPlayed] 条件未達のためスキップ: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
@@ -7679,7 +7722,12 @@ public partial class BattleGameMain : MonoBehaviour
 
         Debug.Log(
             $"[OnPlayed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count}");
-        RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
+        BeginEffectChainObservationScope();
+        RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, 0, () =>
+        {
+            EndEffectChainObservationScope();
+            onComplete?.Invoke();
+        });
     }
 
     /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）。条件付きブロック内の効果を順に解決する。</summary>
@@ -7941,6 +7989,13 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TimedEffectData block = blocks[blockIndex];
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        if (!CanRunTimedBlockAtChainTime(block, activationContext, "OnPlayed"))
+        {
+            RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete);
+            return;
+        }
+
         TryExecuteOnPlayedEffectChain(
             sourceCard,
             ownerType,
@@ -7964,6 +8019,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         EffectData effect = effects[index];
         if (effect == null)
+        {
+            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        if (!ShouldApplyChainedEffect(effect, activationContext, "EffectChain"))
         {
             TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
             return;
@@ -8077,6 +8139,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.Look:
                 ApplyLookEffect(sourceCard, ownerType, effect, null);
+                break;
+
+            case EffectType.MillTopToTrash:
+                ApplyMillTopToTrashEffect(sourceCard, ownerType, effect);
                 break;
 
             case EffectType.AddToHandFromLooked:
@@ -9052,6 +9118,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ReturnLookedRemainderToDeckTop
             || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
             || effect.type == EffectType.ChooseLookedRemainderDisposition
+            || effect.type == EffectType.MillTopToTrash
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AttackActiveEnemyUnit
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
@@ -9598,6 +9665,7 @@ public partial class BattleGameMain : MonoBehaviour
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
+                || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit)
             {

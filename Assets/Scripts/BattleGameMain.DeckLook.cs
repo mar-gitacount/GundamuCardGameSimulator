@@ -171,6 +171,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.MillTopToTrash)
+        {
+            ApplyMillTopToTrashEffect(sourceCard, ownerType, effect, onChainContinue);
+            return;
+        }
+
         ApplyEffect(sourceCard, ownerType, effect);
         onChainContinue?.Invoke();
     }

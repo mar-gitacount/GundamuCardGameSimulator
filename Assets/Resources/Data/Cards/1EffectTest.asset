@@ -29,6 +29,7 @@ MonoBehaviour:
   timedEffects:
   - timing: 18
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: 
     effects:
     - type: 12
@@ -53,8 +54,11 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 1
+      requireChainObservationContext: 0
+      effectActivationConditions: []
       filterTargetUnitLevel: 0
-  features: []
+  features:
+  - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   link:
   - pilotCardId: 0
     pilotFeatures:

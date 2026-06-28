@@ -41,6 +41,12 @@
             "featureKey": "Neo_Zeon",
             "displayName": "ネオジオン",
             "description": ""
+        },
+        {
+            "id": 7,
+            "featureKey": "Clan",
+            "displayName": "クラン",
+            "description": ""
         }
         
     ]
