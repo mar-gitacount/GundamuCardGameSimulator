@@ -177,6 +177,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.ExileFromDeck)
+        {
+            ApplyExileFromDeckEffect(sourceCard, ownerType, effect, onChainContinue);
+            return;
+        }
+
         ApplyEffect(sourceCard, ownerType, effect);
         onChainContinue?.Invoke();
     }
