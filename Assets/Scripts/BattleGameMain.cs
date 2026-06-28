@@ -1268,7 +1268,10 @@ public partial class BattleGameMain : MonoBehaviour
                     });
                 }
 
-                var unitAttackBtn = FilterPanel.CreateChildButton("Attack Unit (tap enemy REST unit)");
+                var unitAttackBtn = FilterPanel.CreateChildButton(
+                    cardController.HasAttackActiveEnemyAbility()
+                        ? "Attack Unit (tap enemy unit)"
+                        : "Attack Unit (tap enemy REST unit)");
                 RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
                 unitAtkRect.sizeDelta = new Vector2(320, 50);
                 unitAtkRect.anchoredPosition = new Vector2(0, -70);
@@ -1903,7 +1906,7 @@ public partial class BattleGameMain : MonoBehaviour
             bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.CurrentPower);
             bool canDirectAttack = !gundamRule.HasShieldZoneProtection(Gundam2024RuleScript.PlayerSide.Player);
             bool canShieldOrDirectAttack = !unit.Data.isNotDirectAttack && (canAttackShield || canDirectAttack);
-            List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
+            List<CardController> restTargets = GetEnemyUnitAttackTargets(PlayerType.Enemy, unit);
             bool canAttackUnit = restTargets.Count > 0;
             if (!canShieldOrDirectAttack && !canAttackUnit)
             {
@@ -2050,6 +2053,33 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return rest;
+    }
+
+    /// <summary>攻撃者がユニット戦で選べる敵ユニット一覧（通常は REST のみ。アクティブ攻撃効果で ACTIVE も可）。</summary>
+    private List<CardController> GetEnemyUnitAttackTargets(PlayerType attackerOwner, CardController attacker)
+    {
+        List<CardController> enemies = GetAliveEnemyUnits(attackerOwner);
+        if (attacker != null && attacker.HasAttackActiveEnemyAbility())
+        {
+            return enemies;
+        }
+
+        return GetAliveRestEnemyUnitsForOwner(attackerOwner);
+    }
+
+    private static bool CanAttackerTargetEnemyUnitForCombat(CardController attacker, CardController target)
+    {
+        if (target == null || target.Data == null || target.Data.type != Type.Unit)
+        {
+            return false;
+        }
+
+        if (target.IsRestState)
+        {
+            return true;
+        }
+
+        return attacker != null && attacker.HasAttackActiveEnemyAbility();
     }
 
     private List<CardController> GetEnemyAiRestTargets(PlayerType attackerOwner)
@@ -2963,6 +2993,7 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
         NotifyLocalPlayerEndedTurn();
 
@@ -3390,6 +3421,19 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
+    /// <summary>ユニットをバトルゾーンへ配備した直後の AttackFlg / 見た目を設定する。</summary>
+    private static void ApplyUnitDeployFieldAttackState(CardController cardController)
+    {
+        if (cardController == null || cardController.Data == null || cardController.Data.type != Type.Unit)
+        {
+            return;
+        }
+
+        bool canAttackOnDeployTurn = cardController.Data.CanAttackOnDeployTurn();
+        cardController.SetAttackFlg(canAttackOnDeployTurn ? AttackFlg.True : AttackFlg.False);
+        cardController.SetUnitRestVisual(false);
+    }
+
     private void SendCardToField(CardController cardController, PlayerType ownerType, CardGameRule ownerRule)
     {
         if (cardController == null || ownerRule == null)
@@ -3427,9 +3471,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (cardController.Data.type == Type.Unit)
         {
             cardController.ResetRuntimeStatsFromData();
-            // 配備ターン: 見た目はアクティブ(起き)だが、攻撃フラグは false
-            cardController.SetAttackFlg(AttackFlg.False);
-            cardController.SetUnitRestVisual(false);
+            ApplyUnitDeployFieldAttackState(cardController);
             AssignBattleInstanceIdIfNeeded(cardController);
         }
 
@@ -4219,9 +4261,9 @@ public partial class BattleGameMain : MonoBehaviour
             attackFlowBlockRedirectFromShieldStrike = false;
         }
 
-        if (!defender.IsRestState)
+        if (!CanAttackerTargetEnemyUnitForCombat(attacker, defender))
         {
-            Debug.Log("Only REST units can be attacked.");
+            Debug.Log("Only REST units can be attacked (unless attacker has AttackActiveEnemyUnit).");
             CancelPendingUnitAttackFlow();
             return;
         }
@@ -4260,6 +4302,7 @@ public partial class BattleGameMain : MonoBehaviour
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
 
@@ -4279,7 +4322,7 @@ public partial class BattleGameMain : MonoBehaviour
         return onField && c.CurrentHp > 0;
     }
 
-    private bool IsRestEnemyUnitTarget(CardController target, PlayerType attackerOwner)
+    private bool IsValidEnemyUnitAttackTarget(CardController attacker, CardController target, PlayerType attackerOwner)
     {
         if (target == null || target.Data == null || target.Data.type != Type.Unit)
         {
@@ -4299,7 +4342,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (!target.IsRestState)
+        if (!CanAttackerTargetEnemyUnitForCombat(attacker, target))
         {
             return false;
         }
@@ -4346,7 +4389,7 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
-        if (IsRestEnemyUnitTarget(clicked, attackerOwner))
+        if (IsValidEnemyUnitAttackTarget(pendingUnitAttackAttacker, clicked, attackerOwner))
         {
             PlayerType defenderOwner = ResolveCardOwner(clicked.transform);
             CommitUnitAttackDeclaration(pendingUnitAttackAttacker, attackerOwner);
@@ -4356,7 +4399,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (clickedOnAnyField)
         {
-            Debug.Log("Only REST enemy units can be selected as attack targets.");
+            Debug.Log("Only REST enemy units can be selected as attack targets (unless attacker has AttackActiveEnemyUnit).");
             return true;
         }
 
@@ -4375,10 +4418,12 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        List<CardController> enemyUnits = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> enemyUnits = GetEnemyUnitAttackTargets(attackerOwner, attacker);
         if (enemyUnits.Count == 0)
         {
-            Debug.Log("No enemy units to attack.");
+            Debug.Log(attacker.HasAttackActiveEnemyAbility()
+                ? "No enemy units to attack."
+                : "No REST enemy units to attack.");
             return;
         }
 
@@ -4391,7 +4436,9 @@ public partial class BattleGameMain : MonoBehaviour
         bg.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("AttackEnemyTitle", UIAnchor.TopCenter, 620, 48);
-        title.text = "Select enemy unit to attack";
+        title.text = attacker.HasAttackActiveEnemyAbility()
+            ? "Select enemy unit to attack (REST or ACTIVE)"
+            : "Select REST enemy unit to attack";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -4826,6 +4873,14 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyEffectToSpecificTargets(CardController sourceCard, PlayerType ownerType, EffectData effect, List<CardController> targets)
     {
+        if (TryApplyAttackActiveEnemyUnitMarker(sourceCard, ownerType, effect))
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0 && !effect.type.UsesTargetCountValue())
         {
@@ -4906,6 +4961,9 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 case EffectType.HighMobility:
                     // HighMobility は攻撃フロー分岐で解釈するため、ここでは何もしない。
+                    break;
+                case EffectType.AttackActiveEnemyUnit:
+                    // AttackActiveEnemyUnit は攻撃対象判定で解釈するため、ここでは何もしない。
                     break;
                 case EffectType.Bounce:
                     break;
@@ -5327,6 +5385,7 @@ public partial class BattleGameMain : MonoBehaviour
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
         Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
@@ -6226,6 +6285,7 @@ public partial class BattleGameMain : MonoBehaviour
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "block redirect unit combat");
         SyncAllResourceViewsFromRule();
 
@@ -7882,6 +7942,14 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyEffect(CardController sourceCard, PlayerType ownerType, EffectData effect)
     {
+        if (TryApplyAttackActiveEnemyUnitMarker(sourceCard, ownerType, effect))
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             Debug.LogWarning(
@@ -7986,6 +8054,11 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.HighMobility:
                 // HighMobility は攻撃フロー分岐で解釈するため、ここでは何もしない。
                 Debug.Log($"[Effect] HighMobility marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.AttackActiveEnemyUnit:
+                // 付与処理は TryApplyAttackActiveEnemyUnitMarker で行う。
+                Debug.Log($"[Effect] AttackActiveEnemyUnit marker by cardId:{sourceCard.Data.id}");
                 break;
 
             case EffectType.Suppress:
@@ -8270,6 +8343,106 @@ public partial class BattleGameMain : MonoBehaviour
     {
         ClearTimedStatModifiersForSide(PlayerType.Player, duration);
         ClearTimedStatModifiersForSide(PlayerType.Enemy, duration);
+    }
+
+    /// <summary>AttackActiveEnemyUnit のランタイム付与を解除（UntilEndOfTurn / UntilEndOfBattle）。</summary>
+    private void ClearAttackActiveEnemyGrants(EffectDuration duration)
+    {
+        if (duration != EffectDuration.UntilEndOfTurn && duration != EffectDuration.UntilEndOfBattle)
+        {
+            return;
+        }
+
+        ClearAttackActiveEnemyGrantsOnZone(playerBattleZoneCards, duration);
+        ClearAttackActiveEnemyGrantsOnZone(enemyBattleZoneCards, duration);
+    }
+
+    private static void ClearAttackActiveEnemyGrantsOnZone(List<CardController> zone, EffectDuration duration)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null)
+            {
+                continue;
+            }
+
+            if (duration == EffectDuration.UntilEndOfTurn)
+            {
+                unit.SetAttackActiveEnemyUntilEndOfTurnGrant(false);
+            }
+            else if (duration == EffectDuration.UntilEndOfBattle)
+            {
+                unit.SetAttackActiveEnemyUntilEndOfBattleGrant(false);
+            }
+        }
+    }
+
+    /// <summary>AttackActiveEnemyUnit マーカーを解決（UntilEndOfTurn 等はここでランタイム付与）。</summary>
+    private bool TryApplyAttackActiveEnemyUnitMarker(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null || effect.type != EffectType.AttackActiveEnemyUnit)
+        {
+            return false;
+        }
+
+        if (effect.duration == EffectDuration.Permanent)
+        {
+            return true;
+        }
+
+        CardController grantHost = ResolveAttackActiveEnemyGrantHost(sourceCard);
+        if (grantHost == null || grantHost.Data == null || grantHost.Data.type != Type.Unit)
+        {
+            Debug.LogWarning(
+                $"[AttackActiveEnemyUnit] 付与先ユニットを解決できません source:{sourceCard?.Data?.cardName} owner:{ownerType}");
+            return true;
+        }
+
+        if (effect.duration == EffectDuration.UntilEndOfTurn)
+        {
+            grantHost.SetAttackActiveEnemyUntilEndOfTurnGrant(true);
+            Debug.Log(
+                $"[AttackActiveEnemyUnit] UntilEndOfTurn 付与: {grantHost.Data.cardName} "
+                + $"(source:{sourceCard.Data?.cardName} owner:{ownerType})");
+        }
+        else if (effect.duration == EffectDuration.UntilEndOfBattle)
+        {
+            grantHost.SetAttackActiveEnemyUntilEndOfBattleGrant(true);
+            Debug.Log(
+                $"[AttackActiveEnemyUnit] UntilEndOfBattle 付与: {grantHost.Data.cardName} "
+                + $"(source:{sourceCard.Data?.cardName} owner:{ownerType})");
+        }
+
+        return true;
+    }
+
+    private static CardController ResolveAttackActiveEnemyGrantHost(CardController sourceCard)
+    {
+        if (sourceCard == null || sourceCard.Data == null)
+        {
+            return null;
+        }
+
+        if (sourceCard.Data.type == Type.Unit)
+        {
+            return sourceCard;
+        }
+
+        if (sourceCard.Data.type == Type.Pilot && sourceCard.MountedUnit != null)
+        {
+            return sourceCard.MountedUnit;
+        }
+
+        return sourceCard;
     }
 
     private bool LogHandOnActionCandidates(PlayerType ownerType, string context, System.Action onClose = null)
@@ -8779,6 +8952,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
             || effect.type == EffectType.ChooseLookedRemainderDisposition
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
+            || effect.type == EffectType.AttackActiveEnemyUnit
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
             || effect.type == EffectType.Suppress)
@@ -9323,7 +9497,8 @@ public partial class BattleGameMain : MonoBehaviour
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
-                || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility)
+                || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
+                || eff.type == EffectType.AttackActiveEnemyUnit)
             {
                 trace.Append('[').Append(ei).Append(':').Append(eff.type).Append(" skip] ");
                 continue;
@@ -9433,6 +9608,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.HighMobility:
                     notes.Append("[HighMobility] ");
+                    continue;
+                case EffectType.AttackActiveEnemyUnit:
+                    notes.Append("[AttackActiveEnemyUnit] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
@@ -9570,6 +9748,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.HighMobility:
                     notes.Append("[HighMobility] ");
+                    continue;
+                case EffectType.AttackActiveEnemyUnit:
+                    notes.Append("[AttackActiveEnemyUnit] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");

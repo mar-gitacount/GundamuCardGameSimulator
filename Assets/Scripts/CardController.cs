@@ -89,6 +89,26 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public AttackFlg AttackFlgState => _attackFlg;
     public bool IsRestState { get; private set; }
 
+    /// <summary>AttackActiveEnemyUnit（UntilEndOfTurn）のランタイム付与。</summary>
+    private bool _attackActiveEnemyUntilEndOfTurnGrant;
+
+    public bool HasAttackActiveEnemyUntilEndOfTurnGrant => _attackActiveEnemyUntilEndOfTurnGrant;
+
+    public void SetAttackActiveEnemyUntilEndOfTurnGrant(bool active)
+    {
+        _attackActiveEnemyUntilEndOfTurnGrant = active;
+    }
+
+    /// <summary>AttackActiveEnemyUnit（UntilEndOfBattle）のランタイム付与。</summary>
+    private bool _attackActiveEnemyUntilEndOfBattleGrant;
+
+    public bool HasAttackActiveEnemyUntilEndOfBattleGrant => _attackActiveEnemyUntilEndOfBattleGrant;
+
+    public void SetAttackActiveEnemyUntilEndOfBattleGrant(bool active)
+    {
+        _attackActiveEnemyUntilEndOfBattleGrant = active;
+    }
+
     /// <summary>シールドゾーンから手札へ移したカードのみ、再配備可能。</summary>
     private bool eligibleForShieldZoneDeploy;
     public bool IsEligibleForShieldZoneDeploy => eligibleForShieldZoneDeploy;

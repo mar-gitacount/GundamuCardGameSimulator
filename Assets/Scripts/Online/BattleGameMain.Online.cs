@@ -722,6 +722,7 @@ public partial class BattleGameMain
 
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
         currentPlayerType = PlayerType.Player;
@@ -779,8 +780,7 @@ public partial class BattleGameMain
         if (cardData.type == Type.Unit)
         {
             controller.ResetRuntimeStatsFromData();
-            controller.SetAttackFlg(AttackFlg.False);
-            controller.SetUnitRestVisual(false);
+            ApplyUnitDeployFieldAttackState(controller);
             if (instanceId > 0)
             {
                 AssignBattleInstanceIdFromNetwork(controller, instanceId);

@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 1EffectTest
+  m_EditorClassIdentifier: 
+  id: 10000
+  cardName: EffectTest
+  cost: 1
+  level: 1
+  power: 5
+  hp: 5
+  imageName: {fileID: 21300000, guid: 791172811a91e2143867512b0334486a, type: 3}
+  image: {fileID: 0}
+  version: 4
+  sourceType: 2
+  filterType: 0
+  color: 5
+  type: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 0
+    activationConditions:
+    - boardSide: 0
+      checkKind: 3
+      turnCheck: -1
+      feature: {fileID: 0}
+      minimumCount: 0
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 6
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+    effectsName: 
+    effects:
+    - type: 12
+      value: 1
+      target: 0
+      selectionMode: 0
+      statTarget: 2
+      duration: 1
+      valueMode: 1
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      filterTargetUnitLevel: 0
+    - type: 3
+      value: 1
+      target: 0
+      selectionMode: 0
+      statTarget: 3
+      duration: 0
+      valueMode: 1
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      filterTargetUnitLevel: 0
+  features: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 1
+  isNotDirectAttack: 0
+  isShieldToken: 0

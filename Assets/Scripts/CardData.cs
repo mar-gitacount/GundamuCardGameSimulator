@@ -19,7 +19,7 @@ public class CardData : ScriptableObject
     public CardColor color;
     public Type type;
     /// <summary>ユニット（Type.Unit）向け。アセット上の既定値。実行時は CardController で上書き。</summary>
-    [Tooltip("ユニットのみ。配備ターンは False。Link 条件搭乗で同日 True。次の自分ターン開始で True。")]
+    [Tooltip("ユニットのみ。配備ターンは False（isDeployTurnAttack 時は True）。Link 条件搭乗で同日 True。次の自分ターン開始で True。")]
     public AttackFlg attackFlg = AttackFlg.False;
     [Tooltip("カード効果定義（タイミング別）。")]
     public List<TimedEffectData> timedEffects = new List<TimedEffectData>();
@@ -38,6 +38,9 @@ public class CardData : ScriptableObject
 
     [Tooltip("敵の攻撃をブロックし、身代わりのユニット戦にできる（ACTIVE 時のみ選択可）。")]
     public bool isBlocker;
+
+    [Tooltip("ユニットのみ。true のとき配備したターンから攻撃可能（AttackFlg=True）。false は次の自分ターン開始まで攻撃不可。")]
+    public bool isDeployTurnAttack;
     
     public bool isNotDirectAttack;
 
@@ -61,6 +64,7 @@ public class CardJson
     public int color; // カードの色を追加
     public int[] featureIds;
     public bool isBlocker;
+    public bool isDeployTurnAttack;
     public bool isNotDirectAttack;
     public bool isShieldToken;
 }
