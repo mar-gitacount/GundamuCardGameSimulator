@@ -64,7 +64,9 @@ public enum EffectType
     /// <summary>OnLook 専用。残りの見た枚を「山札の上に戻す」か「ランダムで下に送る」かプレイヤーが選ぶ。</summary>
     ChooseLookedRemainderDisposition,
     /// <summary>対象ユニットを破壊する（トラッシュへ）。value=適用体数上限（0 で対象リスト全員）。</summary>
-    Destroy
+    Destroy,
+    /// <summary>山札の上から value 枚をトラッシュに置く。target で自分／相手の山札（SelfPlayer / EnemyPlayer）。観測カードはチェーンコンテキストに追加。</summary>
+    MillTopToTrash
 }
 
 public enum TargetType
@@ -229,7 +231,12 @@ public enum EffectActivationCheckKind
     /// <summary>効果の発動元カード（SourceCard）の実効 AP/HP/Lv/Cost を compareOp + compareValue と比較。boardSide は不要。</summary>
     SourceUnitStat,
     /// <summary>指定ゾーン内の生存ユニットのいずれか1体が、実効 AP/HP/Lv/Cost 条件を満たす。</summary>
-    UnitStatOnField
+    UnitStatOnField,
+    /// <summary>
+    /// 直前チェーンで観測したカード（MillTopToTrash 等）のうち、
+    /// features / featureIds のいずれか（OR）を持つ枚数が minimumCount 以上。
+    /// </summary>
+    ObservedCardHasFeature
 }
 
 public enum EffectTurnCheckKind
@@ -291,10 +298,19 @@ public class EffectActivationCondition
     [Tooltip("Unset ならターン判定しない。OwnerTurn/NotOwnerTurn を指定した場合のみ判定する。")]
     public EffectTurnCheckKind turnCheck = EffectTurnCheckKind.Unset;
 
-    [Tooltip("HasFeature 時に参照。未設定なら HasFeature は常に false。")]
+    [Tooltip("HasFeature / ObservedCardHasFeature 時に参照。未設定なら featureId / features で解決。")]
     public CardFeatureData feature;
 
-    [Tooltip("HasFeature: その Feature を持つカードの最低枚数。UnitCountAtLeast: 生存ユニット最低体数。CountUnitsWithLevelAtLeast: レベル条件を満たすユニットの最低体数。")]
+    [Tooltip("JSON 用。feature 未設定時に ID で解決（0=未指定）。")]
+    public int featureId;
+
+    [Tooltip("HasFeature / ObservedCardHasFeature: 複数 Feature のいずれか（OR）。Inspector 用。")]
+    public CardFeatureData[] features;
+
+    [Tooltip("HasFeature / ObservedCardHasFeature: 複数 Feature のいずれか（OR）。JSON 用 ID 配列。")]
+    public int[] featureIds;
+
+    [Tooltip("HasFeature: その Feature を持つカードの最低枚数。UnitCountAtLeast: 生存ユニット最低体数。CountUnitsWithLevelAtLeast: レベル条件を満たすユニットの最低体数。ObservedCardHasFeature: 観測カードのうち条件を満たす最低枚数。")]
     public int minimumCount = 1;
 
     public EffectLevelAggregate levelAggregate = EffectLevelAggregate.MaxLevel;
@@ -317,6 +333,65 @@ public class EffectActivationCondition
 
     [Tooltip("SourceUnitStat / UnitStatOnField: 参照する実効ステータス（AP/HP/Cost/Lv）。未指定時は AP。")]
     public EffectTargetUnitFilterStat activationStatTarget = EffectTargetUnitFilterStat.Unset;
+}
+
+/// <summary><see cref="EffectActivationCondition"/> の Feature 解決（複数は OR）。</summary>
+public static class EffectActivationConditionExtensions
+{
+    public static IReadOnlyList<CardFeatureData> GetActivationFeatures(this EffectActivationCondition condition)
+    {
+        List<CardFeatureData> result = new List<CardFeatureData>();
+        if (condition == null)
+        {
+            return result;
+        }
+
+        HashSet<int> seenIds = new HashSet<int>();
+        void TryAdd(CardFeatureData featureData)
+        {
+            if (featureData == null || !seenIds.Add(featureData.id))
+            {
+                return;
+            }
+
+            result.Add(featureData);
+        }
+
+        TryAdd(condition.feature);
+        if (condition.features != null)
+        {
+            for (int i = 0; i < condition.features.Length; i++)
+            {
+                TryAdd(condition.features[i]);
+            }
+        }
+
+        if (condition.featureId > 0)
+        {
+            CardFeatureRegistry.EnsureLoaded();
+            TryAdd(CardFeatureRegistry.GetById(condition.featureId));
+        }
+
+        if (condition.featureIds != null)
+        {
+            CardFeatureRegistry.EnsureLoaded();
+            for (int i = 0; i < condition.featureIds.Length; i++)
+            {
+                int id = condition.featureIds[i];
+                if (id > 0)
+                {
+                    TryAdd(CardFeatureRegistry.GetById(id));
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public static bool HasActivationFeatureFilter(this EffectActivationCondition condition)
+    {
+        return condition != null && condition.GetActivationFeatures().Count > 0;
+    }
 }
 
 [Serializable]
@@ -380,9 +455,41 @@ public class EffectData
     [Tooltip("true のとき targetUnitFilterStat（未指定時は AP）を発動元カードの実効値と比較する（例: 敵AP ≤ 自AP）。")]
     public bool compareTargetStatToSource;
 
+    [Tooltip("true のとき effectActivationConditions はチェーン観測カードを参照。観測が空ならこの効果をスキップ。")]
+    public bool requireChainObservationContext;
+
+    [Tooltip("この効果のみの発動条件（空なら常に実行）。ObservedCardHasFeature はチェーン観測を参照。")]
+    public List<EffectActivationCondition> effectActivationConditions = new List<EffectActivationCondition>();
+
     [HideInInspector]
     [Tooltip("旧フィールド。targetUnitFilterStat が Unset のとき Level 条件として読み替え。")]
     public bool filterTargetUnitLevel;
+}
+
+/// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
+public static class EffectDataChainExtensions
+{
+    public static bool HasEffectActivationConditions(this EffectData effect)
+    {
+        return effect != null
+            && effect.effectActivationConditions != null
+            && effect.effectActivationConditions.Count > 0;
+    }
+
+    public static bool ShouldDeferEffectActivationToRunTime(this EffectData effect)
+    {
+        if (effect == null)
+        {
+            return false;
+        }
+
+        if (effect.requireChainObservationContext)
+        {
+            return true;
+        }
+
+        return EffectActivationEvaluator.ContainsObservedCardCondition(effect.effectActivationConditions);
+    }
 }
 
 /// <summary><see cref="EffectData"/> の対象 Feature 解決。</summary>
@@ -705,6 +812,9 @@ public class TimedEffectData
     [Tooltip("空なら条件なし（常に発動）。1件以上はすべて満たすと発動（AND）。")]
     public List<EffectActivationCondition> activationConditions = new List<EffectActivationCondition>();
 
+    [Tooltip("true のとき activationConditions はチェーン観測カードを参照。観測が空ならブロック全体をスキップ。")]
+    public bool requireChainObservationContext;
+
     [Tooltip("設定時は named_effect_master.json のプリセットを使用。空なら effects を使用。")]
     public string effectsName;
 
@@ -719,6 +829,21 @@ public static class TimedEffectDataExtensions
         return timed != null
             && timed.activationConditions != null
             && timed.activationConditions.Count > 0;
+    }
+
+    public static bool ShouldDeferActivationToRunTime(this TimedEffectData timed)
+    {
+        if (timed == null)
+        {
+            return false;
+        }
+
+        if (timed.requireChainObservationContext)
+        {
+            return true;
+        }
+
+        return EffectActivationEvaluator.ContainsObservedCardCondition(timed.activationConditions);
     }
 
     /// <summary>Self 向けの Buff/Debuff（コスト・レベル等）だけのブロックか。</summary>

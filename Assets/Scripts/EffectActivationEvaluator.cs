@@ -20,6 +20,9 @@ public sealed class EffectActivationContext
     /// <summary>OnPilotMounted / OnLink 時に載せたパイロット（未設定時は MountHostUnit.MountedPilot）。</summary>
     public CardController MountedPilot { get; }
 
+    /// <summary>同一チェーン内で MillTopToTrash 等が観測したカード。</summary>
+    public IReadOnlyList<CardData> ObservedCards { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -29,7 +32,8 @@ public sealed class EffectActivationContext
         IReadOnlyList<CardController> enemyHand,
         bool isOwnerTurn,
         CardController mountHostUnit = null,
-        CardController mountedPilot = null)
+        CardController mountedPilot = null,
+        IReadOnlyList<CardData> observedCards = null)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -40,11 +44,31 @@ public sealed class EffectActivationContext
         IsOwnerTurn = isOwnerTurn;
         MountHostUnit = mountHostUnit;
         MountedPilot = mountedPilot;
+        ObservedCards = observedCards ?? System.Array.Empty<CardData>();
     }
 }
 
 public static class EffectActivationEvaluator
 {
+    public static bool ContainsObservedCardCondition(IList<EffectActivationCondition> conditions)
+    {
+        if (conditions == null || conditions.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < conditions.Count; i++)
+        {
+            EffectActivationCondition c = conditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.ObservedCardHasFeature)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool AreAllConditionsMet(IList<EffectActivationCondition> conditions, EffectActivationContext ctx)
     {
         if (conditions == null || conditions.Count == 0)
@@ -121,6 +145,11 @@ public static class EffectActivationEvaluator
             return EvaluateUnitStatOnField(ResolveZone(ctx, c.boardSide), c);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.ObservedCardHasFeature)
+        {
+            return EvaluateObservedCardHasFeature(c, ctx);
+        }
+
         // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
         if (c.boardSide == EffectBoardSide.Unset)
         {
@@ -131,7 +160,7 @@ public static class EffectActivationEvaluator
         switch (c.checkKind)
         {
             case EffectActivationCheckKind.HasFeature:
-                return CountCardsWithFeature(zone, c.feature) >= Mathf.Max(1, c.minimumCount);
+                return CountCardsWithFeature(zone, c) >= Mathf.Max(1, c.minimumCount);
             case EffectActivationCheckKind.UnitCountAtLeast:
                 return CountAliveUnits(zone) >= Mathf.Max(0, c.minimumCount);
             case EffectActivationCheckKind.UnitLevelOnField:
@@ -144,6 +173,39 @@ public static class EffectActivationEvaluator
             default:
                 return false;
         }
+    }
+
+    private static bool EvaluateObservedCardHasFeature(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> requiredFeatures = c.GetActivationFeatures();
+        if (requiredFeatures.Count == 0)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardData> observed = ctx.ObservedCards;
+        if (observed == null || observed.Count == 0)
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        int matched = 0;
+        for (int i = 0; i < observed.Count; i++)
+        {
+            CardData data = observed[i];
+            if (data != null && data.HasAnyFeature(requiredFeatures))
+            {
+                matched++;
+            }
+        }
+
+        return matched >= need;
     }
 
     private static bool EvaluateSourceUnitStat(EffectActivationCondition c, EffectActivationContext ctx)
@@ -259,7 +321,8 @@ public static class EffectActivationEvaluator
             return false;
         }
 
-        if (c.feature != null && !data.HasFeature(c.feature))
+        IReadOnlyList<CardFeatureData> requiredFeatures = c.GetActivationFeatures();
+        if (requiredFeatures.Count > 0 && !data.HasAnyFeature(requiredFeatures))
         {
             return false;
         }
@@ -426,9 +489,10 @@ public static class EffectActivationEvaluator
             && c.CurrentHp > 0;
     }
 
-    private static int CountCardsWithFeature(IReadOnlyList<CardController> cards, CardFeatureData feature)
+    private static int CountCardsWithFeature(IReadOnlyList<CardController> cards, EffectActivationCondition c)
     {
-        if (feature == null)
+        IReadOnlyList<CardFeatureData> requiredFeatures = c.GetActivationFeatures();
+        if (requiredFeatures.Count == 0)
         {
             return 0;
         }
@@ -436,13 +500,13 @@ public static class EffectActivationEvaluator
         int n = 0;
         for (int i = 0; i < cards.Count; i++)
         {
-            CardController c = cards[i];
-            if (c?.Data == null)
+            CardController card = cards[i];
+            if (card?.Data == null)
             {
                 continue;
             }
 
-            if (c.Data.HasFeature(feature))
+            if (card.Data.HasAnyFeature(requiredFeatures))
             {
                 n++;
             }
