@@ -25,7 +25,9 @@ public enum EffectTiming
     /// <summary>このカードが敵ユニットを破壊した時（キルしたカード自身の timedEffects のみ発動）。</summary>
     OnEnemyUnitDestroyed = 16,
     /// <summary>Look 効果で山札を見た直後（見た枚の中から手札へ加える等の誘発効果用）。</summary>
-    OnLook = 17
+    OnLook = 17,
+    /// <summary>Link 条件を満たすパイロットがユニットに搭乗した時（OnPilotMounted とは別。任意搭乗では発動しない）。</summary>
+    OnLink = 18,
 }
 
 public enum EffectType
@@ -735,6 +737,17 @@ public static class TimedEffectDataExtensions
     public static bool IsOnPilotMountedResolutionBlock(this TimedEffectData timed)
     {
         if (timed == null || timed.timing != EffectTiming.OnPilotMounted || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>Link 搭乗時（OnLink）に解決するブロック。</summary>
+    public static bool IsOnLinkResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null || timed.timing != EffectTiming.OnLink || !timed.HasResolvedEffects())
         {
             return false;
         }

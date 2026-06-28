@@ -30,7 +30,7 @@ public class CardData : ScriptableObject
     [Tooltip("ユニットのみ。Link＝条件パイロット定義。任意搭乗可。条件一致で出したターンから攻撃可。次ターン以降は通常どおり。")]
     public List<UnitLinkPilotSlot> link = new List<UnitLinkPilotSlot>();
 
-    [Tooltip("ユニットのみ。搭乗時 OnPilotMounted をユニット/パイロット/両方のどれで解決するか。")]
+    [Tooltip("ユニットのみ。搭乗時 OnPilotMounted / OnLink をユニット/パイロット/両方のどれで解決するか。")]
     public PilotMountOnPilotMountedSource pilotMountOnPilotMountedSource = PilotMountOnPilotMountedSource.Both;
 
     [Tooltip("Both 時の解決順（UnitFirst / PilotFirst）。")]

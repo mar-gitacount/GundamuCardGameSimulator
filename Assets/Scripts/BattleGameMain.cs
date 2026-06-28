@@ -3597,7 +3597,10 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyUnitAttackFlgFromLink(target, ownerType);
                 TriggerOnPilotMountedEffects(target, pilotCard, ownerType, () =>
                 {
-                    TriggerOnPlayedEffects(pilotCard, ownerType, RefreshAllHandsConditionalOnHandAuto);
+                    TriggerOnLinkEffects(target, pilotCard, ownerType, () =>
+                    {
+                        TriggerOnPlayedEffects(pilotCard, ownerType, RefreshAllHandsConditionalOnHandAuto);
+                    });
                 });
                 SyncResourceViewsFromRule(ownerSide);
                 Destroy(filterPanel);
@@ -7379,7 +7382,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (timing == EffectTiming.OnPilotMounted)
+        if (timing == EffectTiming.OnPilotMounted || timing == EffectTiming.OnLink)
         {
             return;
         }
@@ -7443,10 +7446,10 @@ public partial class BattleGameMain : MonoBehaviour
             out bool unitFirst);
 
         List<TimedEffectData> unitBlocks = resolveUnit
-            ? CollectOnPilotMountedBlocks(hostUnit, ownerType, hostUnit, pilot)
+            ? CollectMountTimedBlocks(hostUnit, ownerType, hostUnit, pilot, EffectTiming.OnPilotMounted)
             : new List<TimedEffectData>();
         List<TimedEffectData> pilotBlocks = resolvePilot
-            ? CollectOnPilotMountedBlocks(pilot, ownerType, hostUnit, pilot)
+            ? CollectMountTimedBlocks(pilot, ownerType, hostUnit, pilot, EffectTiming.OnPilotMounted)
             : new List<TimedEffectData>();
 
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
@@ -7462,17 +7465,17 @@ public partial class BattleGameMain : MonoBehaviour
 
         void RunUnitThenPilot()
         {
-            RunOnPilotMountedTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
+            RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
             {
-                RunOnPilotMountedTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
+                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
             });
         }
 
         void RunPilotThenUnit()
         {
-            RunOnPilotMountedTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
+            RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
             {
-                RunOnPilotMountedTimedBlocks(hostUnit, ownerType, unitBlocks, 0, onComplete);
+                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, onComplete);
             });
         }
 
@@ -7486,11 +7489,81 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private List<TimedEffectData> CollectOnPilotMountedBlocks(
+    /// <summary>Link 条件を満たす搭乗時（OnLink）。ホストの pilotMount 設定に従いユニット／パイロット双方を解決。</summary>
+    private void TriggerOnLinkEffects(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType,
+        System.Action onComplete)
+    {
+        if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (!UnitLinkExtensions.HasValidLinkPilot(hostUnit.Data, pilot))
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        UnitLinkExtensions.ResolveOnPilotMountedExecutionPlan(
+            hostUnit.Data,
+            out bool resolveUnit,
+            out bool resolvePilot,
+            out bool unitFirst);
+
+        List<TimedEffectData> unitBlocks = resolveUnit
+            ? CollectMountTimedBlocks(hostUnit, ownerType, hostUnit, pilot, EffectTiming.OnLink)
+            : new List<TimedEffectData>();
+        List<TimedEffectData> pilotBlocks = resolvePilot
+            ? CollectMountTimedBlocks(pilot, ownerType, hostUnit, pilot, EffectTiming.OnLink)
+            : new List<TimedEffectData>();
+
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        Debug.Log(
+            $"[OnLink] 開始: {pilot.Data.cardName} → {hostUnit.Data.cardName} "
+            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} order:{hostUnit.Data.pilotMountOnPilotMountedOrder} "
+            + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
+
+        void RunUnitThenPilot()
+        {
+            RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
+            {
+                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, onComplete);
+            });
+        }
+
+        void RunPilotThenUnit()
+        {
+            RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
+            {
+                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, onComplete);
+            });
+        }
+
+        if (unitFirst)
+        {
+            RunUnitThenPilot();
+        }
+        else
+        {
+            RunPilotThenUnit();
+        }
+    }
+
+    private List<TimedEffectData> CollectMountTimedBlocks(
         CardController sourceCard,
         PlayerType ownerType,
         CardController hostUnit,
-        CardController pilot)
+        CardController pilot,
+        EffectTiming mountTiming)
     {
         List<TimedEffectData> blocks = new List<TimedEffectData>();
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
@@ -7500,10 +7573,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         EffectActivationContext activationContext =
             BuildPilotMountActivationContext(ownerType, sourceCard, hostUnit, pilot);
+        string timingLabel = mountTiming == EffectTiming.OnLink ? "OnLink" : "OnPilotMounted";
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
-            if (timed == null || !timed.IsOnPilotMountedResolutionBlock())
+            if (timed == null || !IsMountResolutionBlock(timed, mountTiming))
             {
                 continue;
             }
@@ -7511,7 +7585,7 @@ public partial class BattleGameMain : MonoBehaviour
             if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
                 Debug.Log(
-                    $"[OnPilotMounted] 条件未達: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
+                    $"[{timingLabel}] 条件未達: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
                 continue;
             }
 
@@ -7521,7 +7595,14 @@ public partial class BattleGameMain : MonoBehaviour
         return blocks;
     }
 
-    private void RunOnPilotMountedTimedBlocks(
+    private static bool IsMountResolutionBlock(TimedEffectData timed, EffectTiming mountTiming)
+    {
+        return mountTiming == EffectTiming.OnLink
+            ? timed.IsOnLinkResolutionBlock()
+            : timed.IsOnPilotMountedResolutionBlock();
+    }
+
+    private void RunMountTimedBlocks(
         CardController sourceCard,
         PlayerType ownerType,
         List<TimedEffectData> blocks,
@@ -7540,7 +7621,7 @@ public partial class BattleGameMain : MonoBehaviour
             ownerType,
             block.GetResolvedEffects(),
             0,
-            () => RunOnPilotMountedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
+            () => RunMountTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
     }
 
     /// <summary>場に出した時（OnPlayed）。条件付きブロック内の効果を順に解決し、敵ユニット選択が必要なら UI を出す。</summary>

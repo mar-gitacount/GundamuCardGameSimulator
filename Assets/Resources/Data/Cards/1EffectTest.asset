@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 1EffectTest
   m_EditorClassIdentifier: 
   id: 10000
-  cardName: EffectTest
+  cardName: EffectTestUnit
   cost: 1
   level: 1
   power: 5
@@ -27,7 +27,7 @@ MonoBehaviour:
   type: 0
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 18
     activationConditions:
     - boardSide: 0
       checkKind: 3
@@ -89,7 +89,11 @@ MonoBehaviour:
       targetUnitStatCompareValue: 0
       filterTargetUnitLevel: 0
   features: []
-  link: []
+  link:
+  - pilotCardId: 0
+    pilotFeatures:
+    - {fileID: 11400000, guid: b187fb0005a20dc4a954cf3bb87a9232, type: 2}
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
