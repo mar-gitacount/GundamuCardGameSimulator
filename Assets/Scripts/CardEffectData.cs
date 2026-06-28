@@ -374,8 +374,11 @@ public class EffectData
     [Tooltip("targetUnitFilterStat 時の比較（例: LessOrEqual + 4 で Lv4以下）。")]
     public EffectCompareOperator targetUnitStatCompareOp = EffectCompareOperator.LessOrEqual;
 
-    [Tooltip("targetUnitFilterStat 時の比較値。")]
+    [Tooltip("targetUnitFilterStat 時の比較値。compareTargetStatToSource が true のときは無視し発動元の実効値を使う。")]
     public int targetUnitStatCompareValue;
+
+    [Tooltip("true のとき targetUnitFilterStat（未指定時は AP）を発動元カードの実効値と比較する（例: 敵AP ≤ 自AP）。")]
+    public bool compareTargetStatToSource;
 
     [HideInInspector]
     [Tooltip("旧フィールド。targetUnitFilterStat が Unset のとき Level 条件として読み替え。")]
@@ -516,7 +519,10 @@ public static class EffectDataExtensions
 
     public static bool HasTargetUnitFilter(this EffectData effect)
     {
-        return effect != null && (effect.HasTargetFeatureFilter() || effect.HasTargetUnitStatFilter());
+        return effect != null
+            && (effect.HasTargetFeatureFilter()
+                || effect.HasTargetUnitStatFilter()
+                || effect.compareTargetStatToSource);
     }
 
     public static int GetTargetUnitFilterStatValue(CardController unit, EffectTargetUnitFilterStat stat)
@@ -542,7 +548,10 @@ public static class EffectDataExtensions
     }
 
     /// <summary>バトルゾーンのユニットが対象フィルタ（Feature / ステータス）を満たすか。</summary>
-    public static bool MatchesTargetUnitFilter(this EffectData effect, CardController unit)
+    public static bool MatchesTargetUnitFilter(
+        this EffectData effect,
+        CardController unit,
+        CardController sourceCard = null)
     {
         if (effect == null || unit == null || unit.Data == null || unit.Data.type != Type.Unit)
         {
@@ -555,13 +564,31 @@ public static class EffectDataExtensions
         }
 
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
-        if (statFilter != EffectTargetUnitFilterStat.Unset
-            && !EffectCompareHelper.Compare(
-                GetTargetUnitFilterStatValue(unit, statFilter),
-                effect.targetUnitStatCompareValue,
-                effect.targetUnitStatCompareOp))
+        if (statFilter == EffectTargetUnitFilterStat.Unset && effect.compareTargetStatToSource)
         {
-            return false;
+            statFilter = EffectTargetUnitFilterStat.AP;
+        }
+
+        if (statFilter != EffectTargetUnitFilterStat.Unset)
+        {
+            int compareValue = effect.targetUnitStatCompareValue;
+            if (effect.compareTargetStatToSource)
+            {
+                if (sourceCard == null)
+                {
+                    return false;
+                }
+
+                compareValue = GetTargetUnitFilterStatValue(sourceCard, statFilter);
+            }
+
+            if (!EffectCompareHelper.Compare(
+                GetTargetUnitFilterStatValue(unit, statFilter),
+                compareValue,
+                effect.targetUnitStatCompareOp))
+            {
+                return false;
+            }
         }
 
         return true;
@@ -599,6 +626,11 @@ public static class EffectDataExtensions
         }
 
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+        if (statFilter == EffectTargetUnitFilterStat.Unset && effect.compareTargetStatToSource)
+        {
+            statFilter = EffectTargetUnitFilterStat.AP;
+        }
+
         if (statFilter != EffectTargetUnitFilterStat.Unset)
         {
             if (sb.Length > 0)
@@ -606,9 +638,18 @@ public static class EffectDataExtensions
                 sb.Append(' ');
             }
 
-            sb.Append(FormatTargetUnitFilterStatLabel(statFilter))
-                .Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
-                .Append(effect.targetUnitStatCompareValue);
+            sb.Append(FormatTargetUnitFilterStatLabel(statFilter));
+            if (effect.compareTargetStatToSource)
+            {
+                sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                    .Append("自")
+                    .Append(FormatTargetUnitFilterStatLabel(statFilter));
+            }
+            else
+            {
+                sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                    .Append(effect.targetUnitStatCompareValue);
+            }
         }
 
         return sb.ToString();

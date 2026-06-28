@@ -599,7 +599,7 @@ public partial class BattleGameMain
                 break;
         }
 
-        FilterTargetsByUnitCondition(result, effect);
+        FilterTargetsByUnitCondition(result, effect, sourceCard);
         if (effect.type == EffectType.Rest)
         {
             FilterOutAlreadyRestedUnits(result);

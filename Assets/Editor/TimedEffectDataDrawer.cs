@@ -15,12 +15,13 @@ public class TimedEffectDataDrawer : PropertyDrawer
     private static void RefreshPopupOptions()
     {
         System.Collections.Generic.List<NamedEffectSetJsonEntry> entries = NamedEffectSetCatalog.LoadEntries();
-        popupValues = new string[entries.Count + 1];
-        popupLabels = new string[entries.Count + 1];
+        int count = entries != null ? entries.Count : 0;
+        popupValues = new string[count + 1];
+        popupLabels = new string[count + 1];
         popupValues[0] = string.Empty;
         popupLabels[0] = "(なし / インライン effects)";
 
-        for (int i = 0; i < entries.Count; i++)
+        for (int i = 0; i < count; i++)
         {
             NamedEffectSetJsonEntry entry = entries[i];
             string key = entry.effectSetName.Trim();
@@ -58,7 +59,7 @@ public class TimedEffectDataDrawer : PropertyDrawer
         y = DrawChildProperty(position, ref y, timing, false);
         y = DrawChildProperty(position, ref y, activationConditions, true);
 
-        if (Event.current.type == EventType.Layout)
+        if (Event.current.type == EventType.Layout || popupLabels == null || popupValues == null)
         {
             RefreshPopupOptions();
         }
@@ -68,6 +69,10 @@ public class TimedEffectDataDrawer : PropertyDrawer
         if (currentIndex < 0)
         {
             EditorGUI.PropertyField(popupRect, effectsName, new GUIContent("Effects Name (JSON未登録)"));
+        }
+        else if (popupLabels == null || popupLabels.Length == 0)
+        {
+            EditorGUI.PropertyField(popupRect, effectsName, new GUIContent("Effects Name"));
         }
         else
         {

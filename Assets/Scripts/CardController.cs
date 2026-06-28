@@ -89,24 +89,44 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public AttackFlg AttackFlgState => _attackFlg;
     public bool IsRestState { get; private set; }
 
-    /// <summary>AttackActiveEnemyUnit（UntilEndOfTurn）のランタイム付与。</summary>
-    private bool _attackActiveEnemyUntilEndOfTurnGrant;
+    /// <summary>AttackActiveEnemyUnit（UntilEndOfTurn）のランタイム付与（効果定義ごとに保持）。</summary>
+    private readonly List<EffectData> _attackActiveEnemyUntilEndOfTurnGrants = new List<EffectData>();
 
-    public bool HasAttackActiveEnemyUntilEndOfTurnGrant => _attackActiveEnemyUntilEndOfTurnGrant;
+    public bool HasAttackActiveEnemyUntilEndOfTurnGrant => _attackActiveEnemyUntilEndOfTurnGrants.Count > 0;
 
-    public void SetAttackActiveEnemyUntilEndOfTurnGrant(bool active)
+    public IReadOnlyList<EffectData> AttackActiveEnemyUntilEndOfTurnGrants => _attackActiveEnemyUntilEndOfTurnGrants;
+
+    public void AddAttackActiveEnemyUntilEndOfTurnGrant(EffectData effect)
     {
-        _attackActiveEnemyUntilEndOfTurnGrant = active;
+        if (effect != null)
+        {
+            _attackActiveEnemyUntilEndOfTurnGrants.Add(effect);
+        }
     }
 
-    /// <summary>AttackActiveEnemyUnit（UntilEndOfBattle）のランタイム付与。</summary>
-    private bool _attackActiveEnemyUntilEndOfBattleGrant;
-
-    public bool HasAttackActiveEnemyUntilEndOfBattleGrant => _attackActiveEnemyUntilEndOfBattleGrant;
-
-    public void SetAttackActiveEnemyUntilEndOfBattleGrant(bool active)
+    public void ClearAttackActiveEnemyUntilEndOfTurnGrants()
     {
-        _attackActiveEnemyUntilEndOfBattleGrant = active;
+        _attackActiveEnemyUntilEndOfTurnGrants.Clear();
+    }
+
+    /// <summary>AttackActiveEnemyUnit（UntilEndOfBattle）のランタイム付与（効果定義ごとに保持）。</summary>
+    private readonly List<EffectData> _attackActiveEnemyUntilEndOfBattleGrants = new List<EffectData>();
+
+    public bool HasAttackActiveEnemyUntilEndOfBattleGrant => _attackActiveEnemyUntilEndOfBattleGrants.Count > 0;
+
+    public IReadOnlyList<EffectData> AttackActiveEnemyUntilEndOfBattleGrants => _attackActiveEnemyUntilEndOfBattleGrants;
+
+    public void AddAttackActiveEnemyUntilEndOfBattleGrant(EffectData effect)
+    {
+        if (effect != null)
+        {
+            _attackActiveEnemyUntilEndOfBattleGrants.Add(effect);
+        }
+    }
+
+    public void ClearAttackActiveEnemyUntilEndOfBattleGrants()
+    {
+        _attackActiveEnemyUntilEndOfBattleGrants.Clear();
     }
 
     /// <summary>シールドゾーンから手札へ移したカードのみ、再配備可能。</summary>

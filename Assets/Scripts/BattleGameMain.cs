@@ -2059,12 +2059,27 @@ public partial class BattleGameMain : MonoBehaviour
     private List<CardController> GetEnemyUnitAttackTargets(PlayerType attackerOwner, CardController attacker)
     {
         List<CardController> enemies = GetAliveEnemyUnits(attackerOwner);
-        if (attacker != null && attacker.HasAttackActiveEnemyAbility())
+        if (attacker == null || !attacker.HasAttackActiveEnemyAbility())
         {
-            return enemies;
+            return GetAliveRestEnemyUnitsForOwner(attackerOwner);
         }
 
-        return GetAliveRestEnemyUnitsForOwner(attackerOwner);
+        List<CardController> result = new List<CardController>(enemies.Count);
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            CardController enemy = enemies[i];
+            if (enemy == null)
+            {
+                continue;
+            }
+
+            if (enemy.IsRestState || attacker.CanAttackerTargetActiveEnemy(enemy))
+            {
+                result.Add(enemy);
+            }
+        }
+
+        return result;
     }
 
     private static bool CanAttackerTargetEnemyUnitForCombat(CardController attacker, CardController target)
@@ -2079,7 +2094,7 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
-        return attacker != null && attacker.HasAttackActiveEnemyAbility();
+        return attacker != null && attacker.CanAttackerTargetActiveEnemy(target);
     }
 
     private List<CardController> GetEnemyAiRestTargets(PlayerType attackerOwner)
@@ -8005,7 +8020,10 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.selectionMode.RequiresManualUnitPick();
     }
 
-    private static void FilterTargetsByUnitCondition(List<CardController> targets, EffectData effect)
+    private static void FilterTargetsByUnitCondition(
+        List<CardController> targets,
+        EffectData effect,
+        CardController sourceCard = null)
     {
         if (targets == null || effect == null || !effect.HasTargetUnitFilter())
         {
@@ -8014,7 +8032,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         for (int i = targets.Count - 1; i >= 0; i--)
         {
-            if (!effect.MatchesTargetUnitFilter(targets[i]))
+            if (!effect.MatchesTargetUnitFilter(targets[i], sourceCard))
             {
                 targets.RemoveAt(i);
             }
@@ -8287,7 +8305,7 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
         }
 
-        FilterTargetsByUnitCondition(result, effect);
+        FilterTargetsByUnitCondition(result, effect, sourceCard);
         if (effect.type == EffectType.Rest)
         {
             FilterOutAlreadyRestedUnits(result);
@@ -8455,11 +8473,11 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (duration == EffectDuration.UntilEndOfTurn)
             {
-                unit.SetAttackActiveEnemyUntilEndOfTurnGrant(false);
+                unit.ClearAttackActiveEnemyUntilEndOfTurnGrants();
             }
             else if (duration == EffectDuration.UntilEndOfBattle)
             {
-                unit.SetAttackActiveEnemyUntilEndOfBattleGrant(false);
+                unit.ClearAttackActiveEnemyUntilEndOfBattleGrants();
             }
         }
     }
@@ -8490,16 +8508,18 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect.duration == EffectDuration.UntilEndOfTurn)
         {
-            grantHost.SetAttackActiveEnemyUntilEndOfTurnGrant(true);
+            grantHost.AddAttackActiveEnemyUntilEndOfTurnGrant(effect);
             Debug.Log(
                 $"[AttackActiveEnemyUnit] UntilEndOfTurn 付与: {grantHost.Data.cardName} "
+                + $"filter:{effect.FormatTargetUnitFilterDescription()} "
                 + $"(source:{sourceCard.Data?.cardName} owner:{ownerType})");
         }
         else if (effect.duration == EffectDuration.UntilEndOfBattle)
         {
-            grantHost.SetAttackActiveEnemyUntilEndOfBattleGrant(true);
+            grantHost.AddAttackActiveEnemyUntilEndOfBattleGrant(effect);
             Debug.Log(
                 $"[AttackActiveEnemyUnit] UntilEndOfBattle 付与: {grantHost.Data.cardName} "
+                + $"filter:{effect.FormatTargetUnitFilterDescription()} "
                 + $"(source:{sourceCard.Data?.cardName} owner:{ownerType})");
         }
 
@@ -11356,7 +11376,7 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
         }
 
-        FilterTargetsByUnitCondition(result, effect);
+        FilterTargetsByUnitCondition(result, effect, sourceCard);
         if (effect.type == EffectType.Rest)
         {
             FilterOutAlreadyRestedUnits(result);
