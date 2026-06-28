@@ -450,12 +450,6 @@ public partial class BattleGameMain
             return false;
         }
 
-        List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
-        if (restTargets.Count == 0)
-        {
-            return false;
-        }
-
         List<CardController> snapshot = new List<CardController>(enemyBattleZoneCards);
         for (int i = 0; i < snapshot.Count; i++)
         {
@@ -470,15 +464,21 @@ public partial class BattleGameMain
                 continue;
             }
 
+            List<CardController> attackTargets = GetEnemyUnitAttackTargets(PlayerType.Enemy, unit);
+            if (attackTargets.Count == 0)
+            {
+                continue;
+            }
+
             GetVirtualUnitCombatStats(unit, snaps, out int atkAp, out _);
             if (atkAp <= 0)
             {
                 continue;
             }
 
-            for (int t = 0; t < restTargets.Count; t++)
+            for (int t = 0; t < attackTargets.Count; t++)
             {
-                CardController target = restTargets[t];
+                CardController target = attackTargets[t];
                 if (target == null)
                 {
                     continue;

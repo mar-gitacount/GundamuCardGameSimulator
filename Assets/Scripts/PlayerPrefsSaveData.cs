@@ -31,6 +31,7 @@ public class PlayerPrefsSaveData : ISaveData
             color = (int)card.color, // カードの色を追加
             featureIds = CardFeatureRegistry.CollectIds(card.features),
             isBlocker = card.isBlocker,
+            isDeployTurnAttack = card.isDeployTurnAttack,
             isNotDirectAttack = card.isNotDirectAttack,
             isShieldToken = card.isShieldToken,
         };
@@ -54,6 +55,7 @@ public class PlayerPrefsSaveData : ISaveData
         }
 
         card.isBlocker = json.isBlocker;
+        card.isDeployTurnAttack = json.isDeployTurnAttack;
         card.isNotDirectAttack = json.isNotDirectAttack;
         card.isShieldToken = json.isShieldToken;
         card.SetFeaturesFromIds(json.featureIds);

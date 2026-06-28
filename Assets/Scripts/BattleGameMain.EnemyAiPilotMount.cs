@@ -373,7 +373,6 @@ public partial class BattleGameMain
             return 0;
         }
 
-        List<CardController> restTargets = GetEnemyAiRestTargets(PlayerType.Enemy);
         int best = int.MinValue / 4;
         List<CardController> attackers = CollectEnemyVirtualAttackers(linkMountUnit, linkMountPilot);
         for (int ai = 0; ai < attackers.Count; ai++)
@@ -383,6 +382,8 @@ public partial class BattleGameMain
             {
                 continue;
             }
+
+            List<CardController> attackTargets = GetEnemyUnitAttackTargets(PlayerType.Enemy, attacker);
 
             VirtualBattleUnitSnap atkSnap = FindBattleVirtualSnap(snaps, attacker);
             if (atkSnap == null)
@@ -401,7 +402,7 @@ public partial class BattleGameMain
             }
 
             bool canShieldOrDirect = EnemyAiAttackerCanStrikePlayerThisTurn(attacker);
-            if (canShieldOrDirect && restTargets.Count == 0)
+            if (canShieldOrDirect && attackTargets.Count == 0)
             {
                 int shieldWeight = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, atkSnap.Ap)
                     ? (gundamRule.HasShieldZoneProtection(Gundam2024RuleScript.PlayerSide.Player) ? 8 : 12)
@@ -413,10 +414,10 @@ public partial class BattleGameMain
                 }
             }
 
-            for (int ti = 0; ti < restTargets.Count; ti++)
+            for (int ti = 0; ti < attackTargets.Count; ti++)
             {
-                CardController target = restTargets[ti];
-                if (target == null || target.Data == null || !target.IsRestState)
+                CardController target = attackTargets[ti];
+                if (target == null || target.Data == null)
                 {
                     continue;
                 }

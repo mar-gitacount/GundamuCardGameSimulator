@@ -49,6 +49,8 @@ public enum EffectType
     Rest,
     /// <summary>高機動。攻撃時に敵ブロッカーを無視し、ブロックフェイズをスキップして OnAction へ進む。</summary>
     HighMobility,
+    /// <summary>アクティブ攻撃。通常は REST の敵ユニットのみ攻撃可能だが、この効果を持つ攻撃者は ACTIVE な敵ユニットも攻撃できる。Permanent=常時、UntilEndOfTurn/UntilEndOfBattle は OnPlayed 等の解決時に付与。</summary>
+    AttackActiveEnemyUnit,
     /// <summary>山札の上から value 枚を見る（山札からは取り出さない）。target で自分／相手の山札を指定。</summary>
     Look,
     /// <summary>直前の Look で見た山札の中から value 枚を手札に加える。OnLook 専用。targetFeature / targetFeatureId 必須。</summary>
