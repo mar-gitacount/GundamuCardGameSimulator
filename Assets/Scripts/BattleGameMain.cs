@@ -754,8 +754,10 @@ public partial class BattleGameMain : MonoBehaviour
         enemyCardGameRule.PlayerFieldPanel.SetRotation(180f);
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData, GetOnlineDeckSeed(false));
 
-        cardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(cardGameRule));
-        enemyCardGameRule.BindTrashAreaClick(() => OpenTrashInspectionPanel(enemyCardGameRule));
+        cardGameRule.BindDiscardZoneToggleClick(() => cardGameRule.ToggleDiscardZoneView());
+        cardGameRule.BindDiscardZoneCountClick(() => OpenDiscardZoneInspectionPanel(cardGameRule));
+        enemyCardGameRule.BindDiscardZoneToggleClick(() => enemyCardGameRule.ToggleDiscardZoneView());
+        enemyCardGameRule.BindDiscardZoneCountClick(() => OpenDiscardZoneInspectionPanel(enemyCardGameRule));
         BindEnemyAiPlayerTrashObservation();
 
         gundamRule.InitializeGame(
@@ -3725,81 +3727,10 @@ public partial class BattleGameMain : MonoBehaviour
         return currentPlayerType;
     }
 
-    /// <summary>トラッシュエリアクリックで、トラッシュに入ったカードを一覧表示する。</summary>
+    /// <summary>トラッシュ／除外ゾーンの一覧（後方互換）。<see cref="OpenDiscardZoneInspectionPanel"/> を使用してください。</summary>
     private void OpenTrashInspectionPanel(CardGameRule rule)
     {
-        if (rule == null || CardImagePrefab == null)
-        {
-            return;
-        }
-
-        Canvas canvas = ResolveBattleCanvas();
-        if (canvas == null)
-        {
-            return;
-        }
-
-        GameObject root = new GameObject("TrashInspectRoot", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        root.transform.SetParent(canvas.transform, false);
-        root.transform.SetAsLastSibling();
-        root.SetFullSize();
-        Image dim = root.GetComponent<Image>();
-        dim.color = new Color(0f, 0f, 0f, 0.55f);
-        dim.raycastTarget = true;
-
-        TextMeshProUGUI title = root.CreateChildTextCustom("TrashTitle", UIAnchor.TopCenter, 520, 48);
-        title.text = "トラッシュ一覧";
-        title.fontSize = 28;
-        title.color = Color.white;
-        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
-
-        GameObject scrollGo = root.CreateGridScrollView(560, 360, UIAnchor.TopCenter);
-        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
-        scrollRt.anchoredPosition = new Vector2(0f, -88f);
-        scrollGo.ConfigureGridCellFromViewportHeight(0.75f, 56f);
-
-        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
-        RectTransform content = sr != null ? sr.content : null;
-        if (content != null)
-        {
-            IReadOnlyList<int> ids = rule.GetTrashCardIds();
-            if (ids.Count == 0)
-            {
-                TextMeshProUGUI empty = content.gameObject.CreateChildTextCustom("EmptyTrash", UIAnchor.TopCenter, 480, 40);
-                empty.text = "（トラッシュは空です）";
-                empty.fontSize = 22;
-                empty.color = new Color(0.9f, 0.9f, 0.9f, 1f);
-                empty.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
-            }
-            else
-            {
-                foreach (int id in ids)
-                {
-                    CardData data = DeckSettinObject.Instance.GetCardDataById(id);
-                    if (data == null)
-                    {
-                        continue;
-                    }
-
-                    GameObject go = Instantiate(CardImagePrefab, content);
-                    CardController cc = go.GetComponent<CardController>();
-                    if (cc != null)
-                    {
-                        cc.SetUp(data, _ => { });
-                        go.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
-                    }
-                }
-            }
-        }
-
-        Button closeBtn = root.CreateChildButton("Close");
-        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
-        closeRt.sizeDelta = new Vector2(160f, 44f);
-        closeRt.anchorMin = new Vector2(0.5f, 0f);
-        closeRt.anchorMax = new Vector2(0.5f, 0f);
-        closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(0f, 36f);
-        closeBtn.onClick.AddListener(() => Destroy(root));
+        OpenDiscardZoneInspectionPanel(rule);
     }
 
     private bool IsOnDeployPanel(CardController c, PlayerType owner)
@@ -8145,6 +8076,10 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyMillTopToTrashEffect(sourceCard, ownerType, effect);
                 break;
 
+            case EffectType.ExileFromDeck:
+                ApplyExileFromDeckEffect(sourceCard, ownerType, effect);
+                break;
+
             case EffectType.AddToHandFromLooked:
                 Debug.LogWarning(
                     $"[Effect] AddToHandFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
@@ -9119,6 +9054,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
             || effect.type == EffectType.ChooseLookedRemainderDisposition
             || effect.type == EffectType.MillTopToTrash
+            || effect.type == EffectType.ExileFromDeck
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AttackActiveEnemyUnit
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
@@ -9666,6 +9602,7 @@ public partial class BattleGameMain : MonoBehaviour
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
                 || eff.type == EffectType.MillTopToTrash
+                || eff.type == EffectType.ExileFromDeck
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit)
             {

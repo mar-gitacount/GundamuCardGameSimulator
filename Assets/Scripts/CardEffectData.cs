@@ -66,7 +66,9 @@ public enum EffectType
     /// <summary>対象ユニットを破壊する（トラッシュへ）。value=適用体数上限（0 で対象リスト全員）。</summary>
     Destroy,
     /// <summary>山札の上から value 枚をトラッシュに置く。target で自分／相手の山札（SelfPlayer / EnemyPlayer）。観測カードはチェーンコンテキストに追加。</summary>
-    MillTopToTrash
+    MillTopToTrash,
+    /// <summary>山札の上から value 枚を除外（EXILE）ゾーンに置く。target は MillTopToTrash と同様。観測カードはチェーンコンテキストに追加。</summary>
+    ExileFromDeck
 }
 
 public enum TargetType

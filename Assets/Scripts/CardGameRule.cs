@@ -5,11 +5,21 @@ using System.Linq;
 using UnityEngine;
 using TMPro; // これを追加！
 using UnityEngine.UI;
+
+/// <summary>トラッシュ／除外は同一 UI 位置で切り替え表示する。</summary>
+public enum DiscardZoneViewMode
+{
+    Trash,
+    Exile
+}
+
 public class CardGameRule
 {
     // 実際に「山札」として使うリスト
     private List<int> deckList = new List<int>();
     private List<int> trashList = new List<int>();
+    private List<int> exileList = new List<int>();
+    private DiscardZoneViewMode _discardZoneViewMode = DiscardZoneViewMode.Trash;
     private int resourcePoints = 0; // プレイヤーのリソースポイントを管理する変数
     private int resourceLevel = 0;
     // Exリソースポイントを管理する変数（必要に応じて使用）
@@ -38,7 +48,10 @@ public class CardGameRule
     private GameObject deckObjectPanel;
     private GameObject trashAreaPanel;
     private TextMeshProUGUI deckCountText;
-    private TextMeshProUGUI trashCountText;
+    private TextMeshProUGUI discardZoneLabelText;
+    private TextMeshProUGUI discardZoneCountText;
+    private Button discardZoneToggleButton;
+    private Button discardZoneCountButton;
 
     private GameObject shieldPanelRoot;
     private RectTransform shieldCardsContent;
@@ -139,6 +152,8 @@ public class CardGameRule
     {
         deckList.Clear();
         trashList.Clear();
+        exileList.Clear();
+        _discardZoneViewMode = DiscardZoneViewMode.Trash;
 
         Debug.Log($"デッキの数: {cardData.Count}枚");
 
@@ -721,33 +736,45 @@ public class CardGameRule
 
     public IReadOnlyList<int> GetTrashCardIds() => trashList;
 
-    /// <summary>トラッシュエリアクリックで一覧を開くためのリスナーを登録する。</summary>
-    public void BindTrashAreaClick(Action onClick)
+    public IReadOnlyList<int> GetExileCardIds() => exileList;
+
+    public DiscardZoneViewMode DiscardZoneViewMode => _discardZoneViewMode;
+
+    public DiscardZoneViewMode ToggleDiscardZoneView()
     {
-        if (trashAreaPanel == null || onClick == null)
+        _discardZoneViewMode = _discardZoneViewMode == DiscardZoneViewMode.Trash
+            ? DiscardZoneViewMode.Exile
+            : DiscardZoneViewMode.Trash;
+        UpdateDeckAndDiscardZoneTexts();
+        return _discardZoneViewMode;
+    }
+
+    /// <summary>トラッシュ／除外ラベル押下（TRASH↔EXILE 切替のみ）。</summary>
+    public void BindDiscardZoneToggleClick(Action onClick)
+    {
+        if (discardZoneToggleButton == null || onClick == null)
         {
             return;
         }
 
-        Image bg = trashAreaPanel.GetComponent<Image>();
-        if (bg == null)
-        {
-            bg = trashAreaPanel.AddComponent<Image>();
-            bg.color = new Color(1f, 1f, 1f, 0.04f);
-        }
-
-        bg.raycastTarget = true;
-
-        Button btn = trashAreaPanel.GetComponent<Button>();
-        if (btn == null)
-        {
-            btn = trashAreaPanel.AddComponent<Button>();
-        }
-
-        btn.transition = Selectable.Transition.None;
-        btn.onClick.RemoveAllListeners();
-        btn.onClick.AddListener(() => onClick());
+        discardZoneToggleButton.onClick.RemoveAllListeners();
+        discardZoneToggleButton.onClick.AddListener(() => onClick());
     }
+
+    /// <summary>トラッシュ／除外枚数押下（現在モードの一覧表示）。</summary>
+    public void BindDiscardZoneCountClick(Action onClick)
+    {
+        if (discardZoneCountButton == null || onClick == null)
+        {
+            return;
+        }
+
+        discardZoneCountButton.onClick.RemoveAllListeners();
+        discardZoneCountButton.onClick.AddListener(() => onClick());
+    }
+
+    /// <summary>互換エイリアス。<see cref="BindDiscardZoneCountClick"/> を使用してください。</summary>
+    public void BindTrashAreaClick(Action onClick) => BindDiscardZoneCountClick(onClick);
 
     public void SetExBaseDisplay(int points)
     {
@@ -992,8 +1019,23 @@ public class CardGameRule
         OnCardAddedToTrash?.Invoke(cardId);
     }
 
+    public void AddCardToExile(int cardId)
+    {
+        if (cardId < 0)
+        {
+            return;
+        }
+
+        exileList.Add(cardId);
+        UpdateDeckAndTrashTexts();
+        OnCardAddedToExile?.Invoke(cardId);
+    }
+
     /// <summary>カードがトラッシュに追加されたとき（cardId）。プレイヤー側 AI 観測用。</summary>
     public event Action<int> OnCardAddedToTrash;
+
+    /// <summary>カードが除外ゾーンに追加されたとき（cardId）。</summary>
+    public event Action<int> OnCardAddedToExile;
 
     /// <summary>
     /// 外部のルールエンジンで確定したレベル/リソースを、このクラスの表示値へ同期する。
@@ -1045,6 +1087,8 @@ public class CardGameRule
     public int GetRemainingCount() => deckList.Count;
     public int GetTrashCount() => trashList.Count;
 
+    public int GetExileCount() => exileList.Count;
+
     // リソース関数もここに追加していく予定
 
     private void CreateDeckAndTrashArea(GameObject deckAndTrashPanel)
@@ -1058,14 +1102,67 @@ public class CardGameRule
         deckCountText.text = "0";
         deckCountText.color = Color.black;
 
-        // 下側: トラッシュ
-        trashAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("TrashAreaPanel", UIAnchor.BottomCenter, 60, 140);
-        var trashLabel = trashAreaPanel.CreateChildTextCustom("TrashLabel", UIAnchor.TopCenter, 60, 30);
-        trashLabel.text = "TRASH";
-        trashLabel.color = Color.black;
-        trashCountText = trashAreaPanel.CreateChildTextCustom("TrashCountText", UIAnchor.BottomCenter, 60, 30);
-        trashCountText.text = "0";
-        trashCountText.color = Color.black;
+        // 下側: トラッシュ／除外（DECK と同じく上ラベル・下枚数）
+        trashAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("DiscardZonePanel", UIAnchor.BottomCenter, 60, 140);
+        discardZoneLabelText = trashAreaPanel.CreateChildTextCustom("DiscardZoneLabel", UIAnchor.TopCenter, 60, 30);
+        discardZoneLabelText.text = "TRASH";
+        discardZoneLabelText.color = Color.black;
+        discardZoneLabelText.raycastTarget = true;
+        discardZoneToggleButton = discardZoneLabelText.gameObject.GetComponent<Button>();
+        if (discardZoneToggleButton == null)
+        {
+            discardZoneToggleButton = discardZoneLabelText.gameObject.AddComponent<Button>();
+        }
+
+        discardZoneToggleButton.targetGraphic = discardZoneLabelText;
+        ApplyTextButtonColors(discardZoneToggleButton);
+
+        discardZoneCountText = trashAreaPanel.CreateChildTextCustom("DiscardZoneCountText", UIAnchor.BottomCenter, 60, 30);
+        discardZoneCountText.text = "0";
+        discardZoneCountText.color = Color.black;
+        discardZoneCountText.raycastTarget = true;
+        discardZoneCountButton = discardZoneCountText.gameObject.GetComponent<Button>();
+        if (discardZoneCountButton == null)
+        {
+            discardZoneCountButton = discardZoneCountText.gameObject.AddComponent<Button>();
+        }
+
+        discardZoneCountButton.targetGraphic = discardZoneCountText;
+        ApplyTextButtonColors(discardZoneCountButton);
+        UpdateDeckAndDiscardZoneTexts();
+    }
+
+    private static void ApplyTextButtonColors(Button button)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.85f, 0.9f, 1f, 1f);
+        colors.pressedColor = new Color(0.75f, 0.82f, 0.95f, 1f);
+        colors.selectedColor = colors.highlightedColor;
+        button.colors = colors;
+    }
+
+    private void UpdateDeckAndDiscardZoneTexts()
+    {
+        bool showingExile = _discardZoneViewMode == DiscardZoneViewMode.Exile;
+        int count = showingExile ? exileList.Count : trashList.Count;
+
+        if (discardZoneLabelText != null)
+        {
+            discardZoneLabelText.text = showingExile ? "EXILE" : "TRASH";
+            discardZoneLabelText.color = Color.black;
+        }
+
+        if (discardZoneCountText != null)
+        {
+            discardZoneCountText.text = count.ToString();
+            discardZoneCountText.color = Color.black;
+        }
     }
 
     private void UpdateDeckAndTrashTexts()
@@ -1076,10 +1173,6 @@ public class CardGameRule
             deckCountText.color = Color.black;
         }
 
-        if (trashCountText != null)
-        {
-            trashCountText.text = trashList.Count.ToString();
-            trashCountText.color = Color.black;
-        }
+        UpdateDeckAndDiscardZoneTexts();
     }
 }
