@@ -31,10 +31,17 @@
             "description": ""
         },
         {
+            "id": 10000,
+            "featureKey": "test",
+            "displayName": "test",
+            "description": ""
+        },
+        {
             "id": 6,
             "featureKey": "Neo_Zeon",
             "displayName": "ネオジオン",
             "description": ""
         }
+        
     ]
 }

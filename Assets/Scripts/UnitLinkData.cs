@@ -18,7 +18,7 @@ public class UnitLinkPilotSlot
     public int[] pilotFeatureIds;
 }
 
-/// <summary>搭乗時 OnPilotMounted の解決対象（ホストユニットの CardData で指定）。</summary>
+/// <summary>搭乗時 OnPilotMounted / OnLink の解決対象（ホストユニットの CardData で指定）。</summary>
 public enum PilotMountOnPilotMountedSource
 {
     /// <summary>ユニット・パイロット双方（双方に OnPilotMounted があれば両方）。</summary>

@@ -14835,6 +14835,7 @@ MonoBehaviour:
   DeckDeleteButton: {fileID: 2031955292}
   DeckCopyButton: {fileID: 553220694}
   ButtleButton: {fileID: 1985107369}
+  OnlineBattleButton: {fileID: 0}
 --- !u!1 &1834146207
 GameObject:
   m_ObjectHideFlags: 0

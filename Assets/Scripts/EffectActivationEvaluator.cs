@@ -14,10 +14,10 @@ public sealed class EffectActivationContext
     public IReadOnlyList<CardController> EnemyHand { get; }
     public bool IsOwnerTurn { get; }
 
-    /// <summary>OnPilotMounted 時の搭乗先ユニット（未設定時は Source が Unit ならそれを使用）。</summary>
+    /// <summary>OnPilotMounted 時の搭乗先ユニット（未設定時は Source が Unit ならそれを使用）。OnLink でも同様。</summary>
     public CardController MountHostUnit { get; }
 
-    /// <summary>OnPilotMounted 時に載せたパイロット（未設定時は MountHostUnit.MountedPilot）。</summary>
+    /// <summary>OnPilotMounted / OnLink 時に載せたパイロット（未設定時は MountHostUnit.MountedPilot）。</summary>
     public CardController MountedPilot { get; }
 
     public EffectActivationContext(

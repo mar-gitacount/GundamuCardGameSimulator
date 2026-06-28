@@ -132,7 +132,10 @@ public partial class BattleGameMain
         ApplyUnitAttackFlgFromLink(unit, PlayerType.Enemy);
         TriggerOnPilotMountedEffects(unit, pilot, PlayerType.Enemy, () =>
         {
-            TriggerOnPlayedEffects(pilot, PlayerType.Enemy, RefreshAllHandsConditionalOnHandAuto);
+            TriggerOnLinkEffects(unit, pilot, PlayerType.Enemy, () =>
+            {
+                TriggerOnPlayedEffects(pilot, PlayerType.Enemy, RefreshAllHandsConditionalOnHandAuto);
+            });
         });
         SyncResourceViewsFromRule(side);
         return true;
@@ -158,6 +161,7 @@ public partial class BattleGameMain
         List<VirtualBattleUnitSnap> after = CloneVirtualBattleSnaps(before);
         ApplyVirtualPilotMountToSnaps(after, pilot, unit);
         ApplyVirtualPilotOnMountedEffects(after, unit, pilot);
+        ApplyVirtualOnLinkEffects(after, unit, pilot);
         ApplyVirtualPilotOnPlayedEffects(after, pilot, unit);
 
         int afterOutlook = ScoreEnemyAiMountPhaseOutlook(after, reserve, pilot, unit, pilot);
@@ -218,6 +222,29 @@ public partial class BattleGameMain
         CardController hostUnit,
         CardController pilot)
     {
+        ApplyVirtualMountTimedEffects(snaps, hostUnit, pilot, EffectTiming.OnPilotMounted);
+    }
+
+    private void ApplyVirtualOnLinkEffects(
+        List<VirtualBattleUnitSnap> snaps,
+        CardController hostUnit,
+        CardController pilot)
+    {
+        if (hostUnit == null || pilot == null || pilot.Data == null
+            || !UnitLinkExtensions.HasValidLinkPilot(hostUnit.Data, pilot))
+        {
+            return;
+        }
+
+        ApplyVirtualMountTimedEffects(snaps, hostUnit, pilot, EffectTiming.OnLink);
+    }
+
+    private void ApplyVirtualMountTimedEffects(
+        List<VirtualBattleUnitSnap> snaps,
+        CardController hostUnit,
+        CardController pilot,
+        EffectTiming mountTiming)
+    {
         if (snaps == null || hostUnit == null || pilot == null || hostUnit.Data == null)
         {
             return;
@@ -233,33 +260,34 @@ public partial class BattleGameMain
         {
             if (resolveUnit)
             {
-                ApplyVirtualOnPilotMountedForCard(snaps, hostUnit, hostUnit, pilot);
+                ApplyVirtualMountTimedEffectsForCard(snaps, hostUnit, hostUnit, pilot, mountTiming);
             }
 
             if (resolvePilot)
             {
-                ApplyVirtualOnPilotMountedForCard(snaps, pilot, hostUnit, pilot);
+                ApplyVirtualMountTimedEffectsForCard(snaps, pilot, hostUnit, pilot, mountTiming);
             }
         }
         else
         {
             if (resolvePilot)
             {
-                ApplyVirtualOnPilotMountedForCard(snaps, pilot, hostUnit, pilot);
+                ApplyVirtualMountTimedEffectsForCard(snaps, pilot, hostUnit, pilot, mountTiming);
             }
 
             if (resolveUnit)
             {
-                ApplyVirtualOnPilotMountedForCard(snaps, hostUnit, hostUnit, pilot);
+                ApplyVirtualMountTimedEffectsForCard(snaps, hostUnit, hostUnit, pilot, mountTiming);
             }
         }
     }
 
-    private void ApplyVirtualOnPilotMountedForCard(
+    private void ApplyVirtualMountTimedEffectsForCard(
         List<VirtualBattleUnitSnap> snaps,
         CardController sourceCard,
         CardController hostUnit,
-        CardController pilot)
+        CardController pilot,
+        EffectTiming mountTiming)
     {
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
@@ -278,7 +306,7 @@ public partial class BattleGameMain
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
-            if (timed == null || !timed.IsOnPilotMountedResolutionBlock())
+            if (timed == null || !IsVirtualMountResolutionBlock(timed, mountTiming))
             {
                 continue;
             }
@@ -296,6 +324,13 @@ public partial class BattleGameMain
                 PlayerType.Enemy,
                 pickCtx);
         }
+    }
+
+    private static bool IsVirtualMountResolutionBlock(TimedEffectData timed, EffectTiming mountTiming)
+    {
+        return mountTiming == EffectTiming.OnLink
+            ? timed.IsOnLinkResolutionBlock()
+            : timed.IsOnPilotMountedResolutionBlock();
     }
 
     private void ApplyVirtualPilotOnPlayedEffects(
