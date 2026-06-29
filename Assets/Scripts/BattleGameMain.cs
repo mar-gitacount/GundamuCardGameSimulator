@@ -11750,12 +11750,14 @@ public partial class BattleGameMain : MonoBehaviour
 
         bool trashHandCardAfter = IsOnMainActivatedFromHand(source, side);
         BeginEffectChainObservationScope();
+        EffectActivationContext chainActivationContext = BuildOnMainChainActivationContext(side, source);
         TryExecuteOnMainEffectChain(
             side,
             source,
             timed.GetResolvedEffects(),
             0,
             true,
+            chainActivationContext,
             () =>
             {
                 EndEffectChainObservationScope();
@@ -11769,12 +11771,23 @@ public partial class BattleGameMain : MonoBehaviour
             });
     }
 
+    private EffectActivationContext BuildOnMainChainActivationContext(PlayerType side, CardController source)
+    {
+        EffectActivationContext context = BuildActivationContext(side, source);
+        IReadOnlyList<CardController> ownerZone = side == PlayerType.Player
+            ? context.PlayerBattleZone
+            : context.EnemyBattleZone;
+        int ownerAliveUnits = EffectActivationEvaluator.CountAliveUnitsInZone(ownerZone);
+        return context.WithFrozenOwnerBattleAliveUnitCount(ownerAliveUnits);
+    }
+
     private void TryExecuteOnMainEffectChain(
         PlayerType side,
         CardController source,
         IReadOnlyList<EffectData> effects,
         int index,
         bool activationCostAlreadyPaid,
+        EffectActivationContext chainActivationContext,
         System.Action onDone)
     {
         if (effects == null || index >= effects.Count)
@@ -11786,14 +11799,16 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect = effects[index];
         if (effect == null)
         {
-            TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(side, source);
+        EffectActivationContext activationContext = chainActivationContext ?? BuildActivationContext(side, source);
         if (!ShouldApplyChainedEffect(effect, activationContext, "OnMain"))
         {
-            TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
             return;
         }
 
@@ -11801,7 +11816,8 @@ public partial class BattleGameMain : MonoBehaviour
             source,
             side,
             effect,
-            () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone)))
+            () => TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone)))
         {
             return;
         }
@@ -11812,7 +11828,8 @@ public partial class BattleGameMain : MonoBehaviour
             if (handCandidates.Count == 0)
             {
                 Debug.Log("OnMain: 捨てる手札がありません (DiscardFromHand)。");
-                TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
+                TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
                 return;
             }
 
@@ -11820,7 +11837,8 @@ public partial class BattleGameMain : MonoBehaviour
                 source,
                 side,
                 effect,
-                () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone));
+                () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
             return;
         }
 
@@ -11830,7 +11848,8 @@ public partial class BattleGameMain : MonoBehaviour
             if (candidates.Count == 0)
             {
                 Debug.Log($"OnMain: 選択可能な対象がありません (target:{effect.target})。");
-                TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
+                TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
                 return;
             }
 
@@ -11843,11 +11862,21 @@ public partial class BattleGameMain : MonoBehaviour
                     ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
                 }
 
-                TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
+                TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
                 return;
             }
 
-            OpenOnMainTargetSelectionUI(side, source, effect, candidates, effects, index, activationCostAlreadyPaid, onDone);
+            OpenOnMainTargetSelectionUI(
+                side,
+                source,
+                effect,
+                candidates,
+                effects,
+                index,
+                activationCostAlreadyPaid,
+                chainActivationContext,
+                onDone);
             return;
         }
 
@@ -11855,7 +11884,8 @@ public partial class BattleGameMain : MonoBehaviour
             source,
             side,
             effect,
-            () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone));
+            () => TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
     }
 
     private static bool IsEffectTargetRequiringUnitSelection(TargetType targetType)
@@ -12086,6 +12116,7 @@ public partial class BattleGameMain : MonoBehaviour
         IReadOnlyList<EffectData> allEffects,
         int effectIndex,
         bool activationCostAlreadyPaid,
+        EffectActivationContext chainActivationContext,
         System.Action onDone)
     {
         string effectSummary = effect != null
@@ -12100,7 +12131,14 @@ public partial class BattleGameMain : MonoBehaviour
             picked =>
             {
                 ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
-                TryExecuteOnMainEffectChain(side, source, allEffects, effectIndex + 1, activationCostAlreadyPaid, onDone);
+                TryExecuteOnMainEffectChain(
+                    side,
+                    source,
+                    allEffects,
+                    effectIndex + 1,
+                    activationCostAlreadyPaid,
+                    chainActivationContext,
+                    onDone);
             },
             onDone);
     }

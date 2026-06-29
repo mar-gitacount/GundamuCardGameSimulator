@@ -311,7 +311,12 @@ public enum EffectActivationCheckKind
     /// <summary>
     /// 指定トラッシュに trashCardId のカードが minimumCount 枚未満（0 枚＝未存在）。
     /// </summary>
-    TrashLacksCardId
+    TrashLacksCardId,
+    /// <summary>
+    /// 指定ゾーン（OwnerBattleZone 等）の生存ユニット体数を unitCountThreshold と unitCountCompareOp で比較。
+    /// 例: 0 体 → Equal + threshold 0、2 体以上 → GreaterOrEqual + threshold 2。
+    /// </summary>
+    CompareFieldUnitCount
 }
 
 public enum EffectTurnCheckKind
@@ -397,7 +402,7 @@ public class EffectActivationCondition
     [Tooltip("CountUnitsAtExactLevel のみ: 体数を unitCountThreshold と比較するときの演算子。")]
     public EffectCompareOperator unitCountCompareOp = EffectCompareOperator.Equal;
 
-    [Tooltip("CountUnitsAtExactLevel のみ: 数えた体数と比較する閾値（例: LV6 が 0 体なら 0）。")]
+    [Tooltip("CountUnitsAtExactLevel / CompareFieldUnitCount: 数えた体数と比較する閾値（例: LV6 が 0 体なら 0、ユニット 2 体以上なら 2）。")]
     public int unitCountThreshold;
 
     [Tooltip("MountedPilot のみ: パイロットカード ID（0 なら ID 条件なし）。")]

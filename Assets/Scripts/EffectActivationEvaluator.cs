@@ -26,6 +26,14 @@ public sealed class EffectActivationContext
     public IReadOnlyList<int> OwnerTrashCardIds { get; }
     public IReadOnlyList<int> OpponentTrashCardIds { get; }
 
+    /// <summary>
+    /// OnMain 等の同一チェーン内で CompareFieldUnitCount を評価するとき、
+    /// 発動開始時点のオーナーバトルゾーン生存ユニット数（-1 なら未固定で都度カウント）。
+    /// </summary>
+    public int FrozenOwnerBattleAliveUnitCount { get; }
+
+    public bool HasFrozenOwnerBattleAliveUnitCount => FrozenOwnerBattleAliveUnitCount >= 0;
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -38,7 +46,8 @@ public sealed class EffectActivationContext
         CardController mountedPilot = null,
         IReadOnlyList<CardData> observedCards = null,
         IReadOnlyList<int> ownerTrashCardIds = null,
-        IReadOnlyList<int> opponentTrashCardIds = null)
+        IReadOnlyList<int> opponentTrashCardIds = null,
+        int frozenOwnerBattleAliveUnitCount = -1)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -52,6 +61,30 @@ public sealed class EffectActivationContext
         ObservedCards = observedCards ?? System.Array.Empty<CardData>();
         OwnerTrashCardIds = ownerTrashCardIds ?? System.Array.Empty<int>();
         OpponentTrashCardIds = opponentTrashCardIds ?? System.Array.Empty<int>();
+        FrozenOwnerBattleAliveUnitCount = frozenOwnerBattleAliveUnitCount;
+    }
+
+    public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
+    {
+        if (count < 0 || count == FrozenOwnerBattleAliveUnitCount)
+        {
+            return this;
+        }
+
+        return new EffectActivationContext(
+            OwnerType,
+            SourceCard,
+            PlayerBattleZone,
+            EnemyBattleZone,
+            PlayerHand,
+            EnemyHand,
+            IsOwnerTurn,
+            MountHostUnit,
+            MountedPilot,
+            ObservedCards,
+            OwnerTrashCardIds,
+            OpponentTrashCardIds,
+            count);
     }
 }
 
@@ -176,6 +209,17 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.TrashLacksCardId)
         {
             return EvaluateTrashHasCardId(c, ctx, expectPresent: false);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.CompareFieldUnitCount)
+        {
+            if (c.boardSide == EffectBoardSide.Unset)
+            {
+                return false;
+            }
+
+            int count = ResolveFieldUnitCountForCondition(c, ctx);
+            return CompareInts(count, c.unitCountThreshold, c.unitCountCompareOp);
         }
 
         // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
@@ -600,6 +644,26 @@ public static class EffectActivationEvaluator
         }
 
         return n;
+    }
+
+    public static int CountAliveUnitsInZone(IReadOnlyList<CardController> cards)
+    {
+        return CountAliveUnits(cards);
+    }
+
+    private static int ResolveFieldUnitCountForCondition(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return 0;
+        }
+
+        if (c.boardSide == EffectBoardSide.OwnerBattleZone && ctx.HasFrozenOwnerBattleAliveUnitCount)
+        {
+            return ctx.FrozenOwnerBattleAliveUnitCount;
+        }
+
+        return CountAliveUnits(ResolveZone(ctx, c.boardSide));
     }
 
     private static int CountAliveUnits(IReadOnlyList<CardController> cards)
