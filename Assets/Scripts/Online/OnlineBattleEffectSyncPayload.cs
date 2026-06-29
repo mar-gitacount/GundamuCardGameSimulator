@@ -24,6 +24,7 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindDamage = "Damage";
     public const string ChangeKindStat = "Stat";
     public const string ChangeKindRest = "Rest";
+    public const string ChangeKindActivate = "Activate";
     public const string ChangeKindDestroy = "Destroy";
     public const string ChangeKindBounce = "Bounce";
 

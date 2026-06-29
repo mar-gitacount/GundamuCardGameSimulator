@@ -298,6 +298,9 @@ public partial class BattleGameMain
                 || eff.type == EffectType.DeployBase
                 || eff.type == EffectType.DeployUnit
                 || eff.type == EffectType.GrantAttackFlag
+                || eff.type == EffectType.DiscardFromHand
+                || eff.type == EffectType.Activate
+                || eff.type == EffectType.NotDirectAttack
                 || eff.type == EffectType.Suppress)
             {
                 continue;

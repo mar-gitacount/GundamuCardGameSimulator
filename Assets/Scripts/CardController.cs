@@ -129,6 +129,26 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _attackActiveEnemyUntilEndOfBattleGrants.Clear();
     }
 
+    private int _notDirectAttackUntilEndOfTurnDepth;
+
+    public bool HasNotDirectAttackUntilEndOfTurnGrant => _notDirectAttackUntilEndOfTurnDepth > 0;
+
+    public void AddNotDirectAttackUntilEndOfTurnGrant()
+    {
+        _notDirectAttackUntilEndOfTurnDepth++;
+    }
+
+    public void ClearNotDirectAttackUntilEndOfTurnGrants()
+    {
+        _notDirectAttackUntilEndOfTurnDepth = 0;
+    }
+
+    /// <summary>カード定義またはターン限定付与により、相手プレイヤー／シールドへ直接攻撃不可。</summary>
+    public bool CannotDirectAttackPlayerOrShield()
+    {
+        return (Data != null && Data.isNotDirectAttack) || HasNotDirectAttackUntilEndOfTurnGrant;
+    }
+
     /// <summary>シールドゾーンから手札へ移したカードのみ、再配備可能。</summary>
     private bool eligibleForShieldZoneDeploy;
     public bool IsEligibleForShieldZoneDeploy => eligibleForShieldZoneDeploy;
@@ -181,6 +201,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         effectDamageImmunityModifiers.Clear();
         MountedPilot = null;
         MountedUnit = null;
+        _notDirectAttackUntilEndOfTurnDepth = 0;
     }
 
     /// <summary>戦闘ダメージ。ユニット以外では呼ばない想定。</summary>

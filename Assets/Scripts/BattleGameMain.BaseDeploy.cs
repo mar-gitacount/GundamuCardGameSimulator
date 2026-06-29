@@ -314,6 +314,7 @@ public partial class BattleGameMain
                 $"[BaseDeploy] Replaced base layer with {cardController.Data.cardName}(id:{cardController.Data.id}) side:{ownerType}");
         }
 
+        NotifyLocalDeployBaseSynced(cardController, ownerType);
         return true;
     }
 

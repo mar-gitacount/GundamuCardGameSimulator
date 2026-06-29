@@ -482,6 +482,66 @@ public class CardGameRule
         UpdateDeckAndTrashTexts();
     }
 
+    /// <summary>
+    /// オンライン同期：ベース枠は触らずシールドゾーンのみ指定 ID 列で再構築する。
+    /// </summary>
+    public void ApplyShieldZoneSnapshotFromCardIds(
+        GameObject cardPrefab,
+        System.Action<CardController> onShieldCardClicked,
+        IReadOnlyList<int> cardIds)
+    {
+        shieldCardIds.Clear();
+        shieldControllersInDrawOrder.Clear();
+        if (shieldCardsContent == null || cardPrefab == null)
+        {
+            Debug.LogWarning("シールド同期: コンテナまたはカードプレハブがありません。");
+            return;
+        }
+
+        for (int i = shieldCardsContent.childCount - 1; i >= 0; i--)
+        {
+            UnityEngine.Object.Destroy(shieldCardsContent.GetChild(i).gameObject);
+        }
+
+        if (cardIds == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            int id = cardIds[i];
+            if (id < 0)
+            {
+                continue;
+            }
+
+            shieldCardIds.Add(id);
+            CardData data = DeckSettinObject.Instance.GetCardDataById(id);
+            if (data == null)
+            {
+                Debug.LogWarning($"シールド同期: 不明なカード ID {id}");
+                continue;
+            }
+
+            GameObject go = UnityEngine.Object.Instantiate(cardPrefab, shieldCardsContent);
+            CardController cc = go.GetComponent<CardController>();
+            if (cc != null)
+            {
+                cc.SetUp(data, onShieldCardClicked);
+                RectTransform cardRect = go.GetComponent<RectTransform>();
+                if (cardRect != null && shieldGrid != null)
+                {
+                    cardRect.localScale = Vector3.one;
+                    cardRect.sizeDelta = shieldGrid.cellSize;
+                }
+
+                shieldControllersInDrawOrder.Add(cc);
+                cc.SetShieldFaceHidden(true);
+            }
+        }
+    }
+
     /// <summary>オンライン：相手の山札残数に合わせる（シールド ID 除去後に余剰を削る）。</summary>
     public void TrimDeckToRemainingCount(int targetRemainCount)
     {

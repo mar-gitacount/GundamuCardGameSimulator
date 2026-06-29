@@ -362,7 +362,7 @@ public partial class BattleGameMain
                 }
             }
 
-            if (!unit.Data.isNotDirectAttack && playerProtected)
+            if (!unit.CannotDirectAttackPlayerOrShield() && playerProtected)
             {
                 int shieldScore = ScoreVirtualShieldAttackHeuristic(atkAp, gundamRule.Player);
                 score = Mathf.Max(score, shieldScore);

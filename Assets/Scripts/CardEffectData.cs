@@ -82,7 +82,16 @@ public enum EffectType
     /// grantAttackFlagOnlyIfOff=true のとき AttackFlg=False のユニットのみ UI 表示・対象。
     /// value=付与体数上限（0 以下は 1）。
     /// </summary>
-    GrantAttackFlag
+    GrantAttackFlag,
+    /// <summary>
+    /// 手札から value 枚をトラッシュへ捨てる（SelfPlayer / オーナー手札）。
+    /// revealDiscardedToOpponent=true で相手に公開。1枚以上は手札選択 UI。
+    /// </summary>
+    DiscardFromHand,
+    /// <summary>REST のユニットを ACTIVE にする（レスト解除）。value=体数上限（0 で対象全員）。</summary>
+    Activate,
+    /// <summary>対象ユニットがそのターン（UntilEndOfTurn）相手プレイヤー／シールドへ直接攻撃できない。</summary>
+    NotDirectAttack
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -118,7 +127,7 @@ public static class EffectTypeExtensions
     /// <summary>value が適用体数上限として使われ、効果量 0 でも解決するタイプ。</summary>
     public static bool UsesTargetCountValue(this EffectType type)
     {
-        return type == EffectType.Bounce || type == EffectType.Rest || type == EffectType.Destroy;
+        return type == EffectType.Bounce || type == EffectType.Rest || type == EffectType.Activate || type == EffectType.Destroy;
     }
 
     /// <summary>対象ユニットの手動選択 UI が必要なタイプ。</summary>
@@ -126,8 +135,15 @@ public static class EffectTypeExtensions
     {
         return type == EffectType.Bounce
             || type == EffectType.Rest
+            || type == EffectType.Activate
             || type == EffectType.Destroy
             || type == EffectType.GrantAttackFlag;
+    }
+
+    /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>
+    public static bool RequiresManualHandSelection(this EffectType type)
+    {
+        return type == EffectType.DiscardFromHand;
     }
 }
 
@@ -165,7 +181,9 @@ public enum EffectSelectionMode
     SelectSingle = 1,
     /// <summary>旧名称互換。挙動は SelectSingle と同一。</summary>
     SelectSingleEnemyUnit,
-    SelectMultipleEnemyUnits
+    SelectMultipleEnemyUnits,
+    /// <summary>直前の手動選択で選んだユニットに効果を適用（チェーン2段目以降用）。</summary>
+    UsePriorChainPickedTarget = 4
 }
 
 /// <summary><see cref="EffectSelectionMode"/> の選択 UI ヘルパー。</summary>
@@ -190,6 +208,11 @@ public static class EffectSelectionModeExtensions
     public static bool IsAttackedTargetOnlyMode(this EffectSelectionMode mode)
     {
         return mode == EffectSelectionMode.AttackedTargetOnly;
+    }
+
+    public static bool IsUsePriorChainPickedTargetMode(this EffectSelectionMode mode)
+    {
+        return mode == EffectSelectionMode.UsePriorChainPickedTarget;
     }
 }
 
@@ -535,6 +558,15 @@ public class EffectData
 
     [Tooltip("GrantAttackFlag: true のとき AttackFlg=False のユニットのみ候補・UI 表示（既に ON のユニットは選べない）。")]
     public bool grantAttackFlagOnlyIfOff = true;
+
+    [Tooltip("DiscardFromHand: true のとき捨てたカードを相手に公開（オンラインは OK まで進行停止）。")]
+    public bool revealDiscardedToOpponent;
+
+    [Tooltip("Draw: true のとき引いたカードをプレイヤーに公開してから次の効果へ進む。")]
+    public bool revealDrawnToPlayer;
+
+    [Tooltip("Activate 等: true のとき isBlocker の味方ユニットのみ候補。")]
+    public bool filterTargetIsBlocker;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
@@ -915,6 +947,11 @@ public static class EffectDataExtensions
         }
 
         if (effect.filterByTargetCardType && unit.Data.type != effect.targetCardType)
+        {
+            return false;
+        }
+
+        if (effect.filterTargetIsBlocker && !unit.Data.IsBlockerUnit())
         {
             return false;
         }

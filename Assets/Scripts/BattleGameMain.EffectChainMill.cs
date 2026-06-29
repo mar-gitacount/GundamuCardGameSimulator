@@ -22,6 +22,7 @@ public partial class BattleGameMain
         if (_effectChainObservationDepth++ == 0)
         {
             _effectChainObservation = new EffectChainObservation();
+            ClearEffectChainLastPickedTargets();
         }
     }
 

@@ -136,7 +136,7 @@ public partial class BattleGameMain
 
             bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.CurrentPower);
             bool canDirectAttack = !gundamRule.HasShieldZoneProtection(Gundam2024RuleScript.PlayerSide.Player);
-            bool canShieldOrDirectAttack = !unit.Data.isNotDirectAttack && (canAttackShield || canDirectAttack);
+            bool canShieldOrDirectAttack = !unit.CannotDirectAttackPlayerOrShield() && (canAttackShield || canDirectAttack);
             if (GetEnemyAiRestTargets(PlayerType.Enemy).Count > 0)
             {
                 return true;
