@@ -209,4 +209,49 @@ public partial class BattleGameMain
 
         rule.ClearDeployedBaseCard();
     }
+
+    private void ApplyRemoteDeployedBaseHpUpdate(Gundam2024RuleScript.PlayerSide defenderSide, int defenderDeployedBaseHpAfter)
+    {
+        if (defenderDeployedBaseHpAfter < 0)
+        {
+            return;
+        }
+
+        CardGameRule rule = GetCardRuleForRuleSide(defenderSide);
+        if (rule == null)
+        {
+            return;
+        }
+
+        PlayerType ownerType = defenderSide == Gundam2024RuleScript.PlayerSide.Player
+            ? PlayerType.Player
+            : PlayerType.Enemy;
+        CardController baseCard = rule.DeployedBase;
+
+        if (defenderDeployedBaseHpAfter <= 0)
+        {
+            if (baseCard != null)
+            {
+                SendDeployedBaseToTrash(baseCard, ownerType, rule);
+                SyncResourceViewsFromRule(defenderSide);
+            }
+
+            SyncBaseZoneHeaderDisplay(defenderSide);
+            return;
+        }
+
+        if (baseCard == null)
+        {
+            Debug.LogWarning(
+                $"[OnlineBattle] Remote base HP sync ignored — no deployed base on side:{defenderSide} "
+                + $"(hpAfter:{defenderDeployedBaseHpAfter}).");
+            return;
+        }
+
+        baseCard.SetCurrentHpForSync(defenderDeployedBaseHpAfter);
+        RefreshDeployedBaseHpOverlay(baseCard);
+        SyncBaseZoneHeaderDisplay(defenderSide);
+        Debug.Log(
+            $"[OnlineBattle] Remote deployed base HP applied. side:{defenderSide} hp:{defenderDeployedBaseHpAfter}");
+    }
 }

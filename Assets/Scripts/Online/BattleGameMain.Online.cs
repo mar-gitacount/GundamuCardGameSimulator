@@ -859,13 +859,21 @@ public partial class BattleGameMain
             return;
         }
 
+        int defenderDeployedBaseHpAfter = ConsumePendingDefenderDeployedBaseHpForOnlineSync();
+        if (defenderDeployedBaseHpAfter < 0)
+        {
+            Gundam2024RuleScript.PlayerSide defenderSide = Gundam2024RuleScript.PlayerSide.Enemy;
+            defenderDeployedBaseHpAfter = ResolveOnlineSyncDeployedBaseHp(defenderSide);
+        }
+
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttack(
             OnlineBattleActionPayload.CreateShieldAttack(
                 attacker.BattleInstanceId,
                 defenderShieldAfter,
                 defenderExBaseAfter,
                 directAttackWin,
-                ConsumeOnlineBrokenShieldCardIdsForAttackNotify())));
+                ConsumeOnlineBrokenShieldCardIdsForAttackNotify(),
+                defenderDeployedBaseHpAfter: defenderDeployedBaseHpAfter)));
     }
 
     private void NotifyLocalUnitAttackResolved(
@@ -938,6 +946,10 @@ public partial class BattleGameMain
             return;
         }
 
+        ApplyRemoteDeployedBaseHpUpdate(
+            Gundam2024RuleScript.PlayerSide.Player,
+            action.defenderDeployedBaseHpAfter);
+
         Gundam2024RuleScript.PlayerState defender = gundamRule.Player;
         int oldShield = defender.shield;
         defender.shield = Mathf.Max(0, action.defenderShieldAfter);
@@ -957,7 +969,8 @@ public partial class BattleGameMain
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Player, force: true);
         Debug.Log(
-            $"[OnlineBattle] Remote shield attack applied. shield={defender.shield} exBase={defender.exBase}");
+            $"[OnlineBattle] Remote shield attack applied. shield={defender.shield} exBase={defender.exBase} "
+            + $"baseHp:{action.defenderDeployedBaseHpAfter}");
     }
 
     private IEnumerator ApplyRemoteShieldBreakByCardIdsCoroutine(
