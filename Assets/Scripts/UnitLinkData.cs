@@ -43,7 +43,7 @@ public static class UnitLinkExtensions
 {
     public static bool HasLinkRequirements(CardData unitData)
     {
-        if (unitData == null || unitData.type != Type.Unit || unitData.link == null)
+        if (unitData == null || !unitData.IsUnitLike() || unitData.link == null)
         {
             return false;
         }
@@ -184,7 +184,7 @@ public static class UnitLinkExtensions
         resolveUnitEffects = true;
         resolvePilotEffects = true;
         unitRunsBeforePilot = true;
-        if (hostUnitData == null || hostUnitData.type != Type.Unit)
+        if (hostUnitData == null || !hostUnitData.IsUnitLike())
         {
             return;
         }

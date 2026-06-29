@@ -17,6 +17,7 @@ public class CardData : ScriptableObject
     public CardSourceType sourceType;
     public FilterType filterType;
     public CardColor color;
+    [Tooltip("カード種類（ユニット / パイロット / コマンド / ベース / EXリソース / ユニットトークン）。")]
     public Type type;
     /// <summary>ユニット（Type.Unit）向け。アセット上の既定値。実行時は CardController で上書き。</summary>
     [Tooltip("ユニットのみ。配備ターンは False（isDeployTurnAttack 時は True）。Link 条件搭乗で同日 True。次の自分ターン開始で True。")]
@@ -27,10 +28,10 @@ public class CardData : ScriptableObject
     [Tooltip("カード特性（複数可）。マスタは Game/Card Feature または Resources/Data/Features。")]
     public List<CardFeatureData> features = new List<CardFeatureData>();
 
-    [Tooltip("ユニットのみ。Link＝条件パイロット定義。任意搭乗可。条件一致で出したターンから攻撃可。次ターン以降は通常どおり。")]
+    [Tooltip("ユニット／ユニットトークン向け。Link＝条件パイロット定義。任意搭乗可。条件一致で出したターンから攻撃可。次ターン以降は通常どおり。")]
     public List<UnitLinkPilotSlot> link = new List<UnitLinkPilotSlot>();
 
-    [Tooltip("ユニットのみ。搭乗時 OnPilotMounted / OnLink をユニット/パイロット/両方のどれで解決するか。")]
+    [Tooltip("ユニット／ユニットトークン向け。搭乗時 OnPilotMounted / OnLink をユニット/パイロット/両方のどれで解決するか。")]
     public PilotMountOnPilotMountedSource pilotMountOnPilotMountedSource = PilotMountOnPilotMountedSource.Both;
 
     [Tooltip("Both 時の解決順（UnitFirst / PilotFirst）。")]
@@ -39,7 +40,7 @@ public class CardData : ScriptableObject
     [Tooltip("敵の攻撃をブロックし、身代わりのユニット戦にできる（ACTIVE 時のみ選択可）。")]
     public bool isBlocker;
 
-    [Tooltip("ユニットのみ。true のとき配備したターンから攻撃可能（AttackFlg=True）。false は次の自分ターン開始まで攻撃不可。")]
+    [Tooltip("ユニット／ユニットトークン向け。true のとき配備したターンから攻撃可能（AttackFlg=True）。false は次の自分ターン開始まで攻撃不可。")]
     public bool isDeployTurnAttack;
     
     public bool isNotDirectAttack;
@@ -62,6 +63,7 @@ public class CardJson
     public int version;
     public int sourceType;
     public int color; // カードの色を追加
+    public int type;
     public int[] featureIds;
     public bool isBlocker;
     public bool isDeployTurnAttack;

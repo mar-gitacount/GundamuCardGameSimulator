@@ -641,7 +641,7 @@ public class CardGameRule
             return false;
         }
 
-        if (cc.Data.type == Type.Unit || cc.Data.type == Type.Pilot || cc.Data.type == Type.Base)
+        if (cc.Data.IsUnitLike() || cc.Data.type == Type.Pilot || cc.Data.type == Type.Base)
         {
             Debug.LogWarning(
                 $"[ShieldDeploy] ユニット/パイロット/ベースはシールドゾーンへ配備できません: {cc.Data.cardName}(type:{cc.Data.type})");

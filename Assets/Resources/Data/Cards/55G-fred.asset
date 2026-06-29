@@ -31,8 +31,6 @@ MonoBehaviour:
     activationConditions: []
     requireChainObservationContext: 0
     effectsName: 
-    activationCost: 0
-    oncePerTurn: 0
     effects:
     - type: 12
       value: 0
@@ -61,6 +59,8 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 1
+    activationCost: 0
+    oncePerTurn: 0
   - timing: 12
     activationConditions:
     - boardSide: 4
@@ -82,8 +82,6 @@ MonoBehaviour:
       observedCardType: 1
     requireChainObservationContext: 0
     effectsName: 
-    activationCost: 1
-    oncePerTurn: 1
     effects:
     - type: 21
       value: 1
@@ -156,11 +154,13 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 1
+    activationCost: 1
+    oncePerTurn: 1
   features: []
   link:
   - pilotCardId: 0
     pilotFeatures:
-    - {fileID: 11400000, guid: b187fb0005a20dc4a954cf3bb87a9232, type: 2}
+    - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0

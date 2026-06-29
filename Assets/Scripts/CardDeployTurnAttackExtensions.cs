@@ -6,6 +6,6 @@ public static class CardDeployTurnAttackExtensions
     /// <summary>ユニットとして配備ターン攻撃を持つか。</summary>
     public static bool CanAttackOnDeployTurn(this CardData card)
     {
-        return card != null && card.type == Type.Unit && card.isDeployTurnAttack;
+        return card != null && card.IsUnitLike() && card.isDeployTurnAttack;
     }
 }

@@ -611,6 +611,46 @@
                     "valueCountExcludeSource": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "DeployUnitToken1_OnPlayed",
+            "displayName": "配備時：ユニットトークンを1体バトルゾーンへ",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 0,
+                    "filterByDeployCardId": 0,
+                    "filterDeployCandidateByFeature": 0,
+                    "deployUnitTriggerOnPlayed": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployUnitToken1_OnAttack",
+            "displayName": "攻撃時：ユニットトークンを1体バトルゾーンへ",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 0,
+                    "filterByDeployCardId": 0,
+                    "filterDeployCandidateByFeature": 0,
+                    "deployUnitTriggerOnPlayed": 0
+                }
+            ]
         }
     ]
 }

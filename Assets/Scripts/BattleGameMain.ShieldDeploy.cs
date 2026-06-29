@@ -56,7 +56,7 @@ public partial class BattleGameMain
         }
 
         // ユニット・パイロット・ベースはバトル用。誤ってシールドに載せない。
-        if (card.Data.type == Type.Unit
+        if (card.Data.IsUnitLike()
             || card.Data.type == Type.Pilot
             || card.Data.type == Type.Base)
         {

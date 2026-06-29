@@ -189,6 +189,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.DeployUnit)
+        {
+            ApplyDeployUnitEffect(sourceCard, ownerType, effect, onChainContinue);
+            return;
+        }
+
         ApplyEffect(sourceCard, ownerType, effect);
         onChainContinue?.Invoke();
     }

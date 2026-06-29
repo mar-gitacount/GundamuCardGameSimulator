@@ -8,7 +8,7 @@ public static class CardBlockerExtensions
     /// <summary>ユニットとしてブロッカー能力を持つか（<see cref="CardData.isBlocker"/>）。</summary>
     public static bool IsBlockerUnit(this CardData card)
     {
-        return card != null && card.type == Type.Unit && card.isBlocker;
+        return card != null && card.IsUnitLike() && card.isBlocker;
     }
 
     /// <summary>

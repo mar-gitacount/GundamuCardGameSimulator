@@ -148,7 +148,7 @@ public partial class BattleGameMain
         for (int i = 0; i < enemyBattleZoneCards.Count; i++)
         {
             CardController unit = enemyBattleZoneCards[i];
-            if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
             {
                 continue;
             }
@@ -389,7 +389,7 @@ public partial class BattleGameMain
         for (int i = 0; i < hand.Count; i++)
         {
             CardController cc = hand[i];
-            if (cc == null || cc.Data == null || cc.Data.type != Type.Unit)
+            if (cc == null || cc.Data == null || !cc.Data.IsUnitLike())
             {
                 continue;
             }
@@ -622,7 +622,7 @@ public partial class BattleGameMain
         CardController unit,
         IReadOnlyList<CardFeatureData> requiredFeatures)
     {
-        if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
             return false;
         }
@@ -673,7 +673,7 @@ public partial class BattleGameMain
             }
 
             CardController unit = snap.Controller;
-            if (unit == exclude || unit.Data == null || unit.Data.type != Type.Unit || snap.Hp <= 0)
+            if (unit == exclude || unit.Data == null || !unit.Data.IsUnitLike() || snap.Hp <= 0)
             {
                 continue;
             }
@@ -710,7 +710,7 @@ public partial class BattleGameMain
             }
 
             CardController unit = snap.Controller;
-            if (unit.Data == null || unit.Data.type != Type.Unit || snap.Hp <= 0)
+            if (unit.Data == null || !unit.Data.IsUnitLike() || snap.Hp <= 0)
             {
                 continue;
             }
