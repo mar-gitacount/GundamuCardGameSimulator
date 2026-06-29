@@ -47,6 +47,12 @@
             "featureKey": "Clan",
             "displayName": "クラン",
             "description": ""
+        },
+        {
+            "id": 8,
+            "featureKey": "Triple_Ship_Alliance",
+            "displayName": "三隻同盟",
+            "description": ""
         }
         
     ]

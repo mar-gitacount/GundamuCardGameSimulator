@@ -75,7 +75,14 @@ public enum EffectType
     /// バトルゾーンへユニットを配備する。deployUnitSource で出所（Token/Hand/Trash）を指定。
     /// value=配備体数（0 以下は 1 体扱い）。target で配備先プレイヤー（SelfPlayer / EnemyPlayer）。
     /// </summary>
-    DeployUnit
+    DeployUnit,
+    /// <summary>
+    /// 味方ユニットに AttackFlg=True を付与する（手動選択可）。
+    /// target / targetFeature(s) / filterByTargetCardType で候補を絞り込み。
+    /// grantAttackFlagOnlyIfOff=true のとき AttackFlg=False のユニットのみ UI 表示・対象。
+    /// value=付与体数上限（0 以下は 1）。
+    /// </summary>
+    GrantAttackFlag
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -117,7 +124,10 @@ public static class EffectTypeExtensions
     /// <summary>対象ユニットの手動選択 UI が必要なタイプ。</summary>
     public static bool RequiresManualUnitSelection(this EffectType type)
     {
-        return type == EffectType.Bounce || type == EffectType.Rest || type == EffectType.Destroy;
+        return type == EffectType.Bounce
+            || type == EffectType.Rest
+            || type == EffectType.Destroy
+            || type == EffectType.GrantAttackFlag;
     }
 }
 
@@ -502,10 +512,10 @@ public class EffectData
     [Tooltip("旧フィールド。targetUnitFilterStat が Unset のとき Level 条件として読み替え。")]
     public bool filterTargetUnitLevel;
 
-    [Tooltip("ExileFromTrash: true のとき targetCardType に一致するカードのみ対象。")]
+    [Tooltip("ExileFromTrash / バトルゾーン対象選択: true のとき targetCardType に一致するカードのみ対象。")]
     public bool filterByTargetCardType;
 
-    [Tooltip("ExileFromTrash + filterByTargetCardType: 対象とするカード種類（例: Pilot）。")]
+    [Tooltip("filterByTargetCardType: 対象とするカード種類（例: Pilot / UnitToken）。")]
     public Type targetCardType = Type.Pilot;
 
     [Tooltip("DeployUnit: 配備するユニットの出所（Token=トークン生成 / Hand / Trash）。")]
@@ -522,6 +532,9 @@ public class EffectData
 
     [Tooltip("DeployUnit: 配備したユニットの OnPlayed を発動するか（トークンは通常 false）。")]
     public bool deployUnitTriggerOnPlayed;
+
+    [Tooltip("GrantAttackFlag: true のとき AttackFlg=False のユニットのみ候補・UI 表示（既に ON のユニットは選べない）。")]
+    public bool grantAttackFlagOnlyIfOff = true;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
@@ -880,6 +893,40 @@ public static class EffectDataExtensions
         }
 
         return resolvedMagnitude > 0 ? resolvedMagnitude : 1;
+    }
+
+    /// <summary>GrantAttackFlag の付与体数（value≤0 は 1）。</summary>
+    public static int GetGrantAttackFlagCount(this EffectData effect, int resolvedMagnitude)
+    {
+        if (effect == null || effect.type != EffectType.GrantAttackFlag)
+        {
+            return 0;
+        }
+
+        return resolvedMagnitude > 0 ? resolvedMagnitude : 1;
+    }
+
+    /// <summary>バトルゾーンの手動選択候補がカード種類・AttackFlg 条件を満たすか。</summary>
+    public static bool MatchesSelectableBattleZoneTarget(this EffectData effect, CardController unit)
+    {
+        if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (effect.filterByTargetCardType && unit.Data.type != effect.targetCardType)
+        {
+            return false;
+        }
+
+        if (effect.type == EffectType.GrantAttackFlag
+            && effect.grantAttackFlagOnlyIfOff
+            && unit.AttackFlgState != AttackFlg.False)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>Hand/Trash 配備候補が deployCardId / Feature フィルタを満たすか。</summary>

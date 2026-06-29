@@ -9,6 +9,8 @@ using UnityEngine.UI;
 public partial class BattleGameMain
 {
     private CardController _pendingOnAttackPreCombatResolvedAttacker;
+    /// <summary>同一攻撃宣言内で OnAttack 非戦闘効果（GrantAttackFlag 等）を解決済みか。</summary>
+    private CardController _onAttackPreCombatCompletedAttacker;
 
     private PlayerType ResolveDeployRecipientPlayerType(PlayerType sourceOwner, EffectData effect)
     {
@@ -776,6 +778,12 @@ public partial class BattleGameMain
             return true;
         }
 
+        // GrantAttackFlag は TryOpenOnAttackAllyGrantAttackFlagSelection で攻撃前に解決。
+        if (effect.type == EffectType.GrantAttackFlag)
+        {
+            return false;
+        }
+
         return !effect.target.IsOpponentUnitTarget() && !effect.type.UsesTargetCountValue();
     }
 
@@ -840,7 +848,7 @@ public partial class BattleGameMain
                 continue;
             }
 
-            EffectActivationContext ctx = BuildActivationContext(attackerOwner, src.Source);
+            EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
             for (int i = 0; i < src.Source.Data.timedEffects.Count; i++)
             {
                 TimedEffectData timed = src.Source.Data.timedEffects[i];
@@ -883,11 +891,16 @@ public partial class BattleGameMain
             return false;
         }
 
+        Debug.Log(
+            $"[OnAttackPreCombat] Start blocks:{blocks.Count} attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id}) "
+            + $"pilot:{attacker.MountedPilot?.Data?.cardName ?? "none"}");
+
         _pendingOnAttackPreCombatResolvedAttacker = attacker;
         BeginEffectChainObservationScope();
         RunOnAttackPreCombatTimedBlocks(attacker, attackerOwner, blocks, 0, () =>
         {
             EndEffectChainObservationScope();
+            _onAttackPreCombatCompletedAttacker = attacker;
             onResolved?.Invoke();
         });
         return true;
@@ -914,7 +927,7 @@ public partial class BattleGameMain
             return;
         }
 
-        EffectActivationContext ctx = BuildActivationContext(attackerOwner, source);
+        EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
         if (!CanRunTimedBlockAtChainTime(block, ctx, "OnAttack"))
         {
             RunOnAttackPreCombatTimedBlocks(attacker, attackerOwner, blocks, blockIndex + 1, onComplete);
@@ -974,7 +987,9 @@ public partial class BattleGameMain
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(
+            ownerType,
+            _pendingOnAttackPreCombatResolvedAttacker ?? sourceCard);
         if (!ShouldApplyChainedEffect(effect, activationContext, "OnAttackPreCombat"))
         {
             TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
@@ -991,6 +1006,18 @@ public partial class BattleGameMain
             return;
         }
 
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            CardController attackHost = _pendingOnAttackPreCombatResolvedAttacker ?? sourceCard;
+            TryExecuteManualUnitSelectionEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                attackHost,
+                () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         ApplyEffectRespectingLookAsync(
             sourceCard,
             ownerType,
@@ -1001,6 +1028,76 @@ public partial class BattleGameMain
     private void ClearOnAttackPreCombatResolvedState()
     {
         _pendingOnAttackPreCombatResolvedAttacker = null;
+    }
+
+    private void ClearOnAttackPreCombatCompletedForNewAttack()
+    {
+        _onAttackPreCombatCompletedAttacker = null;
+    }
+
+    /// <summary>
+    /// キラデバフと同様、TryUnitVsUnitAttack の前に OnAttack 効果 UI を解決する。
+    /// 1) GrantAttackFlag 等の非戦闘効果 → 2) 敵ユニット向け OnAttack 効果。
+    /// </summary>
+    /// <returns>非同期 UI 表示中なら true（onResolved は UI 完了後に呼ばれる）。</returns>
+    private bool TryOpenOnAttackEffectSelectionBeforeCombat(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController attackedTarget,
+        Action onResolved)
+    {
+        if (attacker == null)
+        {
+            onResolved?.Invoke();
+            return false;
+        }
+
+        void AfterAllyGrantAttackFlag()
+        {
+            _onAttackPreCombatCompletedAttacker = attacker;
+            if (TryOpenOnAttackEnemySelectionPanel(attacker, attackerOwner, attackedTarget, onResolved))
+            {
+                return;
+            }
+
+            onResolved?.Invoke();
+        }
+
+        if (_onAttackPreCombatCompletedAttacker == attacker)
+        {
+            AfterAllyGrantAttackFlag();
+            return isOnActionPopupOpen;
+        }
+
+        if (TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, AfterAllyGrantAttackFlag))
+        {
+            return true;
+        }
+
+        AfterAllyGrantAttackFlag();
+        return isOnActionPopupOpen;
+    }
+
+    /// <summary>攻撃対象確定後：OnAttack 効果 UI → ユニット戦へ。</summary>
+    private void BeginUnitAttackAfterTargetDeclared(
+        CardController attacker,
+        CardController defender,
+        PlayerType attackerOwner,
+        PlayerType defenderOwner)
+    {
+        void ProceedUnitAttack()
+        {
+            pendingOnAttackEffectResolvedAttacker = attacker;
+            _onAttackPreCombatCompletedAttacker = attacker;
+            TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner);
+        }
+
+        if (TryOpenOnAttackEffectSelectionBeforeCombat(attacker, attackerOwner, defender, ProceedUnitAttack))
+        {
+            return;
+        }
+
+        ProceedUnitAttack();
     }
 
     private void ResumeUnitVsUnitAttackAfterOnAttackPreCombat(

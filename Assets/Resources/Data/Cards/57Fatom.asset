@@ -27,7 +27,8 @@ MonoBehaviour:
   type: 5
   attackFlg: 0
   timedEffects: []
-  features: []
+  features:
+  - {fileID: 11400000, guid: 8f2a1b3c4d5e6f708192a3b4c5d6e7f8, type: 2}
   link:
   - pilotCardId: 0
     pilotFeatures: []
