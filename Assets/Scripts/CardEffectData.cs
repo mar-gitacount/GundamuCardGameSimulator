@@ -303,7 +303,15 @@ public enum EffectActivationCheckKind
     /// 指定トラッシュ（boardSide 未指定時はオーナーのトラッシュ）に、
     /// observedCardType と一致するカードが minimumCount 枚以上ある。
     /// </summary>
-    TrashHasCardType
+    TrashHasCardType,
+    /// <summary>
+    /// 指定トラッシュに trashCardId（未設定時は pilotCardId）のカードが minimumCount 枚以上ある。
+    /// </summary>
+    TrashHasCardId,
+    /// <summary>
+    /// 指定トラッシュに trashCardId のカードが minimumCount 枚未満（0 枚＝未存在）。
+    /// </summary>
+    TrashLacksCardId
 }
 
 public enum EffectTurnCheckKind
@@ -394,6 +402,9 @@ public class EffectActivationCondition
 
     [Tooltip("MountedPilot のみ: パイロットカード ID（0 なら ID 条件なし）。")]
     public int pilotCardId;
+
+    [Tooltip("TrashHasCardId / TrashLacksCardId: トラッシュ内で探すカード ID（0 なら pilotCardId を参照）。")]
+    public int trashCardId;
 
     [Tooltip("MountedPilot のみ: 搭乗パイロットの実効レベルと compareOp で比較。compareValue=0 かつ pilotCardId/feature も無い場合はレベル判定なし。")]
     public int pilotLevelThreshold;
