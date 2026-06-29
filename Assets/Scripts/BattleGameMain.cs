@@ -3013,6 +3013,7 @@ public partial class BattleGameMain : MonoBehaviour
             yield return new WaitUntil(() => !waitingForClose);
         }
 
+        ApplyTurnEndRepairForAllInPlayUnits();
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);

@@ -22,6 +22,7 @@ public class OnlineBattleEffectSyncPayload
     public OnlineBattleUnitEffectChange[] unitChanges;
 
     public const string ChangeKindDamage = "Damage";
+    public const string ChangeKindRepair = "Repair";
     public const string ChangeKindStat = "Stat";
     public const string ChangeKindRest = "Rest";
     public const string ChangeKindActivate = "Activate";

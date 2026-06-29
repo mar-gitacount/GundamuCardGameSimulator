@@ -47,6 +47,12 @@ public class CardData : ScriptableObject
 
     [Tooltip("シールドトークン。手札からシールドゾーンへ配備できる。")]
     public bool isShieldToken;
+
+    [Tooltip("true のとき、ターン終了（双方 OnAction 完了後）に repairAmount だけ HP を回復する。")]
+    public bool isRepair;
+
+    [Tooltip("isRepair 時のターン終了回復量（Inspector で設定）。")]
+    public int repairAmount;
 }
 
 
@@ -69,6 +75,8 @@ public class CardJson
     public bool isDeployTurnAttack;
     public bool isNotDirectAttack;
     public bool isShieldToken;
+    public bool isRepair;
+    public int repairAmount;
 }
 
 [Serializable]

@@ -183,6 +183,69 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         CurrentHp = Mathf.Max(0, hp);
     }
 
+    /// <summary>効果等で付与されるターン終了リペア量（isRepair 定義に加算）。</summary>
+    private int _turnEndRepairBonus;
+
+    public void AddTurnEndRepairBonus(int amount)
+    {
+        if (amount > 0)
+        {
+            _turnEndRepairBonus += amount;
+        }
+    }
+
+    public void ClearTurnEndRepairBonus()
+    {
+        _turnEndRepairBonus = 0;
+    }
+
+    /// <summary>ターン終了時に回復する合計量（カード定義 isRepair + 付与分）。</summary>
+    public int GetTurnEndRepairAmount()
+    {
+        int fromDefinition = Data != null && Data.isRepair ? Mathf.Max(0, Data.repairAmount) : 0;
+        return fromDefinition + _turnEndRepairBonus;
+    }
+
+    public bool ShouldRepairAtTurnEnd()
+    {
+        return GetTurnEndRepairAmount() > 0;
+    }
+
+    public int GetRepairHpCap()
+    {
+        if (Data == null)
+        {
+            return CurrentHp;
+        }
+
+        int cap = Data.hp;
+        if (MountedPilot?.Data != null)
+        {
+            cap += MountedPilot.Data.hp;
+        }
+
+        return Mathf.Max(cap, CurrentHp);
+    }
+
+    /// <summary>HP を回復し、実際に回復した量を返す（上限は <see cref="GetRepairHpCap"/>）。</summary>
+    public int TryApplyRepair(int amount)
+    {
+        if (amount <= 0 || Data == null || CurrentHp <= 0)
+        {
+            return 0;
+        }
+
+        int cap = GetRepairHpCap();
+        if (CurrentHp >= cap)
+        {
+            return 0;
+        }
+
+        int before = CurrentHp;
+        CurrentHp = Mathf.Min(cap, CurrentHp + amount);
+        return CurrentHp - before;
+    }
+
     /// <summary>Data に基づきランタイム HP を初期化（ユニット以外は hp を参照しない想定）。</summary>
     public void ResetRuntimeStatsFromData()
     {
@@ -202,6 +265,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         MountedPilot = null;
         MountedUnit = null;
         _notDirectAttackUntilEndOfTurnDepth = 0;
+        _turnEndRepairBonus = 0;
     }
 
     /// <summary>戦闘ダメージ。ユニット以外では呼ばない想定。</summary>

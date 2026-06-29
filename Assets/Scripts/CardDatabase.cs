@@ -97,6 +97,8 @@ public class CardDatabase : MonoBehaviour
         isDeployTurnAttack = card.isDeployTurnAttack,
         isNotDirectAttack = card.isNotDirectAttack,
         isShieldToken = card.isShieldToken,
+        isRepair = card.isRepair,
+        repairAmount = card.repairAmount,
     };
 }
 CardData ConvertToCardData(CardJson json)
@@ -132,6 +134,8 @@ CardData ConvertToCardData(CardJson json)
     card.isDeployTurnAttack = json.isDeployTurnAttack;
     card.isNotDirectAttack = json.isNotDirectAttack;
     card.isShieldToken = json.isShieldToken;
+    card.isRepair = json.isRepair;
+    card.repairAmount = json.repairAmount;
     card.SetFeaturesFromIds(json.featureIds);
 
     return card;

@@ -231,6 +231,21 @@ public partial class BattleGameMain
         });
     }
 
+    private void QueueOnlineUnitRepair(CardController target)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindRepair,
+            hpAfter = target.CurrentHp
+        });
+    }
+
     private void QueueOnlineUnitStat(
         CardController target,
         int signedValue,
@@ -745,6 +760,7 @@ public partial class BattleGameMain
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = PlayerType.Enemy;
 
+        ApplyTurnEndRepairForAllInPlayUnits();
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
@@ -1088,6 +1104,10 @@ public partial class BattleGameMain
                         ApplyRemoteUnitToTrash(unit);
                     }
 
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindRepair:
+                    unit.SetCurrentHpForSync(change.hpAfter);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindStat:
