@@ -342,6 +342,14 @@ public partial class BattleGameMain
                     continue;
                 }
 
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
                 pendingEffects.Add(effect);
             }
         }

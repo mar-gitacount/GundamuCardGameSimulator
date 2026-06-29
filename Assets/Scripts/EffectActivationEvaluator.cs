@@ -168,6 +168,16 @@ public static class EffectActivationEvaluator
             return EvaluateTrashHasCardType(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.TrashHasCardId)
+        {
+            return EvaluateTrashHasCardId(c, ctx, expectPresent: true);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.TrashLacksCardId)
+        {
+            return EvaluateTrashHasCardId(c, ctx, expectPresent: false);
+        }
+
         // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
         if (c.boardSide == EffectBoardSide.Unset)
         {
@@ -278,6 +288,57 @@ public static class EffectActivationEvaluator
         }
 
         return matched >= need;
+    }
+
+    private static int ResolveTrashConditionCardId(EffectActivationCondition c)
+    {
+        if (c == null)
+        {
+            return 0;
+        }
+
+        if (c.trashCardId > 0)
+        {
+            return c.trashCardId;
+        }
+
+        return c.pilotCardId;
+    }
+
+    private static bool EvaluateTrashHasCardId(
+        EffectActivationCondition c,
+        EffectActivationContext ctx,
+        bool expectPresent)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        int cardId = ResolveTrashConditionCardId(c);
+        if (cardId <= 0)
+        {
+            return false;
+        }
+
+        IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+        if (trashIds == null || trashIds.Count == 0)
+        {
+            return !expectPresent;
+        }
+
+        int matched = 0;
+        for (int i = 0; i < trashIds.Count; i++)
+        {
+            if (trashIds[i] == cardId)
+            {
+                matched++;
+            }
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        bool hasEnough = matched >= need;
+        return expectPresent ? hasEnough : matched < need;
     }
 
     private static IReadOnlyList<int> ResolveTrashZone(EffectActivationContext ctx, EffectBoardSide side)
