@@ -35,6 +35,8 @@ public class PlayerPrefsSaveData : ISaveData
             isDeployTurnAttack = card.isDeployTurnAttack,
             isNotDirectAttack = card.isNotDirectAttack,
             isShieldToken = card.isShieldToken,
+            isRepair = card.isRepair,
+            repairAmount = card.repairAmount,
         };
     }
     public CardData ConvertToCardData(CardJson json)
@@ -59,6 +61,8 @@ public class PlayerPrefsSaveData : ISaveData
         card.isDeployTurnAttack = json.isDeployTurnAttack;
         card.isNotDirectAttack = json.isNotDirectAttack;
         card.isShieldToken = json.isShieldToken;
+        card.isRepair = json.isRepair;
+        card.repairAmount = json.repairAmount;
         card.type = (Type)json.type;
         card.SetFeaturesFromIds(json.featureIds);
         return card;

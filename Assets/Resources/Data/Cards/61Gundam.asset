@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 61Gundam
+  m_EditorClassIdentifier: 
+  id: 61
+  cardName: Gundam
+  cost: 3
+  level: 4
+  power: 3
+  hp: 4
+  imageName: {fileID: 21300000, guid: 4a8b969af98243a46814089331f54372, type: 3}
+  image: {fileID: 0}
+  version: 1
+  sourceType: 1
+  filterType: 0
+  color: 2
+  type: 0
+  attackFlg: 0
+  timedEffects: []
+  features:
+  - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  link:
+  - pilotCardId: 0
+    pilotFeatures:
+    - {fileID: 0}
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 1
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 1
+  repairAmount: 2
