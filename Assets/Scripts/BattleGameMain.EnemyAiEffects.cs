@@ -106,6 +106,9 @@ public partial class BattleGameMain
             case EffectType.Rest:
                 pick = PickHighestThreatOrFirst(candidates);
                 break;
+            case EffectType.GrantAttackFlag:
+                pick = candidates[0];
+                break;
             case EffectType.Destroy:
                 pick = PickHighestThreatOrFirst(candidates);
                 break;
@@ -294,6 +297,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.AddShieldToHand                 || eff.type == EffectType.DeployShieldFromHand
                 || eff.type == EffectType.DeployBase
                 || eff.type == EffectType.DeployUnit
+                || eff.type == EffectType.GrantAttackFlag
                 || eff.type == EffectType.Suppress)
             {
                 continue;

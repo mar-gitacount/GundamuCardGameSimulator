@@ -32,7 +32,13 @@ public static class CardFeatureExtensions
 
         for (int i = 0; i < features.Count; i++)
         {
-            if (card.HasFeature(features[i]))
+            CardFeatureData required = features[i];
+            if (required == null)
+            {
+                continue;
+            }
+
+            if (card.HasFeature(required) || card.HasFeatureId(required.id))
             {
                 return true;
             }
