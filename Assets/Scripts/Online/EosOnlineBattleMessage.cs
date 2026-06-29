@@ -149,6 +149,27 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public const string HandDiscardReveal = "HandDiscardReveal";
+    public const string HandDiscardRevealComplete = "HandDiscardRevealComplete";
+
+    public static string CreateHandDiscardReveal(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = HandDiscardReveal,
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateHandDiscardRevealComplete(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = HandDiscardRevealComplete,
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static string CreateZoneSync(string payload)
     {
         return JsonUtility.ToJson(new EosOnlineBattleMessage

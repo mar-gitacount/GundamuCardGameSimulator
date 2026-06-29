@@ -216,6 +216,7 @@ public partial class BattleGameMain
         gundamRule.AddShieldCount(ruleSide, 1);
         TriggerShieldDeployedEffects(card, ownerType);
         SyncResourceViewsFromRule(ruleSide);
+        NotifyLocalDeployShieldSynced(card, ownerType);
         Debug.Log(
             $"[DeployShieldFromHand] {card.Data.cardName}(id:{card.Data.id}) side:{ownerType} → shield zone");
         return true;
@@ -740,5 +741,6 @@ public partial class BattleGameMain
 
         TriggerShieldDeployedEffects(shieldCard, ownerType);
         SyncResourceViewsFromRule(ruleSide);
+        NotifyLocalDeployShieldSynced(shieldCard, ownerType);
     }
 }

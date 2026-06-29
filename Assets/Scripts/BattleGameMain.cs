@@ -1246,7 +1246,7 @@ public partial class BattleGameMain : MonoBehaviour
                     ownerType == PlayerType.Player
                         ? Gundam2024RuleScript.PlayerSide.Enemy
                         : Gundam2024RuleScript.PlayerSide.Player);
-                bool allowShieldOrDirectAttack = !cardController.Data.isNotDirectAttack
+                bool allowShieldOrDirectAttack = !cardController.CannotDirectAttackPlayerOrShield()
                     && (showShieldAttack || showDirectAttack);
 
                 if (allowShieldOrDirectAttack)
@@ -1531,19 +1531,19 @@ public partial class BattleGameMain : MonoBehaviour
     //! 以下の関数もCardGameRuleに移す予定。
     void CardAddtoHand(CardGameRule targetRule, PlayerType targetType)
     {
+        CardAddtoHandAndReturn(targetRule, targetType);
+    }
+
+    private CardController CardAddtoHandAndReturn(CardGameRule targetRule, PlayerType targetType)
+    {
         int cardId = targetRule.Draw();
         if (cardId < 0)
         {
             Debug.LogWarning("山札切れでドローできませんでした。");
-            return;
+            return null;
         }
-        //?テスト 以下のコードで、列挙型を変更することで、敵味方関係なくカードIDからカードデータを取得できるようにする。
-        // CurrentPlayerCardGameRule.StartTurn(); // これで、プレイヤーとエネミーのターン開始処理を共通化できるはず。
-      
-        CardData drawCardData = DeckSettinObject.Instance.GetCardDataById(cardId);
 
-        // 以下分岐してエネミーの手札にカードを追加する処理も書く。→後で
-        // GameObject cardImage = Instantiate(CardImagePrefab, playerHandTransform);
+        CardData drawCardData = DeckSettinObject.Instance.GetCardDataById(cardId);
         GameObject cardImage = Instantiate(CardImagePrefab, targetRule.HandScrollContent);
         CardController drawnCard = cardImage.GetComponent<CardController>();
         drawnCard.SetUp(drawCardData, OnCardClicked);
@@ -1557,6 +1557,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TriggerOnHandAutoEffects(drawnCard, targetType, skipHandZoneCheck: true);
+        return drawnCard;
     }
     public bool DecideTurnOrder()
     {
@@ -1912,7 +1913,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.CurrentPower);
             bool canDirectAttack = !gundamRule.HasShieldZoneProtection(Gundam2024RuleScript.PlayerSide.Player);
-            bool canShieldOrDirectAttack = !unit.Data.isNotDirectAttack && (canAttackShield || canDirectAttack);
+            bool canShieldOrDirectAttack = !unit.CannotDirectAttackPlayerOrShield() && (canAttackShield || canDirectAttack);
             List<CardController> restTargets = GetEnemyUnitAttackTargets(PlayerType.Enemy, unit);
             bool canAttackUnit = restTargets.Count > 0;
             if (!canShieldOrDirectAttack && !canAttackUnit)
@@ -1928,7 +1929,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (canShieldOrDirectAttack)
             {
-                Debug.Log($"[EnemyAI] canAttackShield:{canAttackShield} canDirectAttack:{canDirectAttack} isNotDirectAttack:{unit.Data.isNotDirectAttack}");
+                Debug.Log($"[EnemyAI] canAttackShield:{canAttackShield} canDirectAttack:{canDirectAttack} isNotDirectAttack:{unit.CannotDirectAttackPlayerOrShield()}");
                 LogEnemyAiPreShieldAttackSimulation(unit, eligibleEnemyHand);
                 LogEnemyAiShieldAttackRedirectScenariosPick(unit, restTargets, eligibleEnemyHand);
             }
@@ -3016,6 +3017,7 @@ public partial class BattleGameMain : MonoBehaviour
         // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
+        ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
         NotifyLocalPlayerEndedTurn();
 
@@ -4810,6 +4812,12 @@ public partial class BattleGameMain : MonoBehaviour
         {
             title.text = "REST — 対象ユニットを選択";
         }
+        else if (effect != null && effect.type == EffectType.Activate)
+        {
+            title.text = effect.filterTargetIsBlocker
+                ? "ACTIVE化 — ブロッカーを選択（RESTのみ）"
+                : "ACTIVE化 — 対象ユニットを選択（RESTのみ）";
+        }
         else if (effect != null && effect.type == EffectType.Destroy)
         {
             title.text = "破壊 — 対象ユニットを選択";
@@ -4990,6 +4998,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (TryApplyNotDirectAttackMarker(effect, targets))
+        {
+            SetEffectChainLastPickedTargets(targets);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
@@ -5101,6 +5118,15 @@ public partial class BattleGameMain : MonoBehaviour
         {
             ApplyGrantAttackFlagEffect(effect, ownerType, targets);
         }
+        else if (effect.type == EffectType.Activate)
+        {
+            ApplyActivateEffect(effect, ownerType, targets);
+        }
+
+        if (targets != null && targets.Count > 0)
+        {
+            SetEffectChainLastPickedTargets(targets);
+        }
 
         FlushOnlineEffectSyncBatch();
         SyncAllResourceViewsFromRule();
@@ -5152,7 +5178,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (attacker.Data.isNotDirectAttack)
+        if (attacker.CannotDirectAttackPlayerOrShield())
         {
             Debug.Log("This unit cannot attack shield or the player directly (isNotDirectAttack).");
             return;
@@ -8126,9 +8152,28 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (TryExecutePriorChainPickedTargetEffect(
+            sourceCard,
+            ownerType,
+            effect,
+            () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone)))
+        {
+            return;
+        }
+
         if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
         {
             ApplyDeployUnitEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            TryExecuteManualHandSelectionEffect(
                 sourceCard,
                 ownerType,
                 effect,
@@ -8432,6 +8477,20 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped auto-apply for manual hand selection (type:{effect.type} cardId:{sourceCard?.Data?.id}).");
+            return;
+        }
+
+        if (ShouldRevealDrawnCards(effect, ownerType))
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped sync apply for reveal draw (cardId:{sourceCard?.Data?.id}). Use effect chain async path.");
+            return;
+        }
+
         if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
         {
             Debug.LogWarning(
@@ -8567,6 +8626,9 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case EffectType.Rest:
                 ApplyRestEffect(effect, targets);
+                break;
+            case EffectType.Activate:
+                ApplyActivateEffect(effect, ownerType, targets);
                 break;
             case EffectType.Destroy:
                 ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
@@ -8716,6 +8778,11 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect.type == EffectType.Rest)
         {
             FilterOutAlreadyRestedUnits(result);
+        }
+
+        if (effect.type == EffectType.Activate)
+        {
+            FilterOutNonRestedUnits(result);
         }
 
         return result;
@@ -11729,6 +11796,33 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (TryExecutePriorChainPickedTargetEffect(
+            source,
+            side,
+            effect,
+            () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone)))
+        {
+            return;
+        }
+
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            List<CardController> handCandidates = CollectSelectableHandCards(ResolveHandDiscardOwner(side, effect));
+            if (handCandidates.Count == 0)
+            {
+                Debug.Log("OnMain: 捨てる手札がありません (DiscardFromHand)。");
+                TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
+                return;
+            }
+
+            TryExecuteManualHandSelectionEffect(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect);
@@ -11820,6 +11914,11 @@ public partial class BattleGameMain : MonoBehaviour
             FilterOutAlreadyRestedUnits(result);
         }
 
+        if (effect.type == EffectType.Activate)
+        {
+            FilterOutNonRestedUnits(result);
+        }
+
         return result;
     }
 
@@ -11843,6 +11942,14 @@ public partial class BattleGameMain : MonoBehaviour
             return isAttackContext
                 ? $"REST — 対象ユニットを選択（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
                 : "REST — 対象ユニットを選択";
+        }
+
+        if (effect.type == EffectType.Activate)
+        {
+            string blockerHint = effect.filterTargetIsBlocker ? "（ブロッカー・RESTのみ）" : "（RESTのみ）";
+            return isAttackContext
+                ? $"ACTIVE化 — 対象ユニットを選択{blockerHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
+                : $"ACTIVE化 — 対象ユニットを選択{blockerHint}";
         }
 
         if (effect.type == EffectType.GrantAttackFlag)
@@ -11984,7 +12091,7 @@ public partial class BattleGameMain : MonoBehaviour
             ? $"OnMain {effect.type} / {effect.target} / 値:{effect.value}"
             : "OnMain";
         OpenCommandWithTargetsSelectionUI(
-            "OnMain — 対象を選択",
+            FormatManualUnitSelectionTitle(effect, null),
             effectSummary,
             source,
             candidates,

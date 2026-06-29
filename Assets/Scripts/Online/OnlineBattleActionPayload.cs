@@ -28,6 +28,10 @@ public class OnlineBattleActionPayload
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+    /// <summary>DeployBase 同期：配備ベースの現在 HP。</summary>
+    public int baseHpAfter;
+    /// <summary>DeployBase / DeployShield 同期：シールドゾーンのカード ID 列（先頭＝外側）。</summary>
+    public int[] shieldZoneCardIds;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
@@ -43,6 +47,28 @@ public class OnlineBattleActionPayload
     public const string AttackKindShield = "Shield";
     public const string AttackKindUnitVsUnit = "UnitVsUnit";
 
+    public const string HandDiscardReveal = "HandDiscardReveal";
+    public const string HandDiscardRevealComplete = "HandDiscardRevealComplete";
+
+    public static string CreateHandDiscardReveal(int cardId, int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = HandDiscardReveal,
+            cardId = cardId,
+            requestId = requestId
+        });
+    }
+
+    public static string CreateHandDiscardRevealComplete(int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = HandDiscardRevealComplete,
+            requestId = requestId
+        });
+    }
+
     public static string CreateDeployUnit(int cardId, int instanceId)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
@@ -50,6 +76,38 @@ public class OnlineBattleActionPayload
             action = DeployUnit,
             cardId = cardId,
             instanceId = instanceId
+        });
+    }
+
+    public static string CreateDeployBase(
+        int cardId,
+        int baseHpAfter,
+        int exBaseAfter,
+        int shieldCountAfter,
+        int[] shieldZoneCardIds)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = DeployBase,
+            cardId = cardId,
+            baseHpAfter = baseHpAfter,
+            defenderExBaseAfter = exBaseAfter,
+            defenderShieldAfter = shieldCountAfter,
+            shieldZoneCardIds = shieldZoneCardIds ?? Array.Empty<int>()
+        });
+    }
+
+    public static string CreateDeployShield(
+        int cardId,
+        int shieldCountAfter,
+        int[] shieldZoneCardIds)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = DeployShield,
+            cardId = cardId,
+            defenderShieldAfter = shieldCountAfter,
+            shieldZoneCardIds = shieldZoneCardIds ?? Array.Empty<int>()
         });
     }
 
@@ -197,8 +255,15 @@ public class OnlineBattleActionPayload
                 case OnActionEnd:
                 case ShieldBreakComplete:
                     return payload.requestId > 0;
+                case HandDiscardRevealComplete:
+                    return payload.requestId > 0;
+                case HandDiscardReveal:
+                    return payload.cardId > 0 && payload.requestId > 0;
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;
+                case DeployBase:
+                case DeployShield:
+                    return payload.cardId > 0;
                 case MountPilot:
                     return payload.cardId > 0 && payload.instanceId > 0;
                 default:

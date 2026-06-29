@@ -102,6 +102,7 @@ public partial class BattleGameMain
         ResetOnlineOnActionState();
         ResetOnlineMulliganSyncState();
         ResetOnlineShieldBreakSyncState();
+        ResetOnlineHandDiscardRevealState();
         ResetOnlineZoneSyncState();
     }
 
@@ -262,6 +263,20 @@ public partial class BattleGameMain
         {
             targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindRest
+        });
+    }
+
+    private void QueueOnlineUnitActivate(CardController target)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindActivate
         });
     }
 
@@ -471,6 +486,12 @@ public partial class BattleGameMain
                 break;
             case "ZoneSync":
                 HandleRemoteZoneSync(message.payload);
+                break;
+            case "HandDiscardReveal":
+                HandleRemoteHandDiscardReveal(message.payload);
+                break;
+            case "HandDiscardRevealComplete":
+                HandleRemoteHandDiscardRevealComplete(message.payload);
                 break;
         }
     }
@@ -755,6 +776,18 @@ public partial class BattleGameMain
         if (action.action == OnlineBattleActionPayload.DeployUnit)
         {
             ApplyRemoteDeployUnit(action.cardId, action.instanceId);
+            return;
+        }
+
+        if (action.action == OnlineBattleActionPayload.DeployBase)
+        {
+            ApplyRemoteDeployBase(action);
+            return;
+        }
+
+        if (action.action == OnlineBattleActionPayload.DeployShield)
+        {
+            ApplyRemoteDeployShield(action);
         }
     }
 
@@ -1067,6 +1100,10 @@ public partial class BattleGameMain
 
                 case OnlineBattleEffectSyncPayload.ChangeKindRest:
                     TryApplyRestToUnit(unit);
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindActivate:
+                    TryApplyActivateToUnit(unit);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindDestroy:
