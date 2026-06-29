@@ -43,6 +43,7 @@ public partial class BattleGameMain
         Destroy(cardController.gameObject);
         ReconcileShieldStateWithZone(ruleSide);
         RefreshAllHandsConditionalOnHandAuto();
+        ownerRule?.RefreshHandCountDisplay();
 
         if (vanish)
         {

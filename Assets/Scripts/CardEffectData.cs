@@ -183,7 +183,9 @@ public enum EffectSelectionMode
     SelectSingleEnemyUnit,
     SelectMultipleEnemyUnits,
     /// <summary>直前の手動選択で選んだユニットに効果を適用（チェーン2段目以降用）。</summary>
-    UsePriorChainPickedTarget = 4
+    UsePriorChainPickedTarget = 4,
+    /// <summary>対象候補から複数体を選択する（味方/敵どちらにも使用）。</summary>
+    SelectMultipleUnits = 5
 }
 
 /// <summary><see cref="EffectSelectionMode"/> の選択 UI ヘルパー。</summary>
@@ -201,7 +203,15 @@ public static class EffectSelectionModeExtensions
     {
         return mode == EffectSelectionMode.SelectSingle
             || mode == EffectSelectionMode.SelectSingleEnemyUnit
-            || mode == EffectSelectionMode.SelectMultipleEnemyUnits;
+            || mode == EffectSelectionMode.SelectMultipleEnemyUnits
+            || mode == EffectSelectionMode.SelectMultipleUnits;
+    }
+
+    /// <summary>複数体を選んで OK で確定するモード。</summary>
+    public static bool IsMultipleUnitPickMode(this EffectSelectionMode mode)
+    {
+        return mode == EffectSelectionMode.SelectMultipleEnemyUnits
+            || mode == EffectSelectionMode.SelectMultipleUnits;
     }
 
     /// <summary>攻撃対象ユニットにだけ効果を当てるモード。</summary>
@@ -316,7 +326,16 @@ public enum EffectActivationCheckKind
     /// 指定ゾーン（OwnerBattleZone 等）の生存ユニット体数を unitCountThreshold と unitCountCompareOp で比較。
     /// 例: 0 体 → Equal + threshold 0、2 体以上 → GreaterOrEqual + threshold 2。
     /// </summary>
-    CompareFieldUnitCount
+    CompareFieldUnitCount,
+    /// <summary>
+    /// 攻撃ユニット（OnAttack 時は搭乗ホスト優先）がダメージを受けている（現在 HP &lt; 最大 HP）。
+    /// </summary>
+    SourceUnitDamaged,
+    /// <summary>
+    /// 同一チェーン内の直前効果で、少なくとも1体（またはプレイヤー領域）に実ダメージが入った。
+    /// 相手へのダメージをフックにした条件付き自傷などに使用。
+    /// </summary>
+    PriorChainDealtDamage
 }
 
 public enum EffectTurnCheckKind

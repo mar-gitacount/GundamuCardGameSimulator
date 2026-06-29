@@ -48,6 +48,7 @@ public class CardGameRule
     private GameObject deckObjectPanel;
     private GameObject trashAreaPanel;
     private TextMeshProUGUI deckCountText;
+    private TextMeshProUGUI handCountText;
     private TextMeshProUGUI discardZoneLabelText;
     private TextMeshProUGUI discardZoneCountText;
     private Button discardZoneToggleButton;
@@ -132,11 +133,25 @@ public class CardGameRule
         GameObject DeckAndTrashPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeckAndTrashPanel", UIAnchor.TopRight, 65, 300); // シールドパネルを生成
         CreateDeckAndTrashArea(DeckAndTrashPanel);
 
-        // プレイヤー > ハンド
-        HandPanel = fieldPanel.CreateChildPanelCustom("PlayerHandPanel", UIAnchor.BottomStretch, 0, 100); // プレイヤーのハンドパネルを生成
-        // プレイヤー > ハンド　> スクロール
-        ScrollPanel = HandPanel.CreateGridScrollView(600,400);
+        // プレイヤー > ハンド（上段: 枚数表示、下段: スクロール）
+        const int handHeaderHeight = 26;
+        const int handScrollHeight = 100;
+        HandPanel = fieldPanel.CreateChildPanelCustom(
+            "PlayerHandPanel",
+            UIAnchor.BottomStretch,
+            0,
+            handHeaderHeight + handScrollHeight);
+        BuildHandCountArea(handHeaderHeight);
+        ScrollPanel = HandPanel.CreateGridScrollView(600, handScrollHeight, UIAnchor.FullStretch);
+        RectTransform scrollRect = ScrollPanel.GetComponent<RectTransform>();
+        if (scrollRect != null)
+        {
+            scrollRect.offsetMin = new Vector2(0f, 0f);
+            scrollRect.offsetMax = new Vector2(0f, -handHeaderHeight);
+        }
+
         ScrollPanel.ConfigureGridCellFromViewportHeight(0.75f, 64f);
+        RefreshHandCountDisplay();
 
     }
     public void CreateField(GameObject targetPanel )
@@ -1226,6 +1241,64 @@ public class CardGameRule
         discardZoneCountButton.targetGraphic = discardZoneCountText;
         ApplyTextButtonColors(discardZoneCountButton);
         UpdateDeckAndDiscardZoneTexts();
+    }
+
+    private void BuildHandCountArea(int headerHeight)
+    {
+        if (HandPanel == null)
+        {
+            return;
+        }
+
+        GameObject handHeader = HandPanel.CreateChildPanelTop("HandCountHeader", headerHeight, UIAnchor.TopStretch);
+        Image headerBg = handHeader.GetComponent<Image>();
+        if (headerBg != null)
+        {
+            headerBg.color = new Color32(245, 245, 250, 230);
+            headerBg.raycastTarget = false;
+        }
+
+        handCountText = handHeader.CreateChildTextCustom("HandCountText", UIAnchor.TopLeft, 200, headerHeight);
+        handCountText.GetComponent<RectTransform>().SetFullSize();
+        handCountText.text = "手札: 0";
+        handCountText.color = Color.black;
+        handCountText.fontSize = 18;
+        handCountText.fontStyle = FontStyles.Bold;
+        handCountText.alignment = TextAlignmentOptions.MidlineLeft;
+        handCountText.margin = new Vector4(12f, 0f, 0f, 0f);
+        handCountText.raycastTarget = false;
+        handCountText.transform.SetAsLastSibling();
+    }
+
+    /// <summary>手札ゾーン内のカード枚数表示を、実際の手札 UI 枚数に合わせて更新する。</summary>
+    public void RefreshHandCountDisplay()
+    {
+        if (handCountText == null)
+        {
+            return;
+        }
+
+        handCountText.text = $"手札: {CountHandZoneCards()}";
+        handCountText.color = Color.black;
+    }
+
+    private int CountHandZoneCards()
+    {
+        if (HandScrollContent == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = 0; i < HandScrollContent.childCount; i++)
+        {
+            if (HandScrollContent.GetChild(i).GetComponent<CardController>() != null)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static void ApplyTextButtonColors(Button button)

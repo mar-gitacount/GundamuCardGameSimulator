@@ -900,6 +900,7 @@ public partial class BattleGameMain
         RunOnAttackPreCombatTimedBlocks(attacker, attackerOwner, blocks, 0, () =>
         {
             EndEffectChainObservationScope();
+            MarkOnAttackPreCombatEffectsApplied(attacker);
             _onAttackPreCombatCompletedAttacker = attacker;
             onResolved?.Invoke();
         });
@@ -1035,9 +1036,92 @@ public partial class BattleGameMain
         _onAttackPreCombatCompletedAttacker = null;
     }
 
+    private int _onAttackPreCombatEffectsAppliedAttackerId = -1;
+
+    private void ResetOnAttackPreCombatEffectsAppliedGuard()
+    {
+        _onAttackPreCombatEffectsAppliedAttackerId = -1;
+    }
+
+    private void MarkOnAttackPreCombatEffectsApplied(CardController attacker)
+    {
+        if (attacker != null)
+        {
+            _onAttackPreCombatEffectsAppliedAttackerId = attacker.GetInstanceID();
+        }
+    }
+
+    private bool HasOnAttackPreCombatEffectsBeenApplied(CardController attacker)
+    {
+        return attacker != null
+            && _onAttackPreCombatEffectsAppliedAttackerId == attacker.GetInstanceID();
+    }
+
+    /// <summary>
+    /// Draw / DeployUnit 等の非戦闘 OnAttack 効果を同期的に適用（敵 AI や pre-combat チェーン未経由時のフォールバック）。
+    /// </summary>
+    private void ApplyOnAttackPreCombatEffectsImmediately(CardController attacker, PlayerType attackerOwner)
+    {
+        if (attacker == null || HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        {
+            return;
+        }
+
+        List<TimedEffectData> blocks = CollectOnAttackPreCombatBlocks(attacker, attackerOwner);
+        if (blocks.Count == 0)
+        {
+            return;
+        }
+
+        EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
+        BeginEffectChainObservationScope();
+        try
+        {
+            for (int bi = 0; bi < blocks.Count; bi++)
+            {
+                TimedEffectData block = blocks[bi];
+                CardController source = ResolveOnAttackBlockSource(attacker, attackerOwner, block);
+                if (source == null || !CanRunTimedBlockAtChainTime(block, ctx, "OnAttackPreCombatSync"))
+                {
+                    continue;
+                }
+
+                IReadOnlyList<EffectData> effects = block.GetResolvedEffects();
+                for (int ei = 0; ei < effects.Count; ei++)
+                {
+                    EffectData effect = effects[ei];
+                    if (effect == null || !IsOnAttackNonCombatEffect(effect))
+                    {
+                        continue;
+                    }
+
+                    if (!ShouldApplyChainedEffect(effect, ctx, "OnAttackPreCombatSync"))
+                    {
+                        continue;
+                    }
+
+                    if (EffectRequiresManualUnitSelection(effect))
+                    {
+                        continue;
+                    }
+
+                    ApplyEffect(source, attackerOwner, effect);
+                }
+            }
+        }
+        finally
+        {
+            EndEffectChainObservationScope();
+        }
+
+        MarkOnAttackPreCombatEffectsApplied(attacker);
+        Debug.Log(
+            $"[OnAttackPreCombat] Sync applied blocks:{blocks.Count} attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id})");
+    }
+
     /// <summary>
     /// キラデバフと同様、TryUnitVsUnitAttack の前に OnAttack 効果 UI を解決する。
-    /// 1) GrantAttackFlag 等の非戦闘効果 → 2) 敵ユニット向け OnAttack 効果。
+    /// 1) Draw 等の非戦闘 OnAttack → 2) GrantAttackFlag → 3) 敵ユニット向け OnAttack 効果。
     /// </summary>
     /// <returns>非同期 UI 表示中なら true（onResolved は UI 完了後に呼ばれる）。</returns>
     private bool TryOpenOnAttackEffectSelectionBeforeCombat(
@@ -1063,18 +1147,34 @@ public partial class BattleGameMain
             onResolved?.Invoke();
         }
 
+        void AfterPreCombatOnAttackChain()
+        {
+            if (TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, AfterAllyGrantAttackFlag))
+            {
+                return;
+            }
+
+            AfterAllyGrantAttackFlag();
+        }
+
         if (_onAttackPreCombatCompletedAttacker == attacker)
         {
             AfterAllyGrantAttackFlag();
             return isOnActionPopupOpen;
         }
 
-        if (TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, AfterAllyGrantAttackFlag))
+        if (HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        {
+            AfterPreCombatOnAttackChain();
+            return isOnActionPopupOpen;
+        }
+
+        if (TryBeginOnAttackPreCombatEffectChain(attacker, attackerOwner, AfterPreCombatOnAttackChain))
         {
             return true;
         }
 
-        AfterAllyGrantAttackFlag();
+        AfterPreCombatOnAttackChain();
         return isOnActionPopupOpen;
     }
 
