@@ -1,4 +1,6 @@
 // Assets/Scripts/CardSourceType.cs
+using UnityEngine;
+
 public enum CardSourceType
 {
     Unknown = 0,
@@ -37,11 +39,17 @@ public enum FilterType
 
 public enum Type
 {
+    [InspectorName("ユニット")]
     Unit,
+    [InspectorName("パイロット")]
     Pilot,
+    [InspectorName("コマンド")]
     Command,
+    [InspectorName("ベース")]
     Base,
+    [InspectorName("EXリソース")]
     ExResource,
+    [InspectorName("ユニットトークン")]
     UnitToken,
 }
 

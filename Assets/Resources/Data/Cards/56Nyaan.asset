@@ -20,7 +20,7 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 21300000, guid: 635ad84693f6f274b96e8d5df077d8a7, type: 3}
   image: {fileID: 0}
-  version: 4
+  version: 3
   sourceType: 1
   filterType: 0
   color: 0
@@ -31,8 +31,6 @@ MonoBehaviour:
     activationConditions: []
     requireChainObservationContext: 0
     effectsName: 
-    activationCost: 0
-    oncePerTurn: 0
     effects:
     - type: 19
       value: 1
@@ -61,6 +59,11 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
     - type: 0
       value: 1
       target: 2
@@ -106,8 +109,15 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+    activationCost: 0
+    oncePerTurn: 0
   features:
-  - {fileID: 11400000, guid: b187fb0005a20dc4a954cf3bb87a9232, type: 2}
+  - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   link:
   - pilotCardId: 0
     pilotFeatures: []

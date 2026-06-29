@@ -638,7 +638,7 @@ public partial class BattleGameMain
             return $"{index,3}. (null)";
         }
 
-        string stats = card.type == Type.Unit
+        string stats = card.IsUnitLike()
             ? $"AP{card.power}/HP{card.hp}"
             : card.type == Type.Pilot
                 ? "AP+ pilot"

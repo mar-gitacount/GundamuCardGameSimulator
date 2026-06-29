@@ -230,7 +230,7 @@ public partial class BattleGameMain
             return "カード";
         }
 
-        return FormatCardTypeLabel(effect.targetCardType);
+        return CardTypeExtensions.GetDisplayName(effect.targetCardType);
     }
 
     private void CommitTrashExileAtIndex(

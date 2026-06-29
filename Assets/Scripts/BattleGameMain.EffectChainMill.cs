@@ -393,7 +393,7 @@ public partial class BattleGameMain
 
         sb.AppendLine(data.cardName);
         sb.Append("ID: ").Append(data.id).Append("  ");
-        sb.Append(FormatCardTypeLabel(data.type)).AppendLine();
+        sb.Append(CardTypeExtensions.GetDisplayName(data.type)).AppendLine();
         sb.Append("Lv.").Append(data.level)
             .Append("  COST ").Append(data.cost);
         if (data.type != Type.Command)
@@ -405,27 +405,6 @@ public partial class BattleGameMain
         sb.AppendLine();
         sb.Append("Feature: ").Append(FormatCardFeatureListLabel(data));
         return sb.ToString();
-    }
-
-    private static string FormatCardTypeLabel(Type cardType)
-    {
-        switch (cardType)
-        {
-            case Type.Unit:
-                return "ユニット";
-            case Type.Pilot:
-                return "パイロット";
-            case Type.Command:
-                return "コマンド";
-            case Type.Base:
-                return "ベース";
-            case Type.ExResource:
-                return "EXリソース";
-            case Type.UnitToken:
-                return "ユニットトークン";
-            default:
-                return cardType.ToString();
-        }
     }
 
     private static string FormatCardFeatureListLabel(CardData data)

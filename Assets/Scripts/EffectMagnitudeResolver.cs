@@ -158,7 +158,7 @@ public static class EffectMagnitudeResolver
     {
         return c != null
             && c.Data != null
-            && c.Data.type == Type.Unit
+            && c.Data.IsUnitLike()
             && c.CurrentHp > 0;
     }
 }

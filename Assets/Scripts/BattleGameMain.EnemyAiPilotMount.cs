@@ -490,7 +490,7 @@ public partial class BattleGameMain
         for (int i = 0; i < enemyBattleZoneCards.Count; i++)
         {
             CardController unit = enemyBattleZoneCards[i];
-            if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
             {
                 continue;
             }

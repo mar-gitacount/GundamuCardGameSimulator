@@ -1206,7 +1206,7 @@ public partial class BattleGameMain : MonoBehaviour
             statRt.anchoredPosition = new Vector2(0f, -30f);
             battleStatText.transform.SetAsLastSibling();
 
-            if (cardController.Data.type == Type.Unit && cardController.MountedPilot != null)
+            if (cardController.Data.IsUnitLike() && cardController.MountedPilot != null)
             {
                 GameObject pilotCopy = FilterPanel.CreateChildImageFrom(cardController.MountedPilot.gameObject);
                 RectTransform pilotCopyRt = pilotCopy.GetComponent<RectTransform>();
@@ -1231,7 +1231,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             bool canShowUnitAttackMenu = currentPhase == BattlePhase.MainPhase
                 && ownerType == currentPlayerType
-                && cardController.Data.type == Type.Unit
+                && cardController.Data.IsUnitLike()
                 && cardController.AttackFlgState == AttackFlg.True;
 
             if (canShowUnitAttackMenu)
@@ -1898,7 +1898,7 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> snapshot = new List<CardController>(enemyBattleZoneCards);
         foreach (CardController unit in snapshot)
         {
-            if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
             {
                 continue;
             }
@@ -2089,7 +2089,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private static bool CanAttackerTargetEnemyUnitForCombat(CardController attacker, CardController target)
     {
-        if (target == null || target.Data == null || target.Data.type != Type.Unit)
+        if (target == null || target.Data == null || !target.Data.IsUnitLike())
         {
             return false;
         }
@@ -3132,7 +3132,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (attackFlowBlockRedirectUnit != null
             && cardController == attackFlowBlockRedirectUnit
             && cardController.Data != null
-            && cardController.Data.type == Type.Unit)
+            && cardController.Data.IsUnitLike())
         {
             LogArgamaShieldBlockCloseCombatDebug(
                 "SendCardToTrash_Blocker",
@@ -3142,9 +3142,13 @@ public partial class BattleGameMain : MonoBehaviour
             MarkBlockExchangeCancelled("Blocker entered trash during block flow.");
         }
 
-        if (cardController.Data.type == Type.Unit && cardController.MountedPilot != null)
+        if (cardController.Data.IsUnitLike() && cardController.MountedPilot != null)
         {
-            SendCardToTrash(cardController.MountedPilot, ownerType);
+            CardController pilot = cardController.DetachMountedPilotWithoutDestroy();
+            if (pilot != null)
+            {
+                SendCardToTrash(pilot, ownerType);
+            }
         }
 
         TriggerOnDestroyedEffects(cardController, ownerType, () =>
@@ -3165,10 +3169,10 @@ public partial class BattleGameMain : MonoBehaviour
         killerOwner = default;
         if (destroyedUnit == null
             || destroyedUnit.Data == null
-            || destroyedUnit.Data.type != Type.Unit
+            || !destroyedUnit.Data.IsUnitLike()
             || destroyedBy == null
             || destroyedBy.Data == null
-            || destroyedBy.Data.type != Type.Unit)
+            || !destroyedBy.Data.IsUnitLike())
         {
             return false;
         }
@@ -3190,7 +3194,7 @@ public partial class BattleGameMain : MonoBehaviour
             || destroyedUnit == null
             || effectSource.Data == null
             || destroyedUnit.Data == null
-            || effectSource.Data.type != Type.Unit)
+            || !effectSource.Data.IsUnitLike())
         {
             return null;
         }
@@ -3202,33 +3206,12 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void FinishSendCardToTrash(CardController cardController, PlayerType ownerType)
     {
-        if (cardController == null || cardController.Data == null)
-        {
-            return;
-        }
-
-        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
-        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
-        if (ownerRule != null)
-        {
-            if (ownerRule.DeployedBase == cardController)
-            {
-                ownerRule.ClearDeployedBaseCard();
-            }
-
-            ownerRule.TryUnregisterShieldZoneCard(cardController);
-        }
-
-        ownerRule.AddCardToTrash(cardController.Data.id);
-
-        playerBattleZoneCards.Remove(cardController);
-        enemyBattleZoneCards.Remove(cardController);
-        playerHandCards.Remove(cardController.Data);
-        enemyHandCards.Remove(cardController.Data);
-        unitsPendingSendToTrash.Remove(cardController);
-        Destroy(cardController.gameObject);
-        ReconcileShieldStateWithZone(ruleSide);
-        RefreshAllHandsConditionalOnHandAuto();
+        FinalizeRemoveCardFromPlay(
+            cardController,
+            ownerType,
+            sendToTrashZone: cardController != null
+                && cardController.Data != null
+                && !cardController.Data.LeavesPlayWithoutZone());
     }
 
     private void RegisterCardInHandLists(CardController card, PlayerType ownerType)
@@ -3254,9 +3237,14 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>バトルゾーンのユニット（搭乗パイロット含む）をオーナーの手札へ戻す。</summary>
     private bool TryReturnBattleUnitToHand(CardController unit)
     {
-        if (unit == null || unit.Data == null || unit.Data.type != Type.Unit || !IsCardOnBattleZone(unit))
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || !IsCardOnBattleZone(unit))
         {
             return false;
+        }
+
+        if (unit.Data.IsUnitToken())
+        {
+            return TryVanishBattleUnitTokenFromZone(unit);
         }
 
         PlayerType ownerType = ResolveCardOwner(unit.transform);
@@ -3383,7 +3371,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
             CardController target = targets[i];
-            if (target == null || target.Data == null || target.Data.type != Type.Unit || target.CurrentHp <= 0)
+            if (target == null || target.Data == null || !target.Data.IsUnitLike() || target.CurrentHp <= 0)
             {
                 continue;
             }
@@ -3409,7 +3397,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private static bool TryApplyRestToUnit(CardController unit)
     {
-        if (unit == null || unit.Data == null || unit.Data.type != Type.Unit || unit.CurrentHp <= 0)
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
         {
             return false;
         }
@@ -3444,7 +3432,7 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>ユニットをバトルゾーンへ配備した直後の AttackFlg / 見た目を設定する。</summary>
     private static void ApplyUnitDeployFieldAttackState(CardController cardController)
     {
-        if (cardController == null || cardController.Data == null || cardController.Data.type != Type.Unit)
+        if (cardController == null || cardController.Data == null || !cardController.Data.IsUnitLike())
         {
             return;
         }
@@ -3488,7 +3476,7 @@ public partial class BattleGameMain : MonoBehaviour
         cardController.SetEligibleForShieldZoneDeploy(false);
 
         // ユニット配備直後はアクティブ（起き状態）で配置する。
-        if (cardController.Data.type == Type.Unit)
+        if (cardController.Data.IsUnitLike())
         {
             cardController.ResetRuntimeStatsFromData();
             ApplyUnitDeployFieldAttackState(cardController);
@@ -3518,7 +3506,7 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> result = new List<CardController>();
         foreach (CardController c in source)
         {
-            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
                 continue;
             }
@@ -3636,7 +3624,7 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>搭乗直後：Link ユニットに条件パイロットが載ったときだけ、出したターンでも AttackFlg を True にする。</summary>
     private void ApplyUnitAttackFlgFromLink(CardController unit, PlayerType ownerType)
     {
-        if (unit == null || unit.Data == null || unit.Data.type != Type.Unit)
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
             return;
         }
@@ -3666,7 +3654,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < battleZone.Count; i++)
         {
             CardController c = battleZone[i];
-            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
                 continue;
             }
@@ -3989,7 +3977,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (c == null || c.Data == null || c.Data.type != Type.Unit)
+        if (c == null || c.Data == null || !c.Data.IsUnitLike())
         {
             return false;
         }
@@ -4264,7 +4252,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private bool IsUnitAliveOnAnyDeployField(CardController c)
     {
-        if (!IsCardControllerInstanceValid(c) || c.Data == null || c.Data.type != Type.Unit)
+        if (!IsCardControllerInstanceValid(c) || c.Data == null || !c.Data.IsUnitLike())
         {
             return false;
         }
@@ -4276,7 +4264,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private bool IsValidEnemyUnitAttackTarget(CardController attacker, CardController target, PlayerType attackerOwner)
     {
-        if (target == null || target.Data == null || target.Data.type != Type.Unit)
+        if (target == null || target.Data == null || !target.Data.IsUnitLike())
         {
             return false;
         }
@@ -4559,7 +4547,7 @@ public partial class BattleGameMain : MonoBehaviour
                     {
                         if (attackedTarget == null
                             || attackedTarget.Data == null
-                            || attackedTarget.Data.type != Type.Unit)
+                            || !attackedTarget.Data.IsUnitLike())
                         {
                             continue;
                         }
@@ -4810,7 +4798,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
-            if (c != null && c.Data != null && c.Data.type == Type.Unit && c.CurrentHp > 0)
+            if (c != null && c.Data != null && c.Data.IsUnitLike() && c.CurrentHp > 0)
             {
                 result.Add(c);
             }
@@ -4977,7 +4965,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
+        if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike())
         {
             return;
         }
@@ -5036,6 +5024,27 @@ public partial class BattleGameMain : MonoBehaviour
         // シールド攻撃でもユニット攻撃と同様、ブロック待ちより先に OnAttack（デバフ選択等）を解決する。
         if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
         {
+            if (TryBeginOnAttackPreCombatEffectChain(
+                attacker,
+                attackerOwner,
+                () =>
+                {
+                    if (TryOpenOnAttackEnemySelectionPanel(
+                        attacker,
+                        attackerOwner,
+                        null,
+                        () => TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true, skipAttackedSidePanelPause)))
+                    {
+                        return;
+                    }
+
+                    pendingOnAttackEffectResolvedAttacker = attacker;
+                    TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true, skipAttackedSidePanelPause);
+                }))
+            {
+                return;
+            }
+
             if (TryOpenOnAttackEnemySelectionPanel(
                 attacker,
                 attackerOwner,
@@ -5505,7 +5514,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void TriggerMountedPilotOnShieldAttackEffects(CardController attacker, PlayerType attackerOwner)
     {
-        if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
+        if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike())
         {
             return;
         }
@@ -5552,6 +5561,7 @@ public partial class BattleGameMain : MonoBehaviour
         attacker.SetAttackFlg(AttackFlg.False);
         SetUnitRestAndTriggerEffects(attacker, attackerOwner);
         SyncOnlineRestFromAttackAuthority(attacker);
+        ClearOnAttackPreCombatResolvedState();
         Debug.Log($"[AttackDeclare] {attacker.Data.cardName} attack declared — REST + attack right consumed.");
     }
 
@@ -5675,7 +5685,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (attacker.Data.type != Type.Unit || defender.Data.type != Type.Unit)
+        if (!attacker.Data.IsUnitLike() || !defender.Data.IsUnitLike())
         {
             Debug.Log("Only units can attack each other.");
             return;
@@ -5734,54 +5744,29 @@ public partial class BattleGameMain : MonoBehaviour
 
         // 敵 AI のスコア中止は TryEnemyShieldAttacks およびシールド→ブロック直前のみ（バトル開始後は判定しない。宣言前のみ有効）。
 
-        // 攻撃宣言後に、OnAttackの対象選択(デバフ等)を行う。
+        // 攻撃宣言後に、OnAttackの非戦闘効果（DeployUnit 等）→対象選択(デバフ等)を行う。
         if (pendingOnAttackEffectResolvedAttacker != attacker)
         {
-            // 効果適用するためのカードを選択するUI生成
-            if (TryOpenOnAttackEnemySelectionPanel(
+            if (TryBeginOnAttackPreCombatEffectChain(
                 attacker,
                 attackerOwner,
-                defender,
-                () =>
-                {
-                    if (attackFlowBlockSelectionResolved)
-                    {
-                        if (attackFlowPostBlockPassOnActionDone)
-                        {
-                            CardController resumeAttacker = attackFlowAttackerUnit != null
-                                ? attackFlowAttackerUnit
-                                : attacker;
-                            CardController resumeDefender = attackFlowDeclaredDefenderUnit != null
-                                ? attackFlowDeclaredDefenderUnit
-                                : defender;
-                            ExecuteUnitVsUnitDeclaredCombat(
-                                resumeAttacker,
-                                resumeDefender,
-                                attackFlowAttackerOwner,
-                                ResolveCardOwner(resumeDefender.transform));
-                        }
-                        else
-                        {
-                            RunOnActionStepsImmediatelyAfterBlockPass(
-                                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
-                                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
-                                attackFlowAttackerOwner,
-                                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null
-                                    ? attackFlowDeclaredDefenderUnit
-                                    : defender).transform),
-                                AttackFlowStrikeKind.UnitVsUnit);
-                        }
-
-                        return;
-                    }
-
-                    TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, skipAttackedSidePanelPause);
-                }))
+                () => ResumeUnitVsUnitAttackAfterOnAttackPreCombat(
+                    attacker,
+                    attackerOwner,
+                    defender,
+                    skipOnActionPause,
+                    skipAttackedSidePanelPause)))
             {
                 return;
             }
 
-            pendingOnAttackEffectResolvedAttacker = attacker;
+            ResumeUnitVsUnitAttackAfterOnAttackPreCombat(
+                attacker,
+                attackerOwner,
+                defender,
+                skipOnActionPause,
+                skipAttackedSidePanelPause);
+            return;
         }
 
         if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !attackerIgnoresBlock)
@@ -6131,7 +6116,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (attacker.Data.type != Type.Unit || blocker.Data.type != Type.Unit)
+        if (!attacker.Data.IsUnitLike() || !blocker.Data.IsUnitLike())
         {
             CancelInterruptedBlockRedirectAttackFlow("Invalid unit type for block combat.");
             return;
@@ -6383,7 +6368,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void TriggerMountedPilotOnAttackEffects(CardController attacker, PlayerType attackerOwner)
     {
-        if (attacker == null || attacker.Data == null || attacker.Data.type != Type.Unit)
+        if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike())
         {
             return;
         }
@@ -7969,6 +7954,16 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+        {
+            ApplyDeployUnitEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
@@ -8056,8 +8051,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped sync apply for DeployUnit zone selection (cardId:{sourceCard?.Data?.id}).");
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
-        if (magnitude == 0 && !effect.type.UsesTargetCountValue())
+        if (magnitude == 0 && !effect.type.UsesTargetCountValue() && effect.type != EffectType.DeployUnit)
         {
             return;
         }
@@ -8184,6 +8186,10 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case EffectType.Destroy:
                 ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
+                break;
+
+            case EffectType.DeployUnit:
+                ApplyDeployUnitEffect(sourceCard, ownerType, effect);
                 break;
         }
 
@@ -8335,7 +8341,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
-            if (c == null || c == exclude || c.Data == null || c.Data.type != Type.Unit || c.CurrentHp <= 0)
+            if (c == null || c == exclude || c.Data == null || !c.Data.IsUnitLike() || c.CurrentHp <= 0)
             {
                 continue;
             }
@@ -8358,7 +8364,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
-            if (c == null || c.Data == null || c.Data.type != Type.Unit || c.CurrentHp <= 0 || !c.IsRestState)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike() || c.CurrentHp <= 0 || !c.IsRestState)
             {
                 continue;
             }
@@ -8382,7 +8388,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < source.Count; i++)
         {
             CardController c = source[i];
-            if (c == null || c == exclude || c.Data == null || c.Data.type != Type.Unit || c.CurrentHp <= 0)
+            if (c == null || c == exclude || c.Data == null || !c.Data.IsUnitLike() || c.CurrentHp <= 0)
             {
                 continue;
             }
@@ -8511,7 +8517,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         CardController grantHost = ResolveAttackActiveEnemyGrantHost(sourceCard);
-        if (grantHost == null || grantHost.Data == null || grantHost.Data.type != Type.Unit)
+        if (grantHost == null || grantHost.Data == null || !grantHost.Data.IsUnitLike())
         {
             Debug.LogWarning(
                 $"[AttackActiveEnemyUnit] 付与先ユニットを解決できません source:{sourceCard?.Data?.cardName} owner:{ownerType}");
@@ -8545,7 +8551,7 @@ public partial class BattleGameMain : MonoBehaviour
             return null;
         }
 
-        if (sourceCard.Data.type == Type.Unit)
+        if (sourceCard.Data.IsUnitLike())
         {
             return sourceCard;
         }
@@ -8792,7 +8798,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < playerBattleZoneCards.Count; i++)
             {
                 CardController c = playerBattleZoneCards[i];
-                if (c == null || c.Data == null || c.Data.type != Type.Unit)
+                if (c == null || c.Data == null || !c.Data.IsUnitLike())
                 {
                     continue;
                 }
@@ -8818,7 +8824,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < enemyBattleZoneCards.Count; i++)
             {
                 CardController c = enemyBattleZoneCards[i];
-                if (c == null || c.Data == null || c.Data.type != Type.Unit)
+                if (c == null || c.Data == null || !c.Data.IsUnitLike())
                 {
                     continue;
                 }
@@ -8853,7 +8859,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < playerBattleZoneCards.Count; i++)
         {
             CardController c = playerBattleZoneCards[i];
-            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
                 continue;
             }
@@ -9314,7 +9320,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         CardController combatDefender = attackFlowBlockRedirectUnit != null ? attackFlowBlockRedirectUnit : attackFlowDeclaredDefenderUnit;
-        if (combatDefender == null || combatDefender.Data == null || combatDefender.Data.type != Type.Unit)
+        if (combatDefender == null || combatDefender.Data == null || !combatDefender.Data.IsUnitLike())
         {
             Debug.Log(
                 "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
@@ -9818,7 +9824,7 @@ public partial class BattleGameMain : MonoBehaviour
             || commandCard.Data == null
             || focusUnit == null
             || focusUnit.Data == null
-            || focusUnit.Data.type != Type.Unit)
+            || !focusUnit.Data.IsUnitLike())
         {
             return;
         }
@@ -10078,7 +10084,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (attackNow.Data.type != Type.Unit || blockNow.Data.type != Type.Unit)
+        if (!attackNow.Data.IsUnitLike() || !blockNow.Data.IsUnitLike())
         {
             return;
         }
@@ -10147,19 +10153,19 @@ public partial class BattleGameMain : MonoBehaviour
 
             any = true;
             sb.Append('#').Append(i).Append(':');
-            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.type == Type.Unit)
+            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.IsUnitLike())
             {
                 sb.Append("[ユニットナウ]");
             }
 
-            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.type == Type.Unit)
+            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.IsUnitLike())
             {
                 sb.Append("[ブロックナウ]");
             }
 
             int ap = c.CurrentPower;
             int hp = c.CurrentHp;
-            if (c.Data.type == Type.Unit && virtualSnaps != null)
+            if (c.Data.IsUnitLike() && virtualSnaps != null)
             {
                 VirtualBattleUnitSnap s = FindBattleVirtualSnap(virtualSnaps, c);
                 if (s != null && s.FieldOwner == fieldOwner)
@@ -10205,7 +10211,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             int ap = c.CurrentPower;
             int hp = c.CurrentHp;
-            if (c.Data.type == Type.Unit && virtualSnaps != null)
+            if (c.Data.IsUnitLike() && virtualSnaps != null)
             {
                 VirtualBattleUnitSnap s = FindBattleVirtualSnap(virtualSnaps, c);
                 if (s != null && s.FieldOwner == fieldOwner)
@@ -10308,7 +10314,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < onActionResolvedUnitTargetsAfterApplyOrNull.Count; i++)
             {
                 CardController t = onActionResolvedUnitTargetsAfterApplyOrNull[i];
-                if (t == null || t.Data == null || t.Data.type != Type.Unit)
+                if (t == null || t.Data == null || !t.Data.IsUnitLike())
                 {
                     continue;
                 }
@@ -10353,7 +10359,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < resolvedBeforeApply.Count; i++)
         {
             CardController c = resolvedBeforeApply[i];
-            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
                 continue;
             }
@@ -10414,7 +10420,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < zone.Count; i++)
         {
             CardController c = zone[i];
-            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
                 continue;
             }
@@ -10447,7 +10453,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < zone.Count; i++)
         {
             CardController c = zone[i];
-            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
                 continue;
             }
@@ -10488,7 +10494,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < targets.Count; i++)
         {
             CardController c = targets[i];
-            if (c == null || c.Data == null || c.Data.type != Type.Unit)
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
                 continue;
             }
@@ -10514,7 +10520,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < playerBattleZoneCards.Count; i++)
             {
                 CardController c = playerBattleZoneCards[i];
-                if (c != null && c.Data != null && c.Data.type == Type.Unit && c.Data.id == cardId)
+                if (c != null && c.Data != null && c.Data.IsUnitLike() && c.Data.id == cardId)
                 {
                     return c;
                 }
@@ -10526,7 +10532,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < enemyBattleZoneCards.Count; i++)
             {
                 CardController c = enemyBattleZoneCards[i];
-                if (c != null && c.Data != null && c.Data.type == Type.Unit && c.Data.id == cardId)
+                if (c != null && c.Data != null && c.Data.IsUnitLike() && c.Data.id == cardId)
                 {
                     return c;
                 }
@@ -10570,7 +10576,7 @@ public partial class BattleGameMain : MonoBehaviour
                 CardController aft = FindBattleZoneUnitByCardId(b.Id);
                 sb.Append("    ").Append(b.Name).Append("(id:").Append(b.Id).Append(") owner:").Append(b.Owner).Append(" slotBefore:#").Append(b.Slot)
                     .Append(" before:AP=").Append(b.Ap).Append(" HP=").Append(b.Hp).Append(" -> ");
-                if (aft == null || aft.Data == null || aft.Data.type != Type.Unit)
+                if (aft == null || aft.Data == null || !aft.Data.IsUnitLike())
                 {
                     sb.AppendLine("after:(not on field — trashed or invalid)");
                 }
@@ -10640,12 +10646,12 @@ public partial class BattleGameMain : MonoBehaviour
 
             any = true;
             sb.Append('#').Append(i).Append(':');
-            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.type == Type.Unit)
+            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.IsUnitLike())
             {
                 sb.Append("[ユニットナウ]");
             }
 
-            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.type == Type.Unit)
+            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.IsUnitLike())
             {
                 sb.Append("[ブロックナウ]");
             }
@@ -10709,7 +10715,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int fi = 0; fi < ownBattleZone.Count; fi++)
             {
                 CardController uc = ownBattleZone[fi];
-                if (uc == null || uc.Data == null || uc.Data.type != Type.Unit)
+                if (uc == null || uc.Data == null || !uc.Data.IsUnitLike())
                 {
                     continue;
                 }
@@ -11376,7 +11382,7 @@ public partial class BattleGameMain : MonoBehaviour
             case TargetType.Self:
                 if (sourceCard != null
                     && sourceCard.Data != null
-                    && sourceCard.Data.type == Type.Unit
+                    && sourceCard.Data.IsUnitLike()
                     && sourceCard.CurrentHp > 0
                     && IsCardOnBattleZone(sourceCard)
                     && MatchesRequiredFeatures(sourceCard.Data, requiredFeatures))
@@ -11455,7 +11461,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         return sourceCard != null
             && sourceCard.Data != null
-            && sourceCard.Data.type == Type.Unit
+            && sourceCard.Data.IsUnitLike()
             && sourceCard.CurrentHp > 0
             && MatchesRequiredFeatures(sourceCard.Data, requiredFeatures);
     }

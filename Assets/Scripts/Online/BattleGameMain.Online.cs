@@ -107,7 +107,7 @@ public partial class BattleGameMain
 
     private void AssignBattleInstanceIdIfNeeded(CardController controller)
     {
-        if (controller == null || controller.Data == null || controller.Data.type != Type.Unit)
+        if (controller == null || controller.Data == null || !controller.Data.IsUnitLike())
         {
             return;
         }
@@ -369,7 +369,7 @@ public partial class BattleGameMain
             return;
         }
 
-        if (cardController.Data.type != Type.Unit)
+        if (!cardController.Data.IsUnitLike())
         {
             return;
         }
@@ -781,7 +781,7 @@ public partial class BattleGameMain
             enemyBattleZoneCards.Add(controller);
         }
 
-        if (cardData.type == Type.Unit)
+        if (cardData.IsUnitLike())
         {
             controller.ResetRuntimeStatsFromData();
             ApplyUnitDeployFieldAttackState(controller);
@@ -984,12 +984,12 @@ public partial class BattleGameMain
 
         if (defender.CurrentHp <= 0)
         {
-            SendCardToTrash(defender, PlayerType.Player, attacker);
+            ApplyRemoteUnitRemovedFromField(defender);
         }
 
         if (attacker.CurrentHp <= 0)
         {
-            SendCardToTrash(attacker, PlayerType.Enemy);
+            ApplyRemoteUnitRemovedFromField(attacker);
         }
 
         SyncAllResourceViewsFromRule();
@@ -1085,21 +1085,10 @@ public partial class BattleGameMain
         Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
     }
 
-    /// <summary>リモート効果同期でのユニット破棄。OnDestroyed 連鎖を起こさず即トラッシュする。</summary>
+    /// <summary>リモート効果同期でのユニット破棄。トラッシュは ZoneSync で反映済みのため場から除去のみ。</summary>
     private void ApplyRemoteUnitToTrash(CardController unit)
     {
-        if (unit == null || unit.Data == null)
-        {
-            return;
-        }
-
-        PlayerType owner = ResolveCardOwner(unit.transform);
-        if (unit.Data.type == Type.Unit && unit.MountedPilot != null)
-        {
-            FinishSendCardToTrash(unit.MountedPilot, owner);
-        }
-
-        FinishSendCardToTrash(unit, owner);
+        ApplyRemoteUnitRemovedFromField(unit);
     }
 
     private void HandleRemoteMountPilot(string payload)

@@ -366,7 +366,7 @@ public static class EffectActivationEvaluator
 
         CardController host = ctx.MountHostUnit;
         if (host == null && ctx.SourceCard != null && ctx.SourceCard.Data != null
-            && ctx.SourceCard.Data.type == Type.Unit)
+            && ctx.SourceCard.Data.IsUnitLike())
         {
             host = ctx.SourceCard;
         }
@@ -577,7 +577,7 @@ public static class EffectActivationEvaluator
     {
         return c != null
             && c.Data != null
-            && c.Data.type == Type.Unit
+            && c.Data.IsUnitLike()
             && c.CurrentHp > 0;
     }
 
