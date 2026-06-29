@@ -14,6 +14,7 @@ public partial class BattleGameMain
 
     private EffectChainObservation _effectChainObservation;
     private int _effectChainObservationDepth;
+    private bool _effectChainDealtDamage;
 
     private bool HasEffectChainObservation => _effectChainObservation != null && _effectChainObservation.HasCards;
 
@@ -22,6 +23,7 @@ public partial class BattleGameMain
         if (_effectChainObservationDepth++ == 0)
         {
             _effectChainObservation = new EffectChainObservation();
+            _effectChainDealtDamage = false;
             ClearEffectChainLastPickedTargets();
         }
     }
@@ -101,6 +103,224 @@ public partial class BattleGameMain
         }
 
         return true;
+    }
+
+    private void MarkEffectChainDealtDamage()
+    {
+        _effectChainDealtDamage = true;
+    }
+
+    private bool GetEffectChainDealtDamage() => _effectChainDealtDamage;
+
+    private static bool IsFieldWideUnitDamageEffect(EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.Damage
+            && (effect.target == TargetType.AllyAllUnits || effect.target == TargetType.EnemyAllUnits);
+    }
+
+    private void TryApplyFieldWideDamageWithPreviewAsync(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        System.Action onContinue)
+    {
+        if (ownerType != PlayerType.Player)
+        {
+            ApplyEffectRespectingLookAsync(sourceCard, ownerType, effect, onContinue);
+            return;
+        }
+
+        List<CardController> previewTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+        int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+        StartCoroutine(ShowFieldDamagePreviewAndApplyCoroutine(
+            sourceCard,
+            ownerType,
+            effect,
+            previewTargets,
+            magnitude,
+            onContinue));
+    }
+
+    private IEnumerator ShowFieldDamagePreviewAndApplyCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        List<CardController> targets,
+        int magnitude,
+        System.Action onContinue)
+    {
+        string sideLabel = effect.target == TargetType.EnemyAllUnits ? "相手" : "自分";
+        GameObject root = BuildFieldDamagePreviewPanel(sideLabel, targets, magnitude, sourceCard);
+        if (root == null)
+        {
+            ApplyEffect(sourceCard, ownerType, effect);
+            onContinue?.Invoke();
+            yield break;
+        }
+
+        bool acknowledged = false;
+        Button okBtn = root.CreateChildButton("OK");
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(220f, 52f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = new Vector2(0f, 36f);
+        TextMeshProUGUI okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (okLabel != null)
+        {
+            okLabel.text = "OK";
+        }
+
+        okBtn.onClick.AddListener(() =>
+        {
+            acknowledged = true;
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+        });
+
+        yield return new WaitUntil(() => acknowledged);
+        ApplyEffect(sourceCard, ownerType, effect);
+        onContinue?.Invoke();
+    }
+
+    private GameObject BuildFieldDamagePreviewPanel(
+        string sideLabel,
+        List<CardController> targets,
+        int magnitude,
+        CardController sourceCard)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return null;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "FieldDamagePreview",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.62f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("FieldDamageTitle", UIAnchor.TopCenter, 760, 48);
+        title.text = targets != null && targets.Count > 0
+            ? $"{sideLabel}フィールドへ {magnitude} ダメージ"
+            : $"{sideLabel}フィールドにダメージ対象なし";
+        title.fontSize = 26;
+        title.fontStyle = FontStyles.Bold;
+        title.color = Color.white;
+        title.alignment = TextAlignmentOptions.Center;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
+
+        string sourceName = sourceCard?.Data?.cardName ?? "?";
+        TextMeshProUGUI subtitle = root.CreateChildTextCustom("FieldDamageSubtitle", UIAnchor.TopCenter, 760, 36);
+        subtitle.text = targets != null && targets.Count > 0
+            ? $"{sourceName} の効果 — 対象 {targets.Count} 体（各 {magnitude} ダメージ）"
+            : $"{sourceName} の効果 — ユニットがいないためダメージは入りません";
+        subtitle.fontSize = 18;
+        subtitle.color = new Color(0.88f, 0.92f, 1f, 1f);
+        subtitle.alignment = TextAlignmentOptions.Center;
+        subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
+
+        TextMeshProUGUI hint = root.CreateChildTextCustom("FieldDamageHint", UIAnchor.TopCenter, 760, 28);
+        hint.text = "対象カードを確認して OK でダメージを適用";
+        hint.fontSize = 15;
+        hint.color = new Color(0.75f, 0.8f, 0.85f, 1f);
+        hint.alignment = TextAlignmentOptions.Center;
+        hint.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -86f);
+
+        if (targets == null || targets.Count == 0 || CardImagePrefab == null)
+        {
+            return root;
+        }
+
+        GameObject scrollGo = root.CreateGridScrollView(760, 420, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -118f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.82f, 72f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+        if (content != null)
+        {
+            for (int i = 0; i < targets.Count; i++)
+            {
+                CardController unit = targets[i];
+                if (unit?.Data == null)
+                {
+                    continue;
+                }
+
+                int resolvedDamage = ResolveEffectDamageAmount(magnitude, unit);
+                AppendFieldDamagePreviewEntry(content, unit.Data, i + 1, unit.CurrentHp, resolvedDamage);
+            }
+        }
+
+        return root;
+    }
+
+    private void AppendFieldDamagePreviewEntry(
+        RectTransform content,
+        CardData data,
+        int orderIndex,
+        int currentHp,
+        int damageAmount)
+    {
+        GameObject cell = new GameObject(
+            $"FieldDamageCard_{orderIndex}",
+            typeof(RectTransform),
+            typeof(LayoutElement));
+        cell.transform.SetParent(content, false);
+        LayoutElement layout = cell.GetComponent<LayoutElement>();
+        layout.minHeight = 250f;
+        layout.preferredHeight = 250f;
+        layout.minWidth = 700f;
+        layout.preferredWidth = 700f;
+
+        RectTransform cellRt = cell.GetComponent<RectTransform>();
+        cellRt.sizeDelta = new Vector2(700f, 250f);
+
+        GameObject cardGo = Instantiate(CardImagePrefab, cell.transform);
+        RectTransform cardRt = cardGo.GetComponent<RectTransform>();
+        cardRt.anchorMin = new Vector2(0f, 0.5f);
+        cardRt.anchorMax = new Vector2(0f, 0.5f);
+        cardRt.pivot = new Vector2(0f, 0.5f);
+        cardRt.sizeDelta = new Vector2(MillToTrashCardPreviewWidth, MillToTrashCardPreviewHeight);
+        cardRt.anchoredPosition = new Vector2(8f, 0f);
+
+        CardController preview = cardGo.GetComponent<CardController>();
+        preview?.SetUp(data, _ => { });
+        Button cardBtn = cardGo.GetComponent<Button>();
+        if (cardBtn != null)
+        {
+            cardBtn.interactable = false;
+        }
+
+        AppendCardDataStatOverlay(cardGo, data);
+
+        TextMeshProUGUI detail = cell.CreateChildTextCustom("CardDetail", UIAnchor.TopLeft, 500, 220);
+        RectTransform detailRt = detail.GetComponent<RectTransform>();
+        detailRt.anchorMin = new Vector2(0f, 0.5f);
+        detailRt.anchorMax = new Vector2(0f, 0.5f);
+        detailRt.pivot = new Vector2(0f, 0.5f);
+        detailRt.anchoredPosition = new Vector2(MillToTrashCardPreviewWidth + 24f, 0f);
+        int hpAfter = Mathf.Max(0, currentHp - damageAmount);
+        detail.text = FormatMillToTrashCardDetailText(data, orderIndex)
+            + $"\n現在HP {currentHp} → {hpAfter}（-{damageAmount}）";
+        detail.fontSize = 16;
+        detail.color = Color.white;
+        detail.alignment = TextAlignmentOptions.TopLeft;
+        detail.enableWordWrapping = true;
     }
 
     private void ApplyMillTopToTrashEffect(

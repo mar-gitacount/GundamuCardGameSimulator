@@ -529,6 +529,7 @@ public partial class BattleGameMain
         }
 
         TriggerOnHandAutoEffects(drawnCard, targetType, skipHandZoneCheck: true);
+        targetRule.RefreshHandCountDisplay();
     }
 
     private static List<int> CollectUntakenLookedCardIdsStillInDeck(LookResolutionContext context)

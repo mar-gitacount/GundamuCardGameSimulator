@@ -34,6 +34,9 @@ public sealed class EffectActivationContext
 
     public bool HasFrozenOwnerBattleAliveUnitCount => FrozenOwnerBattleAliveUnitCount >= 0;
 
+    /// <summary>同一チェーン内で直前までに実ダメージが1以上入ったか。</summary>
+    public bool PriorChainDealtDamage { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -47,7 +50,8 @@ public sealed class EffectActivationContext
         IReadOnlyList<CardData> observedCards = null,
         IReadOnlyList<int> ownerTrashCardIds = null,
         IReadOnlyList<int> opponentTrashCardIds = null,
-        int frozenOwnerBattleAliveUnitCount = -1)
+        int frozenOwnerBattleAliveUnitCount = -1,
+        bool priorChainDealtDamage = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -62,6 +66,7 @@ public sealed class EffectActivationContext
         OwnerTrashCardIds = ownerTrashCardIds ?? System.Array.Empty<int>();
         OpponentTrashCardIds = opponentTrashCardIds ?? System.Array.Empty<int>();
         FrozenOwnerBattleAliveUnitCount = frozenOwnerBattleAliveUnitCount;
+        PriorChainDealtDamage = priorChainDealtDamage;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -84,7 +89,8 @@ public sealed class EffectActivationContext
             ObservedCards,
             OwnerTrashCardIds,
             OpponentTrashCardIds,
-            count);
+            count,
+            PriorChainDealtDamage);
     }
 }
 
@@ -174,6 +180,16 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.SourceUnitStat)
         {
             return EvaluateSourceUnitStat(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.SourceUnitDamaged)
+        {
+            return EvaluateSourceUnitDamaged(ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
+        {
+            return ctx.PriorChainDealtDamage;
         }
 
         if (c.checkKind == EffectActivationCheckKind.UnitStatOnField)
@@ -414,6 +430,42 @@ public static class EffectActivationEvaluator
 
         int statValue = GetActivationStatValue(ctx.SourceCard, c.activationStatTarget);
         return CompareInts(statValue, c.compareValue, c.compareOp);
+    }
+
+    private static CardController ResolveOnAttackConditionUnit(EffectActivationContext ctx)
+    {
+        if (ctx == null)
+        {
+            return null;
+        }
+
+        if (ctx.MountHostUnit != null && ctx.MountHostUnit.Data != null && ctx.MountHostUnit.Data.IsUnitLike())
+        {
+            return ctx.MountHostUnit;
+        }
+
+        if (ctx.SourceCard != null && ctx.SourceCard.Data != null && ctx.SourceCard.Data.IsUnitLike())
+        {
+            return ctx.SourceCard;
+        }
+
+        return ctx.SourceCard;
+    }
+
+    private static bool EvaluateSourceUnitDamaged(EffectActivationContext ctx)
+    {
+        CardController unit = ResolveOnAttackConditionUnit(ctx);
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (unit.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        return unit.CurrentHp < unit.GetRepairHpCap();
     }
 
     private static bool EvaluateUnitStatOnField(IReadOnlyList<CardController> zone, EffectActivationCondition c)

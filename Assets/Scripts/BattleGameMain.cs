@@ -248,6 +248,8 @@ public partial class BattleGameMain : MonoBehaviour
             StopCoroutine(attackFlowAfterBlockPassCoroutine);
             attackFlowAfterBlockPassCoroutine = null;
         }
+
+        ResetOnAttackPreCombatEffectsAppliedGuard();
     }
 
     private void MarkAttackFlowBlockSelectionResolved()
@@ -788,6 +790,8 @@ public partial class BattleGameMain : MonoBehaviour
             cardGameRule.GetRemainingCount(),
             enemyHandCountForSync,
             enemyCardGameRule.GetRemainingCount());
+        cardGameRule.RefreshHandCountDisplay();
+        enemyCardGameRule.RefreshHandCountDisplay();
         Debug.Log($"[ドロー] 初期手札: プレイヤー{openingHandSize}枚、エネミー{enemyHandCountForSync}枚を引きました。");
 
         int exBasePoints = exBaseData != null ? exBaseData.startingPoints : 3;
@@ -986,6 +990,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         RefreshAllHandsConditionalOnHandAuto();
+        rule.RefreshHandCountDisplay();
     }
 
     private static List<int> CollectHandCardIdsFromHandContent(CardGameRule rule)
@@ -1557,6 +1562,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TriggerOnHandAutoEffects(drawnCard, targetType, skipHandZoneCheck: true);
+        targetRule.RefreshHandCountDisplay();
         return drawnCard;
     }
     public bool DecideTurnOrder()
@@ -3070,6 +3076,7 @@ public partial class BattleGameMain : MonoBehaviour
         int shieldDisplayCount = targetRule != null ? targetRule.GetShieldZoneCardCount() : state.shield;
         targetRule.SetShieldCountDisplay(shieldDisplayCount);
         SyncBaseZoneHeaderDisplay(side);
+        targetRule.RefreshHandCountDisplay();
 
         if (side == Gundam2024RuleScript.PlayerSide.Player)
         {
@@ -3309,6 +3316,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         RegisterCardInHandLists(card, ownerType);
         TriggerOnHandAutoEffects(card, ownerType, skipHandZoneCheck: true);
+        rule.RefreshHandCountDisplay();
         return true;
     }
 
@@ -3530,6 +3538,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
 
+        ownerRule.RefreshHandCountDisplay();
         if (ownerType == PlayerType.Player)
         {
             NotifyLocalPlayCardDeployed(cardController);
@@ -5053,7 +5062,7 @@ public partial class BattleGameMain : MonoBehaviour
                             effectSource: sourceCard);
                     }
 
-                    t.ApplyDamage(damageAmount);
+                    ApplyUnitDamageAndTrackChain(t, damageAmount);
                     QueueOnlineUnitDamage(t);
                     if (t.CurrentHp <= 0)
                     {
@@ -6499,6 +6508,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (applyOnAttackPairEffects)
         {
+            ApplyOnAttackPreCombatEffectsImmediately(attacker, attackerOwner);
             ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
         }
 
@@ -6520,28 +6530,72 @@ public partial class BattleGameMain : MonoBehaviour
         ApplyOnAttackEffectsFromSourceToDefender(attacker, attackerOwner, attacker.Data, defender);
         if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
         {
-            ApplyOnAttackEffectsFromSourceToDefender(attacker.MountedPilot, attackerOwner, attacker.MountedPilot.Data, defender);
+            ApplyOnAttackEffectsFromSourceToDefender(attacker, attackerOwner, attacker.MountedPilot.Data, defender);
         }
     }
 
-    private void ApplyOnAttackEffectsFromSourceToDefender(CardController sourceCard, PlayerType ownerType, CardData data, CardController defender)
+    private void ApplyOnAttackEffectsFromSourceToDefender(
+        CardController attacker,
+        PlayerType ownerType,
+        CardData data,
+        CardController defender)
     {
-        List<EffectData> effects = GetEffectsByTiming(data, EffectTiming.OnAttack);
-        for (int i = 0; i < effects.Count; i++)
+        if (attacker == null || attacker.Data == null || data == null || data.timedEffects == null || defender == null)
         {
-            EffectData effect = effects[i];
-            if (effect == null)
+            return;
+        }
+
+        CardController effectSource = data == attacker.Data ? attacker : attacker.MountedPilot;
+        if (effectSource == null)
+        {
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(ownerType, attacker);
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
             {
                 continue;
             }
 
-            // 敵ユニット対象は TryOpenOnAttackEnemySelectionPanel で攻撃前に解決済み。二重適用しない。
-            if (effect.target.IsOpponentUnitTarget())
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
                 continue;
             }
 
-            ApplyEffect(sourceCard, ownerType, effect);
+            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnAttack.Count; j++)
+            {
+                EffectData effect = resolvedOnAttack[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                // Draw 等は攻撃前チェーン（TryBeginOnAttackPreCombatEffectChain）で解決済み。
+                if (IsOnAttackNonCombatEffect(effect))
+                {
+                    continue;
+                }
+
+                // 敵ユニット対象は TryOpenOnAttackEnemySelectionPanel で攻撃前に解決済み。二重適用しない。
+                if (effect.target.IsOpponentUnitTarget())
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                ApplyEffect(effectSource, ownerType, effect);
+            }
         }
     }
 
@@ -7376,7 +7430,8 @@ public partial class BattleGameMain : MonoBehaviour
             isOwnerTurn: ownerType == currentPlayerType,
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
-            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds());
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage());
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -7396,7 +7451,8 @@ public partial class BattleGameMain : MonoBehaviour
             mountedPilot: pilot,
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
-            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds());
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage());
     }
 
     private EffectActivationContext BuildPilotMountActivationContext(
@@ -7417,7 +7473,8 @@ public partial class BattleGameMain : MonoBehaviour
             mountedPilot: pilot,
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
-            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds());
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage());
     }
 
     private void RefreshAllHandsConditionalOnHandAuto()
@@ -7526,7 +7583,9 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        EffectActivationContext activationContext = timing == EffectTiming.OnAttack
+            ? BuildOnAttackActivationContext(ownerType, sourceCard)
+            : BuildActivationContext(ownerType, sourceCard);
 
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
@@ -7552,6 +7611,21 @@ public partial class BattleGameMain : MonoBehaviour
                 if (timing == EffectTiming.OnAttack && effect.target.IsOpponentUnitTarget())
                 {
                     // Enemy unit target effects are resolved before attack target decision.
+                    continue;
+                }
+
+                if (timing == EffectTiming.OnAttack
+                    && IsOnAttackNonCombatEffect(effect)
+                    && HasOnAttackPreCombatEffectsBeenApplied(sourceCard))
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
                     continue;
                 }
 
@@ -8193,11 +8267,36 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (IsFieldWideUnitDamageEffect(effect))
+        {
+            TryApplyFieldWideDamageWithPreviewAsync(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         ApplyEffectRespectingLookAsync(
             sourceCard,
             ownerType,
             effect,
             () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+    }
+
+    private void ApplyUnitDamageAndTrackChain(CardController targetUnit, int damageAmount)
+    {
+        if (targetUnit == null || damageAmount <= 0)
+        {
+            return;
+        }
+
+        int hpBefore = targetUnit.CurrentHp;
+        targetUnit.ApplyDamage(damageAmount);
+        if (targetUnit.CurrentHp < hpBefore)
+        {
+            MarkEffectChainDealtDamage();
+        }
     }
 
     private void TryExecuteManualUnitSelectionEffect(
@@ -8225,13 +8324,44 @@ public partial class BattleGameMain : MonoBehaviour
         if (ownerType == PlayerType.Enemy)
         {
             EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
-            CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
-            if (picked != null)
+            if (effect.selectionMode.IsMultipleUnitPickMode())
             {
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                List<CardController> aiPicks = PickEnemyAiEffectTargets(effect, pickCtx, candidates);
+                if (aiPicks.Count > 0)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, aiPicks);
+                }
+            }
+            else
+            {
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                }
             }
 
             onDone?.Invoke();
+            return;
+        }
+
+        if (effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            OpenManualMultiUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                attackingUnitInAttackFlow,
+                selected =>
+                {
+                    if (selected != null && selected.Count > 0)
+                    {
+                        ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, selected);
+                    }
+
+                    onDone?.Invoke();
+                });
             return;
         }
 
@@ -8410,6 +8540,210 @@ public partial class BattleGameMain : MonoBehaviour
         });
     }
 
+    private static readonly Color ManualMultiSelectHighlightColor = new Color(1f, 0.45f, 0.45f, 1f);
+
+    private void OpenManualMultiUnitTargetSelectionUI(
+        CardController source,
+        PlayerType ownerType,
+        EffectData effect,
+        List<CardController> candidates,
+        CardController attackingUnitInAttackFlow,
+        System.Action<List<CardController>> onConfirmed)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onConfirmed?.Invoke(new List<CardController>());
+            return;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "ManualMultiUnitTargetSelect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ManualMultiUnitTargetTitle", UIAnchor.TopCenter, 720, 48);
+        title.text = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
+        title.color = Color.white;
+        title.fontSize = 24;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
+
+        if (effect != null)
+        {
+            TextMeshProUGUI summary = root.CreateChildTextCustom("ManualMultiUnitTargetSummary", UIAnchor.TopCenter, 720, 32);
+            summary.text = "カードをタップで選択（赤＝対象）→ OK で確定";
+            summary.color = new Color(0.9f, 0.9f, 0.9f);
+            summary.fontSize = 18;
+            summary.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
+        }
+
+        if (CardImagePrefab != null && source != null && source.Data != null)
+        {
+            GameObject sourceCardGo = Instantiate(CardImagePrefab, root.transform);
+            RectTransform sourceRt = sourceCardGo.GetComponent<RectTransform>();
+            if (sourceRt != null)
+            {
+                sourceRt.anchorMin = new Vector2(0.5f, 1f);
+                sourceRt.anchorMax = new Vector2(0.5f, 1f);
+                sourceRt.pivot = new Vector2(0.5f, 1f);
+                sourceRt.sizeDelta = new Vector2(120f, 168f);
+                sourceRt.anchoredPosition = new Vector2(0f, -98f);
+            }
+
+            CardController preview = sourceCardGo.GetComponent<CardController>();
+            preview?.SetUp(source.Data, _ => { });
+            Button sourceBlocker = sourceCardGo.GetComponent<Button>();
+            if (sourceBlocker != null)
+            {
+                sourceBlocker.interactable = false;
+            }
+        }
+
+        GameObject scrollGo = root.CreateGridScrollView(680, 360, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -290f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        List<CardController> selected = new List<CardController>();
+        bool resolved = false;
+
+        void CloseWithSelection(List<CardController> picks)
+        {
+            if (resolved)
+            {
+                return;
+            }
+
+            resolved = true;
+            Destroy(root);
+            activeOnActionPopupRoot = null;
+            isOnActionPopupOpen = false;
+            onConfirmed?.Invoke(picks ?? new List<CardController>());
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            CardController candidate = candidates[i];
+            if (content == null || candidate == null || candidate.Data == null || CardImagePrefab == null)
+            {
+                continue;
+            }
+
+            GameObject go = Instantiate(CardImagePrefab, content);
+            CardController cc = go.GetComponent<CardController>();
+            cc?.SetUp(candidate.Data, _ => { });
+
+            TextMeshProUGUI statLabel = go.CreateChildTextCustom(
+                "TargetStat",
+                UIAnchor.BottomCenter,
+                100,
+                28);
+            statLabel.text = $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp}";
+            statLabel.fontSize = 14;
+            statLabel.color = Color.white;
+            statLabel.alignment = TextAlignmentOptions.Center;
+
+            Button btn = go.GetComponent<Button>() ?? go.AddComponent<Button>();
+            Image baseImage = go.GetComponent<Image>();
+            Color original = baseImage != null ? baseImage.color : Color.white;
+            CardController pickedRef = candidate;
+            btn.onClick.AddListener(() =>
+            {
+                if (resolved)
+                {
+                    return;
+                }
+
+                if (selected.Contains(pickedRef))
+                {
+                    selected.Remove(pickedRef);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = original;
+                    }
+                }
+                else
+                {
+                    selected.Add(pickedRef);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = ManualMultiSelectHighlightColor;
+                    }
+                }
+            });
+        }
+
+        Button okBtn = root.CreateChildButton("OK");
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(160f, 44f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = new Vector2(-90f, 36f);
+        TextMeshProUGUI okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (okLabel != null)
+        {
+            okLabel.text = "OK";
+        }
+
+        okBtn.onClick.AddListener(() => CloseWithSelection(new List<CardController>(selected)));
+
+        Button cancel = root.CreateChildButton("キャンセル");
+        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(160f, 44f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(90f, 36f);
+        cancel.onClick.AddListener(() => CloseWithSelection(new List<CardController>()));
+    }
+
+    private List<CardController> PickEnemyAiEffectTargets(
+        EffectData effect,
+        EnemyAiEffectPickContext pickCtx,
+        List<CardController> candidates)
+    {
+        List<CardController> picks = new List<CardController>();
+        if (candidates == null || candidates.Count == 0)
+        {
+            return picks;
+        }
+
+        if (effect != null && effect.type == EffectType.Damage)
+        {
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                CardController candidate = candidates[i];
+                if (candidate != null && candidate.CurrentHp > 0)
+                {
+                    picks.Add(candidate);
+                }
+            }
+
+            return picks;
+        }
+
+        CardController single = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+        if (single != null)
+        {
+            picks.Add(single);
+        }
+
+        return picks;
+    }
+
     private static bool EffectRequiresManualUnitSelection(EffectData effect)
     {
         if (effect == null)
@@ -8571,7 +8905,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     CardController targetUnit = targets[i];
                     int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit);
-                    targetUnit.ApplyDamage(damageAmount);
+                    ApplyUnitDamageAndTrackChain(targetUnit, damageAmount);
                     QueueOnlineUnitDamage(targetUnit);
                     PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
                     if (targetUnit.CurrentHp <= 0)
@@ -12007,6 +12341,19 @@ public partial class BattleGameMain : MonoBehaviour
             return isAttackContext
                 ? $"アタック可能にする味方ユニットを選択{filterHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
                 : $"アタック可能にする味方ユニットを選択{filterHint}";
+        }
+
+        if (effect.type == EffectType.Damage && effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            if (effect.target.IsOpponentUnitTarget())
+            {
+                return "相手ユニットを選択（1ダメージ）";
+            }
+
+            if (effect.target.IsAllyUnitPickTarget())
+            {
+                return "自分のユニットを選択（1ダメージ）";
+            }
         }
 
         if (effect.target == TargetType.AllyUnit)
