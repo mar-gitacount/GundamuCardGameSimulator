@@ -20,8 +20,11 @@ public sealed class EffectActivationContext
     /// <summary>OnPilotMounted / OnLink 時に載せたパイロット（未設定時は MountHostUnit.MountedPilot）。</summary>
     public CardController MountedPilot { get; }
 
-    /// <summary>同一チェーン内で MillTopToTrash 等が観測したカード。</summary>
+    /// <summary>同一チェーン内で MillTopToTrash / ExileFromDeck 等が観測したカード。</summary>
     public IReadOnlyList<CardData> ObservedCards { get; }
+
+    public IReadOnlyList<int> OwnerTrashCardIds { get; }
+    public IReadOnlyList<int> OpponentTrashCardIds { get; }
 
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
@@ -33,7 +36,9 @@ public sealed class EffectActivationContext
         bool isOwnerTurn,
         CardController mountHostUnit = null,
         CardController mountedPilot = null,
-        IReadOnlyList<CardData> observedCards = null)
+        IReadOnlyList<CardData> observedCards = null,
+        IReadOnlyList<int> ownerTrashCardIds = null,
+        IReadOnlyList<int> opponentTrashCardIds = null)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -45,6 +50,8 @@ public sealed class EffectActivationContext
         MountHostUnit = mountHostUnit;
         MountedPilot = mountedPilot;
         ObservedCards = observedCards ?? System.Array.Empty<CardData>();
+        OwnerTrashCardIds = ownerTrashCardIds ?? System.Array.Empty<int>();
+        OpponentTrashCardIds = opponentTrashCardIds ?? System.Array.Empty<int>();
     }
 }
 
@@ -60,7 +67,8 @@ public static class EffectActivationEvaluator
         for (int i = 0; i < conditions.Count; i++)
         {
             EffectActivationCondition c = conditions[i];
-            if (c != null && c.checkKind == EffectActivationCheckKind.ObservedCardHasFeature)
+            if (c != null && (c.checkKind == EffectActivationCheckKind.ObservedCardHasFeature
+                || c.checkKind == EffectActivationCheckKind.ObservedCardIsType))
             {
                 return true;
             }
@@ -150,6 +158,16 @@ public static class EffectActivationEvaluator
             return EvaluateObservedCardHasFeature(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.ObservedCardIsType)
+        {
+            return EvaluateObservedCardIsType(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.TrashHasCardType)
+        {
+            return EvaluateTrashHasCardType(c, ctx);
+        }
+
         // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
         if (c.boardSide == EffectBoardSide.Unset)
         {
@@ -206,6 +224,80 @@ public static class EffectActivationEvaluator
         }
 
         return matched >= need;
+    }
+
+    private static bool EvaluateObservedCardIsType(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardData> observed = ctx.ObservedCards;
+        if (observed == null || observed.Count == 0)
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        int matched = 0;
+        for (int i = 0; i < observed.Count; i++)
+        {
+            CardData data = observed[i];
+            if (data != null && data.type == c.observedCardType)
+            {
+                matched++;
+            }
+        }
+
+        return matched >= need;
+    }
+
+    private static bool EvaluateTrashHasCardType(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+        if (trashIds == null || trashIds.Count == 0)
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        int matched = 0;
+        for (int i = 0; i < trashIds.Count; i++)
+        {
+            CardData data = DeckSettinObject.Instance.GetCardDataById(trashIds[i]);
+            if (data != null && data.type == c.observedCardType)
+            {
+                matched++;
+            }
+        }
+
+        return matched >= need;
+    }
+
+    private static IReadOnlyList<int> ResolveTrashZone(EffectActivationContext ctx, EffectBoardSide side)
+    {
+        if (ctx == null)
+        {
+            return System.Array.Empty<int>();
+        }
+
+        bool ownerIsPlayer = ctx.OwnerType == BattleGameMain.PlayerType.Player;
+        switch (side)
+        {
+            case EffectBoardSide.OpponentTrash:
+                return ownerIsPlayer ? ctx.OpponentTrashCardIds : ctx.OwnerTrashCardIds;
+            case EffectBoardSide.OwnerTrash:
+                return ownerIsPlayer ? ctx.OwnerTrashCardIds : ctx.OpponentTrashCardIds;
+            case EffectBoardSide.Unset:
+            default:
+                return ownerIsPlayer ? ctx.OwnerTrashCardIds : ctx.OpponentTrashCardIds;
+        }
     }
 
     private static bool EvaluateSourceUnitStat(EffectActivationCondition c, EffectActivationContext ctx)

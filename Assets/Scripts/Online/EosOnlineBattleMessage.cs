@@ -149,6 +149,15 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public static string CreateZoneSync(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = "ZoneSync",
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static bool TryParse(string raw, out EosOnlineBattleMessage message)
     {
         message = null;

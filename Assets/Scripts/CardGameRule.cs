@@ -1019,6 +1019,42 @@ public class CardGameRule
         OnCardAddedToTrash?.Invoke(cardId);
     }
 
+    /// <summary>トラッシュから指定 ID のカードを1枚除去（同 ID が複数あれば先頭1枚）。</summary>
+    public bool TryRemoveCardFromTrash(int cardId, out int removedCardId)
+    {
+        removedCardId = -1;
+        if (cardId < 0)
+        {
+            return false;
+        }
+
+        int index = trashList.IndexOf(cardId);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        removedCardId = trashList[index];
+        trashList.RemoveAt(index);
+        UpdateDeckAndTrashTexts();
+        return true;
+    }
+
+    /// <summary>トラッシュの指定位置のカードを1枚除去。</summary>
+    public bool TryRemoveCardFromTrashAt(int index, out int removedCardId)
+    {
+        removedCardId = -1;
+        if (index < 0 || index >= trashList.Count)
+        {
+            return false;
+        }
+
+        removedCardId = trashList[index];
+        trashList.RemoveAt(index);
+        UpdateDeckAndTrashTexts();
+        return true;
+    }
+
     public void AddCardToExile(int cardId)
     {
         if (cardId < 0)

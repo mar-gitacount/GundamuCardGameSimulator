@@ -20,7 +20,7 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 21300000, guid: 893abb0029745d44cb4d2a6e79ad0a70, type: 3}
   image: {fileID: 0}
-  version: 3
+  version: 4
   sourceType: 1
   filterType: 0
   color: 0
@@ -29,7 +29,10 @@ MonoBehaviour:
   timedEffects:
   - timing: 18
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: 
+    activationCost: 0
+    oncePerTurn: 0
     effects:
     - type: 12
       value: 0
@@ -49,11 +52,110 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 0
+      targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
-      compareTargetStatToSource: 1
+      compareTargetStatToSource: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
       filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
+  - timing: 12
+    activationConditions:
+    - boardSide: 4
+      checkKind: 9
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 1
+    requireChainObservationContext: 0
+    effectsName: 
+    activationCost: 1
+    oncePerTurn: 1
+    effects:
+    - type: 21
+      value: 1
+      target: 5
+      selectionMode: -1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 1
+      targetCardType: 1
+    - type: 0
+      value: 1
+      target: 4
+      selectionMode: -1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      requireChainObservationContext: 1
+      effectActivationConditions:
+      - boardSide: 0
+        checkKind: 8
+        turnCheck: -1
+        feature: {fileID: 0}
+        featureId: 0
+        features: []
+        featureIds: 
+        minimumCount: 1
+        levelAggregate: 0
+        compareOp: 0
+        compareValue: 0
+        unitCountCompareOp: 2
+        unitCountThreshold: 0
+        pilotCardId: 0
+        pilotLevelThreshold: 0
+        activationStatTarget: -1
+        observedCardType: 1
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
   features: []
   link:
   - pilotCardId: 0
