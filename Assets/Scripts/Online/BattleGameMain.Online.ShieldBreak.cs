@@ -28,6 +28,7 @@ public partial class BattleGameMain
         _onlineShieldBreakCompleteReceived = false;
         _onlineShieldAttackNotifySent = false;
         _onlineDeferredEnemyShieldBreak = null;
+        ClearPendingDefenderDeployedBaseHpForOnlineSync();
         CloseOnlineShieldBreakThinkOverlay();
     }
 
@@ -172,14 +173,22 @@ public partial class BattleGameMain
         }
 
         Gundam2024RuleScript.PlayerState defender = gundamRule.Enemy;
+        int defenderDeployedBaseHpAfter = ConsumePendingDefenderDeployedBaseHpForOnlineSync();
+        if (defenderDeployedBaseHpAfter < 0)
+        {
+            defenderDeployedBaseHpAfter = ResolveOnlineSyncDeployedBaseHp(Gundam2024RuleScript.PlayerSide.Enemy);
+        }
+
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttack(
             OnlineBattleActionPayload.CreateShieldAttack(
                 attackerInstanceId: 0,
                 defender.shield,
                 defender.exBase,
-                directAttackWin: false)));
+                directAttackWin: false,
+                defenderDeployedBaseHpAfter: defenderDeployedBaseHpAfter)));
         Debug.Log(
-            $"[OnlineBattle] Defender area state sync sent. shield={defender.shield} exBase={defender.exBase}");
+            $"[OnlineBattle] Defender area state sync sent. shield={defender.shield} exBase={defender.exBase} "
+            + $"baseHp:{defenderDeployedBaseHpAfter}");
     }
 
     private IEnumerator RunOnlineAttackerEnemyShieldBreakHandshakeCoroutine(
@@ -200,6 +209,11 @@ public partial class BattleGameMain
         int requestId = ++_onlineShieldBreakRequestIdCounter;
         _pendingOnlineShieldBreakRequestId = requestId;
         _onlineShieldBreakCompleteReceived = false;
+        int defenderDeployedBaseHpAfter = ConsumePendingDefenderDeployedBaseHpForOnlineSync();
+        if (defenderDeployedBaseHpAfter < 0)
+        {
+            defenderDeployedBaseHpAfter = ResolveOnlineSyncDeployedBaseHp(Gundam2024RuleScript.PlayerSide.Enemy);
+        }
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttack(
             OnlineBattleActionPayload.CreateShieldAttack(
@@ -209,7 +223,8 @@ public partial class BattleGameMain
                 directAttackWin: false,
                 cardIds,
                 requestId,
-                deferred.SimultaneousReveal)));
+                deferred.SimultaneousReveal,
+                defenderDeployedBaseHpAfter)));
         _onlineShieldAttackNotifySent = true;
 
         yield return ShowOnlineAttackerShieldBreakRevealWhileWaitingCoroutine(

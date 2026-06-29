@@ -5,6 +5,37 @@ using UnityEngine.UI;
 /// <summary>ベースカードの配備（シールドゾーン EX 枠）とシールド攻撃時のベース HP 処理。</summary>
 public partial class BattleGameMain
 {
+    /// <summary>オンライン同期用。直近の配備ベース HP 変化（-1=なし、0=破壊、1+=現在HP）。</summary>
+    private int _pendingDefenderDeployedBaseHpForOnlineSync = -1;
+
+    private void ClearPendingDefenderDeployedBaseHpForOnlineSync()
+    {
+        _pendingDefenderDeployedBaseHpForOnlineSync = -1;
+    }
+
+    private void MarkPendingDefenderDeployedBaseHpForOnlineSync(int hpAfter)
+    {
+        _pendingDefenderDeployedBaseHpForOnlineSync = Mathf.Max(0, hpAfter);
+    }
+
+    private int ConsumePendingDefenderDeployedBaseHpForOnlineSync()
+    {
+        int value = _pendingDefenderDeployedBaseHpForOnlineSync;
+        _pendingDefenderDeployedBaseHpForOnlineSync = -1;
+        return value;
+    }
+
+    private int ResolveOnlineSyncDeployedBaseHp(Gundam2024RuleScript.PlayerSide defenderSide)
+    {
+        CardController baseCard = GetDeployedBaseForRuleSide(defenderSide);
+        if (baseCard != null && baseCard.Data != null)
+        {
+            return Mathf.Max(0, baseCard.CurrentHp);
+        }
+
+        return -1;
+    }
+
     private void RegisterBaseProtectionCallbacks()
     {
         if (gundamRule == null)
@@ -413,6 +444,7 @@ public partial class BattleGameMain
 
         int hpBefore = defenderBase.CurrentHp;
         defenderBase.ApplyDamage(amount);
+        MarkPendingDefenderDeployedBaseHpForOnlineSync(defenderBase.CurrentHp);
         PlayerType defenderOwner = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? PlayerType.Player
             : PlayerType.Enemy;
@@ -425,6 +457,7 @@ public partial class BattleGameMain
 
         if (defenderBase.CurrentHp <= 0)
         {
+            MarkPendingDefenderDeployedBaseHpForOnlineSync(0);
             SendDeployedBaseToTrash(defenderBase, defenderOwner, defenderRule);
             SyncResourceViewsFromRule(targetSide);
             logMessage += " (destroyed)";
@@ -500,7 +533,9 @@ public partial class BattleGameMain
         }
 
         Gundam2024RuleScript.PlayerState defender = gundamRule.Enemy;
-        if (defender.shield == shieldBefore && defender.exBase == exBaseBefore)
+        if (defender.shield == shieldBefore
+            && defender.exBase == exBaseBefore
+            && _pendingDefenderDeployedBaseHpForOnlineSync < 0)
         {
             return;
         }
@@ -528,6 +563,7 @@ public partial class BattleGameMain
 
         int hpBefore = defenderBase.CurrentHp;
         defenderBase.ApplyDamage(power);
+        MarkPendingDefenderDeployedBaseHpForOnlineSync(defenderBase.CurrentHp);
         PlayerType defenderOwner = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? PlayerType.Player
             : PlayerType.Enemy;
@@ -540,6 +576,7 @@ public partial class BattleGameMain
 
         if (defenderBase.CurrentHp <= 0)
         {
+            MarkPendingDefenderDeployedBaseHpForOnlineSync(0);
             SendDeployedBaseToTrash(defenderBase, defenderOwner, defenderRule);
             SyncResourceViewsFromRule(targetSide);
             logMessage += " (destroyed)";

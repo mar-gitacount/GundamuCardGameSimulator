@@ -30,6 +30,11 @@ public class OnlineBattleActionPayload
     public int levelAfter;
     /// <summary>DeployBase 同期：配備ベースの現在 HP。</summary>
     public int baseHpAfter;
+    /// <summary>
+    /// ShieldAttack / 防御領域同期：配備ベースの現在 HP。
+    /// -1=変更なし、0=破壊済み、1 以上=現在 HP。
+    /// </summary>
+    public int defenderDeployedBaseHpAfter;
     /// <summary>DeployBase / DeployShield 同期：シールドゾーンのカード ID 列（先頭＝外側）。</summary>
     public int[] shieldZoneCardIds;
 
@@ -144,7 +149,8 @@ public class OnlineBattleActionPayload
         bool directAttackWin,
         int[] brokenShieldCardIds = null,
         int shieldBreakRequestId = 0,
-        bool shieldBreakSimultaneousReveal = false)
+        bool shieldBreakSimultaneousReveal = false,
+        int defenderDeployedBaseHpAfter = -1)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
@@ -155,7 +161,8 @@ public class OnlineBattleActionPayload
             directAttackWin = directAttackWin,
             brokenShieldCardIds = brokenShieldCardIds,
             requestId = shieldBreakRequestId,
-            shieldBreakSimultaneousReveal = shieldBreakSimultaneousReveal
+            shieldBreakSimultaneousReveal = shieldBreakSimultaneousReveal,
+            defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter
         });
     }
 
@@ -247,6 +254,9 @@ public class OnlineBattleActionPayload
             switch (payload.action)
             {
                 case ShieldAttack:
+                    return payload.attackerInstanceId > 0
+                        || payload.directAttackWin
+                        || payload.defenderDeployedBaseHpAfter >= 0;
                 case UnitAttack:
                 case AttackDeclare:
                     return payload.attackerInstanceId > 0;
