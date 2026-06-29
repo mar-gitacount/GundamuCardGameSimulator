@@ -57,6 +57,8 @@ MonoBehaviour:
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
     - type: 0
       value: 1
       target: 2
@@ -98,7 +100,10 @@ MonoBehaviour:
         pilotCardId: 0
         pilotLevelThreshold: 0
         activationStatTarget: -1
+        observedCardType: 1
       filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
   features:
   - {fileID: 11400000, guid: b187fb0005a20dc4a954cf3bb87a9232, type: 2}
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}

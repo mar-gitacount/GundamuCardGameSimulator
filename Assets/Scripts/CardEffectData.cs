@@ -68,7 +68,9 @@ public enum EffectType
     /// <summary>山札の上から value 枚をトラッシュに置く。target で自分／相手の山札（SelfPlayer / EnemyPlayer）。観測カードはチェーンコンテキストに追加。</summary>
     MillTopToTrash,
     /// <summary>山札の上から value 枚を除外（EXILE）ゾーンに置く。target は MillTopToTrash と同様。観測カードはチェーンコンテキストに追加。</summary>
-    ExileFromDeck
+    ExileFromDeck,
+    /// <summary>トラッシュから value 枚を除外（EXILE）ゾーンに置く。target で自分／相手のトラッシュ（SelfPlayer / EnemyPlayer）。filterByTargetCardType で種類絞り込み可。</summary>
+    ExileFromTrash
 }
 
 public enum TargetType
@@ -204,7 +206,11 @@ public enum EffectBoardSide
     OwnerBattleZone,
     OpponentBattleZone,
     OwnerHand,
-    OpponentHand
+    OpponentHand,
+    /// <summary>ソースオーナーのトラッシュ。</summary>
+    OwnerTrash,
+    /// <summary>相手側のトラッシュ。</summary>
+    OpponentTrash
 }
 
 public enum EffectActivationCheckKind
@@ -238,7 +244,17 @@ public enum EffectActivationCheckKind
     /// 直前チェーンで観測したカード（MillTopToTrash 等）のうち、
     /// features / featureIds のいずれか（OR）を持つ枚数が minimumCount 以上。
     /// </summary>
-    ObservedCardHasFeature
+    ObservedCardHasFeature,
+    /// <summary>
+    /// 直前チェーンで観測したカードのうち、observedCardType と一致する枚数が minimumCount 以上。
+    /// 例: 除外したカードがパイロットならダメージ、など。
+    /// </summary>
+    ObservedCardIsType,
+    /// <summary>
+    /// 指定トラッシュ（boardSide 未指定時はオーナーのトラッシュ）に、
+    /// observedCardType と一致するカードが minimumCount 枚以上ある。
+    /// </summary>
+    TrashHasCardType
 }
 
 public enum EffectTurnCheckKind
@@ -335,6 +351,9 @@ public class EffectActivationCondition
 
     [Tooltip("SourceUnitStat / UnitStatOnField: 参照する実効ステータス（AP/HP/Cost/Lv）。未指定時は AP。")]
     public EffectTargetUnitFilterStat activationStatTarget = EffectTargetUnitFilterStat.Unset;
+
+    [Tooltip("ObservedCardIsType: 観測カードの種類（Unit/Pilot/Command 等）。")]
+    public Type observedCardType = Type.Unit;
 }
 
 /// <summary><see cref="EffectActivationCondition"/> の Feature 解決（複数は OR）。</summary>
@@ -466,6 +485,12 @@ public class EffectData
     [HideInInspector]
     [Tooltip("旧フィールド。targetUnitFilterStat が Unset のとき Level 条件として読み替え。")]
     public bool filterTargetUnitLevel;
+
+    [Tooltip("ExileFromTrash: true のとき targetCardType に一致するカードのみ対象。")]
+    public bool filterByTargetCardType;
+
+    [Tooltip("ExileFromTrash + filterByTargetCardType: 対象とするカード種類（例: Pilot）。")]
+    public Type targetCardType = Type.Pilot;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
@@ -556,6 +581,16 @@ public static class EffectDataExtensions
     public static bool HasTargetFeatureFilter(this EffectData effect)
     {
         return effect != null && effect.GetTargetFeatures().Count > 0;
+    }
+
+    public static bool MatchesTargetCardTypeFilter(this EffectData effect, CardData card)
+    {
+        if (effect == null || !effect.filterByTargetCardType)
+        {
+            return true;
+        }
+
+        return card != null && card.type == effect.targetCardType;
     }
 
     public static string FormatTargetFeaturesLabel(this EffectData effect, string separator = "・")
@@ -822,6 +857,12 @@ public class TimedEffectData
 
     [Tooltip("effectsName が空のときのインライン効果。effectsName 設定時は参照されない。")]
     public List<EffectData> effects = new List<EffectData>();
+
+    [Tooltip("能動発動（OnMain 等）時に支払うリソース。0 のとき手札コマンドはカードのコスト、場のユニットは無料。")]
+    public int activationCost;
+
+    [Tooltip("true のときこの timed ブロックは1ターンに1回まで能動発動できる。")]
+    public bool oncePerTurn;
 }
 
 public static class TimedEffectDataExtensions

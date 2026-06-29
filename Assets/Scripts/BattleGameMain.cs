@@ -759,6 +759,7 @@ public partial class BattleGameMain : MonoBehaviour
         enemyCardGameRule.BindDiscardZoneToggleClick(() => enemyCardGameRule.ToggleDiscardZoneView());
         enemyCardGameRule.BindDiscardZoneCountClick(() => OpenDiscardZoneInspectionPanel(enemyCardGameRule));
         BindEnemyAiPlayerTrashObservation();
+        RegisterOnlineZoneSyncObservers();
 
         gundamRule.InitializeGame(
             cardGameRule.GetRemainingCount(),
@@ -1731,6 +1732,7 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log($"プレイヤーの現在のリソースポイント: {gundamRule.Player.resource}");
             PlayerresourcePointText.text = gundamRule.Player.resource.ToString();
             ApplyTurnStartAttackFlgForCurrentPlayer();
+            ClearPaidActivationUsesForSide(PlayerType.Player);
             TriggerAllTimedEffectsForSide(PlayerType.Player, EffectTiming.OnTurnStart);
         }
         else
@@ -1749,6 +1751,7 @@ public partial class BattleGameMain : MonoBehaviour
             SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Enemy);
             Debug.Log($"[ドロー] エネミーのターン開始ドロー1枚。LV:{gundamRule.Enemy.level} Resource:{gundamRule.Enemy.resource}");
             ApplyTurnStartAttackFlgForCurrentPlayer();
+            ClearPaidActivationUsesForSide(PlayerType.Enemy);
             TriggerAllTimedEffectsForSide(PlayerType.Enemy, EffectTiming.OnTurnStart);
         }
     }
@@ -7207,7 +7210,9 @@ public partial class BattleGameMain : MonoBehaviour
             CollectHandControllers(cardGameRule),
             CollectHandControllers(enemyCardGameRule),
             isOwnerTurn: ownerType == currentPlayerType,
-            observedCards: GetActiveObservedCardsForActivation());
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds());
     }
 
     private EffectActivationContext BuildPilotMountActivationContext(
@@ -7226,7 +7231,9 @@ public partial class BattleGameMain : MonoBehaviour
             isOwnerTurn: ownerType == currentPlayerType,
             mountHostUnit: hostUnit,
             mountedPilot: pilot,
-            observedCards: GetActiveObservedCardsForActivation());
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds());
     }
 
     private void RefreshAllHandsConditionalOnHandAuto()
@@ -8078,6 +8085,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.ExileFromDeck:
                 ApplyExileFromDeckEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ExileFromTrash:
+                ApplyExileFromTrashEffect(sourceCard, ownerType, effect);
                 break;
 
             case EffectType.AddToHandFromLooked:
@@ -9055,6 +9066,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ChooseLookedRemainderDisposition
             || effect.type == EffectType.MillTopToTrash
             || effect.type == EffectType.ExileFromDeck
+            || effect.type == EffectType.ExileFromTrash
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AttackActiveEnemyUnit
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
@@ -9603,6 +9615,7 @@ public partial class BattleGameMain : MonoBehaviour
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
                 || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.ExileFromDeck
+                || eff.type == EffectType.ExileFromTrash
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit)
             {
@@ -11157,7 +11170,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        Button mainBtn = filterPanel.CreateChildButton("メイン効果を発動");
+        Button mainBtn = filterPanel.CreateChildButton(FormatOnMainActivationButtonLabel(cardController, ownerType));
         RectTransform mainRt = mainBtn.GetComponent<RectTransform>();
         mainRt.sizeDelta = new Vector2(280f, 50f);
         mainRt.anchoredPosition = new Vector2(0f, anchoredY);
@@ -11209,36 +11222,81 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (!CanExecuteOnMainCardNow(side, source))
         {
-            Debug.Log("OnMain: 現在は発動できません（ターン/フェイズ/リソース/レベル）。");
+            Debug.Log("OnMain: 現在は発動できません（ターン/フェイズ/リソース/条件/使用回数）。");
             onDone?.Invoke();
             return;
         }
 
-        List<EffectData> effects = BuildOnMainExecutableEffects(side, source);
-        if (effects.Count == 0)
+        List<OnMainExecutableBlock> blocks = CollectExecutableOnMainBlocks(side, source);
+        if (blocks.Count == 0)
         {
             onDone?.Invoke();
             return;
         }
 
-        TryExecuteOnMainEffectChain(side, source, effects, 0, false, onDone);
+        TryExecuteOnMainBlocks(side, source, blocks, 0, onDone);
+    }
+
+    private void TryExecuteOnMainBlocks(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        int blockIndex,
+        System.Action onDone)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        OnMainExecutableBlock entry = blocks[blockIndex];
+        TimedEffectData timed = entry.Timed;
+        bool deferPayment = NeedsDeferredOnMainPayment(timed, side, source);
+        if (!deferPayment)
+        {
+            if (!TryFinalizeOnMainPaidActivation(new PaidActivationBlockContext(side, source, timed, entry.BlockIndex)))
+            {
+                TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
+                return;
+            }
+        }
+        else
+        {
+            BeginOnMainPaidBlock(side, source, timed, entry.BlockIndex);
+        }
+
+        bool trashHandCardAfter = IsOnMainActivatedFromHand(source, side);
+        BeginEffectChainObservationScope();
+        TryExecuteOnMainEffectChain(
+            side,
+            source,
+            timed.GetResolvedEffects(),
+            0,
+            true,
+            () =>
+            {
+                EndEffectChainObservationScope();
+                ClearOnMainPaidBlock();
+                if (trashHandCardAfter)
+                {
+                    FinalizeOnMainSourceCard(source, side);
+                }
+
+                TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
+            });
     }
 
     private void TryExecuteOnMainEffectChain(
         PlayerType side,
         CardController source,
-        List<EffectData> effects,
+        IReadOnlyList<EffectData> effects,
         int index,
-        bool resourceConsumed,
+        bool activationCostAlreadyPaid,
         System.Action onDone)
     {
         if (effects == null || index >= effects.Count)
         {
-            if (resourceConsumed)
-            {
-                FinalizeOnMainSourceCard(source, side);
-            }
-
             onDone?.Invoke();
             return;
         }
@@ -11246,7 +11304,14 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect = effects[index];
         if (effect == null)
         {
-            TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone);
+            TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(side, source);
+        if (!ShouldApplyChainedEffect(effect, activationContext, "OnMain"))
+        {
+            TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
             return;
         }
 
@@ -11256,7 +11321,7 @@ public partial class BattleGameMain : MonoBehaviour
             if (candidates.Count == 0)
             {
                 Debug.Log($"OnMain: 選択可能な対象がありません (target:{effect.target})。");
-                TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone);
+                TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
                 return;
             }
 
@@ -11266,26 +11331,14 @@ public partial class BattleGameMain : MonoBehaviour
                 CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
                 if (picked != null)
                 {
-                    if (!TryConsumeResourceForOnMain(side, source, ref resourceConsumed))
-                    {
-                        onDone?.Invoke();
-                        return;
-                    }
-
                     ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
                 }
 
-                TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone);
+                TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone);
                 return;
             }
 
-            OpenOnMainTargetSelectionUI(side, source, effect, candidates, effects, index, resourceConsumed, onDone);
-            return;
-        }
-
-        if (!TryConsumeResourceForOnMain(side, source, ref resourceConsumed))
-        {
-            onDone?.Invoke();
+            OpenOnMainTargetSelectionUI(side, source, effect, candidates, effects, index, activationCostAlreadyPaid, onDone);
             return;
         }
 
@@ -11293,42 +11346,7 @@ public partial class BattleGameMain : MonoBehaviour
             source,
             side,
             effect,
-            () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, resourceConsumed, onDone));
-    }
-
-    private bool TryConsumeResourceForOnMain(PlayerType side, CardController source, ref bool resourceConsumed)
-    {
-        if (resourceConsumed)
-        {
-            return true;
-        }
-
-        if (source == null || source.Data == null)
-        {
-            return false;
-        }
-
-        if (IsResolvingBurstEffect)
-        {
-            Debug.LogWarning(
-                $"[OnMain] Skipped resource consume during burst (cardId:{source.Data.id}). Use OnMain from hand, not burst.");
-            return false;
-        }
-
-        if (!gundamRule.TryConsumeResource(
-                ToRuleSide(side),
-                source.CurrentCost,
-                0,
-                source.Data.id,
-                source.CurrentLevel))
-        {
-            Debug.Log("OnMain: リソース不足で実行できません。");
-            return false;
-        }
-
-        SyncResourceViewsFromRule(ToRuleSide(side));
-        resourceConsumed = true;
-        return true;
+            () => TryExecuteOnMainEffectChain(side, source, effects, index + 1, activationCostAlreadyPaid, onDone));
     }
 
     private static bool IsEffectTargetRequiringUnitSelection(TargetType targetType)
@@ -11625,9 +11643,9 @@ public partial class BattleGameMain : MonoBehaviour
         CardController source,
         EffectData effect,
         List<CardController> candidates,
-        List<EffectData> allEffects,
+        IReadOnlyList<EffectData> allEffects,
         int effectIndex,
-        bool resourceConsumed,
+        bool activationCostAlreadyPaid,
         System.Action onDone)
     {
         string effectSummary = effect != null
@@ -11641,15 +11659,8 @@ public partial class BattleGameMain : MonoBehaviour
             null,
             picked =>
             {
-                bool consumed = resourceConsumed;
-                if (!TryConsumeResourceForOnMain(side, source, ref consumed))
-                {
-                    onDone?.Invoke();
-                    return;
-                }
-
                 ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
-                TryExecuteOnMainEffectChain(side, source, allEffects, effectIndex + 1, consumed, onDone);
+                TryExecuteOnMainEffectChain(side, source, allEffects, effectIndex + 1, activationCostAlreadyPaid, onDone);
             },
             onDone);
     }
@@ -11681,53 +11692,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (BuildOnMainExecutableEffects(ownerType, card).Count == 0)
-        {
-            return false;
-        }
-
-        Gundam2024RuleScript.PlayerState state = ownerType == PlayerType.Player
-            ? gundamRule.Player
-            : gundamRule.Enemy;
-        return state.TotalLevel >= card.CurrentLevel && state.resource >= card.CurrentCost;
-    }
-
-    /// <summary>
-    /// OnMain で、発動条件を満たす timed ブロックに含まれる効果だけを順に並べたリスト。
-    /// </summary>
-    private List<EffectData> BuildOnMainExecutableEffects(PlayerType side, CardController source)
-    {
-        List<EffectData> list = new List<EffectData>();
-        if (source == null || source.Data == null || source.Data.timedEffects == null)
-        {
-            return list;
-        }
-
-        EffectActivationContext activationContext = BuildActivationContext(side, source);
-        for (int i = 0; i < source.Data.timedEffects.Count; i++)
-        {
-            TimedEffectData timed = source.Data.timedEffects[i];
-            if (timed == null || timed.timing != EffectTiming.OnMain || !timed.HasResolvedEffects())
-            {
-                continue;
-            }
-
-            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
-            {
-                continue;
-            }
-
-            IReadOnlyList<EffectData> resolvedOnMain = timed.GetResolvedEffects();
-            for (int j = 0; j < resolvedOnMain.Count; j++)
-            {
-                if (resolvedOnMain[j] != null)
-                {
-                    list.Add(resolvedOnMain[j]);
-                }
-            }
-        }
-
-        return list;
+        return CollectExecutableOnMainBlocks(ownerType, card).Count > 0;
     }
 
     private static List<EffectData> GetEffectsByTiming(CardData data, EffectTiming timing)

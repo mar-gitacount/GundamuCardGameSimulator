@@ -102,6 +102,7 @@ public partial class BattleGameMain
         ResetOnlineOnActionState();
         ResetOnlineMulliganSyncState();
         ResetOnlineShieldBreakSyncState();
+        ResetOnlineZoneSyncState();
     }
 
     private void AssignBattleInstanceIdIfNeeded(CardController controller)
@@ -467,6 +468,9 @@ public partial class BattleGameMain
                 break;
             case "ShieldBreakComplete":
                 HandleRemoteShieldBreakComplete(message.payload);
+                break;
+            case "ZoneSync":
+                HandleRemoteZoneSync(message.payload);
                 break;
         }
     }

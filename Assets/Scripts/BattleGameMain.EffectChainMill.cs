@@ -128,30 +128,37 @@ public partial class BattleGameMain
             : ownerType;
         string deckLabel = FormatLookDeckOwnerLabel(deckOwner);
         List<CardData> milledCards = new List<CardData>(magnitude);
+        List<int> milledCardIds = new List<int>(magnitude);
 
-        for (int i = 0; i < magnitude; i++)
+        WithZoneSyncSuppressed(() =>
         {
-            if (!deckRule.TryTakeCardAtDeckIndex(0, out int cardId))
+            for (int i = 0; i < magnitude; i++)
             {
-                break;
+                if (!deckRule.TryTakeCardAtDeckIndex(0, out int cardId))
+                {
+                    break;
+                }
+
+                CardData data = DeckSettinObject.Instance.GetCardDataById(cardId);
+                deckRule.AddCardToTrash(cardId);
+                milledCardIds.Add(cardId);
+                if (data != null)
+                {
+                    milledCards.Add(data);
+                    ObserveCardInEffectChain(data);
+                }
+
+                Debug.Log(
+                    $"[Effect] MillTopToTrash {data?.cardName ?? "?"}(id:{cardId}) deck:{deckLabel} "
+                    + $"by cardId:{sourceCard?.Data?.id}");
             }
+        });
 
-            CardData data = DeckSettinObject.Instance.GetCardDataById(cardId);
-            deckRule.AddCardToTrash(cardId);
-            if (data != null)
-            {
-                milledCards.Add(data);
-                ObserveCardInEffectChain(data);
-            }
-
-            Debug.Log(
-                $"[Effect] MillTopToTrash {data?.cardName ?? "?"}(id:{cardId}) deck:{deckLabel} "
-                + $"by cardId:{sourceCard?.Data?.id}");
-        }
-
-        if (milledCards.Count > 0)
+        if (milledCardIds.Count > 0)
         {
-            SyncGundamRuleDeckCount(deckOwner, deckRule.GetRemainingCount());
+            int deckRemain = deckRule.GetRemainingCount();
+            SyncGundamRuleDeckCount(deckOwner, deckRemain);
+            NotifyLocalZoneDeckToTrash(deckOwner, milledCardIds, deckRemain);
         }
 
         if (ownerType == PlayerType.Player && milledCards.Count > 0)
