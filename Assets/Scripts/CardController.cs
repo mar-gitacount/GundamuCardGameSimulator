@@ -424,7 +424,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     public IReadOnlyList<PilotMountAllyFieldAuraEntry> GetPilotMountAllyFieldAuras() => _pilotMountAllyFieldAuras;
 
-    public string MakePilotMountFieldAuraSourceKey() => $"PilotMountAura:{BattleInstanceId}";
+    /// <summary>ユニットがフィールド上で付与した Buff/Debuff の除去用キー（搭乗オーラと共通）。</summary>
+    public string MakePilotMountFieldAuraSourceKey() => $"UnitGranted:{BattleInstanceId}";
 
     public void RegisterPilotMountAllyFieldAura(
         EffectStatTarget statTarget,
@@ -485,30 +486,35 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         }
     }
 
-    /// <summary>sourceKey が一致するランタイム修飾のみ除去（手札条件付きパッシブ用）。</summary>
-    public void RemoveStatModifiersBySource(string sourceKey)
+    /// <summary>sourceKey が一致するランタイム修飾のみ除去（手札条件付きパッシブ用）。除去した AP 修飾合計を返す。</summary>
+    public int RemoveStatModifiersBySource(string sourceKey)
     {
         if (string.IsNullOrEmpty(sourceKey))
         {
-            return;
+            return 0;
         }
 
-        RemoveKeyedModifiers(powerModifiers, sourceKey);
+        int removedPower = RemoveKeyedModifiers(powerModifiers, sourceKey);
         RemoveKeyedModifiers(costModifiers, sourceKey);
         RemoveKeyedModifiers(levelModifiers, sourceKey);
         RemoveKeyedModifiers(effectDamageModifiers, sourceKey);
         RemoveKeyedModifiers(effectDamageImmunityModifiers, sourceKey);
+        return removedPower;
     }
 
-    private static void RemoveKeyedModifiers(List<StatModifier> modifiers, string sourceKey)
+    private static int RemoveKeyedModifiers(List<StatModifier> modifiers, string sourceKey)
     {
+        int sum = 0;
         for (int i = modifiers.Count - 1; i >= 0; i--)
         {
             if (modifiers[i].sourceKey == sourceKey)
             {
+                sum += modifiers[i].value;
                 modifiers.RemoveAt(i);
             }
         }
+
+        return sum;
     }
 
     public void ClearTimedStatModifiersByDuration(EffectDuration duration)
