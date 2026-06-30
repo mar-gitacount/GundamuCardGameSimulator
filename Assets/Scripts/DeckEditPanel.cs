@@ -28,8 +28,7 @@ public class DeckEditPanel : MonoBehaviour
     }
     public void LoadDeckToEditPanel()
     {
-        // データベースが未初期化なら初期化する
-        DeckEditNowpanel.transform.DetachChildren(); // 既存のカードオブジェクトを全て削除
+        ClearDeckEditPanelCards();
         if(_cardDatabase == null)
         {
             InitializeDatabase();
@@ -40,6 +39,11 @@ public class DeckEditPanel : MonoBehaviour
         {
             int targetId = data.Key;
             int count = data.Value;
+            if (count <= 0)
+            {
+                continue;
+            }
+
             CardData carddata = db.FindById(targetId);
             GameObject cardObj = Instantiate(CardPrefab, DeckEditNowpanel.transform);
             Card cardId = cardObj.GetComponent<Card>(); 
@@ -47,9 +51,33 @@ public class DeckEditPanel : MonoBehaviour
 
             Image img = cardObj.GetComponent<Image>();
             img.sprite = carddata.imageName;
+            DeckSettinObject.Instance.EnsureCardCountBadge(cardObj, count);
             Debug.Log($"生成するカードID: {carddata.id}, 枚数: {count}");
         }
+
+        if (DeckSettinObject.Instance != null)
+        {
+            DeckSettinObject.Instance.RefreshDeckEditCountDisplays();
+        }
+
         Debug.Log("DeckEditPanel LoadDeckToEditPanel: デッキ編集パネルにデータをロードします。");
+    }
+
+    private void ClearDeckEditPanelCards()
+    {
+        if (DeckEditNowpanel == null)
+        {
+            return;
+        }
+
+        Card[] cards = DeckEditNowpanel.GetComponentsInChildren<Card>(true);
+        for (int i = cards.Length - 1; i >= 0; i--)
+        {
+            if (cards[i] != null)
+            {
+                Destroy(cards[i].gameObject);
+            }
+        }
     }
 
     void Start()

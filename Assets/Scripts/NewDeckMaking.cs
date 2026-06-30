@@ -139,6 +139,8 @@ public class NewDeckMaking : MonoBehaviour
             DeckSettinObject.Instance.ClearDeckList();
             // デッキリストを再表示する
             DeckSettinObject.Instance.ShowFileList();
+            DeckSettinObject.Instance.HideDeckEditCountUi();
+            DeckSettinObject.Instance.HideDeckActionButtons();
             DeckTitleInputField.text = "";
             DeckTitleInputField.gameObject.SetActive(false);
         }
@@ -148,12 +150,12 @@ public class NewDeckMaking : MonoBehaviour
             NewDeckText.text = "Editing Now ..";
             DeckListPanel.gameObject.SetActive(false);
             DeckTitleInputField.gameObject.SetActive(true);
+            DeckSettinObject.Instance.EnsureDeckEditUiVisible();
 
-            
-
+            DeckEditPanel.gameObject.SetActive(true);
             DeckEditPanel editPanel = DeckEditPanel.GetComponent<DeckEditPanel>();
             editPanel.LoadDeckToEditPanel();
-            DeckEditPanel.gameObject.SetActive(true);
+            DeckSettinObject.Instance.RefreshDeckEditCountDisplays();
             return;
 
 

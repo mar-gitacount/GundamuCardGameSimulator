@@ -40,6 +40,7 @@ public class DeckEdit : MonoBehaviour
         }
         count += 1;
         CardCount.text = count.ToString();
+        SyncDeckEditPreview(count);
     }
     private void subtractCard()
     {
@@ -51,6 +52,18 @@ public class DeckEdit : MonoBehaviour
         }
         count -= 1;
         CardCount.text = count.ToString();
+        SyncDeckEditPreview(count);
+    }
+
+    private void SyncDeckEditPreview(int count)
+    {
+        if (DeckSettinObject.Instance == null || CardObj == null)
+        {
+            return;
+        }
+
+        DeckSettinObject.Instance.Deckedit(cardId, count);
+        DeckSettinObject.Instance.cardObj(CardObj);
     }
 
     public string CountTextNum()

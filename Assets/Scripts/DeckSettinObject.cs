@@ -34,6 +34,12 @@ public class DeckSettinObject : MonoBehaviour
     [SerializeField] private TextMeshProUGUI CardCountText;
     [SerializeField] private GameObject DeckListPanel;
     [SerializeField] private GameObject DeckinfoPanel;
+
+    private const string DeckTotalCountLabelName = "DeckTotalCountLabel";
+    private const string DeckCardCountBadgeName = "DeckCardCountBadge";
+    private TextMeshProUGUI _deckTotalCountLabel;
+    private GameObject _deckTotalCountLabelRoot;
+    private static Sprite _deckCardCountBadgeCircleSprite;
     // バトルキャンバス
     [SerializeField] private Canvas BattleCanvas;
     // !デッキデータを保存するクラス
@@ -197,6 +203,389 @@ public class DeckSettinObject : MonoBehaviour
         return 0;
     }
 
+    public int GetDeckTotalCardCount()
+    {
+        int total = 0;
+        foreach (KeyValuePair<int, int> pair in cardData)
+        {
+            if (pair.Value > 0)
+            {
+                total += pair.Value;
+            }
+        }
+
+        return total;
+    }
+
+    public void RefreshDeckEditCountDisplays()
+    {
+        RefreshDeckTotalCountLabel();
+
+        if (DeckEditNowpanel == null || !DeckEditNowpanel.activeInHierarchy)
+        {
+            return;
+        }
+
+        RefreshDeckCardCountBadges();
+    }
+
+    public void EnsureDeckEditUiVisible()
+    {
+        // 編集中は操作ボタン一覧パネルを隠し、デッキ・カードへのタップを妨げない
+        SetDeckinfoPanelVisible(false);
+
+        if (DeckEditNowpanel != null)
+        {
+            DeckEditNowpanel.SetActive(true);
+            SetDeckEditPanelRaycastBlocking(false);
+        }
+    }
+
+    public void ShowDeckActionButtons()
+    {
+        SetDeckinfoPanelVisible(true);
+        ConfigureDeckinfoPanelRaycast(false);
+    }
+
+    public void HideDeckActionButtons()
+    {
+        SetDeckinfoPanelVisible(false);
+    }
+
+    private void SetDeckinfoPanelVisible(bool visible)
+    {
+        if (DeckinfoPanel != null)
+        {
+            DeckinfoPanel.SetActive(visible);
+        }
+    }
+
+    private void ConfigureDeckinfoPanelRaycast(bool blockRaycasts)
+    {
+        if (DeckinfoPanel == null)
+        {
+            return;
+        }
+
+        Image background = DeckinfoPanel.GetComponent<Image>();
+        if (background != null)
+        {
+            background.raycastTarget = blockRaycasts;
+        }
+    }
+
+    private void SetDeckEditPanelRaycastBlocking(bool blockRaycasts)
+    {
+        if (DeckEditNowpanel == null)
+        {
+            return;
+        }
+
+        Image background = DeckEditNowpanel.GetComponent<Image>();
+        if (background != null)
+        {
+            background.raycastTarget = blockRaycasts;
+        }
+    }
+
+    public void HideDeckEditCountUi()
+    {
+        if (_deckTotalCountLabelRoot != null)
+        {
+            _deckTotalCountLabelRoot.SetActive(false);
+        }
+    }
+
+    public void EnsureCardCountBadge(GameObject cardObject, int count)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        TextMeshProUGUI badge = GetOrCreateCardCountBadge(cardObject);
+        if (badge == null)
+        {
+            return;
+        }
+
+        badge.text = count.ToString();
+        badge.enabled = true;
+        badge.gameObject.SetActive(true);
+        ApplyCardCountBadgeLayout(badge, count);
+    }
+
+    private void RefreshDeckTotalCountLabel()
+    {
+        TextMeshProUGUI label = EnsureDeckTotalCountLabel();
+        if (label == null)
+        {
+            return;
+        }
+
+        ApplyDeckTotalCountLabelLayout();
+        _deckTotalCountLabelRoot.SetActive(true);
+        label.text = $"デッキ合計: {GetDeckTotalCardCount()}枚";
+    }
+
+    private void ApplyDeckTotalCountLabelLayout()
+    {
+        if (_deckTotalCountLabelRoot == null || DeckEditNowpanel == null)
+        {
+            return;
+        }
+
+        const float labelHeight = 30f;
+        const float gapAboveCards = 8f;
+        int reservedTopSpace = Mathf.RoundToInt(labelHeight + gapAboveCards);
+
+        RectTransform labelRect = _deckTotalCountLabelRoot.GetComponent<RectTransform>();
+        labelRect.SetParent(DeckEditNowpanel.transform, false);
+        labelRect.SetAsFirstSibling();
+
+        LayoutElement layoutElement = _deckTotalCountLabelRoot.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+        {
+            layoutElement = _deckTotalCountLabelRoot.AddComponent<LayoutElement>();
+        }
+
+        layoutElement.ignoreLayout = true;
+
+        labelRect.anchorMin = new Vector2(0f, 1f);
+        labelRect.anchorMax = new Vector2(1f, 1f);
+        labelRect.pivot = new Vector2(0.5f, 1f);
+        labelRect.anchoredPosition = new Vector2(0f, 0f);
+        labelRect.sizeDelta = new Vector2(0f, labelHeight);
+
+        GridLayoutGroup grid = DeckEditNowpanel.GetComponent<GridLayoutGroup>();
+        if (grid != null)
+        {
+            RectOffset padding = grid.padding;
+            padding.top = reservedTopSpace;
+            grid.padding = padding;
+        }
+    }
+
+    private void RefreshDeckCardCountBadges()
+    {
+        if (DeckEditNowpanel == null)
+        {
+            return;
+        }
+
+        Card[] cards = DeckEditNowpanel.GetComponentsInChildren<Card>(true);
+        for (int i = 0; i < cards.Length; i++)
+        {
+            Card card = cards[i];
+            if (card == null)
+            {
+                continue;
+            }
+
+            EnsureCardCountBadge(card.gameObject, CardCount(card.CardId));
+        }
+    }
+
+    private TextMeshProUGUI EnsureDeckTotalCountLabel()
+    {
+        if (_deckTotalCountLabel != null && _deckTotalCountLabel.gameObject == null)
+        {
+            _deckTotalCountLabel = null;
+            _deckTotalCountLabelRoot = null;
+        }
+
+        if (_deckTotalCountLabel != null)
+        {
+            return _deckTotalCountLabel;
+        }
+
+        if (DeckEditNowpanel == null)
+        {
+            return null;
+        }
+
+        RemoveLegacyDeckTotalCountLabels();
+
+        Transform existing = DeckEditNowpanel.transform.Find(DeckTotalCountLabelName);
+        if (existing != null)
+        {
+            _deckTotalCountLabelRoot = existing.gameObject;
+            _deckTotalCountLabel = existing.GetComponentInChildren<TextMeshProUGUI>(true);
+            return _deckTotalCountLabel;
+        }
+
+        GameObject labelObject = new GameObject(DeckTotalCountLabelName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        _deckTotalCountLabelRoot = labelObject;
+
+        Image background = labelObject.GetComponent<Image>();
+        background.color = new Color(1f, 1f, 1f, 0.92f);
+        background.raycastTarget = false;
+
+        GameObject textObject = new GameObject("TotalCountText", typeof(RectTransform));
+        textObject.transform.SetParent(labelObject.transform, false);
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+
+        _deckTotalCountLabel = textObject.AddComponent<TextMeshProUGUI>();
+        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("SourceHanSansJP-Regular SDF");
+        if (font != null)
+        {
+            _deckTotalCountLabel.font = font;
+        }
+
+        _deckTotalCountLabel.fontSize = 22;
+        _deckTotalCountLabel.fontStyle = FontStyles.Bold;
+        _deckTotalCountLabel.alignment = TextAlignmentOptions.Center;
+        _deckTotalCountLabel.color = Color.black;
+        _deckTotalCountLabel.raycastTarget = false;
+        return _deckTotalCountLabel;
+    }
+
+    private void RemoveLegacyDeckTotalCountLabels()
+    {
+        if (DeckinfoPanel != null)
+        {
+            Transform oldOnInfo = DeckinfoPanel.transform.Find(DeckTotalCountLabelName);
+            if (oldOnInfo != null)
+            {
+                Destroy(oldOnInfo.gameObject);
+            }
+        }
+
+        Transform misplaced = DeckEditNowpanel.transform.Find(DeckTotalCountLabelName);
+        if (misplaced != null && misplaced.GetComponentInChildren<TextMeshProUGUI>(true) == null)
+        {
+            Destroy(misplaced.gameObject);
+        }
+    }
+
+    private TextMeshProUGUI GetOrCreateCardCountBadge(GameObject cardObject)
+    {
+        Transform existing = cardObject.transform.Find(DeckCardCountBadgeName);
+        if (existing != null && existing.GetComponent<Image>() == null)
+        {
+            Destroy(existing.gameObject);
+            existing = null;
+        }
+
+        if (existing != null)
+        {
+            Transform textTransform = existing.Find("CountText");
+            if (textTransform != null)
+            {
+                return textTransform.GetComponent<TextMeshProUGUI>();
+            }
+
+            return existing.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+
+        GameObject badgeRoot = new GameObject(
+            DeckCardCountBadgeName,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        badgeRoot.transform.SetParent(cardObject.transform, false);
+        badgeRoot.transform.SetAsLastSibling();
+
+        RectTransform rect = badgeRoot.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(1f, 1f);
+        rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(1f, 1f);
+        rect.anchoredPosition = new Vector2(-2f, -2f);
+        rect.sizeDelta = new Vector2(20f, 20f);
+
+        Image background = badgeRoot.GetComponent<Image>();
+        background.sprite = GetDeckCardCountBadgeCircleSprite();
+        background.type = Image.Type.Simple;
+        background.preserveAspect = true;
+        background.color = Color.black;
+        background.raycastTarget = false;
+
+        GameObject textObject = new GameObject("CountText", typeof(RectTransform));
+        textObject.transform.SetParent(badgeRoot.transform, false);
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
+        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("SourceHanSansJP-Regular SDF");
+        if (font != null)
+        {
+            text.font = font;
+        }
+
+        text.fontSize = 13;
+        text.fontStyle = FontStyles.Bold;
+        text.alignment = TextAlignmentOptions.Center;
+        text.color = Color.white;
+        text.raycastTarget = false;
+        return text;
+    }
+
+    private static void ApplyCardCountBadgeLayout(TextMeshProUGUI badge, int count)
+    {
+        if (badge == null)
+        {
+            return;
+        }
+
+        RectTransform badgeRect = badge.transform.parent as RectTransform;
+        if (badgeRect == null)
+        {
+            return;
+        }
+
+        float size = count >= 10 ? 24f : 20f;
+        badgeRect.sizeDelta = new Vector2(size, size);
+        badge.fontSize = count >= 10 ? 12f : 13f;
+    }
+
+    private static Sprite GetDeckCardCountBadgeCircleSprite()
+    {
+        if (_deckCardCountBadgeCircleSprite != null)
+        {
+            return _deckCardCountBadgeCircleSprite;
+        }
+
+        const int textureSize = 32;
+        Texture2D texture = new Texture2D(textureSize, textureSize, TextureFormat.RGBA32, false)
+        {
+            name = "DeckCardCountBadgeCircle",
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+        };
+
+        Color32 transparent = new Color32(0, 0, 0, 0);
+        Color32 black = new Color32(0, 0, 0, 255);
+        float center = (textureSize - 1) * 0.5f;
+        float radius = textureSize * 0.5f - 1.5f;
+        float radiusSquared = radius * radius;
+
+        for (int y = 0; y < textureSize; y++)
+        {
+            for (int x = 0; x < textureSize; x++)
+            {
+                float dx = x - center;
+                float dy = y - center;
+                texture.SetPixel(x, y, dx * dx + dy * dy <= radiusSquared ? black : transparent);
+            }
+        }
+
+        texture.Apply();
+        _deckCardCountBadgeCircleSprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, textureSize, textureSize),
+            new Vector2(0.5f, 0.5f),
+            100f);
+        _deckCardCountBadgeCircleSprite.name = "DeckCardCountBadgeCircleSprite";
+        return _deckCardCountBadgeCircleSprite;
+    }
+
     public void ShowAllCanvasChildren(GameObject canvasObj)
     {
         canvasObj.gameObject.SetActive(true);
@@ -229,11 +618,18 @@ public class DeckSettinObject : MonoBehaviour
            Debug.Log($"デッキデータ{cardData[id]}枚");
         }
 
-        cardData[id] = count;
-        Debug.Log($"デッキデータ{cardData[id]}枚");
-        // DeckTitleInputField.gameObject.SetActive(true);
+        if (count <= 0)
+        {
+            cardData.Remove(id);
+        }
+        else
+        {
+            cardData[id] = count;
+        }
+
+        Debug.Log($"デッキデータ{id}の枚数: {count}");
         DeckEditNowpanel.SetActive(true);
-        // return count;
+        RefreshDeckEditCountDisplays();
     }
     public void RemoveCardById(int targetId)
 {
@@ -254,6 +650,8 @@ public class DeckSettinObject : MonoBehaviour
     {
         Debug.LogWarning($"CardId: {targetId} は見つかりませんでした。");
     }
+
+    RefreshDeckEditCountDisplays();
 }
 public GameObject FindCardById(int targetId)
 {
@@ -298,40 +696,15 @@ public void cardObj(GameObject obj)
     if(FindCardById(cardid) != null)
     {
         GameObject copyobj = FindCardById(cardid);
-        // ?カウントテキストチェック
-        // obj が GameObject の場合、.transform をつける
-        // Instantiate(CardCountText, obj.transform);
-        bool textFound = false;
-
-       // 2. copyobj の「子要素」をループしてテキストコンポーネントを探す
-       foreach (Transform child in copyobj.transform)
-       {
-         if (child.TryGetComponent(out TextMeshProUGUI text))
-         {
-            text.text = count.ToString();
-            text.enabled = true; // 前回の「消える」対策
-            text.gameObject.SetActive(true);
-            
-            Debug.Log($"カードID {cardid} の枚数を {count} に更新しました。");
-            textFound = true;
-            break; // 見つかったらループを抜ける
-         }
-       }
-    //    if(copyobj.TryGetComponent(out TextMeshProUGUI text))
-    //     {
-    //         text.text = count.ToString();
-    //         Debug.Log($"カードid{cardid}の枚数を{count}に更新しました。");
-    //     }
-    //     else
-    //     {
-    //         Debug.LogWarning("TextMeshProUGUI コンポーネントが見つかりませんでした。");
-    //     }
-        // デッキ編集エリアに存在してかつ、個数が0の場合削除する。
-        if(count == 0)
+        if (count == 0)
         {
             Debug.Log($"カードID {cardid} の枚数が0になったため、オブジェクトを削除します。");
             RemoveCardById(cardid);
+            return;
         }
+
+        EnsureCardCountBadge(copyobj, count);
+        RefreshDeckEditCountDisplays();
         return;
     }
 
@@ -351,16 +724,7 @@ public void cardObj(GameObject obj)
     }
     // オブジェクト数=0の場合、元オブジェクトを削除する。
     GameObject copy = Instantiate(obj, DeckEditNowpanel.transform);
-
-   TextMeshProUGUI countText = Instantiate(CardCountText, copy.transform);
-   if (countText.TryGetComponent(out TextMeshProUGUI tmpro))
-   {
-    tmpro.alignment = TextAlignmentOptions.Center; // 上下左右中央
-    tmpro.text = count.ToString();
-    
-    // 前回の「消える」対策：強制有効化
-    tmpro.enabled = true;
-    }
+    EnsureCardCountBadge(copy, count);
     Debug.Log($"サムネid{obj.GetComponent<Card>().CardId}");
     RectTransform rect = copy.GetComponent<RectTransform>();
     rect.anchoredPosition = Vector2.zero;
@@ -382,6 +746,8 @@ public void cardObj(GameObject obj)
     {
         Debug.Log("Sprite: " + img.sprite);
     }
+
+    RefreshDeckEditCountDisplays();
 }
  public void CardDataToJson()
     {
@@ -614,7 +980,7 @@ public void ShowFileList()
             return;
         }
         cardData.Clear();
-        DeckinfoPanel.SetActive(true);
+        ShowDeckActionButtons();
         DeckTitleInputField.text = data.title;
         foreach (var card in data.cards)
         {
