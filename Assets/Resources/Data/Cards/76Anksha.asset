@@ -74,7 +74,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
-  pilotMountOnPilotMountedOrder: 0
+  pilotMountOnPilotMountedOrder: 1
   isBlocker: 0
   isDeployTurnAttack: 0
   isNotDirectAttack: 0

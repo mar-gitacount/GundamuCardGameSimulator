@@ -113,6 +113,9 @@ public class ScrollBottomChecker : MonoBehaviour
 
     void OnScroll(Vector2 value)
     {
+        if (isLoading || content == null || imagePrefab == null)
+            return;
+
         Debug.Log("Scroll Position: " + value);
         if (value.y <= 0.01f)
         {
@@ -182,14 +185,16 @@ public class ScrollBottomChecker : MonoBehaviour
     {
         // 実行するたびにallcardsからデータを取得して画像を追加、そのあとlistから削除する。
 
-        isLoading = true;
+        if (isLoading || content == null || imagePrefab == null)
+            return;
 
-        CardDatabase db = CardDatabase.Instance;
-        if(allCards.Count == 0)
+        if (allCards.Count == 0)
         {
             Debug.Log("これ以上カードデータがありません");
             return;
         }
+
+        isLoading = true;
         // ここを共通の選択したところから取るようにする。検索窓
         // CardData carddata = db.GetById(1);
         // GameObject obj = Instantiate(imagePrefab,content);
@@ -210,25 +215,29 @@ public class ScrollBottomChecker : MonoBehaviour
         int addCount = Mathf.Min(count, allCards.Count);
         for (int i = 0; i < addCount; i++)
         {
+            CardData carddata = allCards[i];
+            if (carddata == null)
+            {
+                Debug.LogWarning($"allCards[{i}] が null のためスキップします");
+                continue;
+            }
 
-            // コンテンツに画像を追加
-            // CardData carddata = db.GetById(allCards[i].id);
-            CardData carddata = db.FindById(allCards[i].id);
-            // jsonデータから画像情報を取得して表示する。
-            Debug.Log("プレハブの有無: " + (imagePrefab != null));
-            Debug.Log("コンテンツの有無: " + (content != null));
-            GameObject obj = Instantiate(imagePrefab,content);
+            Debug.Log($"カード追加: ID={carddata.id}, 名前={carddata.cardName}");
+            GameObject obj = Instantiate(imagePrefab, content);
+            if (obj == null)
+                continue;
 
-            Card cardId = obj.GetComponent<Card>(); 
-            cardId.CardId = allCards[i].id;
-           
-            // Debug.Log("画像の名前: " + carddata.imageName+", カードの名前: " + carddata.cardName+", カードのID: " + carddata.id+", カードのバージョン: " + carddata.version+", カードのコスト: " + carddata.cost +", カードのレベル: " + carddata.level+", カードのパワー: " + carddata.power+", カードのHP: " + carddata.hp+", カードデータのカードのソースタイプ: " + carddata.sourceType);
-            Debug.Log("カードの名前: " + carddata.cardName);
+            Card cardId = obj.GetComponent<Card>();
+            if (cardId != null)
+                cardId.CardId = carddata.id;
+
             Image img = obj.GetComponent<Image>();
-            img.sprite = carddata.imageName;
-            // ?カードがクリックされたときの処理を追加テスト
-            obj.GetComponent<Button>().onClick.AddListener(cardclicked);
-            // Instantiate(imagePrefab, content);
+            if (img != null)
+                img.sprite = carddata.imageName;
+
+            Button button = obj.GetComponent<Button>();
+            if (button != null)
+                button.onClick.AddListener(cardclicked);
         }
         // 1フレーム待ってから再度許可（レイアウト更新待ち）
         StartCoroutine(ResetLoading());

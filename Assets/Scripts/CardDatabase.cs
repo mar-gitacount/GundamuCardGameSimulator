@@ -237,8 +237,10 @@ CardJson FindByName(string name)
 public CardData FindById(int id)
 {
     if (cardDict.TryGetValue(id, out var card))
+    {
         Debug.Log($"ID {id} のカードが見つかりました: 名前={card.cardName}, 画像={card.imageName}, version={card.version}");
         return card;
+    }
     Debug.LogWarning($"ID {id} のカードが存在しません");
     return null;
 }
