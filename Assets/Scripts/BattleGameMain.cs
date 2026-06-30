@@ -8892,6 +8892,10 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyAddShieldToHandEffect(sourceCard, ownerType, effect, magnitude);
                 break;
 
+            case EffectType.AddSelfToHand:
+                ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
             case EffectType.DeployShieldFromHand:
                 ApplyDeployShieldFromHandEffect(sourceCard, ownerType, effect, magnitude);
                 break;
@@ -9891,7 +9895,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ExileFromTrash
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AttackActiveEnemyUnit
-            || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.DeployShieldFromHand
+            || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
             || effect.type == EffectType.Suppress)
         {
@@ -10559,6 +10563,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.AddShieldToHand:
                     notes.Append("[AddShieldToHand ").Append(magnitude).Append("] ");
                     continue;
+                case EffectType.AddSelfToHand:
+                    notes.Append("[AddSelfToHand] ");
+                    continue;
                 case EffectType.DeployShieldFromHand:
                     notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");
                     continue;
@@ -10698,6 +10705,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.AddShieldToHand:
                     notes.Append("[AddShieldToHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.AddSelfToHand:
+                    notes.Append("[AddSelfToHand] ");
                     continue;
                 case EffectType.DeployShieldFromHand:
                     notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");

@@ -25,3 +25,20 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 1
+  attackFlg: 0
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+  features: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0

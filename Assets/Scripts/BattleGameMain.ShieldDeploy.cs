@@ -291,6 +291,85 @@ public partial class BattleGameMain
             + $"by cardId:{sourceCard?.Data?.id ?? -1}");
     }
 
+    private void ApplyAddSelfToHandEffect(
+        CardController sourceCard,
+        PlayerType sourceOwner,
+        EffectData effect,
+        int magnitude)
+    {
+        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect.target);
+        CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+
+        if (!IsResolvingBurstEffect)
+        {
+            Debug.LogWarning(
+                $"[AddSelfToHand] OnBurst 以外では未対応です (cardId:{sourceCard?.Data?.id ?? -1})。");
+            return;
+        }
+
+        if (sourceCard == null || recipient != sourceOwner)
+        {
+            Debug.LogWarning(
+                $"[AddSelfToHand] バースト元カードを手札へ移せません (cardId:{sourceCard?.Data?.id ?? -1})。");
+            return;
+        }
+
+        int applied = 0;
+        int count = magnitude > 0 ? magnitude : 1;
+        for (int i = 0; i < count; i++)
+        {
+            if (!TryMoveBurstSourceCardToHand(sourceCard, recipient, rule))
+            {
+                if (applied == 0)
+                {
+                    Debug.LogWarning(
+                        $"[AddSelfToHand] burst source move failed side:{recipient} cardId:{sourceCard.Data?.id}");
+                }
+
+                break;
+            }
+
+            applied++;
+            break;
+        }
+
+        Debug.Log(
+            $"[Effect] AddSelfToHand x{applied}/{count} target:{effect.target} "
+            + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+    }
+
+    private bool TryMoveBurstSourceCardToHand(CardController card, PlayerType ownerType, CardGameRule rule)
+    {
+        if (card == null || card.Data == null || rule?.HandScrollContent == null)
+        {
+            return false;
+        }
+
+        if (card.transform.IsChildOf(rule.HandScrollContent))
+        {
+            return true;
+        }
+
+        card.RevealShieldFace();
+        card.ResetRuntimeStatsFromData();
+        card.CleanupUnitBattleMountVisuals();
+        card.SetAttackFlg(AttackFlg.False);
+        card.SetUnitRestVisual(false);
+        card.transform.SetParent(rule.HandScrollContent, false);
+        RectTransform rect = card.GetComponent<RectTransform>();
+        if (rect != null)
+        {
+            rect.localScale = Vector3.one;
+        }
+
+        RegisterCardInHandLists(card, ownerType);
+        TriggerOnHandAutoEffects(card, ownerType, skipHandZoneCheck: true);
+        rule.RefreshHandCountDisplay();
+        Debug.Log(
+            $"[AddSelfToHand] {card.Data.cardName}(id:{card.Data.id}) shield break → {ownerType} hand");
+        return true;
+    }
+
     private PlayerType ResolveEffectOwnerPlayerType(PlayerType sourceOwner, TargetType target)
     {
         if (target == TargetType.EnemyPlayer)

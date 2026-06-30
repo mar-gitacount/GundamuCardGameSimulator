@@ -1,4 +1,4 @@
-%YAML 1.1
+﻿%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -27,6 +27,13 @@ MonoBehaviour:
   type: 1
   attackFlg: 0
   timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
   - timing: 3
     activationConditions: []
     effectsName: 

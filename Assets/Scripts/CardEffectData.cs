@@ -91,7 +91,9 @@ public enum EffectType
     /// <summary>REST のユニットを ACTIVE にする（レスト解除）。value=体数上限（0 で対象全員）。</summary>
     Activate,
     /// <summary>対象ユニットがそのターン（UntilEndOfTurn）相手プレイヤー／シールドへ直接攻撃できない。</summary>
-    NotDirectAttack
+    NotDirectAttack,
+    /// <summary>OnBurst 時は破壊公開されたカード自身をオーナーの手札へ加える。</summary>
+    AddSelfToHand
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>

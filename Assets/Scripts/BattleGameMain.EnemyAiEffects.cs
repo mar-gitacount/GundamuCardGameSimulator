@@ -294,7 +294,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.ExileFromTrash
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit
-                || eff.type == EffectType.AddShieldToHand                 || eff.type == EffectType.DeployShieldFromHand
+                || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.AddSelfToHand || eff.type == EffectType.DeployShieldFromHand
                 || eff.type == EffectType.DeployBase
                 || eff.type == EffectType.DeployUnit
                 || eff.type == EffectType.GrantAttackFlag
