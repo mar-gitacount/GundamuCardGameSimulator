@@ -20,6 +20,10 @@ public partial class BattleGameMain
     private bool isOnlineShieldBreakThinkPauseOpen;
     private GameObject _activeShieldBreakThinkRoot;
     private OnlineDeferredEnemyShieldBreak? _onlineDeferredEnemyShieldBreak;
+    /// <summary>攻撃側ミラー用。防御側のバースト完了待ち中に破壊されたシールド ID（ShieldAttack 送信時の peek）。</summary>
+    private int[] _pendingAttackerMirrorBrokenShieldCardIds;
+    private bool _recordingRemoteShieldBreakTrashIds;
+    private readonly List<int> _remoteShieldBreakTrashedCardIds = new List<int>();
 
     private void ResetOnlineShieldBreakSyncState()
     {
@@ -28,6 +32,9 @@ public partial class BattleGameMain
         _onlineShieldBreakCompleteReceived = false;
         _onlineShieldAttackNotifySent = false;
         _onlineDeferredEnemyShieldBreak = null;
+        _pendingAttackerMirrorBrokenShieldCardIds = null;
+        _recordingRemoteShieldBreakTrashIds = false;
+        _remoteShieldBreakTrashedCardIds.Clear();
         ClearPendingDefenderDeployedBaseHpForOnlineSync();
         CloseOnlineShieldBreakThinkOverlay();
     }
@@ -209,6 +216,9 @@ public partial class BattleGameMain
         int requestId = ++_onlineShieldBreakRequestIdCounter;
         _pendingOnlineShieldBreakRequestId = requestId;
         _onlineShieldBreakCompleteReceived = false;
+        _pendingAttackerMirrorBrokenShieldCardIds = cardIds != null && cardIds.Length > 0
+            ? (int[])cardIds.Clone()
+            : null;
         int defenderDeployedBaseHpAfter = ConsumePendingDefenderDeployedBaseHpForOnlineSync();
         if (defenderDeployedBaseHpAfter < 0)
         {
@@ -231,21 +241,55 @@ public partial class BattleGameMain
             displayCards,
             deferred.SimultaneousReveal);
 
-        ApplyAttackerEnemyZoneShieldBreakVisualSync(deferred.Count, cardIds, deferred.SimultaneousReveal);
-
-        if (!_onlineShieldBreakCompleteReceived)
+        if (_onlineShieldBreakCompleteReceived)
         {
+            Debug.Log(
+                "[OnlineBattle] ShieldBreakComplete received — attacker mirror already synced from defender snapshot.");
+        }
+        else
+        {
+            ApplyAttackerEnemyZoneShieldBreakVisualSync(deferred.Count, cardIds, deferred.SimultaneousReveal);
             Debug.LogWarning(
                 "[OnlineBattle] ShieldBreakComplete not received — attacker visual sync applied from local rule.");
         }
 
         _pendingOnlineShieldBreakRequestId = 0;
+        _pendingAttackerMirrorBrokenShieldCardIds = null;
         isShieldBreakFlowOpen = false;
+    }
+
+    private void BeginRemoteShieldBreakTrashIdRecording()
+    {
+        _recordingRemoteShieldBreakTrashIds = true;
+        _remoteShieldBreakTrashedCardIds.Clear();
+    }
+
+    private int[] EndRemoteShieldBreakTrashIdRecording()
+    {
+        _recordingRemoteShieldBreakTrashIds = false;
+        return _remoteShieldBreakTrashedCardIds.Count > 0
+            ? _remoteShieldBreakTrashedCardIds.ToArray()
+            : null;
+    }
+
+    private void RecordRemoteShieldBreakTrashedCardIdIfNeeded(ShieldBreakTaken taken)
+    {
+        if (!_recordingRemoteShieldBreakTrashIds)
+        {
+            return;
+        }
+
+        int cardId = taken.Data != null ? taken.Data.id : taken.CardId;
+        if (cardId > 0)
+        {
+            _remoteShieldBreakTrashedCardIds.Add(cardId);
+        }
     }
 
     private void SendOnlineShieldBreakComplete(
         int requestId,
-        Gundam2024RuleScript.PlayerSide defenderSide)
+        Gundam2024RuleScript.PlayerSide defenderSide,
+        int[] brokenShieldCardIds = null)
     {
         if (requestId <= 0 || !IsOnlineBattle())
         {
@@ -265,12 +309,14 @@ public partial class BattleGameMain
             defenderState != null ? defenderState.exBase : -1,
             baseHpAfter,
             baseCardId,
-            shieldZoneIds);
+            shieldZoneIds,
+            brokenShieldCardIds);
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateShieldBreakComplete(payload));
         Debug.Log(
             $"[OnlineBattle] ShieldBreakComplete sent. requestId={requestId} shield={defenderState?.shield} "
-            + $"exBase={defenderState?.exBase} baseId={baseCardId} baseHp={baseHpAfter} zone={shieldZoneIds.Length}");
+            + $"exBase={defenderState?.exBase} baseId={baseCardId} baseHp={baseHpAfter} zone={shieldZoneIds.Length} "
+            + $"trashed={brokenShieldCardIds?.Length ?? 0}");
     }
 
     private void HandleRemoteShieldBreakComplete(string payload)
@@ -290,10 +336,45 @@ public partial class BattleGameMain
         if (currentPlayerType == PlayerType.Player)
         {
             ApplyRemoteDefenderAreaSnapshotFromBurst(action);
+            ApplyAttackerMirrorBrokenShieldCardsToTrash(
+                action.brokenShieldCardIds != null && action.brokenShieldCardIds.Length > 0
+                    ? action.brokenShieldCardIds
+                    : _pendingAttackerMirrorBrokenShieldCardIds);
         }
 
         _onlineShieldBreakCompleteReceived = true;
         Debug.Log($"[OnlineBattle] ShieldBreakComplete received. requestId={action.requestId}");
+    }
+
+    /// <summary>
+    /// 防御側のバースト完了後、攻撃側ミラーの相手トラッシュへ破壊シールドを反映する。
+    /// ゾーンはスナップショットで既に更新済みのため、ID のみトラッシュへ追加する。
+    /// </summary>
+    private void ApplyAttackerMirrorBrokenShieldCardsToTrash(int[] brokenCardIds)
+    {
+        if (brokenCardIds == null || brokenCardIds.Length == 0 || enemyCardGameRule == null)
+        {
+            return;
+        }
+
+        int added = 0;
+        for (int i = 0; i < brokenCardIds.Length; i++)
+        {
+            int cardId = brokenCardIds[i];
+            if (cardId <= 0)
+            {
+                continue;
+            }
+
+            enemyCardGameRule.AddCardToTrash(cardId);
+            added++;
+        }
+
+        if (added > 0)
+        {
+            SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Enemy);
+            Debug.Log($"[OnlineBattle] Attacker mirror trash synced. brokenShields={added}");
+        }
     }
 
     private IEnumerator ApplyRemoteDefenderShieldBreakCoroutine(
@@ -309,6 +390,7 @@ public partial class BattleGameMain
             yield break;
         }
 
+        BeginRemoteShieldBreakTrashIdRecording();
         try
         {
             if (simultaneousReveal && brokenCount > 1)
@@ -326,12 +408,13 @@ public partial class BattleGameMain
         }
         finally
         {
+            int[] trashedCardIds = EndRemoteShieldBreakTrashIdRecording();
             if (!shieldBreakQueueRunning && pendingShieldBreakBatches.Count == 0)
             {
                 isShieldBreakFlowOpen = false;
             }
 
-            SendOnlineShieldBreakComplete(shieldBreakRequestId, side);
+            SendOnlineShieldBreakComplete(shieldBreakRequestId, side, trashedCardIds);
         }
     }
 

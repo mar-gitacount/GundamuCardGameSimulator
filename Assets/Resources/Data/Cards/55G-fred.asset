@@ -158,9 +158,8 @@ MonoBehaviour:
     oncePerTurn: 1
   features: []
   link:
-  - pilotCardId: 0
-    pilotFeatures:
-    - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+  - pilotCardId: 56
+    pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0

@@ -696,7 +696,7 @@ public partial class BattleGameMain
         }
     }
 
-    private static void CommitShieldBreakTakenAfterBurst(ShieldBreakTaken taken, CardGameRule rule)
+    private void CommitShieldBreakTakenAfterBurst(ShieldBreakTaken taken, CardGameRule rule)
     {
         if (rule == null)
         {
@@ -707,6 +707,7 @@ public partial class BattleGameMain
         if (!keepCard)
         {
             rule.CommitShieldCardToTrash(taken);
+            RecordRemoteShieldBreakTrashedCardIdIfNeeded(taken);
         }
     }
 
