@@ -40,6 +40,12 @@ public partial class BattleGameMain
         playerHandCards.Remove(cardController.Data);
         enemyHandCards.Remove(cardController.Data);
         unitsPendingSendToTrash.Remove(cardController);
+
+        if (cardController.Data.IsUnitLike() && cardController.BattleInstanceId > 0)
+        {
+            ClearStatModifiersGrantedByDestroyedUnit(cardController);
+        }
+
         Destroy(cardController.gameObject);
         ReconcileShieldStateWithZone(ruleSide);
         RefreshAllHandsConditionalOnHandAuto();

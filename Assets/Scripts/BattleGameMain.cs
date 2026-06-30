@@ -5088,13 +5088,19 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 }
                 case EffectType.Buff:
-                    ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration);
+                {
+                    string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
+                    ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey);
                     QueueOnlineUnitStat(t, magnitude, effect.statTarget, effect.duration);
                     break;
+                }
                 case EffectType.Debuff:
-                    ApplyStatEffect(t, -magnitude, effect.statTarget, effect.duration);
+                {
+                    string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
+                    ApplyStatEffect(t, -magnitude, effect.statTarget, effect.duration, modifierSourceKey);
                     QueueOnlineUnitStat(t, -magnitude, effect.statTarget, effect.duration);
                     break;
+                }
                 case EffectType.BlockRedirect:
                     // BlockRedirect は戦闘フロー分岐で解釈するため、ここでは何もしない。
                     break;
@@ -8938,9 +8944,10 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.Debuff:
                 int sign = effect.type == EffectType.Buff ? 1 : -1;
                 int signedValue = sign * magnitude;
+                string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
                 for (int i = 0; i < targets.Count; i++)
                 {
-                    ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration);
+                    ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
                     QueueOnlineUnitStat(targets[i], signedValue, effect.statTarget, effect.duration);
                 }
                 TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);

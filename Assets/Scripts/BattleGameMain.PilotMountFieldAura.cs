@@ -77,4 +77,69 @@ public partial class BattleGameMain
 
         FlushOnlineEffectSyncBatch();
     }
+
+    /// <summary>破壊・除外されたユニットが付与した Buff/Debuff を盤上の全ユニットから除去する。</summary>
+    private void ClearStatModifiersGrantedByDestroyedUnit(CardController destroyedUnit)
+    {
+        if (destroyedUnit == null || destroyedUnit.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        string sourceKey = destroyedUnit.MakePilotMountFieldAuraSourceKey();
+        RemoveUnitGrantedStatModifiersFromCardList(playerBattleZoneCards, sourceKey, destroyedUnit);
+        RemoveUnitGrantedStatModifiersFromCardList(enemyBattleZoneCards, sourceKey, destroyedUnit);
+        Debug.Log(
+            $"[UnitBuff] cleared modifiers sourceKey:{sourceKey} "
+            + $"from destroyed {destroyedUnit.Data?.cardName}(id:{destroyedUnit.Data?.id})");
+    }
+
+    private void RemoveUnitGrantedStatModifiersFromCardList(
+        List<CardController> cards,
+        string sourceKey,
+        CardController exclude)
+    {
+        if (cards == null || string.IsNullOrEmpty(sourceKey))
+        {
+            return;
+        }
+
+        for (int i = 0; i < cards.Count; i++)
+        {
+            CardController card = cards[i];
+            if (card == null || card == exclude)
+            {
+                continue;
+            }
+
+            int removedPower = card.RemoveStatModifiersBySource(sourceKey);
+            if (removedPower != 0)
+            {
+                QueueOnlineUnitStat(card, -removedPower, EffectStatTarget.AP, EffectDuration.Permanent);
+            }
+        }
+    }
+
+    /// <summary>バトルゾーン上のユニットが付与する Buff/Debuff に紐づける sourceKey。</summary>
+    private string ResolveUnitStatModifierSourceKey(CardController sourceCard)
+    {
+        CardController grantingUnit = null;
+        if (_pilotMountEffectHostUnit != null
+            && _pilotMountEffectHostUnit.Data != null
+            && _pilotMountEffectHostUnit.Data.IsUnitLike()
+            && _pilotMountEffectHostUnit.BattleInstanceId > 0)
+        {
+            grantingUnit = _pilotMountEffectHostUnit;
+        }
+        else if (sourceCard != null
+            && sourceCard.Data != null
+            && sourceCard.Data.IsUnitLike()
+            && sourceCard.BattleInstanceId > 0
+            && IsCardOnBattleZone(sourceCard))
+        {
+            grantingUnit = sourceCard;
+        }
+
+        return grantingUnit != null ? grantingUnit.MakePilotMountFieldAuraSourceKey() : null;
+    }
 }
