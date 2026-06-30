@@ -8,7 +8,6 @@ public partial class BattleGameMain
     {
         if (_applyingRemoteBattleAction
             || !IsOnlineBattle()
-            || currentPlayerType != PlayerType.Player
             || ownerType != PlayerType.Player
             || baseCard == null
             || baseCard.Data == null)
@@ -38,7 +37,6 @@ public partial class BattleGameMain
     {
         if (_applyingRemoteBattleAction
             || !IsOnlineBattle()
-            || currentPlayerType != PlayerType.Player
             || ownerType != PlayerType.Player
             || shieldCard == null
             || shieldCard.Data == null)
@@ -253,5 +251,111 @@ public partial class BattleGameMain
         SyncBaseZoneHeaderDisplay(defenderSide);
         Debug.Log(
             $"[OnlineBattle] Remote deployed base HP applied. side:{defenderSide} hp:{defenderDeployedBaseHpAfter}");
+    }
+
+    /// <summary>
+    /// 攻撃側が受け取る ShieldBreakComplete 付属の防御側領域スナップショットを相手ミラーへ反映する。
+    /// </summary>
+    private void ApplyRemoteDefenderAreaSnapshotFromBurst(OnlineBattleActionPayload action)
+    {
+        if (action == null || !IsOnlineBattle() || DeckSettinObject.Instance == null)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide mirrorSide = Gundam2024RuleScript.PlayerSide.Enemy;
+        CardGameRule rule = enemyCardGameRule;
+        if (rule == null || gundamRule == null)
+        {
+            return;
+        }
+
+        _applyingRemoteBattleAction = true;
+        try
+        {
+            Gundam2024RuleScript.PlayerState enemyState = gundamRule.Enemy;
+            if (action.defenderExBaseAfter >= 0)
+            {
+                enemyState.exBase = Mathf.Max(0, action.defenderExBaseAfter);
+            }
+
+            if (action.defenderShieldAfter >= 0)
+            {
+                enemyState.shield = Mathf.Max(0, action.defenderShieldAfter);
+            }
+
+            if (action.shieldZoneCardIds != null)
+            {
+                rule.ApplyShieldZoneSnapshotFromCardIds(
+                    CardImagePrefab,
+                    OnCardClicked,
+                    action.shieldZoneCardIds);
+            }
+
+            ApplyRemoteMirrorDeployedBaseFromSnapshot(action, rule, mirrorSide);
+
+            if (action.defenderShieldAfter < 0 && action.shieldZoneCardIds != null)
+            {
+                gundamRule.SyncShieldCountFromZone(mirrorSide, rule.GetShieldZoneCardCount());
+            }
+
+            SyncResourceViewsFromRule(mirrorSide);
+            ReconcileShieldStateWithZone(mirrorSide, force: true);
+            SyncBaseZoneHeaderDisplay(mirrorSide);
+            Debug.Log(
+                $"[OnlineBattle] Remote burst aftermath applied. shield={enemyState.shield} exBase={enemyState.exBase} "
+                + $"baseId={action.cardId} baseHp={action.defenderDeployedBaseHpAfter} zone={action.shieldZoneCardIds?.Length ?? 0}");
+        }
+        finally
+        {
+            _applyingRemoteBattleAction = false;
+        }
+    }
+
+    private void ApplyRemoteMirrorDeployedBaseFromSnapshot(
+        OnlineBattleActionPayload action,
+        CardGameRule rule,
+        Gundam2024RuleScript.PlayerSide mirrorSide)
+    {
+        if (action == null || rule == null)
+        {
+            return;
+        }
+
+        if (action.defenderDeployedBaseHpAfter < 0)
+        {
+            return;
+        }
+
+        if (action.defenderDeployedBaseHpAfter <= 0 || action.cardId <= 0)
+        {
+            ClearRemoteMirrorDeployedBaseVisual(rule);
+            return;
+        }
+
+        CardData cardData = DeckSettinObject.Instance.GetCardDataById(action.cardId);
+        if (cardData == null)
+        {
+            Debug.LogWarning($"[OnlineBattle] Unknown base card id in burst snapshot: {action.cardId}");
+            return;
+        }
+
+        CardController existing = rule.DeployedBase;
+        if (existing != null && existing.Data != null && existing.Data.id == action.cardId)
+        {
+            existing.SetCurrentHpForSync(action.defenderDeployedBaseHpAfter);
+            RefreshDeployedBaseHpOverlay(existing);
+            return;
+        }
+
+        ClearRemoteMirrorDeployedBaseVisual(rule);
+        GameObject cardObject = Object.Instantiate(CardImagePrefab, rule.BaseSlotContent);
+        CardController controller = cardObject.GetComponent<CardController>();
+        controller.SetUp(cardData, OnCardClicked);
+        controller.ResetRuntimeStatsFromData();
+        controller.SetCurrentHpForSync(action.defenderDeployedBaseHpAfter);
+        controller.RevealShieldFace();
+        rule.AttachDeployedBaseCard(controller);
+        RefreshDeployedBaseHpOverlay(controller);
     }
 }
