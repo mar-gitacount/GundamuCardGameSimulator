@@ -10,28 +10,26 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 63Tallgeese
+  m_Name: 74Hyzaku
   m_EditorClassIdentifier: 
-  id: 63
-  cardName: Tallgeese
-  cost: 0
-  level: 0
-  power: 4
+  id: 74
+  cardName: Hyzaku
+  cost: 1
+  level: 2
+  power: 2
   hp: 2
-  imageName: {fileID: 21300000, guid: 249c4173d7d3c204b97f9021040f665e, type: 3}
+  imageName: {fileID: 21300000, guid: 5f5541665031bb04591c82a70ff4f45e, type: 3}
   image: {fileID: 0}
-  version: 1
+  version: 2
   sourceType: 1
   filterType: 0
-  color: 4
-  type: 5
+  color: 2
+  type: 0
   attackFlg: 0
   timedEffects: []
-  features: []
-  link:
-  - pilotCardId: 0
-    pilotFeatures: []
-    pilotFeatureIds: 
+  features:
+  - {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

@@ -146,7 +146,20 @@ public static class UnitLinkExtensions
     {
         if (slot.pilotFeatures != null && slot.pilotFeatures.Count > 0)
         {
-            return slot.pilotFeatures;
+            List<CardFeatureData> filtered = new List<CardFeatureData>(slot.pilotFeatures.Count);
+            for (int i = 0; i < slot.pilotFeatures.Count; i++)
+            {
+                CardFeatureData feature = slot.pilotFeatures[i];
+                if (feature != null)
+                {
+                    filtered.Add(feature);
+                }
+            }
+
+            if (filtered.Count > 0)
+            {
+                return filtered;
+            }
         }
 
         if (slot.pilotFeatureIds == null || slot.pilotFeatureIds.Length == 0)

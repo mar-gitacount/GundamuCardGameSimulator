@@ -166,13 +166,14 @@ public class OnlineBattleActionPayload
         });
     }
 
-  public static string CreateShieldBreakComplete(
+    public static string CreateShieldBreakComplete(
         int requestId,
         int defenderShieldAfter = -1,
         int defenderExBaseAfter = -1,
         int defenderDeployedBaseHpAfter = -1,
         int deployedBaseCardId = 0,
-        int[] shieldZoneCardIds = null)
+        int[] shieldZoneCardIds = null,
+        int[] brokenShieldCardIds = null)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
@@ -182,7 +183,8 @@ public class OnlineBattleActionPayload
             defenderExBaseAfter = defenderExBaseAfter,
             defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter,
             cardId = deployedBaseCardId,
-            shieldZoneCardIds = shieldZoneCardIds ?? Array.Empty<int>()
+            shieldZoneCardIds = shieldZoneCardIds ?? System.Array.Empty<int>(),
+            brokenShieldCardIds = brokenShieldCardIds
         });
     }
 

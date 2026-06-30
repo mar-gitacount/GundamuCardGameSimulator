@@ -36,6 +36,12 @@ MonoBehaviour:
     effectsName: Suppress2_OnShieldAttack
     effects: []
   features: []
+  link:
+  - pilotCardId: 56
+    pilotFeatures: []
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
   isNotDirectAttack: 0
   isShieldToken: 0
