@@ -135,6 +135,7 @@ public partial class BattleGameMain
         unit.ResetRuntimeStatsFromData();
         ApplyUnitDeployFieldAttackState(unit);
         AssignBattleInstanceIdIfNeeded(unit);
+        ApplyPilotMountFieldAurasToDeployedUnit(unit, recipient);
 
         if (triggerOnPlayed)
         {

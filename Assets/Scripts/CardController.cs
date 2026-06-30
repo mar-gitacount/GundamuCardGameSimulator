@@ -15,6 +15,14 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         public string sourceKey;
     }
 
+    /// <summary>パイロット搭乗時の AllyAllUnits 永続バフを、後から配備された味方ユニットにも適用するためのオーラ定義。</summary>
+    public struct PilotMountAllyFieldAuraEntry
+    {
+        public EffectStatTarget StatTarget;
+        public int SignedMagnitude;
+        public EffectDuration Duration;
+    }
+
     [SerializeField] private Image cardImage;
     
 
@@ -72,6 +80,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     private readonly List<StatModifier> levelModifiers = new List<StatModifier>();
     private readonly List<StatModifier> effectDamageModifiers = new List<StatModifier>();
     private readonly List<StatModifier> effectDamageImmunityModifiers = new List<StatModifier>();
+    private readonly List<PilotMountAllyFieldAuraEntry> _pilotMountAllyFieldAuras = new List<PilotMountAllyFieldAuraEntry>();
 
     /// <summary>効果ダメージ（戦闘交換以外）への実効補正。</summary>
     public int CurrentEffectDamageModifier => SumModifierValues(effectDamageModifiers);
@@ -262,6 +271,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         levelModifiers.Clear();
         effectDamageModifiers.Clear();
         effectDamageImmunityModifiers.Clear();
+        _pilotMountAllyFieldAuras.Clear();
         MountedPilot = null;
         MountedUnit = null;
         _notDirectAttackUntilEndOfTurnDepth = 0;
@@ -405,6 +415,73 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         if (effectDamageImmunityDelta != 0)
         {
             effectDamageImmunityModifiers.Add(new StatModifier { value = effectDamageImmunityDelta, duration = duration, sourceKey = key });
+        }
+    }
+
+    /// <summary>パイロット搭乗中のみ有効な味方フィールド全体オーラ（後配備ユニット向け）。</summary>
+    public bool HasActivePilotMountAllyFieldAuras =>
+        MountedPilot != null && _pilotMountAllyFieldAuras.Count > 0;
+
+    public IReadOnlyList<PilotMountAllyFieldAuraEntry> GetPilotMountAllyFieldAuras() => _pilotMountAllyFieldAuras;
+
+    public string MakePilotMountFieldAuraSourceKey() => $"PilotMountAura:{BattleInstanceId}";
+
+    public void RegisterPilotMountAllyFieldAura(
+        EffectStatTarget statTarget,
+        int signedMagnitude,
+        EffectDuration duration)
+    {
+        for (int i = _pilotMountAllyFieldAuras.Count - 1; i >= 0; i--)
+        {
+            if (_pilotMountAllyFieldAuras[i].StatTarget == statTarget)
+            {
+                _pilotMountAllyFieldAuras.RemoveAt(i);
+            }
+        }
+
+        _pilotMountAllyFieldAuras.Add(new PilotMountAllyFieldAuraEntry
+        {
+            StatTarget = statTarget,
+            SignedMagnitude = signedMagnitude,
+            Duration = duration,
+        });
+    }
+
+    public bool HasStatModifierFromSource(string sourceKey, EffectStatTarget statTarget)
+    {
+        if (string.IsNullOrEmpty(sourceKey))
+        {
+            return false;
+        }
+
+        List<StatModifier> modifiers = GetModifierListForStatTarget(statTarget);
+        for (int i = 0; i < modifiers.Count; i++)
+        {
+            if (modifiers[i].sourceKey == sourceKey)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private List<StatModifier> GetModifierListForStatTarget(EffectStatTarget statTarget)
+    {
+        switch (statTarget)
+        {
+            case EffectStatTarget.AP:
+                return powerModifiers;
+            case EffectStatTarget.Cost:
+                return costModifiers;
+            case EffectStatTarget.Level:
+                return levelModifiers;
+            case EffectStatTarget.EffectDamage:
+                return effectDamageModifiers;
+            case EffectStatTarget.EffectDamageImmunity:
+                return effectDamageImmunityModifiers;
+            default:
+                return powerModifiers;
         }
     }
 

@@ -3534,6 +3534,7 @@ public partial class BattleGameMain : MonoBehaviour
             cardController.ResetRuntimeStatsFromData();
             ApplyUnitDeployFieldAttackState(cardController);
             AssignBattleInstanceIdIfNeeded(cardController);
+            ApplyPilotMountFieldAurasToDeployedUnit(cardController, ownerType);
         }
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
@@ -7694,10 +7695,12 @@ public partial class BattleGameMain : MonoBehaviour
 
         void FinishPilotMountChain()
         {
+            _pilotMountEffectHostUnit = null;
             EndEffectChainObservationScope();
             onComplete?.Invoke();
         }
 
+        _pilotMountEffectHostUnit = hostUnit;
         BeginEffectChainObservationScope();
         if (unitFirst)
         {
@@ -7770,10 +7773,12 @@ public partial class BattleGameMain : MonoBehaviour
 
         void FinishOnLinkChain()
         {
+            _pilotMountEffectHostUnit = null;
             EndEffectChainObservationScope();
             onComplete?.Invoke();
         }
 
+        _pilotMountEffectHostUnit = hostUnit;
         BeginEffectChainObservationScope();
         if (unitFirst)
         {
@@ -8934,6 +8939,7 @@ public partial class BattleGameMain : MonoBehaviour
                     ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration);
                     QueueOnlineUnitStat(targets[i], signedValue, effect.statTarget, effect.duration);
                 }
+                TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);
                 Debug.Log($"[Effect] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} by cardId:{sourceCard.Data.id}");
                 break;
 

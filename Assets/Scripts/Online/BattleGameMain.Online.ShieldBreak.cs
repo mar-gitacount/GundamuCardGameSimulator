@@ -243,16 +243,34 @@ public partial class BattleGameMain
         isShieldBreakFlowOpen = false;
     }
 
-    private void SendOnlineShieldBreakComplete(int requestId)
+    private void SendOnlineShieldBreakComplete(
+        int requestId,
+        Gundam2024RuleScript.PlayerSide defenderSide)
     {
         if (requestId <= 0 || !IsOnlineBattle())
         {
             return;
         }
 
-        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateShieldBreakComplete(
-            OnlineBattleActionPayload.CreateShieldBreakComplete(requestId)));
-        Debug.Log($"[OnlineBattle] ShieldBreakComplete sent. requestId={requestId}");
+        Gundam2024RuleScript.PlayerState defenderState = GetRuleState(defenderSide);
+        CardGameRule defenderRule = GetCardRuleForRuleSide(defenderSide);
+        CardController deployedBase = defenderRule?.DeployedBase;
+        int baseCardId = deployedBase?.Data?.id ?? 0;
+        int baseHpAfter = deployedBase != null ? deployedBase.CurrentHp : 0;
+        int[] shieldZoneIds = CollectShieldZoneCardIds(defenderRule);
+
+        string payload = OnlineBattleActionPayload.CreateShieldBreakComplete(
+            requestId,
+            defenderState != null ? defenderState.shield : -1,
+            defenderState != null ? defenderState.exBase : -1,
+            baseHpAfter,
+            baseCardId,
+            shieldZoneIds);
+
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateShieldBreakComplete(payload));
+        Debug.Log(
+            $"[OnlineBattle] ShieldBreakComplete sent. requestId={requestId} shield={defenderState?.shield} "
+            + $"exBase={defenderState?.exBase} baseId={baseCardId} baseHp={baseHpAfter} zone={shieldZoneIds.Length}");
     }
 
     private void HandleRemoteShieldBreakComplete(string payload)
@@ -269,6 +287,11 @@ public partial class BattleGameMain
             return;
         }
 
+        if (currentPlayerType == PlayerType.Player)
+        {
+            ApplyRemoteDefenderAreaSnapshotFromBurst(action);
+        }
+
         _onlineShieldBreakCompleteReceived = true;
         Debug.Log($"[OnlineBattle] ShieldBreakComplete received. requestId={action.requestId}");
     }
@@ -282,7 +305,7 @@ public partial class BattleGameMain
     {
         if (brokenCount <= 0 || isMatchFinished)
         {
-            SendOnlineShieldBreakComplete(shieldBreakRequestId);
+            SendOnlineShieldBreakComplete(shieldBreakRequestId, side);
             yield break;
         }
 
@@ -308,7 +331,7 @@ public partial class BattleGameMain
                 isShieldBreakFlowOpen = false;
             }
 
-            SendOnlineShieldBreakComplete(shieldBreakRequestId);
+            SendOnlineShieldBreakComplete(shieldBreakRequestId, side);
         }
     }
 
