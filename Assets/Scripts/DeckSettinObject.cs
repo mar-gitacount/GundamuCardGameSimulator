@@ -689,7 +689,10 @@ public void cardObj(GameObject obj)
    
    
     int cardid = obj.GetComponent<Card>().CardId;
-    int count = cardData[cardid];
+    if (!cardData.TryGetValue(cardid, out int count))
+    {
+        count = 0;
+    }
 
     
     // デッキ編集エリアに存在する場合、追加しない。
