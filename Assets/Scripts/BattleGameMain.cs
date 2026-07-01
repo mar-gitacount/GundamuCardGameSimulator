@@ -4678,11 +4678,63 @@ public partial class BattleGameMain : MonoBehaviour
         return false;
     }
 
+    private readonly struct OnAttackEnemyEffectCursor
+    {
+        public OnAttackEnemyEffectCursor(int sourceIndex, int timedIndex, int effectIndex)
+        {
+            SourceIndex = sourceIndex;
+            TimedIndex = timedIndex;
+            EffectIndex = effectIndex;
+        }
+
+        public int SourceIndex { get; }
+        public int TimedIndex { get; }
+        public int EffectIndex { get; }
+
+        public OnAttackEnemyEffectCursor AfterCurrentEffect()
+        {
+            return new OnAttackEnemyEffectCursor(SourceIndex, TimedIndex, EffectIndex + 1);
+        }
+    }
+
+    /// <summary>搭乗パイロットの OnAttack をユニット本体より先に解決する（例: キラのデバフ→ストフリの山札下送り）。</summary>
+    private static List<CardController> BuildOnAttackEnemyEffectSources(CardController attacker)
+    {
+        List<CardController> effectSources = new List<CardController>();
+        if (attacker?.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            effectSources.Add(attacker.MountedPilot);
+        }
+
+        if (attacker != null)
+        {
+            effectSources.Add(attacker);
+        }
+
+        return effectSources;
+    }
+
+    private void ContinueOnAttackEnemyEffectResolution(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController attackedTarget,
+        System.Action onAllComplete,
+        OnAttackEnemyEffectCursor cursor)
+    {
+        if (TryOpenOnAttackEnemySelectionPanel(attacker, attackerOwner, attackedTarget, onAllComplete, cursor))
+        {
+            return;
+        }
+
+        onAllComplete?.Invoke();
+    }
+
     private bool TryOpenOnAttackEnemySelectionPanel(
         CardController attacker,
         PlayerType attackerOwner,
         CardController attackedTarget,
-        System.Action onResolved = null)
+        System.Action onResolved = null,
+        OnAttackEnemyEffectCursor cursor = default)
     {
         if (attacker == null || attacker.Data == null)
         {
@@ -4690,13 +4742,9 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         EffectActivationContext activationContext = BuildOnAttackActivationContext(attackerOwner, attacker);
-        List<CardController> effectSources = new List<CardController> { attacker };
-        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
-        {
-            effectSources.Add(attacker.MountedPilot);
-        }
+        List<CardController> effectSources = BuildOnAttackEnemyEffectSources(attacker);
 
-        for (int sourceIndex = 0; sourceIndex < effectSources.Count; sourceIndex++)
+        for (int sourceIndex = cursor.SourceIndex; sourceIndex < effectSources.Count; sourceIndex++)
         {
             CardController sourceCard = effectSources[sourceIndex];
             if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
@@ -4704,7 +4752,8 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+            int timedStart = sourceIndex == cursor.SourceIndex ? cursor.TimedIndex : 0;
+            for (int i = timedStart; i < sourceCard.Data.timedEffects.Count; i++)
             {
                 TimedEffectData timed = sourceCard.Data.timedEffects[i];
                 if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
@@ -4718,7 +4767,8 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
-                for (int j = 0; j < resolvedOnAttack.Count; j++)
+                int effectStart = sourceIndex == cursor.SourceIndex && i == timedStart ? cursor.EffectIndex : 0;
+                for (int j = effectStart; j < resolvedOnAttack.Count; j++)
                 {
                     EffectData effect = resolvedOnAttack[j];
                     if (effect == null)
@@ -4732,12 +4782,20 @@ public partial class BattleGameMain : MonoBehaviour
                         continue;
                     }
 
+                    OnAttackEnemyEffectCursor nextCursor = new OnAttackEnemyEffectCursor(sourceIndex, i, j).AfterCurrentEffect();
+                    System.Action stepResolved = () => ContinueOnAttackEnemyEffectResolution(
+                        attacker,
+                        attackerOwner,
+                        attackedTarget,
+                        onResolved,
+                        nextCursor);
+
                     if (TryResolveOnAttackLowestEnemyReturn(
                         sourceCard,
                         attacker,
                         attackerOwner,
                         effect,
-                        onResolved))
+                        stepResolved))
                     {
                         return true;
                     }
@@ -4764,7 +4822,7 @@ public partial class BattleGameMain : MonoBehaviour
                             attackerOwner,
                             effect,
                             bounceCandidates,
-                            onResolved);
+                            stepResolved);
                         return true;
                     }
 
@@ -4813,7 +4871,7 @@ public partial class BattleGameMain : MonoBehaviour
                                 attackerOwner,
                                 effect,
                                 autoTargets,
-                                onResolved);
+                                stepResolved);
                             return true;
                         }
 
@@ -4833,7 +4891,7 @@ public partial class BattleGameMain : MonoBehaviour
                         attackerOwner,
                         effect,
                         enemyUnits,
-                        onResolved);
+                        stepResolved);
                     return true;
                 }
             }

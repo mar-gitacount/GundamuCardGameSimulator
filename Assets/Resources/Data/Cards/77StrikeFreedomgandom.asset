@@ -75,7 +75,7 @@ MonoBehaviour:
   - pilotCardId: 6
     pilotFeatures: []
     pilotFeatureIds: 
-  - pilotCardId: 6
+  - pilotCardId: 78
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
