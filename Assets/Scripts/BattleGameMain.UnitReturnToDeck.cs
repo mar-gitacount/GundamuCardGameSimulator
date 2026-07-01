@@ -174,14 +174,14 @@ public partial class BattleGameMain
 
     /// <summary>
     /// OnAttack 時の ReturnUnitToDeckBottom（Lv最低自動選択）。
-    /// AttackedTargetOnly より先に解決し、シールド攻撃時も盤面の最低 Lv 敵を対象にする。
+    /// UI 完了後は onStepResolved で残りの OnAttack 敵対象効果（パイロット等）へ進む。
     /// </summary>
     private bool TryResolveOnAttackLowestEnemyReturn(
         CardController sourceCard,
         CardController attacker,
         PlayerType attackerOwner,
         EffectData effect,
-        System.Action onResolved)
+        System.Action onStepResolved)
     {
         if (effect == null
             || effect.type != EffectType.ReturnUnitToDeckBottom
@@ -205,7 +205,7 @@ public partial class BattleGameMain
                 attackerOwner,
                 effect,
                 autoTargets,
-                onResolved);
+                onStepResolved);
             return true;
         }
 
