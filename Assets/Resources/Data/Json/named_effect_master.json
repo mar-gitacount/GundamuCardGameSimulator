@@ -763,7 +763,7 @@
             "displayName": "バースト：破壊されたカード自身を手札へ",
             "effects": [
                 {
-                    "type": 28,
+                    "type": 27,
                     "value": 1,
                     "target": 5,
                     "selectionMode": 0,

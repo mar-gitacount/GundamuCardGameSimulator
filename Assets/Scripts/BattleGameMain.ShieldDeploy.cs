@@ -347,24 +347,26 @@ public partial class BattleGameMain
 
         if (card.transform.IsChildOf(rule.HandScrollContent))
         {
+            RegisterCardInHandLists(card, ownerType);
+            rule.RefreshHandCountDisplay();
             return true;
         }
 
+        rule.TryUnregisterShieldZoneCard(card);
         card.RevealShieldFace();
         card.ResetRuntimeStatsFromData();
         card.CleanupUnitBattleMountVisuals();
         card.SetAttackFlg(AttackFlg.False);
         card.SetUnitRestVisual(false);
+        card.SetEligibleForShieldZoneDeploy(false);
+        card.RebindClickHandler(OnCardClicked);
         card.transform.SetParent(rule.HandScrollContent, false);
-        RectTransform rect = card.GetComponent<RectTransform>();
-        if (rect != null)
-        {
-            rect.localScale = Vector3.one;
-        }
+        rule.ApplyHandZoneLayoutToCard(card);
 
         RegisterCardInHandLists(card, ownerType);
         TriggerOnHandAutoEffects(card, ownerType, skipHandZoneCheck: true);
         rule.RefreshHandCountDisplay();
+        SyncResourceViewsFromRule(ToRuleSide(ownerType));
         Debug.Log(
             $"[AddSelfToHand] {card.Data.cardName}(id:{card.Data.id}) shield break → {ownerType} hand");
         return true;
@@ -775,19 +777,37 @@ public partial class BattleGameMain
         }
     }
 
-    private void CommitShieldBreakTakenAfterBurst(ShieldBreakTaken taken, CardGameRule rule)
+    private void CommitShieldBreakTakenAfterBurst(
+        ShieldBreakTaken taken,
+        CardGameRule rule,
+        PlayerType? shieldOwner = null)
     {
         if (rule == null)
         {
             return;
         }
 
-        bool keepCard = IsBurstCardRetained(taken.Controller, rule);
+        PlayerType ownerType = shieldOwner ?? (rule == cardGameRule ? PlayerType.Player : PlayerType.Enemy);
+        bool keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
+        if (!keepCard
+            && taken.Data != null
+            && taken.Data.type == Type.Pilot
+            && HasAddSelfToHandOnBurst(taken.Data)
+            && TryMoveBurstSourceCardToHand(taken.Controller, ownerType, rule))
+        {
+            keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
+        }
+
         if (!keepCard)
         {
             rule.CommitShieldCardToTrash(taken);
             RecordRemoteShieldBreakTrashedCardIdIfNeeded(taken);
         }
+    }
+
+    private bool IsBurstCardRetainedForCommit(CardController card, CardGameRule rule, PlayerType ownerType)
+    {
+        return IsBurstCardRetained(card, rule);
     }
 
     private void TriggerBaseDeployedEffects(CardController baseCard, PlayerType ownerType, bool replacingExistingBaseLayer = false)

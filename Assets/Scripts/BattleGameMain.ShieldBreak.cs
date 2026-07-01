@@ -63,6 +63,25 @@ public partial class BattleGameMain
         return false;
     }
 
+    private static bool HasAddSelfToHandOnBurst(CardData data)
+    {
+        if (data == null)
+        {
+            return false;
+        }
+
+        List<EffectData> effects = TimedEffectResolver.CollectEffectsByTiming(data, EffectTiming.OnBurst);
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (effects[i] != null && effects[i].type == EffectType.AddSelfToHand)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool IsBaseCardWithDeployBaseBurst(CardData data)
     {
         return data != null && data.type == Type.Base && HasDeployBaseOnBurst(data);
@@ -236,7 +255,7 @@ public partial class BattleGameMain
             yield return ResolveBurstEffectsForTakenCardsCoroutine(takenCards, shieldOwner);
             for (int i = 0; i < takenCards.Count; i++)
             {
-                CommitShieldBreakTakenAfterBurst(takenCards[i], rule);
+                CommitShieldBreakTakenAfterBurst(takenCards[i], rule, shieldOwner);
             }
 
             yield break;
@@ -339,7 +358,7 @@ public partial class BattleGameMain
                 int zoneIndex = choice.NonBaseBurstOrderZoneIndices[o];
                 if (byZone.TryGetValue(zoneIndex, out ShieldBreakTaken taken))
                 {
-                    CommitShieldBreakTakenAfterBurst(taken, rule);
+                    CommitShieldBreakTakenAfterBurst(taken, rule, shieldOwner);
                     processed.Add(zoneIndex);
                 }
             }
@@ -351,7 +370,7 @@ public partial class BattleGameMain
             yield return ResolveBurstEffectsForTakenCardsCoroutine(
                 new List<ShieldBreakTaken> { baseTaken },
                 shieldOwner);
-            CommitShieldBreakTakenAfterBurst(baseTaken, rule);
+            CommitShieldBreakTakenAfterBurst(baseTaken, rule, shieldOwner);
             processed.Add(choice.BaseDeployZoneIndex);
         }
 
