@@ -28,6 +28,8 @@ public enum EffectTiming
     OnLook = 17,
     /// <summary>Link 条件を満たすパイロットがユニットに搭乗した時（OnPilotMounted とは別。任意搭乗では発動しない）。</summary>
     OnLink = 18,
+    /// <summary>MarkObservedUnit で登録したユニットが監視イベントを起こした時（効果源カードの timedEffects）。</summary>
+    OnObservedUnitTrigger = 19,
 }
 
 public enum EffectType
@@ -93,7 +95,14 @@ public enum EffectType
     /// <summary>対象ユニットがそのターン（UntilEndOfTurn）相手プレイヤー／シールドへ直接攻撃できない。</summary>
     NotDirectAttack,
     /// <summary>OnBurst 時は破壊公開されたカード自身をオーナーの手札へ加える。</summary>
-    AddSelfToHand
+    AddSelfToHand,
+    /// <summary>
+    /// 手動選択した味方ユニットを監視登録する。observedUnitTriggerKind で監視する行動を指定。
+    /// 報酬効果は同一カードの OnObservedUnitTrigger ブロックに記述する。
+    /// </summary>
+    MarkObservedUnit,
+    /// <summary>対象ユニットをオーナーの山札の一番下へ戻す。トークンは消滅。value=体数上限（0 で対象全員）。</summary>
+    ReturnUnitToDeckBottom
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -129,7 +138,11 @@ public static class EffectTypeExtensions
     /// <summary>value が適用体数上限として使われ、効果量 0 でも解決するタイプ。</summary>
     public static bool UsesTargetCountValue(this EffectType type)
     {
-        return type == EffectType.Bounce || type == EffectType.Rest || type == EffectType.Activate || type == EffectType.Destroy;
+        return type == EffectType.Bounce
+            || type == EffectType.Rest
+            || type == EffectType.Activate
+            || type == EffectType.Destroy
+            || type == EffectType.ReturnUnitToDeckBottom;
     }
 
     /// <summary>対象ユニットの手動選択 UI が必要なタイプ。</summary>
@@ -139,7 +152,8 @@ public static class EffectTypeExtensions
             || type == EffectType.Rest
             || type == EffectType.Activate
             || type == EffectType.Destroy
-            || type == EffectType.GrantAttackFlag;
+            || type == EffectType.GrantAttackFlag
+            || type == EffectType.MarkObservedUnit;
     }
 
     /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>
@@ -172,6 +186,15 @@ public static class EffectTargetTypeExtensions
         return targetType == TargetType.AllyUnit
             || targetType == TargetType.AllyOtherUnit;
     }
+}
+
+/// <summary>MarkObservedUnit で監視するユニットの行動種別。報酬は OnObservedUnitTrigger と observedUnitTriggerKind で対応付ける。</summary>
+public enum ObservedUnitTriggerKind
+{
+    /// <summary>未指定（Mark 時は EnemyUnitDestroyed 扱い）。</summary>
+    Unset = -1,
+    /// <summary>監視ユニットが敵ユニットを破壊した時。</summary>
+    EnemyUnitDestroyed = 0,
 }
 
 public enum EffectSelectionMode
@@ -604,6 +627,18 @@ public class EffectData
 
     [Tooltip("Activate 等: true のとき isBlocker の味方ユニットのみ候補。")]
     public bool filterTargetIsBlocker;
+
+    [Tooltip("SelectMultipleUnits 等: 最低選択体数（0 なら複数選択時は 1）。")]
+    public int selectMinCount;
+
+    [Tooltip("SelectMultipleUnits 等: 最大選択体数（0 なら上限なし）。")]
+    public int selectMaxCount;
+
+    [Tooltip("MarkObservedUnit: 監視する行動種別。Unset なら EnemyUnitDestroyed。")]
+    public ObservedUnitTriggerKind observedUnitTriggerKind = ObservedUnitTriggerKind.Unset;
+
+    [Tooltip("true のとき対象候補から targetUnitFilterStat（未指定時は Lv）が最も低いユニット1体を自動選択。")]
+    public bool autoSelectLowestUnitStat;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
@@ -975,6 +1010,76 @@ public static class EffectDataExtensions
         return resolvedMagnitude > 0 ? resolvedMagnitude : 1;
     }
 
+    /// <summary>手動ユニット選択の最低体数。</summary>
+    public static int GetSelectMinCount(this EffectData effect)
+    {
+        if (effect == null)
+        {
+            return 1;
+        }
+
+        if (effect.selectMinCount > 0)
+        {
+            return effect.selectMinCount;
+        }
+
+        return effect.selectionMode.IsMultipleUnitPickMode() ? 1 : 1;
+    }
+
+    /// <summary>手動ユニット選択の最大体数（候補数で上限クリップ）。</summary>
+    public static int GetSelectMaxCount(this EffectData effect, int candidateCount = int.MaxValue)
+    {
+        if (effect == null)
+        {
+            return 1;
+        }
+
+        if (effect.selectionMode.IsImmediateSinglePick())
+        {
+            return 1;
+        }
+
+        int configuredMax = effect.selectMaxCount > 0 ? effect.selectMaxCount : int.MaxValue;
+        if (candidateCount <= 0 || candidateCount == int.MaxValue)
+        {
+            return configuredMax;
+        }
+
+        return Mathf.Min(configuredMax, candidateCount);
+    }
+
+    public static ObservedUnitTriggerKind ResolveObservedUnitTriggerKind(this EffectData effect)
+    {
+        if (effect == null || effect.observedUnitTriggerKind == ObservedUnitTriggerKind.Unset)
+        {
+            return ObservedUnitTriggerKind.EnemyUnitDestroyed;
+        }
+
+        return effect.observedUnitTriggerKind;
+    }
+
+    public static string FormatSelectCountRangeLabel(this EffectData effect)
+    {
+        if (effect == null)
+        {
+            return string.Empty;
+        }
+
+        int min = effect.GetSelectMinCount();
+        int max = effect.GetSelectMaxCount();
+        if (min == max)
+        {
+            return $"（{min}体）";
+        }
+
+        if (max >= 9999)
+        {
+            return $"（{min}体以上）";
+        }
+
+        return $"（{min}〜{max}体）";
+    }
+
     /// <summary>バトルゾーンの手動選択候補がカード種類・AttackFlg 条件を満たすか。</summary>
     public static bool MatchesSelectableBattleZoneTarget(this EffectData effect, CardController unit)
     {
@@ -1069,6 +1174,9 @@ public class TimedEffectData
 
     [Tooltip("true のときこの timed ブロックは1ターンに1回まで能動発動できる。")]
     public bool oncePerTurn;
+
+    [Tooltip("OnObservedUnitTrigger: 応答する監視イベント種別。Unset なら全種別に応答。")]
+    public ObservedUnitTriggerKind observedUnitTriggerKind = ObservedUnitTriggerKind.Unset;
 }
 
 public static class TimedEffectDataExtensions
@@ -1206,6 +1314,32 @@ public static class TimedEffectDataExtensions
         }
 
         return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>監視ユニットの行動時（OnObservedUnitTrigger）に解決するブロック。</summary>
+    public static bool IsOnObservedUnitTriggerResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null || timed.timing != EffectTiming.OnObservedUnitTrigger || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    public static bool MatchesObservedUnitTriggerKind(this TimedEffectData timed, ObservedUnitTriggerKind triggerKind)
+    {
+        if (timed == null)
+        {
+            return false;
+        }
+
+        if (timed.observedUnitTriggerKind == ObservedUnitTriggerKind.Unset)
+        {
+            return true;
+        }
+
+        return timed.observedUnitTriggerKind == triggerKind;
     }
 }
 

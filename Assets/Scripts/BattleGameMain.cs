@@ -3141,6 +3141,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         unitsPendingSendToTrash.Add(cardController);
 
+        PruneObservedUnitWatchesOnCardRemoved(cardController);
+
         if (attackFlowBlockRedirectUnit != null
             && cardController == attackFlowBlockRedirectUnit
             && cardController.Data != null
@@ -3166,7 +3168,27 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerOnDestroyedEffects(cardController, ownerType, () =>
         {
             TriggerOnEnemyUnitDestroyedEffects(cardController, ownerType, destroyedBy, () =>
-                FinishSendCardToTrash(cardController, ownerType));
+            {
+                if (TryResolveEnemyUnitKillContext(
+                        cardController,
+                        ownerType,
+                        destroyedBy,
+                        out CardController killer,
+                        out PlayerType killerOwner))
+                {
+                    TriggerObservedUnitWatchEffects(
+                        cardController,
+                        ownerType,
+                        killer,
+                        killerOwner,
+                        ObservedUnitTriggerKind.EnemyUnitDestroyed,
+                        () => FinishSendCardToTrash(cardController, ownerType));
+                }
+                else
+                {
+                    FinishSendCardToTrash(cardController, ownerType);
+                }
+            });
         });
     }
 
@@ -5018,10 +5040,20 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.MarkObservedUnit)
+        {
+            RegisterObservedUnitWatch(sourceCard, ownerType, effect, targets);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
-            && effect.type != EffectType.GrantAttackFlag)
+            && effect.type != EffectType.GrantAttackFlag
+            && effect.type != EffectType.MarkObservedUnit)
         {
             return;
         }
@@ -5130,6 +5162,10 @@ public partial class BattleGameMain : MonoBehaviour
         else if (effect.type == EffectType.Destroy)
         {
             ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
+        }
+        else if (effect.type == EffectType.ReturnUnitToDeckBottom)
+        {
+            ApplyReturnUnitToDeckBottomEffect(effect, targets);
         }
         else if (effect.type == EffectType.GrantAttackFlag)
         {
@@ -7585,6 +7621,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (timing == EffectTiming.OnObservedUnitTrigger)
+        {
+            return;
+        }
+
         if (timing == EffectTiming.OnPilotMounted || timing == EffectTiming.OnLink)
         {
             return;
@@ -8592,7 +8633,10 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect != null)
         {
             TextMeshProUGUI summary = root.CreateChildTextCustom("ManualMultiUnitTargetSummary", UIAnchor.TopCenter, 720, 32);
-            summary.text = "カードをタップで選択（赤＝対象）→ OK で確定";
+            string rangeLabel = effect.FormatSelectCountRangeLabel();
+            summary.text = string.IsNullOrEmpty(rangeLabel)
+                ? "カードをタップで選択（赤＝対象）→ OK で確定"
+                : $"カードをタップで選択（赤＝対象）{rangeLabel} → OK で確定";
             summary.color = new Color(0.9f, 0.9f, 0.9f);
             summary.fontSize = 18;
             summary.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
@@ -8629,6 +8673,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         List<CardController> selected = new List<CardController>();
         bool resolved = false;
+        int selectMin = effect != null ? effect.GetSelectMinCount() : 1;
+        int selectMax = effect != null ? effect.GetSelectMaxCount(candidates.Count) : candidates.Count;
 
         void CloseWithSelection(List<CardController> picks)
         {
@@ -8687,6 +8733,12 @@ public partial class BattleGameMain : MonoBehaviour
                 }
                 else
                 {
+                    if (selected.Count >= selectMax)
+                    {
+                        Debug.Log($"効果対象は最大{selectMax}体まで選択できます。");
+                        return;
+                    }
+
                     selected.Add(pickedRef);
                     if (baseImage != null)
                     {
@@ -8709,7 +8761,16 @@ public partial class BattleGameMain : MonoBehaviour
             okLabel.text = "OK";
         }
 
-        okBtn.onClick.AddListener(() => CloseWithSelection(new List<CardController>(selected)));
+        okBtn.onClick.AddListener(() =>
+        {
+            if (selected.Count < selectMin)
+            {
+                Debug.Log($"効果対象を{selectMin}体以上選択してください。");
+                return;
+            }
+
+            CloseWithSelection(new List<CardController>(selected));
+        });
 
         Button cancel = root.CreateChildButton("キャンセル");
         RectTransform cancelRt = cancel.GetComponent<RectTransform>();
@@ -8741,6 +8802,27 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     picks.Add(candidate);
                 }
+            }
+
+            return picks;
+        }
+
+        if (effect != null && effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            int min = effect.GetSelectMinCount();
+            int max = effect.GetSelectMaxCount(candidates.Count);
+            List<CardController> ranked = new List<CardController>(candidates);
+            ranked.Sort((a, b) => ComputeEnemyAiUnitThreatScore(b.CurrentPower, b.CurrentHp)
+                .CompareTo(ComputeEnemyAiUnitThreatScore(a.CurrentPower, a.CurrentHp)));
+            int pickCount = Mathf.Clamp(ranked.Count, min, max);
+            if (ranked.Count < min)
+            {
+                return picks;
+            }
+
+            for (int i = 0; i < pickCount; i++)
+            {
+                picks.Add(ranked[i]);
             }
 
             return picks;
@@ -8854,12 +8936,20 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.MarkObservedUnit)
+        {
+            Debug.LogWarning(
+                $"[Effect] MarkObservedUnit は手動選択後に適用してください (cardId:{sourceCard?.Data?.id})。");
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
             && effect.type != EffectType.DeployUnit
             && effect.type != EffectType.GrantAttackFlag
-            && effect.type != EffectType.AddSelfToHand)
+            && effect.type != EffectType.AddSelfToHand
+            && effect.type != EffectType.MarkObservedUnit)
         {
             return;
         }
@@ -8986,6 +9076,9 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.Bounce:
                 ApplyBounceEffect(effect, targets);
+                break;
+            case EffectType.ReturnUnitToDeckBottom:
+                ApplyReturnUnitToDeckBottomEffect(effect, targets);
                 break;
             case EffectType.Rest:
                 ApplyRestEffect(effect, targets);
@@ -9123,7 +9216,14 @@ public partial class BattleGameMain : MonoBehaviour
                 AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
                 break;
             case TargetType.EnemyUnit:
-                AddFirstAliveUnit(enemies, result, null, requiredFeatures);
+                if (effect.autoSelectLowestUnitStat)
+                {
+                    AddAllAliveUnits(enemies, result, null, requiredFeatures);
+                }
+                else
+                {
+                    AddFirstAliveUnit(enemies, result, null, requiredFeatures);
+                }
                 break;
             case TargetType.RestEnemyUnit:
                 AddFirstAliveRestUnit(enemies, result, requiredFeatures);
@@ -9147,6 +9247,8 @@ public partial class BattleGameMain : MonoBehaviour
         {
             FilterOutNonRestedUnits(result);
         }
+
+        CollapseToLowestStatUnitIfNeeded(result, effect);
 
         return result;
     }
@@ -12349,6 +12451,11 @@ public partial class BattleGameMain : MonoBehaviour
             return isAttackContext
                 ? $"ACTIVE化 — 対象ユニットを選択{blockerHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
                 : $"ACTIVE化 — 対象ユニットを選択{blockerHint}";
+        }
+
+        if (effect.type == EffectType.MarkObservedUnit)
+        {
+            return $"監視対象ユニットを選択{effect.FormatSelectCountRangeLabel()}";
         }
 
         if (effect.type == EffectType.GrantAttackFlag)

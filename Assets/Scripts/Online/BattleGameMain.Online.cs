@@ -324,6 +324,20 @@ public partial class BattleGameMain
         });
     }
 
+    private void QueueOnlineUnitReturnToDeckBottom(CardController target)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            targetInstanceId = target.BattleInstanceId,
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindReturnToDeckBottom
+        });
+    }
+
     private void RegisterNetworkBattleHooksIfNeeded()
     {
         if (networkBattleHooksRegistered || !IsOnlineBattle())
@@ -1147,6 +1161,10 @@ public partial class BattleGameMain
 
                 case OnlineBattleEffectSyncPayload.ChangeKindBounce:
                     TryReturnBattleUnitToHand(unit);
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindReturnToDeckBottom:
+                    TryReturnBattleUnitToDeckBottom(unit);
                     break;
             }
         }

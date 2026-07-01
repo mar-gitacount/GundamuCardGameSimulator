@@ -28,6 +28,7 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindActivate = "Activate";
     public const string ChangeKindDestroy = "Destroy";
     public const string ChangeKindBounce = "Bounce";
+    public const string ChangeKindReturnToDeckBottom = "ReturnToDeckBottom";
 
     public static string ToJson(OnlineBattleUnitEffectChange[] changes)
     {

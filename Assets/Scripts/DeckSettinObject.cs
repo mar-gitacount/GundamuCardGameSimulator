@@ -684,60 +684,89 @@ public GameObject FindCardById(int targetId)
 // カードをクリックしたときにデッキ編集パネルにカードオブジェクトを追加する処理。
 public void cardObj(GameObject obj)
 {
-    
-    Debug.Log("サムネ追加");
-   
-   
-    int cardid = obj.GetComponent<Card>().CardId;
-    if (!cardData.TryGetValue(cardid, out int count))
+    if (obj == null)
+    {
+        return;
+    }
+
+    Card card = obj.GetComponent<Card>();
+    if (card == null)
+    {
+        return;
+    }
+
+    cardObj(card.CardId, obj);
+}
+
+public void cardObj(int cardId, GameObject preferredTemplate = null)
+{
+    if (cardId <= 0)
+    {
+        return;
+    }
+
+    Debug.Log($"サムネ追加 cardId:{cardId}");
+
+    if (!cardData.TryGetValue(cardId, out int count))
     {
         count = 0;
     }
 
-    
-    // デッキ編集エリアに存在する場合、追加しない。
-    if(FindCardById(cardid) != null)
+    GameObject existing = FindCardById(cardId);
+    if (existing != null)
     {
-        GameObject copyobj = FindCardById(cardid);
         if (count == 0)
         {
-            Debug.Log($"カードID {cardid} の枚数が0になったため、オブジェクトを削除します。");
-            RemoveCardById(cardid);
+            Debug.Log($"カードID {cardId} の枚数が0になったため、オブジェクトを削除します。");
+            RemoveCardById(cardId);
             return;
         }
 
-        EnsureCardCountBadge(copyobj, count);
+        EnsureCardCountBadge(existing, count);
         RefreshDeckEditCountDisplays();
         return;
     }
 
-    // 新規で個数が0の場合、関数を抜ける。
-    if(count == 0)
+    if (count == 0)
     {
         return;
     }
-    
-    // 存在した場合、フィールドに追加しない。
-    if (cardData.ContainsKey(cardid))
-    {
 
-        // Debug.Log($"カードiDの数{cardData[cardid]}");
-        // Destroy(copy);
-        // return;
+    GameObject template = ResolveDeckEditCardTemplate(cardId, preferredTemplate);
+    if (template == null)
+    {
+        Debug.LogWarning($"[Deck] カードID {cardId} のテンプレートが見つからずプレビューを追加できません。");
+        return;
     }
-    // オブジェクト数=0の場合、元オブジェクトを削除する。
-    GameObject copy = Instantiate(obj, DeckEditNowpanel.transform);
+
+    GameObject copy = Instantiate(template, DeckEditNowpanel.transform);
+    Card copyCard = copy.GetComponent<Card>();
+    if (copyCard != null)
+    {
+        copyCard.CardId = cardId;
+        copyCard.ClearDeckEditSession();
+    }
+
+    CardData cardDataAsset = CardDatabase.Instance != null
+        ? CardDatabase.Instance.FindById(cardId)
+        : null;
+    if (cardDataAsset != null)
+    {
+        Image cardImage = copy.GetComponent<Image>();
+        if (cardImage != null && cardDataAsset.imageName != null)
+        {
+            cardImage.sprite = cardDataAsset.imageName;
+        }
+    }
+
     EnsureCardCountBadge(copy, count);
-    Debug.Log($"サムネid{obj.GetComponent<Card>().CardId}");
+    Debug.Log($"サムネid{cardId}");
     RectTransform rect = copy.GetComponent<RectTransform>();
     rect.anchoredPosition = Vector2.zero;
-    // rect.localScale = Vector3.one
     rect.anchorMin = new Vector2(0.5f, 0.5f);
     rect.anchorMax = new Vector2(0.5f, 0.5f);
     rect.pivot = new Vector2(0.5f, 0.5f);
     rect.sizeDelta = new Vector2(40, 60);
-// rect.offsetMin = Vector2.zero;
-// rect.offsetMax = Vector2.zero;
 
     Image img = copy.GetComponentInChildren<Image>();
 
@@ -751,6 +780,50 @@ public void cardObj(GameObject obj)
     }
 
     RefreshDeckEditCountDisplays();
+}
+
+private GameObject ResolveDeckEditCardTemplate(int cardId, GameObject preferredTemplate)
+{
+    if (preferredTemplate != null)
+    {
+        Card preferredCard = preferredTemplate.GetComponent<Card>();
+        if (preferredCard != null && preferredCard.CardId == cardId)
+        {
+            return preferredTemplate;
+        }
+    }
+
+    if (DeckListPanel != null)
+    {
+        Card[] listCards = DeckListPanel.GetComponentsInChildren<Card>(true);
+        for (int i = 0; i < listCards.Length; i++)
+        {
+            Card listCard = listCards[i];
+            if (listCard != null && listCard.CardId == cardId)
+            {
+                return listCard.gameObject;
+            }
+        }
+    }
+
+    Card[] allCards = FindObjectsByType<Card>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+    for (int i = 0; i < allCards.Length; i++)
+    {
+        Card candidate = allCards[i];
+        if (candidate == null || candidate.CardId != cardId)
+        {
+            continue;
+        }
+
+        if (DeckEditNowpanel != null && candidate.transform.IsChildOf(DeckEditNowpanel.transform))
+        {
+            continue;
+        }
+
+        return candidate.gameObject;
+    }
+
+    return DeckDataPrefab;
 }
  public void CardDataToJson()
     {
