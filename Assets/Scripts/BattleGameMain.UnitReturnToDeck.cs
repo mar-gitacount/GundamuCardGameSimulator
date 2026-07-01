@@ -4,10 +4,37 @@ using UnityEngine;
 /// <summary>バトルゾーンのユニットを山札の一番下へ戻す（ReturnUnitToDeckBottom）。</summary>
 public partial class BattleGameMain
 {
+    private PlayerType ResolveBattleZoneUnitOwner(CardController unit)
+    {
+        if (unit == null)
+        {
+            return currentPlayerType;
+        }
+
+        if (playerBattleZoneCards.Contains(unit))
+        {
+            return PlayerType.Player;
+        }
+
+        if (enemyBattleZoneCards.Contains(unit))
+        {
+            return PlayerType.Enemy;
+        }
+
+        return ResolveCardOwner(unit.transform);
+    }
+
     private bool TryReturnBattleUnitToDeckBottom(CardController unit)
     {
-        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || !IsCardOnBattleZone(unit))
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
+            return false;
+        }
+
+        if (!IsCardOnBattleZone(unit))
+        {
+            Debug.LogWarning(
+                $"[ReturnToDeckBottom] skip: not on battle zone ({unit.Data.cardName} id:{unit.Data.id})");
             return false;
         }
 
@@ -16,7 +43,7 @@ public partial class BattleGameMain
             return TryVanishBattleUnitTokenFromZone(unit);
         }
 
-        PlayerType ownerType = ResolveCardOwner(unit.transform);
+        PlayerType ownerType = ResolveBattleZoneUnitOwner(unit);
         CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         if (rule == null)
         {
@@ -101,7 +128,11 @@ public partial class BattleGameMain
         return best;
     }
 
-    private static void CollapseToLowestStatUnitIfNeeded(List<CardController> targets, EffectData effect)
+    /// <summary>
+    /// autoSelectLowestUnitStat 時、最低値以外を除外する。
+    /// 同値が複数いる場合は候補を残し、呼び出し側で選択 UI を出す。
+    /// </summary>
+    private static void FilterToLowestStatTiedUnitsIfNeeded(List<CardController> targets, EffectData effect)
     {
         if (targets == null || effect == null || !effect.autoSelectLowestUnitStat || targets.Count <= 1)
         {
@@ -109,10 +140,76 @@ public partial class BattleGameMain
         }
 
         CardController lowest = PickLowestStatUnit(targets, effect);
-        targets.Clear();
-        if (lowest != null)
+        if (lowest == null)
         {
-            targets.Add(lowest);
+            targets.Clear();
+            return;
         }
+
+        EffectTargetUnitFilterStat stat = effect.GetTargetUnitFilterStat();
+        if (stat == EffectTargetUnitFilterStat.Unset)
+        {
+            stat = EffectTargetUnitFilterStat.Level;
+        }
+
+        int minValue = EffectDataExtensions.GetTargetUnitFilterStatValue(lowest, stat);
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            CardController candidate = targets[i];
+            if (candidate == null
+                || EffectDataExtensions.GetTargetUnitFilterStatValue(candidate, stat) != minValue)
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
+    private static bool NeedsLowestStatUnitManualPick(EffectData effect, List<CardController> targets)
+    {
+        return effect != null
+            && effect.autoSelectLowestUnitStat
+            && targets != null
+            && targets.Count > 1;
+    }
+
+    /// <summary>
+    /// OnAttack 時の ReturnUnitToDeckBottom（Lv最低自動選択）。
+    /// AttackedTargetOnly より先に解決し、シールド攻撃時も盤面の最低 Lv 敵を対象にする。
+    /// </summary>
+    private bool TryResolveOnAttackLowestEnemyReturn(
+        CardController sourceCard,
+        CardController attacker,
+        PlayerType attackerOwner,
+        EffectData effect,
+        System.Action onResolved)
+    {
+        if (effect == null
+            || effect.type != EffectType.ReturnUnitToDeckBottom
+            || !effect.autoSelectLowestUnitStat)
+        {
+            return false;
+        }
+
+        List<CardController> autoTargets = ResolveEffectTargets(sourceCard, attackerOwner, effect);
+        if (autoTargets.Count == 0)
+        {
+            Debug.Log("[OnAttack] ReturnUnitToDeckBottom: 対象となる敵ユニットがありません。");
+            return false;
+        }
+
+        if (NeedsLowestStatUnitManualPick(effect, autoTargets))
+        {
+            OpenEnemyUnitEffectSelectionUI(
+                sourceCard,
+                attacker,
+                attackerOwner,
+                effect,
+                autoTargets,
+                onResolved);
+            return true;
+        }
+
+        ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, autoTargets);
+        return false;
     }
 }

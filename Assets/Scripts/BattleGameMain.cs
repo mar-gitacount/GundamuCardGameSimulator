@@ -4689,6 +4689,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(attackerOwner, attacker);
         List<CardController> effectSources = new List<CardController> { attacker };
         if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
         {
@@ -4711,6 +4712,11 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
+                if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+                {
+                    continue;
+                }
+
                 IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
                 for (int j = 0; j < resolvedOnAttack.Count; j++)
                 {
@@ -4722,6 +4728,21 @@ public partial class BattleGameMain : MonoBehaviour
 
                     if (!effect.target.IsOpponentUnitTarget()
                         && !effect.type.UsesTargetCountValue())
+                    {
+                        continue;
+                    }
+
+                    if (TryResolveOnAttackLowestEnemyReturn(
+                        sourceCard,
+                        attacker,
+                        attackerOwner,
+                        effect,
+                        onResolved))
+                    {
+                        return true;
+                    }
+
+                    if (effect.type == EffectType.ReturnUnitToDeckBottom)
                     {
                         continue;
                     }
@@ -4779,11 +4800,24 @@ public partial class BattleGameMain : MonoBehaviour
                     if (effect.selectionMode == EffectSelectionMode.Unset)
                     {
                         List<CardController> autoTargets = ResolveEffectTargets(sourceCard, attackerOwner, effect);
-                        if (autoTargets.Count > 0)
+                        if (autoTargets.Count == 0)
                         {
-                            ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, autoTargets);
+                            continue;
                         }
 
+                        if (NeedsLowestStatUnitManualPick(effect, autoTargets))
+                        {
+                            OpenEnemyUnitEffectSelectionUI(
+                                sourceCard,
+                                attacker,
+                                attackerOwner,
+                                effect,
+                                autoTargets,
+                                onResolved);
+                            return true;
+                        }
+
+                        ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, autoTargets);
                         continue;
                     }
 
@@ -4855,6 +4889,10 @@ public partial class BattleGameMain : MonoBehaviour
         {
             title.text = "破壊 — 対象ユニットを選択";
         }
+        else if (effect != null && effect.type == EffectType.ReturnUnitToDeckBottom)
+        {
+            title.text = "山札の下に戻す敵ユニットを選択";
+        }
         else
         {
             title.text = effect != null && effect.target == TargetType.RestEnemyUnit
@@ -4919,7 +4957,8 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 bool immediateSinglePick = effect.type.RequiresManualUnitSelection()
-                    || effect.selectionMode.IsImmediateSinglePick();
+                    || effect.selectionMode.IsImmediateSinglePick()
+                    || effect.type == EffectType.ReturnUnitToDeckBottom;
                 if (immediateSinglePick)
                 {
                     consumed = true;
@@ -8863,6 +8902,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.autoSelectLowestUnitStat && effect.type == EffectType.ReturnUnitToDeckBottom)
+        {
+            return;
+        }
+
         for (int i = targets.Count - 1; i >= 0; i--)
         {
             if (!effect.MatchesTargetUnitFilter(targets[i], sourceCard))
@@ -9248,7 +9292,7 @@ public partial class BattleGameMain : MonoBehaviour
             FilterOutNonRestedUnits(result);
         }
 
-        CollapseToLowestStatUnitIfNeeded(result, effect);
+        FilterToLowestStatTiedUnitsIfNeeded(result, effect);
 
         return result;
     }

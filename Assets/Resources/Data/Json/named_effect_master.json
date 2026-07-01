@@ -864,8 +864,8 @@
             ]
         },
         {
-            "effectSetName": "Discard2_ReturnLowestEnemyToDeckBottom_OnMain",
-            "displayName": "OnMain：手札2枚捨て→敵Lv最低ユニットを山札の下へ",
+            "effectSetName": "Discard2_ReturnLowestEnemyToDeckBottom_OnAttack",
+            "displayName": "OnAttack（パイロット搭乗時）：手札2枚捨て→敵Lv最低を山札の下へ（同Lvは選択）",
             "effects": [
                 {
                     "type": 24,
@@ -885,7 +885,7 @@
                     "type": 29,
                     "value": 1,
                     "target": 2,
-                    "selectionMode": 0,
+                    "selectionMode": -1,
                     "statTarget": 0,
                     "duration": 0,
                     "valueMode": 0,
@@ -894,10 +894,9 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0,
-                    "filterByTargetCardType": 1,
+                    "filterByTargetCardType": true,
                     "targetCardType": 0,
-                    "targetUnitFilterStat": 3,
-                    "autoSelectLowestUnitStat": 1
+                    "autoSelectLowestUnitStat": true
                 }
             ]
         }
