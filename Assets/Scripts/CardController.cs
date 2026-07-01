@@ -167,6 +167,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         eligibleForShieldZoneDeploy = eligible;
     }
 
+    public void RebindClickHandler(Action<CardController> callback)
+    {
+        onClickCallback = callback;
+    }
+
     public void SetUp(CardData carddata,Action<CardController> callback)
     {
         this.Data = carddata;

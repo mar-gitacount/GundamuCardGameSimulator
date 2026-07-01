@@ -8844,11 +8844,22 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.AddSelfToHand)
+        {
+            int addCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, addCount > 0 ? addCount : 1);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
             && effect.type != EffectType.DeployUnit
-            && effect.type != EffectType.GrantAttackFlag)
+            && effect.type != EffectType.GrantAttackFlag
+            && effect.type != EffectType.AddSelfToHand)
         {
             return;
         }

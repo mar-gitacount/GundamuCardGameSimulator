@@ -1301,6 +1301,39 @@ public class CardGameRule
         return count;
     }
 
+    /// <summary>シールドゾーン等から手札へ移したカードを手札グリッドに合わせる。</summary>
+    public void ApplyHandZoneLayoutToCard(CardController card)
+    {
+        if (card == null || ScrollPanel == null)
+        {
+            return;
+        }
+
+        RectTransform cardRect = card.GetComponent<RectTransform>();
+        if (cardRect == null)
+        {
+            return;
+        }
+
+        ScrollRect scrollRect = ScrollPanel.GetComponent<ScrollRect>();
+        GridLayoutGroup grid = scrollRect != null && scrollRect.content != null
+            ? scrollRect.content.GetComponent<GridLayoutGroup>()
+            : null;
+        cardRect.localScale = Vector3.one;
+        if (grid != null)
+        {
+            cardRect.sizeDelta = grid.cellSize;
+        }
+
+        LayoutElement layoutElement = card.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+        {
+            layoutElement = card.gameObject.AddComponent<LayoutElement>();
+        }
+
+        layoutElement.ignoreLayout = false;
+    }
+
     private static void ApplyTextButtonColors(Button button)
     {
         if (button == null)

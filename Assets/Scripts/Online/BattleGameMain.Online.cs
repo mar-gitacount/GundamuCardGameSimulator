@@ -1010,7 +1010,7 @@ public partial class BattleGameMain
             yield return ResolveBurstEffectsForTakenCardsCoroutine(takenCards, shieldOwner);
             for (int i = 0; i < takenCards.Count; i++)
             {
-                CommitShieldBreakTakenAfterBurst(takenCards[i], rule);
+                CommitShieldBreakTakenAfterBurst(takenCards[i], rule, shieldOwner);
             }
         }
         finally
