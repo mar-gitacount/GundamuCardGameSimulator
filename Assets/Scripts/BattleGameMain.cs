@@ -1728,6 +1728,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         Debug.Log("ターン開始フェイズの処理を実行します。");
         // ターン開始フェイズの具体的な処理をここに書く
+        RefreshAllFieldOwnerTurnPassives();
 
         if(currentPlayerType == PlayerType.Player)
         {
@@ -3030,6 +3031,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         // プレイヤーとエネミーのターンを切り替える
         currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
+        RefreshAllFieldOwnerTurnPassives();
         AdvanceRuleToNextTurnStart();
         UpdateEndTurnButtonVisibility();
 
@@ -3575,6 +3577,7 @@ public partial class BattleGameMain : MonoBehaviour
         bool finished = false;
         TriggerOnPlayedEffects(sourceCard, ownerType, () => finished = true);
         yield return new WaitUntil(() => finished);
+        RefreshAllFieldOwnerTurnPassives();
     }
 
     private List<CardController> GetMountableUnits(PlayerType ownerType)
@@ -7841,6 +7844,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             _pilotMountEffectHostUnit = null;
             EndEffectChainObservationScope();
+            RefreshAllFieldOwnerTurnPassives();
             onComplete?.Invoke();
         }
 
@@ -7919,6 +7923,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             _pilotMountEffectHostUnit = null;
             EndEffectChainObservationScope();
+            RefreshAllFieldOwnerTurnPassives();
             onComplete?.Invoke();
         }
 
@@ -7995,6 +8000,19 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TimedEffectData block = blocks[blockIndex];
+        if (block.IsFieldOwnerTurnStatPassiveBlock())
+        {
+            RunMountTimedBlocks(
+                sourceCard,
+                ownerType,
+                blocks,
+                blockIndex + 1,
+                onComplete,
+                mountHostUnit,
+                mountPilot);
+            return;
+        }
+
         EffectActivationContext activationContext = mountHostUnit != null || mountPilot != null
             ? BuildPilotMountActivationContext(ownerType, sourceCard, mountHostUnit ?? sourceCard, mountPilot)
             : BuildActivationContext(ownerType, sourceCard);
