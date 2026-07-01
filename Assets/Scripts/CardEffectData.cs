@@ -1234,6 +1234,59 @@ public static class TimedEffectDataExtensions
         return true;
     }
 
+    /// <summary>activationConditions に「自ターンのみ」(OwnerTurn) が含まれるか。</summary>
+    public static bool HasOwnerTurnActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.turnCheck == EffectTurnCheckKind.OwnerTurn)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>盤面ユニットへ掛ける自ターン限定 Buff/Debuff（手札パッシブ以外）。</summary>
+    public static bool IsFieldOwnerTurnStatPassiveBlock(this TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasOwnerTurnActivationRequirement() || timed.IsHandConditionalPassiveBlock())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+            {
+                continue;
+            }
+
+            if (effect.target == TargetType.Self)
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>手札にいる間、場の状態で ON/OFF する条件付きパッシブ（OnHandAuto または OnPlayed+Self stat のみ）。</summary>
     public static bool IsHandConditionalPassiveBlock(this TimedEffectData timed)
     {

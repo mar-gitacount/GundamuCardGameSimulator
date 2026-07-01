@@ -453,6 +453,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         });
     }
 
+    public void ClearPilotMountAllyFieldAuras()
+    {
+        _pilotMountAllyFieldAuras.Clear();
+    }
+
     public bool HasStatModifierFromSource(string sourceKey, EffectStatTarget statTarget)
     {
         if (string.IsNullOrEmpty(sourceKey))
