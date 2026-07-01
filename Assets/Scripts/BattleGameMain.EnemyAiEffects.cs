@@ -84,6 +84,27 @@ public partial class BattleGameMain
             return result;
         }
 
+        if (!singleOnly && effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            int min = effect.GetSelectMinCount();
+            int max = effect.GetSelectMaxCount(candidates.Count);
+            List<CardController> ranked = new List<CardController>(candidates);
+            ranked.Sort((a, b) => ComputeEnemyAiUnitThreatScore(b.CurrentPower, b.CurrentHp)
+                .CompareTo(ComputeEnemyAiUnitThreatScore(a.CurrentPower, a.CurrentHp)));
+            if (ranked.Count < min)
+            {
+                return result;
+            }
+
+            int pickCount = Mathf.Clamp(ranked.Count, min, max);
+            for (int i = 0; i < pickCount; i++)
+            {
+                result.Add(ranked[i]);
+            }
+
+            return result;
+        }
+
         CardController pick = null;
         if (TryPickPrioritizedPlayerAttackerForEnemyOnAction(effect, ctx, candidates, out CardController prioritizedAttacker))
         {
@@ -110,6 +131,12 @@ public partial class BattleGameMain
                 pick = candidates[0];
                 break;
             case EffectType.Destroy:
+                pick = PickHighestThreatOrFirst(candidates);
+                break;
+            case EffectType.ReturnUnitToDeckBottom:
+                pick = PickLowestLevelEnemyUnit(candidates);
+                break;
+            case EffectType.MarkObservedUnit:
                 pick = PickHighestThreatOrFirst(candidates);
                 break;
             default:
@@ -145,6 +172,28 @@ public partial class BattleGameMain
         }
 
         return best;
+    }
+
+    private static CardController PickLowestLevelEnemyUnit(List<CardController> candidates)
+    {
+        CardController best = null;
+        int bestLevel = int.MaxValue;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            CardController c = candidates[i];
+            if (c == null || c.Data == null || c.Data.IsUnitToken())
+            {
+                continue;
+            }
+
+            if (c.CurrentLevel < bestLevel)
+            {
+                bestLevel = c.CurrentLevel;
+                best = c;
+            }
+        }
+
+        return best != null ? best : PickHighestThreatOrFirst(candidates);
     }
 
     private static CardController PickHighestThreatOrFirst(List<CardController> candidates)

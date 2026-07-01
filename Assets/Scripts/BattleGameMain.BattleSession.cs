@@ -145,6 +145,7 @@ public partial class BattleGameMain
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         ClearEnemyAiObservedPlayerCardMemory();
+        ClearObservedUnitWatches();
     }
 
     private void ResetBattleFlowFlags()

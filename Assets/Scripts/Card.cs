@@ -140,16 +140,15 @@ public class Card : MonoBehaviour
 
     }
 
+    /// <summary>デッキ編集プレビュー複製時に、誤って OnDestroy 連鎖しないようセッション参照を外す。</summary>
+    public void ClearDeckEditSession()
+    {
+        DeckEditPanel = null;
+    }
+
     private void OnDestroy()
     {
-        if (DeckEditPanel == null) return;
-        Debug.Log("デストロイ実行");
-        // DeckSettinObject.Instance.cardObj(gameObject);
-        DeckEdit deck = DeckEditPanel.GetComponent<DeckEdit>();
-        // 編集中デッキに追加する。
-        deck.CardIdtoSettingObject(CardId);
-       
-        Destroy(gameObject);
+        DeckEditPanel = null;
     }
     // カードの移動先を設定するメソッド
     public void MoveToPosition(Vector3 newPosition)

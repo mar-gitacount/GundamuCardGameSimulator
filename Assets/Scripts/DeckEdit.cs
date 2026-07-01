@@ -57,13 +57,33 @@ public class DeckEdit : MonoBehaviour
 
     private void SyncDeckEditPreview(int count)
     {
-        if (DeckSettinObject.Instance == null || CardObj == null)
+        if (DeckSettinObject.Instance == null)
         {
             return;
         }
 
         DeckSettinObject.Instance.Deckedit(cardId, count);
-        DeckSettinObject.Instance.cardObj(CardObj);
+        DeckSettinObject.Instance.cardObj(cardId);
+    }
+
+    private void SyncDeckEditPreviewOnPanelClose()
+    {
+        if (DeckSettinObject.Instance == null || CardCount == null)
+        {
+            return;
+        }
+
+        if (!int.TryParse(CardCount.text, out int count))
+        {
+            return;
+        }
+
+        SyncDeckEditPreview(count);
+    }
+
+    private void OnDestroy()
+    {
+        SyncDeckEditPreviewOnPanelClose();
     }
 
     public string CountTextNum()
@@ -74,19 +94,15 @@ public class DeckEdit : MonoBehaviour
     {
         Debug.Log($"カードの数{CardCount.text},id{id}");
 
-        int count = int.Parse(CardCount.text);
-        // if(count == 0)
-        // {
-        //     Debug.Log("カード枚数は0");
-        //     return;
-        // }
+        if (!int.TryParse(CardCount.text, out int count))
+        {
+            return;
+        }
 
-        cardData[id] = int.Parse(CardCount.text);
-        
-        DeckSettinObject.Instance.Deckedit(id,int.Parse(CardCount.text));
+        cardData[id] = count;
 
-        DeckSettinObject.Instance.cardObj(CardObj);
-        // return id;
+        DeckSettinObject.Instance.Deckedit(id, count);
+        DeckSettinObject.Instance.cardObj(id);
     }
 
    
