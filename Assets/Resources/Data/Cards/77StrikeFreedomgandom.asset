@@ -43,7 +43,7 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: 0
-  - timing: 10
+  - timing: 3
     activationConditions:
     - boardSide: -1
       checkKind: 4
@@ -64,14 +64,20 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
     requireChainObservationContext: 0
-    effectsName: Discard2_ReturnLowestEnemyToDeckBottom_OnMain
+    effectsName: Discard2_ReturnLowestEnemyToDeckBottom_OnAttack
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
-  link: []
+  link:
+  - pilotCardId: 6
+    pilotFeatures: []
+    pilotFeatureIds: 
+  - pilotCardId: 6
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 0

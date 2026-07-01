@@ -1008,6 +1008,25 @@ public partial class BattleGameMain
             return;
         }
 
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            PlayerType handOwner = ResolveHandDiscardOwner(ownerType, effect);
+            List<CardController> handCandidates = CollectSelectableHandCards(handOwner);
+            if (handCandidates.Count == 0)
+            {
+                Debug.Log("[OnAttackPreCombat] 捨てる手札がありません (DiscardFromHand)。");
+                TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            TryExecuteManualHandSelectionEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             CardController attackHost = _pendingOnAttackPreCombatResolvedAttacker ?? sourceCard;
