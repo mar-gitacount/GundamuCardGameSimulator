@@ -59,8 +59,22 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
     activationCost: 0
     oncePerTurn: 0
+    observedUnitTriggerKind: -1
   - timing: 12
     activationConditions:
     - boardSide: 4
@@ -77,6 +91,7 @@ MonoBehaviour:
       unitCountCompareOp: 2
       unitCountThreshold: 0
       pilotCardId: 0
+      trashCardId: 0
       pilotLevelThreshold: 0
       activationStatTarget: -1
       observedCardType: 1
@@ -110,6 +125,19 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 1
       targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
     - type: 0
       value: 1
       target: 4
@@ -148,15 +176,31 @@ MonoBehaviour:
         unitCountCompareOp: 2
         unitCountThreshold: 0
         pilotCardId: 0
+        trashCardId: 0
         pilotLevelThreshold: 0
         activationStatTarget: -1
         observedCardType: 1
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
     activationCost: 1
     oncePerTurn: 1
-  features: []
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   link:
   - pilotCardId: 56
     pilotFeatures: []
@@ -167,3 +211,5 @@ MonoBehaviour:
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0

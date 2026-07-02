@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System;
+using TMPro;
 public class CardController : MonoBehaviour,IPointerClickHandler
 {
     [Serializable]
@@ -92,6 +93,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public bool HasEffectDamageImmunity => CurrentEffectDamageImmunityCount > 0;
     private static readonly Vector2 PilotOffset = new Vector2(0f, -18f);
     private Image unitFaceTopLayer;
+    private GameObject _battleZoneStatOverlayRoot;
+    private TextMeshProUGUI _battleZoneStatText;
+    private bool _battleZoneStatOverlayVisible;
+    private int _cachedBattleZoneStatAp = int.MinValue;
+    private int _cachedBattleZoneStatHp = int.MinValue;
 
     /// <summary>ランタイムの攻撃フラグ（カードデータのアセットは変更しない）。</summary>
     private AttackFlg _attackFlg = AttackFlg.False;
@@ -195,6 +201,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public void SetCurrentHpForSync(int hp)
     {
         CurrentHp = Mathf.Max(0, hp);
+        RefreshBattleZoneStatOverlay();
     }
 
     /// <summary>効果等で付与されるターン終了リペア量（isRepair 定義に加算）。</summary>
@@ -281,6 +288,101 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         MountedUnit = null;
         _notDirectAttackUntilEndOfTurnDepth = 0;
         _turnEndRepairBonus = 0;
+        SetBattleZoneStatOverlayVisible(false);
+    }
+
+    /// <summary>バトルゾーン上のユニットに AP/HP オーバーレイを表示する。</summary>
+    public void SetBattleZoneStatOverlayVisible(bool visible)
+    {
+        _battleZoneStatOverlayVisible = visible && Data != null && Data.IsUnitLike();
+        if (!_battleZoneStatOverlayVisible)
+        {
+            if (_battleZoneStatOverlayRoot != null)
+            {
+                _battleZoneStatOverlayRoot.SetActive(false);
+            }
+
+            _cachedBattleZoneStatAp = int.MinValue;
+            _cachedBattleZoneStatHp = int.MinValue;
+            return;
+        }
+
+        EnsureBattleZoneStatOverlay();
+        _battleZoneStatOverlayRoot.SetActive(true);
+        RefreshBattleZoneStatOverlay(force: true);
+    }
+
+    public void RefreshBattleZoneStatOverlay(bool force = false)
+    {
+        if (!_battleZoneStatOverlayVisible || _battleZoneStatText == null)
+        {
+            return;
+        }
+
+        int ap = CurrentPower;
+        int hp = CurrentHp;
+        if (!force && ap == _cachedBattleZoneStatAp && hp == _cachedBattleZoneStatHp)
+        {
+            return;
+        }
+
+        _cachedBattleZoneStatAp = ap;
+        _cachedBattleZoneStatHp = hp;
+        _battleZoneStatText.text = $"AP {ap}  HP {hp}";
+        if (_battleZoneStatOverlayRoot != null)
+        {
+            _battleZoneStatOverlayRoot.transform.SetAsLastSibling();
+        }
+    }
+
+    private void EnsureBattleZoneStatOverlay()
+    {
+        if (_battleZoneStatOverlayRoot != null)
+        {
+            return;
+        }
+
+        _battleZoneStatOverlayRoot = new GameObject("BattleZoneStatOverlay", typeof(RectTransform), typeof(Image));
+        RectTransform overlayRt = _battleZoneStatOverlayRoot.GetComponent<RectTransform>();
+        overlayRt.SetParent(transform, false);
+        overlayRt.anchorMin = new Vector2(0f, 1f);
+        overlayRt.anchorMax = new Vector2(1f, 1f);
+        overlayRt.pivot = new Vector2(0.5f, 1f);
+        overlayRt.sizeDelta = new Vector2(0f, 30f);
+        overlayRt.anchoredPosition = Vector2.zero;
+
+        Image overlayBg = _battleZoneStatOverlayRoot.GetComponent<Image>();
+        UIExtensions.ApplySolidUiImage(overlayBg, new Color(0f, 0f, 0f, 0.85f));
+
+        _battleZoneStatText = _battleZoneStatOverlayRoot.CreateChildTextCustom(
+            "BattleZoneStatText",
+            UIAnchor.FullSize,
+            120,
+            28);
+        _battleZoneStatText.fontSize = 14;
+        _battleZoneStatText.color = Color.white;
+        _battleZoneStatText.alignment = TextAlignmentOptions.Center;
+        _battleZoneStatText.enableWordWrapping = false;
+        _battleZoneStatText.raycastTarget = false;
+    }
+
+    private void BringBattleZoneStatOverlayToFront()
+    {
+        if (_battleZoneStatOverlayRoot != null && _battleZoneStatOverlayVisible)
+        {
+            _battleZoneStatOverlayRoot.transform.SetAsLastSibling();
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (!_battleZoneStatOverlayVisible)
+        {
+            return;
+        }
+
+        RefreshBattleZoneStatOverlay();
+        BringBattleZoneStatOverlayToFront();
     }
 
     /// <summary>戦闘ダメージ。ユニット以外では呼ばない想定。</summary>
@@ -292,6 +394,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         }
 
         CurrentHp = Mathf.Max(0, CurrentHp - amount);
+        RefreshBattleZoneStatOverlay();
     }
 
     /// <summary>シールドとして裏向き表示する（カード画像の上に全面カバーを重ねる）。</summary>
@@ -367,6 +470,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         IsRestState = isRest;
         float z = isRest ? -90f : 0f;
         rt.localRotation = Quaternion.Euler(0f, 0f, z);
+        BringBattleZoneStatOverlayToFront();
+        RefreshBattleZoneStatOverlay();
     }
     public void OnPointerClick(PointerEventData eventData)
     {
@@ -421,6 +526,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         {
             effectDamageImmunityModifiers.Add(new StatModifier { value = effectDamageImmunityDelta, duration = duration, sourceKey = key });
         }
+
+        RefreshBattleZoneStatOverlay();
     }
 
     /// <summary>パイロット搭乗中のみ有効な味方フィールド全体オーラ（後配備ユニット向け）。</summary>
@@ -711,6 +818,9 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             {
                 unitFaceTopLayer.transform.SetAsLastSibling();
             }
+
+            BringBattleZoneStatOverlayToFront();
+            RefreshBattleZoneStatOverlay();
         }
 
         Image pilotImage = pilot.GetComponent<Image>();
@@ -721,6 +831,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
         pilotPowerBonus += Mathf.Max(0, pilot.Data.power);
         CurrentHp += Mathf.Max(0, pilot.Data.hp);
+        RefreshBattleZoneStatOverlay(force: true);
         return true;
     }
 
@@ -737,6 +848,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         CurrentHp = Mathf.Max(0, CurrentHp - Mathf.Max(0, pilot.Data.hp));
         MountedPilot = null;
         pilot.MountedUnit = null;
+        RefreshBattleZoneStatOverlay(force: true);
 
         RectTransform pilotRt = pilot.transform as RectTransform;
         if (pilotRt != null)
