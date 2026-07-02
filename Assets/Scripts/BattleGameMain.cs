@@ -4323,8 +4323,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearAttackScopedTimedStatModifiers();
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
 
@@ -5683,8 +5682,7 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearAttackScopedTimedStatModifiers();
         DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
         Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
@@ -6554,8 +6552,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearAttackScopedTimedStatModifiers();
         DumpTurnResourceUsageLogs(attackerOwner, "block redirect unit combat");
         SyncAllResourceViewsFromRule();
 

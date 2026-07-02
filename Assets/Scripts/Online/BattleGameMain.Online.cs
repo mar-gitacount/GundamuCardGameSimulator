@@ -299,6 +299,43 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>攻撃フロー終了時：UntilEndOfBattle の Buff/Debuff を盤面全体から解除し、オンラインなら相手へも同期。</summary>
+    private void ClearAttackScopedTimedStatModifiers()
+    {
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        SendOnlineClearTimedStatModifiersByDurationIfNeeded(EffectDuration.UntilEndOfBattle);
+    }
+
+    /// <summary>相手の攻撃完了通知を受けた側で、攻撃スコープの補正をローカル解除する。</summary>
+    private void ApplyRemoteAttackScopedTimedStatModifierCleanup()
+    {
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+    }
+
+    private void SendOnlineClearTimedStatModifiersByDurationIfNeeded(EffectDuration duration)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || currentPlayerType != PlayerType.Player)
+        {
+            return;
+        }
+
+        string json = OnlineBattleEffectSyncPayload.ToJson(new[]
+        {
+            new OnlineBattleUnitEffectChange
+            {
+                changeKind = OnlineBattleEffectSyncPayload.ChangeKindClearTimedStatModifiersByDuration,
+                duration = (int)duration
+            }
+        });
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectSync(json));
+            Debug.Log($"[OnlineBattle] Attack-scoped stat clear sync sent. duration={duration}");
+        }
+    }
+
     private void QueueOnlineUnitRest(CardController target)
     {
         if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
@@ -1016,6 +1053,7 @@ public partial class BattleGameMain
                 action.requestId));
         }
 
+        ApplyRemoteAttackScopedTimedStatModifierCleanup();
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Player, force: true);
         Debug.Log(
@@ -1104,6 +1142,7 @@ public partial class BattleGameMain
             ApplyRemoteUnitRemovedFromField(attacker);
         }
 
+        ApplyRemoteAttackScopedTimedStatModifierCleanup();
         SyncAllResourceViewsFromRule();
         Debug.Log(
             $"[OnlineBattle] Remote unit attack applied. attackerHp={action.attackerHp} defenderHp={action.defenderHp}");
@@ -1165,6 +1204,14 @@ public partial class BattleGameMain
             if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindRefreshOwnerTurnFieldPassives)
             {
                 RefreshAllFieldOwnerTurnPassives();
+                continue;
+            }
+
+            if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindClearTimedStatModifiersByDuration)
+            {
+                EffectDuration duration = (EffectDuration)change.duration;
+                ClearTimedStatModifiersForAllInPlayCards(duration);
+                ClearAttackActiveEnemyGrants(duration);
                 continue;
             }
 
