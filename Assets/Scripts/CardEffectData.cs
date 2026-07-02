@@ -360,7 +360,12 @@ public enum EffectActivationCheckKind
     /// 同一チェーン内の直前効果で、少なくとも1体（またはプレイヤー領域）に実ダメージが入った。
     /// 相手へのダメージをフックにした条件付き自傷などに使用。
     /// </summary>
-    PriorChainDealtDamage
+    PriorChainDealtDamage,
+    /// <summary>
+    /// OnPilotMounted / OnLink 時の搭乗先ユニット（MountHostUnit）が feature / featureIds のいずれか（OR）を持つ。
+    /// boardSide は不要。
+    /// </summary>
+    MountHostHasFeature
 }
 
 public enum EffectTurnCheckKind
@@ -422,16 +427,16 @@ public class EffectActivationCondition
     [Tooltip("Unset ならターン判定しない。OwnerTurn/NotOwnerTurn を指定した場合のみ判定する。")]
     public EffectTurnCheckKind turnCheck = EffectTurnCheckKind.Unset;
 
-    [Tooltip("HasFeature / ObservedCardHasFeature 時に参照。未設定なら featureId / features で解決。")]
+    [Tooltip("HasFeature / ObservedCardHasFeature / MountHostHasFeature 時に参照。未設定なら featureId / features で解決。")]
     public CardFeatureData feature;
 
     [Tooltip("JSON 用。feature 未設定時に ID で解決（0=未指定）。")]
     public int featureId;
 
-    [Tooltip("HasFeature / ObservedCardHasFeature: 複数 Feature のいずれか（OR）。Inspector 用。")]
+    [Tooltip("HasFeature / ObservedCardHasFeature / MountHostHasFeature: 複数 Feature のいずれか（OR）。Inspector 用。")]
     public CardFeatureData[] features;
 
-    [Tooltip("HasFeature / ObservedCardHasFeature: 複数 Feature のいずれか（OR）。JSON 用 ID 配列。")]
+    [Tooltip("HasFeature / ObservedCardHasFeature / MountHostHasFeature: 複数 Feature のいずれか（OR）。JSON 用 ID 配列。")]
     public int[] featureIds;
 
     [Tooltip("HasFeature: その Feature を持つカードの最低枚数。UnitCountAtLeast: 生存ユニット最低体数。CountUnitsWithLevelAtLeast: レベル条件を満たすユニットの最低体数。ObservedCardHasFeature: 観測カードのうち条件を満たす最低枚数。")]

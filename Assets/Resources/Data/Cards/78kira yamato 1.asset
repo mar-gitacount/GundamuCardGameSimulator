@@ -36,7 +36,25 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   - timing: 18
-    activationConditions: []
+    activationConditions:
+    - boardSide: -1
+      checkKind: 15
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 0800000009000000
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
     requireChainObservationContext: 0
     effectsName: Draw1_OnLink
     effects: []

@@ -177,6 +177,11 @@ public static class EffectActivationEvaluator
             return EvaluateMountedPilot(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.MountHostHasFeature)
+        {
+            return EvaluateMountHostHasFeature(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.SourceUnitStat)
         {
             return EvaluateSourceUnitStat(c, ctx);
@@ -535,6 +540,34 @@ public static class EffectActivationEvaluator
 
         CardController pilot = ctx.MountedPilot ?? host.MountedPilot;
         return PilotMeetsMountedPilotCondition(pilot, c);
+    }
+
+    private static bool EvaluateMountHostHasFeature(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> requiredFeatures = c.GetActivationFeatures();
+        if (requiredFeatures.Count == 0)
+        {
+            return false;
+        }
+
+        CardController host = ctx.MountHostUnit;
+        if (host == null && ctx.SourceCard != null && ctx.SourceCard.Data != null
+            && ctx.SourceCard.Data.IsUnitLike())
+        {
+            host = ctx.SourceCard;
+        }
+
+        if (host?.Data == null || !host.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        return host.Data.HasAnyFeature(requiredFeatures);
     }
 
     private static int CountUnitsWithMatchingMountedPilot(IReadOnlyList<CardController> zone, EffectActivationCondition c)
