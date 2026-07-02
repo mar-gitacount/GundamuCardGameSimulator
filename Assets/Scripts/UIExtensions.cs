@@ -16,6 +16,56 @@ using TMPro;
     }
 public static class UIExtensions
 {
+    private static Sprite _cachedSolidUiSprite;
+
+    /// <summary>
+    /// 実行時生成の Image 背景用スプライト（実機ビルドで sprite 未設定だと描画されないため）。
+    /// </summary>
+    public static Sprite GetOrCreateSolidUiSprite()
+    {
+        if (_cachedSolidUiSprite != null)
+        {
+            return _cachedSolidUiSprite;
+        }
+
+        _cachedSolidUiSprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/UISprite.psd");
+        if (_cachedSolidUiSprite == null)
+        {
+            _cachedSolidUiSprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Background.psd");
+        }
+
+        return _cachedSolidUiSprite;
+    }
+
+    public static void ApplySolidUiImage(Image image, Color color)
+    {
+        if (image == null)
+        {
+            return;
+        }
+
+        Sprite sprite = GetOrCreateSolidUiSprite();
+        if (sprite != null)
+        {
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
+        }
+
+        image.color = color;
+        image.raycastTarget = false;
+    }
+
+    private static TMP_FontAsset ResolveRuntimeTmpFont()
+    {
+        TMP_FontAsset font = TMP_Settings.defaultFontAsset;
+        if (font != null)
+        {
+            return font;
+        }
+
+        return Resources.Load<TMP_FontAsset>("SourceHanSansJP-Regular SDF");
+    }
+
     /// <summary>
     /// UIを親要素いっぱいに広げる（Stretch設定）
     /// </summary>
@@ -212,9 +262,11 @@ public static class UIExtensions
         // 2. TextMeshProUGUI コンポーネントの取得と初期設定
         var tmp = textObj.GetComponent<TextMeshProUGUI>();
         tmp.text = "New Text";
+        tmp.font = ResolveRuntimeTmpFont();
         tmp.fontSize = 24;
         tmp.color = Color.white;
         tmp.alignment = TextAlignmentOptions.Center; // デフォルトで中央揃え
+        tmp.raycastTarget = false;
 
         // 3. RectTransform の設定
         var rect = textObj.GetComponent<RectTransform>();

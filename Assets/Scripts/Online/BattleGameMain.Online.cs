@@ -889,6 +889,8 @@ public partial class BattleGameMain
             {
                 AssignBattleInstanceIdIfNeeded(controller);
             }
+
+            controller.SetBattleZoneStatOverlayVisible(true);
         }
 
         RefreshAllFieldOwnerTurnPassives();

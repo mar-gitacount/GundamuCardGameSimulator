@@ -3559,6 +3559,7 @@ public partial class BattleGameMain : MonoBehaviour
             ApplyUnitDeployFieldAttackState(cardController);
             AssignBattleInstanceIdIfNeeded(cardController);
             ApplyPilotMountFieldAurasToDeployedUnit(cardController, ownerType);
+            cardController.SetBattleZoneStatOverlayVisible(true);
         }
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
