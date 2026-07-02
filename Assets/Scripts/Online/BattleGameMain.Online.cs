@@ -193,8 +193,11 @@ public partial class BattleGameMain
         }
 
         _pendingOnlineEffectChanges ??= new List<OnlineBattleUnitEffectChange>();
-        _pendingOnlineEffectChanges.Clear();
-        _onlineEffectSyncActive = true;
+        if (!_onlineEffectSyncActive)
+        {
+            _pendingOnlineEffectChanges.Clear();
+            _onlineEffectSyncActive = true;
+        }
     }
 
     private void FlushOnlineEffectSyncBatch()
@@ -250,7 +253,8 @@ public partial class BattleGameMain
         CardController target,
         int signedValue,
         EffectStatTarget statTarget,
-        EffectDuration duration)
+        EffectDuration duration,
+        string statModifierSourceKey = null)
     {
         if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
         {
@@ -263,7 +267,35 @@ public partial class BattleGameMain
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindStat,
             signedStatValue = signedValue,
             statTarget = (int)statTarget,
-            duration = (int)duration
+            duration = (int)duration,
+            statModifierSourceKey = statModifierSourceKey ?? string.Empty
+        });
+    }
+
+    private void QueueOnlineClearStatGrantsFromSource(int grantingBattleInstanceId)
+    {
+        if (!_onlineEffectSyncActive || grantingBattleInstanceId <= 0)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindClearStatGrantsFromSource,
+            grantSourceInstanceId = grantingBattleInstanceId
+        });
+    }
+
+    private void QueueOnlineRefreshOwnerTurnFieldPassives()
+    {
+        if (!_onlineEffectSyncActive)
+        {
+            return;
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindRefreshOwnerTurnFieldPassives
         });
     }
 
@@ -781,6 +813,7 @@ public partial class BattleGameMain
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
         currentPlayerType = PlayerType.Player;
+        RefreshAllFieldOwnerTurnPassives();
         AdvanceRuleToNextTurnStart();
         UpdateEndTurnButtonVisibility();
 
@@ -858,6 +891,7 @@ public partial class BattleGameMain
             }
         }
 
+        RefreshAllFieldOwnerTurnPassives();
         Debug.Log($"[OnlineBattle] Remote unit deployed on opponent field: {cardData.cardName} ({cardId})");
     }
 
@@ -1108,7 +1142,31 @@ public partial class BattleGameMain
         for (int i = 0; i < changes.Length; i++)
         {
             OnlineBattleUnitEffectChange change = changes[i];
-            if (change == null || change.targetInstanceId <= 0)
+            if (change == null)
+            {
+                continue;
+            }
+
+            if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindClearStatGrantsFromSource)
+            {
+                if (change.grantSourceInstanceId > 0)
+                {
+                    ClearStatGrantsFromBattleInstanceOnAllFieldUnits(
+                        change.grantSourceInstanceId,
+                        exclude: null,
+                        queueOnlineStatDeltas: false);
+                }
+
+                continue;
+            }
+
+            if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindRefreshOwnerTurnFieldPassives)
+            {
+                RefreshAllFieldOwnerTurnPassives();
+                continue;
+            }
+
+            if (change.targetInstanceId <= 0)
             {
                 continue;
             }
@@ -1142,7 +1200,8 @@ public partial class BattleGameMain
                         unit,
                         change.signedStatValue,
                         (EffectStatTarget)change.statTarget,
-                        (EffectDuration)change.duration);
+                        (EffectDuration)change.duration,
+                        string.IsNullOrEmpty(change.statModifierSourceKey) ? null : change.statModifierSourceKey);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindRest:
@@ -1169,6 +1228,7 @@ public partial class BattleGameMain
             }
         }
 
+        RefreshAllFieldOwnerTurnPassives();
         SyncAllResourceViewsFromRule();
         Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
     }
@@ -1245,6 +1305,7 @@ public partial class BattleGameMain
         }
 
         ApplyUnitAttackFlgFromLink(hostUnit, hostOwner);
+        RefreshAllFieldOwnerTurnPassives();
         SyncAllResourceViewsFromRule();
         Debug.Log(
             $"[OnlineBattle] Remote pilot mounted. host={action.instanceId} pilot={action.cardId} "

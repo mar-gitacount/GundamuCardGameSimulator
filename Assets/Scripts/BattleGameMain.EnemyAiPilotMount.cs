@@ -113,8 +113,9 @@ public partial class BattleGameMain
 
         Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Enemy;
         Gundam2024RuleScript.PlayerState state = GetRuleState(side);
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(state, pilot.CurrentCost);
         if (!CanEnemyAffordHandDeployWithReserve(state, side, pilot, reserve)
-            || !TryPayHandDeployCost(side, pilot, 0))
+            || !TryPayHandDeployCost(side, pilot, exToUse))
         {
             return false;
         }

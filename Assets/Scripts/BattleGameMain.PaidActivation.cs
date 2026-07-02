@@ -226,7 +226,8 @@ public partial class BattleGameMain
         Gundam2024RuleScript.PlayerState resourceState = side == PlayerType.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
-        return resourceState != null && resourceState.resource >= cost;
+        int requiredLevel = IsOnMainActivatedFromHand(source, side) ? source.CurrentLevel : 0;
+        return gundamRule.CanPlayCardWithAnyEx(ToRuleSide(side), requiredLevel, cost);
     }
 
     private bool TryConsumeOnMainActivationCost(PlayerType side, CardController source, TimedEffectData timed)
@@ -249,18 +250,24 @@ public partial class BattleGameMain
             return false;
         }
 
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
+        Gundam2024RuleScript.PlayerState resourceState = side == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int requiredLevel = IsOnMainActivatedFromHand(source, side) ? source.CurrentLevel : -1;
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(resourceState, cost);
         if (!gundamRule.TryConsumeResource(
-                ToRuleSide(side),
+                ruleSide,
                 cost,
-                0,
+                exToUse,
                 source.Data.id,
-                source.CurrentLevel))
+                requiredLevel))
         {
             Debug.Log("OnMain: リソース不足で実行できません。");
             return false;
         }
 
-        SyncResourceViewsFromRule(ToRuleSide(side));
+        SyncResourceViewsFromRule(ruleSide);
         return true;
     }
 

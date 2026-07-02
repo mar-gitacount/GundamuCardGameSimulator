@@ -44,6 +44,7 @@ public partial class BattleGameMain
         if (cardController.Data.IsUnitLike() && cardController.BattleInstanceId > 0)
         {
             ClearStatModifiersGrantedByDestroyedUnit(cardController);
+            RefreshAllFieldOwnerTurnPassives();
         }
 
         Destroy(cardController.gameObject);

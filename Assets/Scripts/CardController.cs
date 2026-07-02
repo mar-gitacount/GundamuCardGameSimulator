@@ -430,7 +430,19 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public IReadOnlyList<PilotMountAllyFieldAuraEntry> GetPilotMountAllyFieldAuras() => _pilotMountAllyFieldAuras;
 
     /// <summary>ユニットがフィールド上で付与した Buff/Debuff の除去用キー（搭乗オーラと共通）。</summary>
-    public string MakePilotMountFieldAuraSourceKey() => $"UnitGranted:{BattleInstanceId}";
+    public string MakePilotMountFieldAuraSourceKey() => MakeUnitGrantedSourceKey(BattleInstanceId);
+
+    public static string MakeUnitGrantedSourceKey(int battleInstanceId) => $"UnitGranted:{battleInstanceId}";
+
+    public static string MakeOwnerTurnFieldPassiveSourceKey(int battleInstanceId, int blockIndex) =>
+        $"OwnerTurnField:{battleInstanceId}:{blockIndex}";
+
+    public struct StatModifierRemoval
+    {
+        public EffectStatTarget StatTarget;
+        public int SignedTotal;
+        public EffectDuration Duration;
+    }
 
     public void RegisterPilotMountAllyFieldAura(
         EffectStatTarget statTarget,
@@ -499,17 +511,106 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     /// <summary>sourceKey が一致するランタイム修飾のみ除去（手札条件付きパッシブ用）。除去した AP 修飾合計を返す。</summary>
     public int RemoveStatModifiersBySource(string sourceKey)
     {
+        return SumRemovalByStatTarget(RemoveStatModifiersBySourceDetailed(sourceKey), EffectStatTarget.AP);
+    }
+
+    /// <summary>sourceKey が一致するランタイム修飾を除去し、種別ごとの除去量を返す。</summary>
+    public List<StatModifierRemoval> RemoveStatModifiersBySourceDetailed(string sourceKey)
+    {
+        List<StatModifierRemoval> removed = new List<StatModifierRemoval>();
         if (string.IsNullOrEmpty(sourceKey))
+        {
+            return removed;
+        }
+
+        AppendRemovalIfNonZero(removed, EffectStatTarget.AP, RemoveKeyedModifiers(powerModifiers, sourceKey));
+        AppendRemovalIfNonZero(removed, EffectStatTarget.Cost, RemoveKeyedModifiers(costModifiers, sourceKey));
+        AppendRemovalIfNonZero(removed, EffectStatTarget.Level, RemoveKeyedModifiers(levelModifiers, sourceKey));
+        AppendRemovalIfNonZero(removed, EffectStatTarget.EffectDamage, RemoveKeyedModifiers(effectDamageModifiers, sourceKey));
+        AppendRemovalIfNonZero(
+            removed,
+            EffectStatTarget.EffectDamageImmunity,
+            RemoveKeyedModifiers(effectDamageImmunityModifiers, sourceKey));
+        return removed;
+    }
+
+    /// <summary>指定ユニットが付与した UnitGranted / OwnerTurnField 修飾をまとめて除去する。</summary>
+    public List<StatModifierRemoval> RemoveStatModifiersGrantedByBattleInstance(int grantingBattleInstanceId)
+    {
+        List<StatModifierRemoval> removed = new List<StatModifierRemoval>();
+        if (grantingBattleInstanceId <= 0)
+        {
+            return removed;
+        }
+
+        removed.AddRange(RemoveStatModifiersBySourceDetailed(MakeUnitGrantedSourceKey(grantingBattleInstanceId)));
+
+        string ownerTurnPrefix = $"OwnerTurnField:{grantingBattleInstanceId}:";
+        AppendRemovalIfNonZero(removed, EffectStatTarget.AP, RemoveKeyedModifiersByPrefix(powerModifiers, ownerTurnPrefix));
+        AppendRemovalIfNonZero(removed, EffectStatTarget.Cost, RemoveKeyedModifiersByPrefix(costModifiers, ownerTurnPrefix));
+        AppendRemovalIfNonZero(removed, EffectStatTarget.Level, RemoveKeyedModifiersByPrefix(levelModifiers, ownerTurnPrefix));
+        AppendRemovalIfNonZero(
+            removed,
+            EffectStatTarget.EffectDamage,
+            RemoveKeyedModifiersByPrefix(effectDamageModifiers, ownerTurnPrefix));
+        AppendRemovalIfNonZero(
+            removed,
+            EffectStatTarget.EffectDamageImmunity,
+            RemoveKeyedModifiersByPrefix(effectDamageImmunityModifiers, ownerTurnPrefix));
+        return removed;
+    }
+
+    private static void AppendRemovalIfNonZero(
+        List<StatModifierRemoval> removed,
+        EffectStatTarget statTarget,
+        int signedTotal)
+    {
+        if (signedTotal == 0)
+        {
+            return;
+        }
+
+        removed.Add(new StatModifierRemoval
+        {
+            StatTarget = statTarget,
+            SignedTotal = signedTotal,
+            Duration = EffectDuration.Permanent,
+        });
+    }
+
+    private static int SumRemovalByStatTarget(List<StatModifierRemoval> removed, EffectStatTarget statTarget)
+    {
+        int sum = 0;
+        for (int i = 0; i < removed.Count; i++)
+        {
+            if (removed[i].StatTarget == statTarget)
+            {
+                sum += removed[i].SignedTotal;
+            }
+        }
+
+        return sum;
+    }
+
+    private static int RemoveKeyedModifiersByPrefix(List<StatModifier> modifiers, string prefix)
+    {
+        if (modifiers == null || string.IsNullOrEmpty(prefix))
         {
             return 0;
         }
 
-        int removedPower = RemoveKeyedModifiers(powerModifiers, sourceKey);
-        RemoveKeyedModifiers(costModifiers, sourceKey);
-        RemoveKeyedModifiers(levelModifiers, sourceKey);
-        RemoveKeyedModifiers(effectDamageModifiers, sourceKey);
-        RemoveKeyedModifiers(effectDamageImmunityModifiers, sourceKey);
-        return removedPower;
+        int sum = 0;
+        for (int i = modifiers.Count - 1; i >= 0; i--)
+        {
+            string key = modifiers[i].sourceKey;
+            if (key != null && key.StartsWith(prefix))
+            {
+                sum += modifiers[i].value;
+                modifiers.RemoveAt(i);
+            }
+        }
+
+        return sum;
     }
 
     private static int RemoveKeyedModifiers(List<StatModifier> modifiers, string sourceKey)

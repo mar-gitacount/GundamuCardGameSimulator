@@ -101,14 +101,48 @@ public class EosOnlineShutdownCoordinator : MonoBehaviour
             return;
         }
 
-        EOSLobbyManager lobbyManager = EOSManager.Instance.GetOrCreateManager<EOSLobbyManager>();
+        EOSLobbyManager lobbyManager;
+        try
+        {
+            lobbyManager = EOSManager.Instance.GetOrCreateManager<EOSLobbyManager>();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[EOS Shutdown] LeaveLobby skipped: failed to get lobby manager. {ex.GetType().Name}: {ex.Message}");
+            return;
+        }
+
         Lobby lobby = lobbyManager?.GetCurrentLobby();
         if (lobby == null || !lobby.IsValid())
         {
             return;
         }
 
-        lobbyManager.LeaveLobby(_ => { });
-        Debug.Log("[EOS Shutdown] LeaveLobby requested.");
+        ProductUserId localUserId;
+        try
+        {
+            localUserId = EOSManager.Instance.GetProductUserId();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[EOS Shutdown] LeaveLobby skipped: failed to read local EOS user. {ex.GetType().Name}: {ex.Message}");
+            return;
+        }
+
+        if (!localUserId.IsValid())
+        {
+            Debug.Log("[EOS Shutdown] LeaveLobby skipped: local EOS user is invalid.");
+            return;
+        }
+
+        try
+        {
+            lobbyManager.LeaveLobby(_ => { });
+            Debug.Log("[EOS Shutdown] LeaveLobby requested.");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[EOS Shutdown] LeaveLobby skipped after exception: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 }

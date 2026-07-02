@@ -54,7 +54,9 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (!TryPayHandDeployCost(enemySide, bestBase, 0))
+        Gundam2024RuleScript.PlayerState payState = gundamRule.Enemy;
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(payState, bestBase.CurrentCost);
+        if (!TryPayHandDeployCost(enemySide, bestBase, exToUse))
         {
             return false;
         }

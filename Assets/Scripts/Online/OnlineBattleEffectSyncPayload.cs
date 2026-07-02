@@ -14,6 +14,10 @@ public class OnlineBattleUnitEffectChange
     public int signedStatValue;
     public int statTarget;
     public int duration;
+    /// <summary>Buff/Debuff の除去用。付与時に設定し、リモートでも同じ sourceKey で保持する。</summary>
+    public string statModifierSourceKey;
+    /// <summary>ClearStatGrantsFromSource 用。付与元ユニットの BattleInstanceId。</summary>
+    public int grantSourceInstanceId;
 }
 
 [Serializable]
@@ -29,6 +33,8 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindDestroy = "Destroy";
     public const string ChangeKindBounce = "Bounce";
     public const string ChangeKindReturnToDeckBottom = "ReturnToDeckBottom";
+    public const string ChangeKindClearStatGrantsFromSource = "ClearStatGrantsFromSource";
+    public const string ChangeKindRefreshOwnerTurnFieldPassives = "RefreshOwnerTurnFieldPassives";
 
     public static string ToJson(OnlineBattleUnitEffectChange[] changes)
     {
