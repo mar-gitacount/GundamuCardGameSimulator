@@ -5223,14 +5223,14 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
                     ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey);
-                    QueueOnlineUnitStat(t, magnitude, effect.statTarget, effect.duration);
+                    QueueOnlineUnitStat(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey);
                     break;
                 }
                 case EffectType.Debuff:
                 {
                     string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
                     ApplyStatEffect(t, -magnitude, effect.statTarget, effect.duration, modifierSourceKey);
-                    QueueOnlineUnitStat(t, -magnitude, effect.statTarget, effect.duration);
+                    QueueOnlineUnitStat(t, -magnitude, effect.statTarget, effect.duration, modifierSourceKey);
                     break;
                 }
                 case EffectType.BlockRedirect:
@@ -9169,7 +9169,7 @@ public partial class BattleGameMain : MonoBehaviour
                 for (int i = 0; i < targets.Count; i++)
                 {
                     ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
-                    QueueOnlineUnitStat(targets[i], signedValue, effect.statTarget, effect.duration);
+                    QueueOnlineUnitStat(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
                 }
                 TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);
                 Debug.Log($"[Effect] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} by cardId:{sourceCard.Data.id}");
@@ -12829,7 +12829,10 @@ public partial class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerState state = ownerType == PlayerType.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
-        return state.TotalLevel >= card.CurrentLevel && state.resource >= card.CurrentCost;
+        return gundamRule.CanPlayCardWithAnyEx(
+            ToRuleSide(ownerType),
+            card.CurrentLevel,
+            card.CurrentCost);
     }
 
     private static bool HasEffectTiming(CardData data, EffectTiming timing)

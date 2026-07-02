@@ -229,7 +229,11 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (!TryPayHandDeployCost(side, best, 0))
+        Gundam2024RuleScript.PlayerState payState = side == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(payState, best.CurrentCost);
+        if (!TryPayHandDeployCost(side, best, exToUse))
         {
             return false;
         }
@@ -418,12 +422,13 @@ public partial class BattleGameMain
 
         int cost = card.CurrentCost;
         int keep = Mathf.Max(0, reserve.ResourceToKeep);
-        if (state.resource < cost + keep)
+        if (!gundamRule.CanPlayCardWithAnyEx(side, card.CurrentLevel, cost))
         {
             return false;
         }
 
-        return gundamRule.CanPlayCard(side, card.CurrentLevel, cost);
+        int exNeeded = Gundam2024RuleScript.GetExNeededForCost(state, cost);
+        return state.resource >= (cost - exNeeded) + keep;
     }
 
     private int ScoreEnemyDeployUnitVirtualBenefit(CardController unit)

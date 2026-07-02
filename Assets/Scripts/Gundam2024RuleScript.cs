@@ -184,14 +184,58 @@ public class Gundam2024RuleScript
             return false;
         }
 
-        int levelAfterExUse = state.TotalLevel - useEx;
         int resourceFromNormal = cardCost - useEx;
         if (resourceFromNormal < 0)
         {
             resourceFromNormal = 0;
         }
 
-        return levelAfterExUse >= requiredLevel && state.resource >= resourceFromNormal;
+        // レベル要件は支払い前の TotalLevel で判定する（EX はコスト支払いにのみ使い、
+        // そのターンにカードを出せるかのレベル判定から先に差し引かない）。
+        if (requiredLevel > 0 && state.TotalLevel < requiredLevel)
+        {
+            return false;
+        }
+
+        return state.resource >= resourceFromNormal;
+    }
+
+    /// <summary>通常リソース不足分を EX で補うときに必要な EX 枚数。</summary>
+    public static int GetExNeededForCost(PlayerState state, int cardCost)
+    {
+        if (state == null || cardCost <= 0)
+        {
+            return 0;
+        }
+
+        return Mathf.Max(0, cardCost - state.resource);
+    }
+
+    /// <summary>EX の使い方を 0〜不足分まで試し、いずれかでプレイ可能なら true。</summary>
+    public bool CanPlayCardWithAnyEx(PlayerSide side, int requiredLevel, int cardCost)
+    {
+        PlayerState state = GetState(side);
+        int exNeeded = GetExNeededForCost(state, cardCost);
+        int maxEx = Mathf.Min(state.exResource, cardCost);
+        for (int useEx = exNeeded; useEx <= maxEx; useEx++)
+        {
+            if (CanPlayCard(side, requiredLevel, cardCost, useEx))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool CanPlayCardWithAnyEx(PlayerSide side, CardData card)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        return CanPlayCardWithAnyEx(side, card.level, card.cost);
     }
 
     public bool TryConsumeResource(PlayerSide side, int cost)
@@ -209,7 +253,7 @@ public class Gundam2024RuleScript
         return TryConsumeResource(side, cost, exToUse, cardId, -1);
     }
 
-    /// <param name="requiredLevel">0以上のとき、EX消費後の実効レベルがこの値以上であることを要求する。-1 はレベル要件なし。</param>
+    /// <param name="requiredLevel">1以上のとき、支払い前の TotalLevel がこの値以上であることを要求する。-1 はレベル要件なし。</param>
     public bool TryConsumeResource(PlayerSide side, int cost, int exToUse, int cardId, int requiredLevel)
     {
         if (cost < 0)
@@ -224,8 +268,7 @@ public class Gundam2024RuleScript
             return false;
         }
 
-        int levelAfterExUse = state.TotalLevel - useEx;
-        if (requiredLevel >= 0 && levelAfterExUse < requiredLevel)
+        if (requiredLevel > 0 && state.TotalLevel < requiredLevel)
         {
             return false;
         }
@@ -237,11 +280,6 @@ public class Gundam2024RuleScript
         }
 
         if (state.resource < resourceFromNormal)
-        {
-            return false;
-        }
-
-        if (levelAfterExUse < 0)
         {
             return false;
         }

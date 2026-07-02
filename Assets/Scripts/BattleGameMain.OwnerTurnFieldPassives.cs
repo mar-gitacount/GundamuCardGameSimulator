@@ -8,15 +8,23 @@ public partial class BattleGameMain
 {
     private static string MakeOwnerTurnFieldPassiveSourceKey(CardController unit, int blockIndex)
     {
-        return $"OwnerTurnField:{unit.GetInstanceID()}:{blockIndex}";
+        if (unit == null || unit.BattleInstanceId <= 0)
+        {
+            return null;
+        }
+
+        return CardController.MakeOwnerTurnFieldPassiveSourceKey(unit.BattleInstanceId, blockIndex);
     }
 
     /// <summary>全ユニットの自ターン限定盤面バフを一旦解除し、現在ターン側のみ再付与する。</summary>
     private void RefreshAllFieldOwnerTurnPassives()
     {
+        BeginOnlineEffectSyncBatch(currentPlayerType);
         ClearAllOwnerTurnFieldPassiveModifiers();
-        RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player);
-        RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy);
+        RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
+        RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
+        QueueOnlineRefreshOwnerTurnFieldPassives();
+        FlushOnlineEffectSyncBatch();
     }
 
     private void ClearAllOwnerTurnFieldPassiveModifiers()
@@ -100,6 +108,11 @@ public partial class BattleGameMain
                     continue;
                 }
 
+                if (unit.BattleInstanceId <= 0)
+                {
+                    continue;
+                }
+
                 keys.Add(MakeOwnerTurnFieldPassiveSourceKey(unit, bi));
             }
         }
@@ -112,13 +125,26 @@ public partial class BattleGameMain
             return;
         }
 
-        RemoveUnitGrantedStatModifiersFromCardList(playerBattleZoneCards, sourceKey, exclude: null);
-        RemoveUnitGrantedStatModifiersFromCardList(enemyBattleZoneCards, sourceKey, exclude: null);
+        RemoveAndSyncStatModifiersBySourceFromCardList(
+            playerBattleZoneCards,
+            sourceKey,
+            exclude: null,
+            queueOnlineStatDeltas: false);
+        RemoveAndSyncStatModifiersBySourceFromCardList(
+            enemyBattleZoneCards,
+            sourceKey,
+            exclude: null,
+            queueOnlineStatDeltas: false);
     }
 
-    private void RefreshFieldOwnerTurnPassivesForSide(PlayerType side)
+    private void RefreshFieldOwnerTurnPassivesForSide(PlayerType side, bool syncOnlineBatch = true)
     {
         if (side != currentPlayerType)
+        {
+            return;
+        }
+
+        if (IsOnlineBattle() && currentPlayerType != PlayerType.Player)
         {
             return;
         }
@@ -172,7 +198,7 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                ApplyOwnerTurnFieldStatPassiveBlock(unit, side, timed, bi);
+                ApplyOwnerTurnFieldStatPassiveBlock(unit, side, timed, bi, syncOnlineBatch);
             }
         }
     }
@@ -181,7 +207,8 @@ public partial class BattleGameMain
         CardController sourceUnit,
         PlayerType ownerType,
         TimedEffectData timed,
-        int blockIndex)
+        int blockIndex,
+        bool syncOnlineBatch = true)
     {
         if (sourceUnit == null || timed == null)
         {
@@ -189,8 +216,16 @@ public partial class BattleGameMain
         }
 
         string sourceKey = MakeOwnerTurnFieldPassiveSourceKey(sourceUnit, blockIndex);
+        if (string.IsNullOrEmpty(sourceKey))
+        {
+            return;
+        }
+
         IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
-        BeginOnlineEffectSyncBatch(ownerType);
+        if (syncOnlineBatch)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+        }
         for (int i = 0; i < effects.Count; i++)
         {
             EffectData effect = effects[i];
@@ -228,7 +263,10 @@ public partial class BattleGameMain
                     effect.statTarget,
                     EffectDuration.Permanent,
                     sourceKey);
-                QueueOnlineUnitStat(target, signedValue, effect.statTarget, EffectDuration.Permanent);
+                if (syncOnlineBatch)
+                {
+                    QueueOnlineUnitStat(target, signedValue, effect.statTarget, EffectDuration.Permanent, sourceKey);
+                }
             }
 
             Debug.Log(
@@ -236,6 +274,9 @@ public partial class BattleGameMain
                 + $"source:{sourceUnit.Data?.cardName}(id:{sourceUnit.Data?.id}) side:{ownerType}");
         }
 
-        FlushOnlineEffectSyncBatch();
+        if (syncOnlineBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
     }
 }

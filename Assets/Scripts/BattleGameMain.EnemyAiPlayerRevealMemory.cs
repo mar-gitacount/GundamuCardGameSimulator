@@ -416,17 +416,7 @@ public partial class BattleGameMain
         }
 
         Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Player;
-        Gundam2024RuleScript.PlayerState state = gundamRule.Player;
-        int maxEx = Mathf.Min(state.exResource, card.cost);
-        for (int exToUse = 0; exToUse <= maxEx; exToUse++)
-        {
-            if (gundamRule.CanPlayCard(side, card.level, card.cost, exToUse))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return gundamRule.CanPlayCardWithAnyEx(side, card.level, card.cost);
     }
 
     private List<CardData> FilterEnemyAiInferenceCandidatesByPlayerAffordableCost(List<CardData> source)
