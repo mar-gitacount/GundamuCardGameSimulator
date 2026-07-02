@@ -5093,11 +5093,12 @@ public partial class BattleGameMain : MonoBehaviour
         cancelRt.anchoredPosition = new Vector2(100f, 48f);
         cancel.onClick.AddListener(() =>
         {
-            pendingUnitAttackAttacker = null;
-            pendingOnAttackEffectResolvedAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = attackUnit;
+            Debug.Log(
+                $"[OnAttack] 効果をスキップ ({effectSourceCard?.Data?.cardName})。攻撃は続行します。");
             ReleaseOnActionPopupState(root);
             Destroy(root);
-            CancelPendingUnitAttackFlow();
+            onResolved?.Invoke();
         });
     }
 
