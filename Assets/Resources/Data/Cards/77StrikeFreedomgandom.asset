@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 77
   cardName: StrikeFreedomgandom
-  cost: 3
-  level: 3
-  power: 2
-  hp: 4
+  cost: 6
+  level: 8
+  power: 5
+  hp: 6
   imageName: {fileID: 21300000, guid: c97699cb95e88294cb20e5bf542760f0, type: 3}
   image: {fileID: 0}
   version: 5
