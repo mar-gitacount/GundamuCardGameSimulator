@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 76
   cardName: Anksha
-  cost: 3
-  level: 3
-  power: 2
-  hp: 4
+  cost: 2
+  level: 4
+  power: 3
+  hp: 3
   imageName: {fileID: 21300000, guid: 816e619e228317d409013bcd0409cd32, type: 3}
   image: {fileID: 0}
   version: 1
@@ -68,8 +68,13 @@ MonoBehaviour:
       revealDiscardedToOpponent: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
     activationCost: 0
     oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   link: []

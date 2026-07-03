@@ -17,7 +17,7 @@ MonoBehaviour:
   cost: 1
   level: 4
   power: 2
-  hp: 1
+  hp: 2
   imageName: {fileID: 21300000, guid: bbff6ffe70b6c3447bf480189a7d0fcd, type: 3}
   image: {fileID: 0}
   version: 1
