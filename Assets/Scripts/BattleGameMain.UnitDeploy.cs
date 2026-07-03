@@ -136,7 +136,6 @@ public partial class BattleGameMain
         ApplyUnitDeployFieldAttackState(unit);
         AssignBattleInstanceIdIfNeeded(unit);
         ApplyPilotMountFieldAurasToDeployedUnit(unit, recipient);
-        unit.SetBattleZoneStatOverlayVisible(true);
 
         if (triggerOnPlayed)
         {

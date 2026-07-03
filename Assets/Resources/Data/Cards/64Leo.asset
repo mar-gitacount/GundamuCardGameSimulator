@@ -35,7 +35,7 @@ MonoBehaviour:
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
-  isBlocker: 0
+  isBlocker: 1
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0

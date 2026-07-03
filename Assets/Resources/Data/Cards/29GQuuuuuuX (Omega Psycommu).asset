@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 29
   cardName: GQuuuuuuX (Omega Psycommu)
-  cost: 7
-  level: 8
+  cost: 2
+  level: 2
   power: 6
   hp: 5
   imageName: {fileID: 21300000, guid: 9fbfe04d3903eea44a28d1d1bd970ff2, type: 3}
@@ -29,20 +29,12 @@ MonoBehaviour:
   timedEffects:
   - timing: 0
     activationConditions: []
-    requireChainObservationContext: 0
     effectsName: DamageEnemy3_SelectSingle
     effects: []
-    activationCost: 0
-    oncePerTurn: 0
-    observedUnitTriggerKind: -1
   - timing: 4
     activationConditions: []
-    requireChainObservationContext: 0
     effectsName: Suppress2_OnShieldAttack
     effects: []
-    activationCost: 0
-    oncePerTurn: 0
-    observedUnitTriggerKind: -1
   features: []
   link:
   - pilotCardId: 56
@@ -51,8 +43,5 @@ MonoBehaviour:
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
-  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
-  isRepair: 0
-  repairAmount: 0

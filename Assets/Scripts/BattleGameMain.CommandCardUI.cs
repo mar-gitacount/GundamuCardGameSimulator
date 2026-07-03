@@ -164,7 +164,8 @@ public partial class BattleGameMain
         statBgRt.sizeDelta = new Vector2(0f, 36f);
         statBgRt.anchoredPosition = Vector2.zero;
         Image statBgImg = statBg.GetComponent<Image>();
-        UIExtensions.ApplySolidUiImage(statBgImg, new Color(0f, 0f, 0f, 0.6f));
+        statBgImg.color = new Color(0f, 0f, 0f, 0.6f);
+        statBgImg.raycastTarget = false;
 
         string statLine = liveCard.Data.type == Type.Command
             ? $"COST {liveCard.CurrentCost}"

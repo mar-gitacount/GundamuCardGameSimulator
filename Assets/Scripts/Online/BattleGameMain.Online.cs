@@ -19,11 +19,6 @@ public partial class BattleGameMain
         return IsOnlineBattle() && attackerOwner == PlayerType.Player && !_applyingRemoteBattleAction;
     }
 
-    private void RegisterBattleInstanceId(int instanceId)
-    {
-        _nextBattleInstanceId = Mathf.Max(_nextBattleInstanceId, instanceId + 1);
-    }
-
     private void AssignBattleInstanceIdFromNetwork(CardController controller, int instanceId)
     {
         if (controller == null || instanceId <= 0)
@@ -31,8 +26,79 @@ public partial class BattleGameMain
             return;
         }
 
+        // 相手ミラー用 ID はローカル採番カウンタに影響させない
         controller.AssignBattleInstanceId(instanceId);
-        RegisterBattleInstanceId(instanceId);
+    }
+
+    private static PlayerType MirrorOnlineZoneOwner(PlayerType senderZoneOwner)
+    {
+        return senderZoneOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+    }
+
+    /// <summary>ユニットが属するバトルゾーン（ローカル視点）。</summary>
+    private PlayerType ResolveBattleZoneSideForUnit(CardController unit)
+    {
+        if (unit == null)
+        {
+            return PlayerType.Player;
+        }
+
+        if (playerBattleZoneCards != null && playerBattleZoneCards.Contains(unit))
+        {
+            return PlayerType.Player;
+        }
+
+        return PlayerType.Enemy;
+    }
+
+    /// <summary>送信側のゾーン指定から、受信側のミラー上のユニットを解決する。</summary>
+    private CardController FindBattleZoneUnitForRemoteSync(int instanceId, PlayerType senderZoneOwner)
+    {
+        if (instanceId <= 0)
+        {
+            return null;
+        }
+
+        return FindBattleZoneUnitByInstanceId(instanceId, MirrorOnlineZoneOwner(senderZoneOwner));
+    }
+
+    /// <summary>攻撃側が受け取るブロック応答のブロッカー（相手ミラー＝Enemy ゾーン）。</summary>
+    private CardController FindBlockerUnitFromRemoteResponse(int blockerInstanceId)
+    {
+        return FindBattleZoneUnitByInstanceId(blockerInstanceId, PlayerType.Enemy);
+    }
+
+    private CardController FindEffectSyncTargetUnit(OnlineBattleUnitEffectChange change)
+    {
+        if (change == null || change.targetInstanceId <= 0)
+        {
+            return null;
+        }
+
+        if (change.targetZoneOwnerSide == (int)PlayerType.Player
+            || change.targetZoneOwnerSide == (int)PlayerType.Enemy)
+        {
+            return FindBattleZoneUnitForRemoteSync(
+                change.targetInstanceId,
+                (PlayerType)change.targetZoneOwnerSide);
+        }
+
+        // 旧メッセージ互換: 両ゾーンを試す（Player 優先）
+        CardController owned = FindBattleZoneUnitByInstanceId(change.targetInstanceId, PlayerType.Player);
+        return owned ?? FindBattleZoneUnitByInstanceId(change.targetInstanceId, PlayerType.Enemy);
+    }
+
+    private bool TryQueueOnlineUnitTargetChange(CardController target, OnlineBattleUnitEffectChange change)
+    {
+        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0 || change == null)
+        {
+            return false;
+        }
+
+        change.targetInstanceId = target.BattleInstanceId;
+        change.targetZoneOwnerSide = (int)ResolveBattleZoneSideForUnit(target);
+        _pendingOnlineEffectChanges.Add(change);
+        return true;
     }
 
     private bool IsOnlineBattle()
@@ -151,6 +217,7 @@ public partial class BattleGameMain
         return null;
     }
 
+    /// <summary>ローカル専用。オンライン同期ではゾーン明示の検索を使うこと。</summary>
     private CardController FindUnitByInstanceIdEitherZone(int instanceId)
     {
         CardController unit = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Player);
@@ -226,9 +293,8 @@ public partial class BattleGameMain
             return;
         }
 
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDamage,
             hpAfter = target.CurrentHp
         });
@@ -241,9 +307,8 @@ public partial class BattleGameMain
             return;
         }
 
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindRepair,
             hpAfter = target.CurrentHp
         });
@@ -256,14 +321,8 @@ public partial class BattleGameMain
         EffectDuration duration,
         string statModifierSourceKey = null)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            return;
-        }
-
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
-        {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindStat,
             signedStatValue = signedValue,
             statTarget = (int)statTarget,
@@ -272,9 +331,9 @@ public partial class BattleGameMain
         });
     }
 
-    private void QueueOnlineClearStatGrantsFromSource(int grantingBattleInstanceId)
+    private void QueueOnlineClearStatGrantsFromSource(CardController grantingUnit)
     {
-        if (!_onlineEffectSyncActive || grantingBattleInstanceId <= 0)
+        if (!_onlineEffectSyncActive || grantingUnit == null || grantingUnit.BattleInstanceId <= 0)
         {
             return;
         }
@@ -282,7 +341,8 @@ public partial class BattleGameMain
         _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindClearStatGrantsFromSource,
-            grantSourceInstanceId = grantingBattleInstanceId
+            grantSourceInstanceId = grantingUnit.BattleInstanceId,
+            grantSourceZoneOwnerSide = (int)ResolveBattleZoneSideForUnit(grantingUnit)
         });
     }
 
@@ -301,42 +361,24 @@ public partial class BattleGameMain
 
     private void QueueOnlineUnitRest(CardController target)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            return;
-        }
-
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
-        {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindRest
         });
     }
 
     private void QueueOnlineUnitActivate(CardController target)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            return;
-        }
-
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
-        {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindActivate
         });
     }
 
     private void QueueOnlineUnitDestroy(CardController target)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            return;
-        }
-
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
-        {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroy,
             hpAfter = 0
         });
@@ -344,28 +386,16 @@ public partial class BattleGameMain
 
     private void QueueOnlineUnitBounce(CardController target)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            return;
-        }
-
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
-        {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindBounce
         });
     }
 
     private void QueueOnlineUnitReturnToDeckBottom(CardController target)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
-            return;
-        }
-
-        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
-        {
-            targetInstanceId = target.BattleInstanceId,
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindReturnToDeckBottom
         });
     }
@@ -710,7 +740,7 @@ public partial class BattleGameMain
     {
         if (blockerInstanceId > 0)
         {
-            CardController onlineBlocker = FindUnitByInstanceIdEitherZone(blockerInstanceId);
+            CardController onlineBlocker = FindBlockerUnitFromRemoteResponse(blockerInstanceId);
             if (onlineBlocker != null)
             {
                 CommitBlockRedirectSelection(attacker, onlineBlocker, ref defender, ref defenderOwner);
@@ -746,7 +776,7 @@ public partial class BattleGameMain
     {
         if (blockerInstanceId > 0)
         {
-            CardController onlineBlocker = FindUnitByInstanceIdEitherZone(blockerInstanceId);
+            CardController onlineBlocker = FindBlockerUnitFromRemoteResponse(blockerInstanceId);
             if (onlineBlocker != null)
             {
                 PlayerType blockerOwner = ResolveCardOwner(onlineBlocker.transform);
@@ -889,8 +919,6 @@ public partial class BattleGameMain
             {
                 AssignBattleInstanceIdIfNeeded(controller);
             }
-
-            controller.SetBattleZoneStatOverlayVisible(true);
         }
 
         RefreshAllFieldOwnerTurnPassives();
@@ -1153,9 +1181,18 @@ public partial class BattleGameMain
             {
                 if (change.grantSourceInstanceId > 0)
                 {
+                    CardController exclude = null;
+                    if (change.grantSourceZoneOwnerSide == (int)PlayerType.Player
+                        || change.grantSourceZoneOwnerSide == (int)PlayerType.Enemy)
+                    {
+                        exclude = FindBattleZoneUnitForRemoteSync(
+                            change.grantSourceInstanceId,
+                            (PlayerType)change.grantSourceZoneOwnerSide);
+                    }
+
                     ClearStatGrantsFromBattleInstanceOnAllFieldUnits(
                         change.grantSourceInstanceId,
-                        exclude: null,
+                        exclude: exclude,
                         queueOnlineStatDeltas: false);
                 }
 
@@ -1173,11 +1210,12 @@ public partial class BattleGameMain
                 continue;
             }
 
-            CardController unit = FindUnitByInstanceIdEitherZone(change.targetInstanceId);
+            CardController unit = FindEffectSyncTargetUnit(change);
             if (unit == null)
             {
                 Debug.LogWarning(
-                    $"[OnlineBattle] Effect sync target not found: instanceId={change.targetInstanceId} kind={change.changeKind}");
+                    $"[OnlineBattle] Effect sync target not found: instanceId={change.targetInstanceId} "
+                    + $"zone={change.targetZoneOwnerSide} kind={change.changeKind}");
                 continue;
             }
 
@@ -1269,7 +1307,8 @@ public partial class BattleGameMain
 
     private void ApplyRemoteMountPilot(OnlineBattleActionPayload action)
     {
-        CardController hostUnit = FindUnitByInstanceIdEitherZone(action.instanceId);
+        // 相手が Player ゾーンに配備した MS への搭乗 → 受信側は Enemy ゾーンで検索
+        CardController hostUnit = FindBattleZoneUnitForRemoteSync(action.instanceId, PlayerType.Player);
         if (hostUnit == null)
         {
             Debug.LogWarning($"[OnlineBattle] MountPilot host not found: {action.instanceId}");

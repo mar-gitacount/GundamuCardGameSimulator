@@ -121,7 +121,8 @@ public partial class BattleGameMain
             overlayRt.sizeDelta = new Vector2(0f, 20f);
             overlayRt.anchoredPosition = Vector2.zero;
             Image bg = overlayRoot.GetComponent<Image>();
-            UIExtensions.ApplySolidUiImage(bg, new Color(0.1f, 0.1f, 0.15f, 0.85f));
+            bg.color = new Color(0.1f, 0.1f, 0.15f, 0.85f);
+            bg.raycastTarget = false;
 
             hpText = overlayRoot.CreateChildTextCustom("BaseHpText", UIAnchor.FullSize, 58, 20);
             hpText.fontSize = 14;
