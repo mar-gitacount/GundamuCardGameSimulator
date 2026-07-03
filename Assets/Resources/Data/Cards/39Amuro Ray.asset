@@ -35,25 +35,14 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
   - timing: 15
-    activationConditions:
-    - boardSide: -1
-      checkKind: 4
-      turnCheck: 0
-      feature: {fileID: 0}
-      minimumCount: 0
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 0
-      unitCountThreshold: 0
-      pilotCardId: 0
-      pilotLevelThreshold: 0
-    effectsName: 
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: RestEnemyUnitHp5OrLess_SelectSingle
     effects:
     - type: 10
-      value: 0
+      value: 1
       target: 2
-      selectionMode: 2
+      selectionMode: 1
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -66,10 +55,12 @@ MonoBehaviour:
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
-      targetUnitFilterStat: -1
-      targetUnitStatCompareOp: 0
-      targetUnitStatCompareValue: 0
+      targetUnitFilterStat: 1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 5
       filterTargetUnitLevel: 0
+    activationCost: 0
+    oncePerTurn: 0
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   link:

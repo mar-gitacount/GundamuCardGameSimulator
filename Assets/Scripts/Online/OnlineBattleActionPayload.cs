@@ -37,6 +37,8 @@ public class OnlineBattleActionPayload
     public int defenderDeployedBaseHpAfter;
     /// <summary>DeployBase / DeployShield 同期：シールドゾーンのカード ID 列（先頭＝外側）。</summary>
     public int[] shieldZoneCardIds;
+    /// <summary>DeployUnit：true なら相手バトルゾーンへ配備（受信側では自分の場に表示）。</summary>
+    public bool deployToOpponentField;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
@@ -74,13 +76,14 @@ public class OnlineBattleActionPayload
         });
     }
 
-    public static string CreateDeployUnit(int cardId, int instanceId)
+    public static string CreateDeployUnit(int cardId, int instanceId, bool deployToOpponentField = false)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
             action = DeployUnit,
             cardId = cardId,
-            instanceId = instanceId
+            instanceId = instanceId,
+            deployToOpponentField = deployToOpponentField
         });
     }
 

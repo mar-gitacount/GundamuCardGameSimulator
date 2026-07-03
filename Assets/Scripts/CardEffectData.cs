@@ -1015,6 +1015,38 @@ public static class EffectDataExtensions
         return resolvedMagnitude > 0 ? resolvedMagnitude : 1;
     }
 
+    /// <summary>DiscardFromHand で捨てる必要がある枚数（selectMinCount 優先、未指定時は value）。</summary>
+    public static int GetHandDiscardRequiredCount(this EffectData effect, int resolvedMagnitude = 0)
+    {
+        if (effect == null || effect.type != EffectType.DiscardFromHand)
+        {
+            return 0;
+        }
+
+        if (effect.selectMinCount > 0)
+        {
+            return effect.selectMinCount;
+        }
+
+        if (resolvedMagnitude > 0)
+        {
+            return resolvedMagnitude;
+        }
+
+        return effect.value > 0 ? effect.value : 1;
+    }
+
+    /// <summary>手札捨てで同一 UI から複数枚選択するか。</summary>
+    public static bool UsesHandMultiSelection(this EffectData effect, int requiredCount)
+    {
+        if (effect == null || effect.type != EffectType.DiscardFromHand)
+        {
+            return false;
+        }
+
+        return requiredCount > 1 || effect.selectionMode.IsMultipleUnitPickMode();
+    }
+
     /// <summary>手動ユニット選択の最低体数。</summary>
     public static int GetSelectMinCount(this EffectData effect)
     {

@@ -336,8 +336,17 @@ public partial class BattleGameMain
                 sourceCard,
                 ownerType,
                 effect,
-                () => TryExecuteOnObservedUnitTriggerEffectChain(
-                    sourceCard, ownerType, actingUnit, triggerContextUnit, effects, index + 1, onDone));
+                succeeded =>
+                {
+                    if (!succeeded)
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnObservedUnitTriggerEffectChain(
+                        sourceCard, ownerType, actingUnit, triggerContextUnit, effects, index + 1, onDone);
+                });
             return;
         }
 
