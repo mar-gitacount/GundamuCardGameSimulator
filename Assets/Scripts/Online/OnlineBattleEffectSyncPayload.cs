@@ -8,6 +8,8 @@ using UnityEngine;
 public class OnlineBattleUnitEffectChange
 {
     public int targetInstanceId;
+    /// <summary>送信側視点のバトルゾーン（0=Player, 1=Enemy）。受信側は反転して検索する。</summary>
+    public int targetZoneOwnerSide;
     /// <summary>Damage / Stat / Rest / Destroy</summary>
     public string changeKind;
     public int hpAfter;
@@ -18,6 +20,8 @@ public class OnlineBattleUnitEffectChange
     public string statModifierSourceKey;
     /// <summary>ClearStatGrantsFromSource 用。付与元ユニットの BattleInstanceId。</summary>
     public int grantSourceInstanceId;
+    /// <summary>ClearStatGrantsFromSource 用。送信側視点の付与元ゾーン（0=Player, 1=Enemy）。</summary>
+    public int grantSourceZoneOwnerSide;
 }
 
 [Serializable]

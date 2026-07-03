@@ -3576,7 +3576,6 @@ public partial class BattleGameMain : MonoBehaviour
             ApplyUnitDeployFieldAttackState(cardController);
             AssignBattleInstanceIdIfNeeded(cardController);
             ApplyPilotMountFieldAurasToDeployedUnit(cardController, ownerType);
-            cardController.SetBattleZoneStatOverlayVisible(true);
         }
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
@@ -5116,12 +5115,11 @@ public partial class BattleGameMain : MonoBehaviour
         cancelRt.anchoredPosition = new Vector2(100f, 48f);
         cancel.onClick.AddListener(() =>
         {
-            pendingOnAttackEffectResolvedAttacker = attackUnit;
-            Debug.Log(
-                $"[OnAttack] 効果をスキップ ({effectSourceCard?.Data?.cardName})。攻撃は続行します。");
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
             ReleaseOnActionPopupState(root);
             Destroy(root);
-            onResolved?.Invoke();
+            CancelPendingUnitAttackFlow();
         });
     }
 
@@ -5484,7 +5482,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
             {
-                CardController onlineBlocker = FindUnitByInstanceIdEitherZone(onlineChosenBlockerInstanceId);
+                CardController onlineBlocker = FindBlockerUnitFromRemoteResponse(onlineChosenBlockerInstanceId);
                 PlayerType onlineBlockerOwner = onlineBlocker != null
                     ? ResolveCardOwner(onlineBlocker.transform)
                     : PlayerType.Enemy;
@@ -6145,7 +6143,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
         {
-            CardController onlineBlocker = FindUnitByInstanceIdEitherZone(onlineChosenBlockerInstanceId);
+            CardController onlineBlocker = FindBlockerUnitFromRemoteResponse(onlineChosenBlockerInstanceId);
             if (onlineBlocker != null)
             {
                 CommitBlockRedirectSelection(attacker, onlineBlocker, ref defender, ref defenderOwner);

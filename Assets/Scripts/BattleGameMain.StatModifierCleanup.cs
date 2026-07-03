@@ -17,7 +17,7 @@ public partial class BattleGameMain
 
         BeginOnlineEffectSyncBatch(currentPlayerType);
         ClearStatGrantsFromBattleInstanceOnAllFieldUnits(grantId, destroyedUnit, queueOnlineStatDeltas: false);
-        QueueOnlineClearStatGrantsFromSource(grantId);
+        QueueOnlineClearStatGrantsFromSource(destroyedUnit);
         FlushOnlineEffectSyncBatch();
 
         Debug.Log(

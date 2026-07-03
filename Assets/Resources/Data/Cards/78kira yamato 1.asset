@@ -61,6 +61,54 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 3
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: 
+    effects:
+    - type: 3
+      value: 2
+      target: 2
+      selectionMode: 2
+      statTarget: 0
+      duration: 2
+      valueMode: 0
+      valueCountBoardSide: 1
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
   link: []
