@@ -37,6 +37,10 @@ public class Gundam2024RuleScript
     public class RuleConfig
     {
         public int maxLevel = 10;
+        /// <summary>バグ洗い出し用。本番では 0。</summary>
+        public int startingLevel = 10;
+        /// <summary>バグ洗い出し用。本番では 0（通常はターン開始時に level と同期）。</summary>
+        public int startingResource = 10;
         /// <summary>初期シールド枚数は山札から5枚をシールドエリアに置く処理で上書きする。</summary>
         public int startingShield = 0;
         /// <summary>初期手札は BattleGameMain で物理ドローするため 0。オープニング後に SyncOpeningHandState で同期。</summary>
@@ -62,8 +66,8 @@ public class Gundam2024RuleScript
 
         public void ResetForGameStart(RuleConfig config, int initialDeckCount)
         {
-            level = 0;
-            resource = 0;
+            level = Mathf.Max(0, config.startingLevel);
+            resource = Mathf.Max(0, config.startingResource);
             exResource = 0;
             shield = 0;
             exBase = 0;
