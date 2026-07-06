@@ -369,9 +369,13 @@ public partial class BattleGameMain
     {
         if (!_onlineEffectSyncActive || _pendingOnlineEffectChanges == null || _pendingOnlineEffectChanges.Count == 0)
         {
-            Debug.Log(
-                $"[EffectSync][FlushSkip] active:{_onlineEffectSyncActive} "
-                + $"pending:{(_pendingOnlineEffectChanges != null ? _pendingOnlineEffectChanges.Count : -1)}");
+            int pendingCount = _pendingOnlineEffectChanges != null ? _pendingOnlineEffectChanges.Count : -1;
+            if (pendingCount > 0)
+            {
+                Debug.LogWarning(
+                    $"[EffectSync][FlushSkip] active:{_onlineEffectSyncActive} pending:{pendingCount}");
+            }
+
             _onlineEffectSyncActive = false;
             return;
         }
