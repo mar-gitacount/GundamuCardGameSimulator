@@ -14,6 +14,9 @@ public partial class BattleGameMain
     private List<OnlineBattleUnitEffectChange> _pendingOnlineEffectChanges;
     private bool _onlineEffectSyncActive;
 
+    /// <summary>相手が配備したユニット用。ローカル手番ユニット ID（1〜）との衝突を避ける。</summary>
+    private const int RemoteBattleInstanceIdOffset = 100000;
+
     private bool ShouldUseOnlineBlockPhase(PlayerType attackerOwner)
     {
         return IsOnlineBattle() && attackerOwner == PlayerType.Player && !_applyingRemoteBattleAction;
@@ -271,6 +274,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (_nextBattleInstanceId >= RemoteBattleInstanceIdOffset)
+        {
+            Debug.LogError("[OnlineBattle] Local BattleInstanceId space exhausted.");
+            return;
+        }
+
         controller.AssignBattleInstanceId(_nextBattleInstanceId++);
     }
 
@@ -307,13 +316,27 @@ public partial class BattleGameMain
     /// <summary>ローカル専用。オンライン同期ではゾーン明示の検索を使うこと。</summary>
     private CardController FindUnitByInstanceIdEitherZone(int instanceId)
     {
-        CardController unit = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Player);
-        if (unit != null)
+        if (instanceId <= 0)
         {
-            return unit;
+            return null;
         }
 
-        return FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Enemy);
+        if (IsRemoteMappedBattleInstanceId(instanceId))
+        {
+            CardController mappedEnemy = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Enemy);
+            if (mappedEnemy != null)
+            {
+                return mappedEnemy;
+            }
+        }
+
+        CardController owned = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Player);
+        if (owned != null)
+        {
+            return owned;
+        }
+
+        return FindOpponentUnitByPeerInstanceId(instanceId);
     }
 
     private bool ShouldSyncOnlineEffects(PlayerType ownerType)
@@ -477,6 +500,43 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>攻撃フロー終了時：UntilEndOfBattle の Buff/Debuff を盤面全体から解除し、オンラインなら相手へも同期。</summary>
+    private void ClearAttackScopedTimedStatModifiers()
+    {
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        SendOnlineClearTimedStatModifiersByDurationIfNeeded(EffectDuration.UntilEndOfBattle);
+    }
+
+    /// <summary>相手の攻撃完了通知を受けた側で、攻撃スコープの補正をローカル解除する。</summary>
+    private void ApplyRemoteAttackScopedTimedStatModifierCleanup()
+    {
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+    }
+
+    private void SendOnlineClearTimedStatModifiersByDurationIfNeeded(EffectDuration duration)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || currentPlayerType != PlayerType.Player)
+        {
+            return;
+        }
+
+        string json = OnlineBattleEffectSyncPayload.ToJson(new[]
+        {
+            new OnlineBattleUnitEffectChange
+            {
+                changeKind = OnlineBattleEffectSyncPayload.ChangeKindClearTimedStatModifiersByDuration,
+                duration = (int)duration
+            }
+        });
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectSync(json));
+            Debug.Log($"[OnlineBattle] Attack-scoped stat clear sync sent. duration={duration}");
+        }
+    }
+
     private void QueueOnlineUnitRest(CardController target)
     {
         TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
@@ -591,7 +651,7 @@ public partial class BattleGameMain
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurn());
     }
 
-    private void NotifyLocalPlayCardDeployed(CardController cardController)
+    private void NotifyLocalPlayCardDeployed(CardController cardController, bool deployToOpponentField = false)
     {
         if (!IsOnlineBattle() || currentPlayerType != PlayerType.Player || cardController == null || cardController.Data == null)
         {
@@ -611,7 +671,41 @@ public partial class BattleGameMain
         }
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
-            OnlineBattleActionPayload.CreateDeployUnit(cardController.Data.id, cardController.BattleInstanceId)));
+            OnlineBattleActionPayload.CreateDeployUnit(
+                cardController.Data.id,
+                cardController.BattleInstanceId,
+                deployToOpponentField)));
+    }
+
+    /// <summary>場からユニット／トークンを除去したことを相手へ即時同期（戦闘破壊・バウンス・消滅）。</summary>
+    private void SendOnlineUnitFieldRemovalSync(int targetInstanceId, string changeKind)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || currentPlayerType != PlayerType.Player
+            || targetInstanceId <= 0 || string.IsNullOrEmpty(changeKind))
+        {
+            return;
+        }
+
+        int syncInstanceId = ToSyncInstanceId(targetInstanceId);
+        if (syncInstanceId <= 0)
+        {
+            return;
+        }
+
+        string json = OnlineBattleEffectSyncPayload.ToJson(new[]
+        {
+            new OnlineBattleUnitEffectChange
+            {
+                targetInstanceId = syncInstanceId,
+                changeKind = changeKind,
+                hpAfter = 0
+            }
+        });
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectSync(json));
+            Debug.Log($"[OnlineBattle] Unit removal sync sent. instanceId={targetInstanceId} kind={changeKind}");
+        }
     }
 
     private void NotifyLocalPilotMounted(CardController hostUnit, CardController pilotCard)
@@ -624,7 +718,7 @@ public partial class BattleGameMain
         }
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateMountPilot(
-            OnlineBattleActionPayload.CreateMountPilot(hostUnit.BattleInstanceId, pilotCard.Data.id)));
+            OnlineBattleActionPayload.CreateMountPilot(ToSyncInstanceId(hostUnit), pilotCard.Data.id)));
         Debug.Log(
             $"[OnlineBattle] MountPilot sync sent. host={hostUnit.BattleInstanceId} pilot={pilotCard.Data.id}");
     }
@@ -741,13 +835,13 @@ public partial class BattleGameMain
         string attackKind = isShieldAttack
             ? OnlineBattleActionPayload.AttackKindShield
             : OnlineBattleActionPayload.AttackKindUnitVsUnit;
-        int defenderInstanceId = originalDefender != null ? originalDefender.BattleInstanceId : 0;
+        int defenderInstanceId = originalDefender != null ? ToSyncInstanceId(originalDefender) : 0;
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttackDeclare(
             OnlineBattleActionPayload.CreateAttackDeclare(
                 requestId,
                 attackKind,
-                attacker.BattleInstanceId,
+                ToSyncInstanceId(attacker),
                 defenderInstanceId)));
 
         attackFlowPipelinePhase = AttackFlowPipelinePhase.AwaitingBlockUi;
@@ -769,7 +863,7 @@ public partial class BattleGameMain
             return;
         }
 
-        CardController attacker = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
+        CardController attacker = FindOpponentUnitByPeerInstanceId(action.attackerInstanceId);
         if (attacker == null)
         {
             Debug.LogWarning($"[OnlineBattle] AttackDeclare attacker not found: {action.attackerInstanceId}");
@@ -808,7 +902,7 @@ public partial class BattleGameMain
                 if (selectedBlocker != null
                     && IsBlockRedirectReactionReady(selectedBlocker, PlayerType.Player))
                 {
-                    blockerInstanceId = selectedBlocker.BattleInstanceId;
+                    blockerInstanceId = ToSyncInstanceId(selectedBlocker);
                 }
 
                 SendOnlineBlockResponse(requestId, blockerInstanceId);
@@ -994,7 +1088,7 @@ public partial class BattleGameMain
 
         if (action.action == OnlineBattleActionPayload.DeployUnit)
         {
-            ApplyRemoteDeployUnit(action.cardId, action.instanceId);
+            ApplyRemoteDeployUnit(action.cardId, action.instanceId, action.deployToOpponentField);
             return;
         }
 
@@ -1010,7 +1104,7 @@ public partial class BattleGameMain
         }
     }
 
-    private void ApplyRemoteDeployUnit(int cardId, int instanceId)
+    private void ApplyRemoteDeployUnit(int cardId, int instanceId, bool deployToOpponentField)
     {
         if (DeckSettinObject.Instance == null)
         {
@@ -1024,13 +1118,20 @@ public partial class BattleGameMain
             return;
         }
 
-        GameObject cardObject = Instantiate(CardImagePrefab, enemyCardGameRule.PlayerDeployPanel);
+        CardGameRule ownerRule = deployToOpponentField ? cardGameRule : enemyCardGameRule;
+        List<CardController> zone = deployToOpponentField ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (ownerRule?.PlayerDeployPanel == null)
+        {
+            return;
+        }
+
+        GameObject cardObject = Instantiate(CardImagePrefab, ownerRule.PlayerDeployPanel);
         CardController controller = cardObject.GetComponent<CardController>();
         controller.SetUp(cardData, OnCardClicked);
 
-        if (!enemyBattleZoneCards.Contains(controller))
+        if (!zone.Contains(controller))
         {
-            enemyBattleZoneCards.Add(controller);
+            zone.Add(controller);
         }
 
         if (cardData.IsUnitLike())
@@ -1096,8 +1197,8 @@ public partial class BattleGameMain
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttack(
             OnlineBattleActionPayload.CreateUnitAttack(
-                attacker.BattleInstanceId,
-                defender.BattleInstanceId,
+                ToSyncInstanceId(attacker),
+                ToSyncInstanceId(defender),
                 attackerHpAfter,
                 defenderHpAfter,
                 blockCombat)));
@@ -1137,7 +1238,7 @@ public partial class BattleGameMain
 
     private void ApplyRemoteShieldAttack(OnlineBattleActionPayload action)
     {
-        CardController attacker = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
+        CardController attacker = FindOpponentUnitByPeerInstanceId(action.attackerInstanceId);
         if (attacker != null)
         {
             CommitUnitAttackDeclaration(attacker, PlayerType.Enemy);
@@ -1170,6 +1271,7 @@ public partial class BattleGameMain
                 action.requestId));
         }
 
+        ApplyRemoteAttackScopedTimedStatModifierCleanup();
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Player, force: true);
         Debug.Log(
@@ -1230,8 +1332,8 @@ public partial class BattleGameMain
 
     private void ApplyRemoteUnitAttack(OnlineBattleActionPayload action)
     {
-        CardController attacker = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
-        CardController defender = FindBattleZoneUnitByInstanceId(action.defenderInstanceId, PlayerType.Player);
+        CardController attacker = FindOpponentUnitByPeerInstanceId(action.attackerInstanceId);
+        CardController defender = FindOwnedUnitBySyncInstanceId(action.defenderInstanceId);
         if (attacker == null || defender == null)
         {
             Debug.LogWarning(
@@ -1258,6 +1360,7 @@ public partial class BattleGameMain
             ApplyRemoteUnitRemovedFromField(attacker);
         }
 
+        ApplyRemoteAttackScopedTimedStatModifierCleanup();
         SyncAllResourceViewsFromRule();
         Debug.Log(
             $"[OnlineBattle] Remote unit attack applied. attackerHp={action.attackerHp} defenderHp={action.defenderHp}");

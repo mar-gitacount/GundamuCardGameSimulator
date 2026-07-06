@@ -84,7 +84,7 @@ public partial class BattleGameMain
         }
 
         int requestId = ++_onlineOnActionRequestIdCounter;
-        int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
+        int attackerInstanceId = attackingUnitInAttackFlow != null ? ToSyncInstanceId(attackingUnitInAttackFlow) : 0;
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionBegin(
             OnlineBattleActionPayload.CreateOnActionBegin(
                 requestId,
@@ -125,7 +125,7 @@ public partial class BattleGameMain
         _pendingOnlineOnActionRequestId = requestId;
         _pendingOnlineOnActionCallback = onComplete;
 
-        int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
+        int attackerInstanceId = attackingUnitInAttackFlow != null ? ToSyncInstanceId(attackingUnitInAttackFlow) : 0;
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionBegin(
             OnlineBattleActionPayload.CreateOnActionBegin(
                 requestId,
@@ -185,7 +185,7 @@ public partial class BattleGameMain
         CardController attackingUnit = null;
         if (action.attackerInstanceId > 0)
         {
-            attackingUnit = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
+            attackingUnit = FindOpponentUnitByPeerInstanceId(action.attackerInstanceId);
         }
 
         string context = string.IsNullOrWhiteSpace(action.onActionContext)

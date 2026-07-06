@@ -80,13 +80,14 @@ public class OnlineBattleActionPayload
         });
     }
 
-    public static string CreateDeployUnit(int cardId, int instanceId)
+    public static string CreateDeployUnit(int cardId, int instanceId, bool deployToOpponentField = false)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
             action = DeployUnit,
             cardId = cardId,
-            instanceId = instanceId
+            instanceId = instanceId,
+            deployToOpponentField = deployToOpponentField
         });
     }
 
