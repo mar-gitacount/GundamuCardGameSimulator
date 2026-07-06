@@ -15,6 +15,7 @@ public partial class BattleGameMain
     private int _onlineOnActionOpponentWaitRequestId;
     private bool isOnlineOnActionOpponentWaitOpen;
     private GameObject _activeOnActionOpponentWaitRoot;
+    private string _onlineOnActionActiveContext;
 
     private void ResetOnlineOnActionState()
     {
@@ -23,7 +24,9 @@ public partial class BattleGameMain
         _pendingOnlineOnActionCallback = null;
         _onlineOnActionResponseRequestId = 0;
         _onlineOnActionOpponentWaitRequestId = 0;
+        _onlineOnActionActiveContext = null;
         CloseOnlineOnActionOpponentWaitOverlay();
+        ResetOnlineOnActionCommandRevealState();
     }
 
     private bool ShouldBlockOnlineLocalPlayDueToOnAction()

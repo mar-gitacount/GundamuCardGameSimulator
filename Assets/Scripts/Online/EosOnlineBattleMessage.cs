@@ -131,6 +131,17 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public const string OnActionCommandUsed = "OnActionCommandUsed";
+
+    public static string CreateOnActionCommandUsed(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = OnActionCommandUsed,
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static string CreateMulliganSync(string payload)
     {
         return JsonUtility.ToJson(new EosOnlineBattleMessage

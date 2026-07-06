@@ -222,6 +222,32 @@ public partial class BattleGameMain : MonoBehaviour
         return $"{c.Data.cardName}(id:{c.Data.id}) HP:{c.CurrentHp} AP:{c.CurrentPower}";
     }
 
+    private string FormatEffectDamageUnitDebugSnap(CardController c)
+    {
+        if (c == null || c.Data == null)
+        {
+            return "null";
+        }
+
+        PlayerType owner = ResolveCardOwner(c.transform);
+        PlayerType zoneOwner = ResolveBattleZoneSideForUnit(c);
+        int zoneIndex = ResolveBattleZoneIndexForOnlineEffect(c, zoneOwner);
+        return $"{c.Data.cardName}(id:{c.Data.id}, inst:{c.BattleInstanceId}, owner:{owner}, "
+            + $"zone:{zoneOwner}[{zoneIndex}], HP:{c.CurrentHp}, AP:{c.CurrentPower}, "
+            + $"{(c.IsRestState ? "REST" : "ACTIVE")})";
+    }
+
+    private static string FormatEffectDamageSourceDebugSnap(CardController sourceCard)
+    {
+        if (sourceCard == null || sourceCard.Data == null)
+        {
+            return "null";
+        }
+
+        return $"{sourceCard.Data.cardName}(id:{sourceCard.Data.id}, cost:{sourceCard.CurrentCost}, "
+            + $"lv:{sourceCard.CurrentLevel})";
+    }
+
     private static bool IsCloseCombatCard(CardController card)
     {
         return card != null && card.Data != null && card.Data.id == CloseCombatCardId;
@@ -5206,6 +5232,13 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Damage:
                 {
                     int damageAmount = ResolveEffectDamageAmount(magnitude, t);
+                    int hpBefore = t.CurrentHp;
+                    bool isCloseCombat = IsCloseCombatCard(sourceCard);
+                    Debug.Log(
+                        $"[EffectDamage][LocalBefore] closeCombat:{isCloseCombat} owner:{ownerType} "
+                        + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
+                        + $"target:{FormatEffectDamageUnitDebugSnap(t)} "
+                        + $"rawMagnitude:{magnitude} resolvedDamage:{damageAmount}");
                     bool logCloseCombat = attackFlowBlockRedirectFromShieldStrike
                         && IsCloseCombatCard(sourceCard);
                     if (logCloseCombat)
@@ -5218,10 +5251,19 @@ public partial class BattleGameMain : MonoBehaviour
                     }
 
                     ApplyUnitDamageAndTrackChain(t, damageAmount);
+                    Debug.Log(
+                        $"[EffectDamage][LocalAfter] closeCombat:{isCloseCombat} owner:{ownerType} "
+                        + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
+                        + $"target:{FormatEffectDamageUnitDebugSnap(t)} "
+                        + $"HP:{hpBefore}->{t.CurrentHp} willTrash:{t.CurrentHp <= 0}");
                     QueueOnlineUnitDamage(t);
                     if (t.CurrentHp <= 0)
                     {
-                        QueueOnlineUnitDestroy(t);
+                        Debug.Log(
+                            $"[EffectDamage][LocalDestroyQueue] closeCombat:{isCloseCombat} "
+                            + $"target:{FormatEffectDamageUnitDebugSnap(t)}");
+                    //    同名カードが破壊されるのでコメントアウト
+                        // QueueOnlineUnitDestroy(t);
                     }
 
                     if (logCloseCombat)
@@ -9167,11 +9209,26 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     CardController targetUnit = targets[i];
                     int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit);
+                    int hpBefore = targetUnit.CurrentHp;
+                    bool isCloseCombat = IsCloseCombatCard(sourceCard);
+                    Debug.Log(
+                        $"[EffectDamage][LocalBefore] closeCombat:{isCloseCombat} owner:{ownerType} "
+                        + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
+                        + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)} "
+                        + $"rawMagnitude:{magnitude} resolvedDamage:{damageAmount}");
                     ApplyUnitDamageAndTrackChain(targetUnit, damageAmount);
+                    Debug.Log(
+                        $"[EffectDamage][LocalAfter] closeCombat:{isCloseCombat} owner:{ownerType} "
+                        + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
+                        + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)} "
+                        + $"HP:{hpBefore}->{targetUnit.CurrentHp} willTrash:{targetUnit.CurrentHp <= 0}");
                     QueueOnlineUnitDamage(targetUnit);
                     PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
                     if (targetUnit.CurrentHp <= 0)
                     {
+                        Debug.Log(
+                            $"[EffectDamage][LocalDestroyQueue] closeCombat:{isCloseCombat} "
+                            + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)}");
                         NotifyAttackFlowParticipantRemovedDuringOnAction(targetUnit);
                         QueueOnlineUnitDestroy(targetUnit);
                         SendCardToTrash(targetUnit, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
@@ -11863,6 +11920,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         LogFullBoardSnapshotForCommandTiming(context, side, attackingUnitInAttackFlow);
+        _onlineOnActionActiveContext = context;
 
         for (int vci = 0; vci < commandCards.Count; vci++)
         {
@@ -11946,6 +12004,7 @@ public partial class BattleGameMain : MonoBehaviour
                     0,
                     () =>
                     {
+                        _onlineOnActionActiveContext = null;
                         isOnActionPopupOpen = false;
                         activeOnActionPopupRoot = null;
                         Destroy(root);
@@ -11969,6 +12028,7 @@ public partial class BattleGameMain : MonoBehaviour
                 LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseCommandPopup", context, side, attackingUnitInAttackFlow);
             }
 
+            _onlineOnActionActiveContext = null;
             isOnActionPopupOpen = false;
             activeOnActionPopupRoot = null;
             Destroy(root);
@@ -12099,6 +12159,7 @@ public partial class BattleGameMain : MonoBehaviour
             yield break;
         }
 
+        TryNotifyLocalOnActionCommandUsed(command, side);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
         string effectDetail =
             $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
@@ -12209,6 +12270,7 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
+                TryNotifyLocalOnActionCommandUsed(command, side, picked);
                 string consumedSummary = command.Data != null ? $"{command.Data.cardName}(id:{command.Data.id})" : "?";
                 string detail =
                     $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{picked.Data.cardName}(id:{picked.Data.id})";

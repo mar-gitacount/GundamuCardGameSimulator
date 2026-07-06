@@ -37,8 +37,11 @@ public class OnlineBattleActionPayload
     public int defenderDeployedBaseHpAfter;
     /// <summary>DeployBase / DeployShield 同期：シールドゾーンのカード ID 列（先頭＝外側）。</summary>
     public int[] shieldZoneCardIds;
-    /// <summary>DeployUnit：true なら相手バトルゾーンへ配備（受信側では自分の場に表示）。</summary>
-    public bool deployToOpponentField;
+    /// <summary>OnActionCommandUsed 用。効果対象ユニットの cardId。-1 は未指定。</summary>
+    public int targetCardId = -1;
+    /// <summary>OnActionCommandUsed 用。使用時点のコスト／レベル（UI 表示用）。</summary>
+    public int cardCost;
+    public int cardLevel;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
@@ -50,6 +53,7 @@ public class OnlineBattleActionPayload
     public const string MountPilot = "MountPilot";
     public const string OnActionBegin = "OnActionBegin";
     public const string OnActionEnd = "OnActionEnd";
+    public const string OnActionCommandUsed = "OnActionCommandUsed";
     public const string ShieldBreakComplete = "ShieldBreakComplete";
     public const string AttackKindShield = "Shield";
     public const string AttackKindUnitVsUnit = "UnitVsUnit";
@@ -251,6 +255,26 @@ public class OnlineBattleActionPayload
         });
     }
 
+    public static string CreateOnActionCommandUsed(
+        int cardId,
+        int actingZoneSide,
+        string context,
+        int cardCost,
+        int cardLevel,
+        int targetCardId = -1)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = OnActionCommandUsed,
+            cardId = cardId,
+            actingZoneSide = actingZoneSide,
+            onActionContext = context ?? string.Empty,
+            cardCost = cardCost,
+            cardLevel = cardLevel,
+            targetCardId = targetCardId
+        });
+    }
+
     public static bool TryParse(string raw, out OnlineBattleActionPayload payload)
     {
         payload = null;
@@ -281,6 +305,8 @@ public class OnlineBattleActionPayload
                 case OnActionEnd:
                 case ShieldBreakComplete:
                     return payload.requestId > 0;
+                case OnActionCommandUsed:
+                    return payload.cardId > 0;
                 case HandDiscardRevealComplete:
                     return payload.requestId > 0;
                 case HandDiscardReveal:
