@@ -29,9 +29,10 @@ MonoBehaviour:
   timedEffects:
   - timing: 8
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 17
+    - type: 18
       value: 1
       target: 2
       selectionMode: 2
@@ -52,11 +53,35 @@ MonoBehaviour:
       targetUnitFilterStat: 0
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 4
+      compareTargetStatToSource: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
       filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 0
+  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0

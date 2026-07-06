@@ -68,21 +68,31 @@ public partial class BattleGameMain
     {
         if (unit == null || unit.Data == null)
         {
+            Debug.LogWarning("[EffectSync][RemoveFromField][Skip] unit=null");
             return;
         }
 
         PlayerType owner = ResolveCardOwner(unit.transform);
+        Debug.Log(
+            $"[EffectSync][RemoveFromField][Start] owner={owner} "
+            + $"unit={FormatOnlineEffectSyncUnit(unit)}");
 
         if (unit.Data.IsUnitLike() && unit.MountedPilot != null)
         {
             CardController pilot = unit.DetachMountedPilotWithoutDestroy();
             if (pilot != null)
             {
+                Debug.Log(
+                    $"[EffectSync][RemoveFromField][Pilot] host={FormatOnlineEffectSyncUnit(unit)} "
+                    + $"pilot={FormatOnlineEffectSyncUnit(pilot)}");
                 ApplyRemoteUnitRemovedFromField(pilot);
             }
         }
 
         FinalizeRemoveCardFromPlay(unit, owner, sendToTrashZone: false);
+        Debug.Log(
+            $"[EffectSync][RemoveFromField][Done] owner={owner} "
+            + $"unit={unit.Data.cardName}(cardId:{unit.Data.id})");
     }
 
     /// <summary>ユニットトークンをバウンス等で手札に戻さず消滅させる。搭乗パイロットは手札へ。</summary>

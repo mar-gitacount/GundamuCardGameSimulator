@@ -10,6 +10,10 @@ public class OnlineBattleUnitEffectChange
     public int targetInstanceId;
     /// <summary>送信側視点のバトルゾーン（0=Player, 1=Enemy）。受信側は反転して検索する。</summary>
     public int targetZoneOwnerSide;
+    /// <summary>BattleInstanceId が使えない／ずれた時のフォールバック用カード ID。</summary>
+    public int targetCardId = -1;
+    /// <summary>送信側視点のバトルゾーン内インデックス。-1 は未指定。</summary>
+    public int targetZoneIndex = -1;
     /// <summary>Damage / Stat / Rest / Destroy</summary>
     public string changeKind;
     public int hpAfter;

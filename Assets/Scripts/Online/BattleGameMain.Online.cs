@@ -70,35 +70,121 @@ public partial class BattleGameMain
 
     private CardController FindEffectSyncTargetUnit(OnlineBattleUnitEffectChange change)
     {
-        if (change == null || change.targetInstanceId <= 0)
+        if (change == null)
         {
             return null;
         }
 
-        if (change.targetZoneOwnerSide == (int)PlayerType.Player
-            || change.targetZoneOwnerSide == (int)PlayerType.Enemy)
+        bool hasZoneOwner = change.targetZoneOwnerSide == (int)PlayerType.Player
+            || change.targetZoneOwnerSide == (int)PlayerType.Enemy;
+
+        // 効果同期は送信時点の盤面スロット（zone + index + cardId）のみで解決する。
+        // instanceId / cardId のみのフォールバックは誤解決の原因になるため使わない。
+        return FindEffectSyncTargetUnitBySlot(change, hasZoneOwner);
+    }
+
+    private static string FormatOnlineEffectSyncChange(OnlineBattleUnitEffectChange change)
+    {
+        if (change == null)
         {
-            return FindBattleZoneUnitForRemoteSync(
-                change.targetInstanceId,
-                (PlayerType)change.targetZoneOwnerSide);
+            return "null";
         }
 
-        // 旧メッセージ互換: 両ゾーンを試す（Player 優先）
-        CardController owned = FindBattleZoneUnitByInstanceId(change.targetInstanceId, PlayerType.Player);
-        return owned ?? FindBattleZoneUnitByInstanceId(change.targetInstanceId, PlayerType.Enemy);
+        return $"kind={change.changeKind} inst={change.targetInstanceId} "
+            + $"zone={change.targetZoneOwnerSide} idx={change.targetZoneIndex} "
+            + $"cardId={change.targetCardId} hpAfter={change.hpAfter} "
+            + $"stat={change.signedStatValue}/{change.statTarget}/{change.duration}";
+    }
+
+    private static string FormatOnlineEffectSyncUnit(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return "null";
+        }
+
+        return $"{unit.Data.cardName}(cardId:{unit.Data.id} inst:{unit.BattleInstanceId} "
+            + $"HP:{unit.CurrentHp} AP:{unit.CurrentPower} {(unit.IsRestState ? "REST" : "ACTIVE")})";
+    }
+
+    private CardController FindEffectSyncTargetUnitBySlot(OnlineBattleUnitEffectChange change, bool hasZoneOwner)
+    {
+        if (!hasZoneOwner || change == null || change.targetCardId < 0 || change.targetZoneIndex < 0)
+        {
+            Debug.Log(
+                $"[EffectSync][FindBySlot][Skip] hasZoneOwner={hasZoneOwner} "
+                + FormatOnlineEffectSyncChange(change));
+            return null;
+        }
+
+        List<CardController> zone = MirrorOnlineZoneOwner((PlayerType)change.targetZoneOwnerSide) == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        if (zone == null || change.targetZoneIndex >= zone.Count)
+        {
+            Debug.LogWarning(
+                $"[EffectSync][FindBySlot][Fail:Range] zoneCount={(zone != null ? zone.Count : -1)} "
+                + FormatOnlineEffectSyncChange(change));
+            return null;
+        }
+
+        CardController bySlot = zone[change.targetZoneIndex];
+        if (bySlot != null && bySlot.Data != null && bySlot.Data.id == change.targetCardId)
+        {
+            Debug.Log(
+                $"[EffectSync][FindBySlot][OK] slotUnit={FormatOnlineEffectSyncUnit(bySlot)} "
+                + FormatOnlineEffectSyncChange(change));
+            return bySlot;
+        }
+
+        Debug.LogWarning(
+            $"[EffectSync][FindBySlot][Fail:CardMismatch] slotUnit={FormatOnlineEffectSyncUnit(bySlot)} "
+            + FormatOnlineEffectSyncChange(change));
+        return null;
     }
 
     private bool TryQueueOnlineUnitTargetChange(CardController target, OnlineBattleUnitEffectChange change)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0 || change == null)
+        if (!_onlineEffectSyncActive || target == null || target.Data == null || change == null)
+        {
+            return false;
+        }
+
+        PlayerType zoneOwner = ResolveBattleZoneSideForUnit(target);
+        int zoneIndex = ResolveBattleZoneIndexForOnlineEffect(target, zoneOwner);
+        if (target.BattleInstanceId <= 0 && zoneIndex < 0)
         {
             return false;
         }
 
         change.targetInstanceId = target.BattleInstanceId;
-        change.targetZoneOwnerSide = (int)ResolveBattleZoneSideForUnit(target);
+        change.targetZoneOwnerSide = (int)zoneOwner;
+        change.targetCardId = target.Data.id;
+        change.targetZoneIndex = zoneIndex;
         _pendingOnlineEffectChanges.Add(change);
+        Debug.Log(
+            $"[EffectSync][SendQueue] target={FormatOnlineEffectSyncUnit(target)} "
+            + FormatOnlineEffectSyncChange(change));
         return true;
+    }
+
+    private int ResolveBattleZoneIndexForOnlineEffect(CardController target, PlayerType zoneOwner)
+    {
+        List<CardController> zone = zoneOwner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (zone == null || target == null)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            if (zone[i] == target)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private bool IsOnlineBattle()
@@ -169,6 +255,7 @@ public partial class BattleGameMain
         ResetOnlineMulliganSyncState();
         ResetOnlineShieldBreakSyncState();
         ResetOnlineHandDiscardRevealState();
+        ResetOnlineOnActionCommandRevealState();
         ResetOnlineZoneSyncState();
     }
 
@@ -255,7 +342,11 @@ public partial class BattleGameMain
     {
         if (!ShouldSyncOnlineEffects(ownerType))
         {
-            _onlineEffectSyncActive = false;
+            Debug.Log(
+                $"[EffectSync][BeginSkip] owner:{ownerType} "
+                + $"isOnline:{IsOnlineBattle()} applyingRemote:{_applyingRemoteBattleAction} "
+                + $"nested:{_onlineEffectSyncActive}");
+            // 進行中のバッチを潰さない（相手ターン中の破壊→Refresh 連鎖で Flush が空になる原因）
             return;
         }
 
@@ -264,6 +355,13 @@ public partial class BattleGameMain
         {
             _pendingOnlineEffectChanges.Clear();
             _onlineEffectSyncActive = true;
+            Debug.Log($"[EffectSync][Begin] owner:{ownerType}");
+        }
+        else
+        {
+            Debug.Log(
+                $"[EffectSync][BeginNested] owner:{ownerType} "
+                + $"pending:{_pendingOnlineEffectChanges.Count}");
         }
     }
 
@@ -271,8 +369,16 @@ public partial class BattleGameMain
     {
         if (!_onlineEffectSyncActive || _pendingOnlineEffectChanges == null || _pendingOnlineEffectChanges.Count == 0)
         {
+            Debug.Log(
+                $"[EffectSync][FlushSkip] active:{_onlineEffectSyncActive} "
+                + $"pending:{(_pendingOnlineEffectChanges != null ? _pendingOnlineEffectChanges.Count : -1)}");
             _onlineEffectSyncActive = false;
             return;
+        }
+
+        for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
+        {
+            Debug.Log($"[EffectSync][SendFlush] #{i} {FormatOnlineEffectSyncChange(_pendingOnlineEffectChanges[i])}");
         }
 
         string json = OnlineBattleEffectSyncPayload.ToJson(_pendingOnlineEffectChanges.ToArray());
@@ -288,21 +394,33 @@ public partial class BattleGameMain
 
     private void QueueOnlineUnitDamage(CardController target)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        if (!_onlineEffectSyncActive || target == null)
         {
+            if (target != null)
+            {
+                Debug.LogWarning(
+                    $"[EffectDamage][OnlineQueueDamageSkip] active:{_onlineEffectSyncActive} "
+                    + $"target={FormatOnlineEffectSyncUnit(target)}");
+            }
+
             return;
         }
 
-        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        Debug.Log($"[EffectDamage][OnlineQueueDamage] target={FormatOnlineEffectSyncUnit(target)}");
+        bool queued = TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDamage,
             hpAfter = target.CurrentHp
         });
+        if (!queued)
+        {
+            Debug.LogWarning($"[EffectDamage][OnlineQueueDamageFail] target={FormatOnlineEffectSyncUnit(target)}");
+        }
     }
 
     private void QueueOnlineUnitRepair(CardController target)
     {
-        if (!_onlineEffectSyncActive || target == null || target.BattleInstanceId <= 0)
+        if (!_onlineEffectSyncActive || target == null)
         {
             return;
         }
@@ -377,11 +495,16 @@ public partial class BattleGameMain
 
     private void QueueOnlineUnitDestroy(CardController target)
     {
-        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        Debug.Log($"[EffectDamage][OnlineQueueDestroy] target={FormatOnlineEffectSyncUnit(target)}");
+        bool queued = TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroy,
             hpAfter = 0
         });
+        if (!queued)
+        {
+            Debug.LogWarning($"[EffectDamage][OnlineQueueDestroyFail] target={FormatOnlineEffectSyncUnit(target)}");
+        }
     }
 
     private void QueueOnlineUnitBounce(CardController target)
@@ -568,6 +691,9 @@ public partial class BattleGameMain
                 break;
             case "OnActionEnd":
                 HandleRemoteOnActionEnd(message.payload);
+                break;
+            case "OnActionCommandUsed":
+                HandleRemoteOnActionCommandUsed(message.payload);
                 break;
             case "MulliganSync":
                 HandleRemoteMulliganSync(message.payload);
@@ -1150,6 +1276,10 @@ public partial class BattleGameMain
             return;
         }
 
+        Debug.Log(
+            $"[EffectSync][ReceiveMessage] changes={sync.unitChanges?.Length ?? 0} "
+            + $"payloadLength={(payload != null ? payload.Length : 0)}");
+
         _applyingRemoteBattleAction = true;
         try
         {
@@ -1166,16 +1296,21 @@ public partial class BattleGameMain
         OnlineBattleUnitEffectChange[] changes = sync.unitChanges;
         if (changes == null)
         {
+            Debug.LogWarning("[EffectSync][ApplyStart] changes=null");
             return;
         }
 
+        Debug.Log($"[EffectSync][ApplyStart] changes={changes.Length}");
         for (int i = 0; i < changes.Length; i++)
         {
             OnlineBattleUnitEffectChange change = changes[i];
             if (change == null)
             {
+                Debug.LogWarning($"[EffectSync][RecvChange] #{i} null");
                 continue;
             }
+
+            Debug.Log($"[EffectSync][RecvChange] #{i} {FormatOnlineEffectSyncChange(change)}");
 
             if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindClearStatGrantsFromSource)
             {
@@ -1205,16 +1340,13 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (change.targetInstanceId <= 0)
-            {
-                continue;
-            }
-
             CardController unit = FindEffectSyncTargetUnit(change);
+            Debug.Log($"[EffectSync][TargetResolved] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
             if (unit == null)
             {
                 Debug.LogWarning(
                     $"[OnlineBattle] Effect sync target not found: instanceId={change.targetInstanceId} "
+                    + $"cardId={change.targetCardId} zoneIndex={change.targetZoneIndex} "
                     + $"zone={change.targetZoneOwnerSide} kind={change.changeKind}");
                 continue;
             }
@@ -1222,20 +1354,36 @@ public partial class BattleGameMain
             switch (change.changeKind)
             {
                 case OnlineBattleEffectSyncPayload.ChangeKindDamage:
+                {
+                    int beforeHp = unit.CurrentHp;
                     unit.SetCurrentHpForSync(change.hpAfter);
+                    Debug.Log(
+                        $"[EffectSync][ApplyDamage] #{i} {FormatOnlineEffectSyncUnit(unit)} "
+                        + $"HP:{beforeHp}->{unit.CurrentHp}");
                     if (change.hpAfter <= 0)
                     {
+                        Debug.Log($"[EffectSync][DamageToTrash] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                         NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
                         ApplyRemoteUnitToTrash(unit);
                     }
 
                     break;
+                }
 
                 case OnlineBattleEffectSyncPayload.ChangeKindRepair:
+                {
+                    int beforeHp = unit.CurrentHp;
                     unit.SetCurrentHpForSync(change.hpAfter);
+                    Debug.Log(
+                        $"[EffectSync][ApplyRepair] #{i} {FormatOnlineEffectSyncUnit(unit)} "
+                        + $"HP:{beforeHp}->{unit.CurrentHp}");
                     break;
+                }
 
                 case OnlineBattleEffectSyncPayload.ChangeKindStat:
+                    Debug.Log(
+                        $"[EffectSync][ApplyStat] #{i} unit={FormatOnlineEffectSyncUnit(unit)} "
+                        + $"value={change.signedStatValue} stat={change.statTarget} duration={change.duration}");
                     ApplyStatEffect(
                         unit,
                         change.signedStatValue,
@@ -1245,24 +1393,29 @@ public partial class BattleGameMain
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindRest:
+                    Debug.Log($"[EffectSync][ApplyRest] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     TryApplyRestToUnit(unit);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindActivate:
+                    Debug.Log($"[EffectSync][ApplyActivate] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     TryApplyActivateToUnit(unit);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindDestroy:
+                    Debug.Log($"[EffectSync][ApplyDestroy] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
                     unit.SetCurrentHpForSync(0);
                     ApplyRemoteUnitToTrash(unit);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindBounce:
+                    Debug.Log($"[EffectSync][ApplyBounce] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     TryReturnBattleUnitToHand(unit);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindReturnToDeckBottom:
+                    Debug.Log($"[EffectSync][ApplyDeckBottom] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     TryReturnBattleUnitToDeckBottom(unit);
                     break;
             }
@@ -1276,6 +1429,7 @@ public partial class BattleGameMain
     /// <summary>リモート効果同期でのユニット破棄。トラッシュは ZoneSync で反映済みのため場から除去のみ。</summary>
     private void ApplyRemoteUnitToTrash(CardController unit)
     {
+        Debug.Log($"[EffectSync][ApplyRemoteUnitToTrash] unit={FormatOnlineEffectSyncUnit(unit)}");
         ApplyRemoteUnitRemovedFromField(unit);
     }
 

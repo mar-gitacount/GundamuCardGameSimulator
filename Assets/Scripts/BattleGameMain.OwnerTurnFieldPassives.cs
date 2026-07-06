@@ -19,12 +19,20 @@ public partial class BattleGameMain
     /// <summary>全ユニットの自ターン限定盤面バフを一旦解除し、現在ターン側のみ再付与する。</summary>
     private void RefreshAllFieldOwnerTurnPassives()
     {
-        BeginOnlineEffectSyncBatch(currentPlayerType);
+        bool nestedBatch = _onlineEffectSyncActive;
+        if (!nestedBatch)
+        {
+            BeginOnlineEffectSyncBatch(currentPlayerType);
+        }
+
         ClearAllOwnerTurnFieldPassiveModifiers();
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
         QueueOnlineRefreshOwnerTurnFieldPassives();
-        FlushOnlineEffectSyncBatch();
+        if (!nestedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
     }
 
     private void ClearAllOwnerTurnFieldPassiveModifiers()
