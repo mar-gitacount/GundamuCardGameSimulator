@@ -6,6 +6,9 @@ using TMPro; // これを追加！
 
 public partial class BattleGameMain : MonoBehaviour
 {
+    /// <summary>盤面スナップショット・仮想シミュレーション等の重い診断ログ。Editor の GPU TDR 原因になるため通常は false。</summary>
+    private const bool EnableVerboseBattleDebugLogs = false;
+
     private readonly Dictionary<CardController, int> onRestActivatedTurnByCard = new Dictionary<CardController, int>();
 
     private const float MinEndTurnAreaWidth = 90f;
@@ -10437,6 +10440,11 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attackingUnitInAttackFlow,
         string relatedHypotheticalLogTag)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (snapsAfterOnActionCommand == null || hypotheticalCommandTarget?.Data == null || command?.Data == null
             || attackingUnitInAttackFlow == null || attackingUnitInAttackFlow.Data == null)
         {
@@ -10547,6 +10555,11 @@ public partial class BattleGameMain : MonoBehaviour
         string logTagDetail = "[OnActionHypotheticalBoardDetail]",
         string searchRole = "OnActionTargetPicker")
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (command == null || command.Data == null || effect == null || hypotheticalEnemyTarget == null
             || hypotheticalEnemyTarget.Data == null)
         {
@@ -10625,6 +10638,11 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> eligibleEnemyHandCommands,
         CardController attackingUnitInAttackFlow)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (eligibleEnemyHandCommands == null || eligibleEnemyHandCommands.Count == 0)
         {
             return;
@@ -10742,6 +10760,11 @@ public partial class BattleGameMain : MonoBehaviour
         int commandCount,
         string flowContext)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (command?.Data == null || onActionEffects == null)
         {
             return;
@@ -10828,6 +10851,11 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType side,
         CardController attackingUnitInAttackFlow)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (string.IsNullOrEmpty(flowContext) || !flowContext.Contains("attack"))
         {
             return;
@@ -10845,6 +10873,11 @@ public partial class BattleGameMain : MonoBehaviour
     /// </summary>
     private void LogVirtualOnActionCommandOutcomeForPlayerUnits(CardController commandCard, PlayerType commandOwner, string contextTag)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (commandCard == null || commandCard.Data == null)
         {
             return;
@@ -10966,6 +10999,11 @@ public partial class BattleGameMain : MonoBehaviour
         CardController focusUnit,
         string contextTag)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (commandCard == null
             || commandCard.Data == null
             || focusUnit == null
@@ -11390,6 +11428,11 @@ public partial class BattleGameMain : MonoBehaviour
         string detail,
         List<CardController> onActionResolvedUnitTargetsAfterApplyOrNull = null)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         System.Text.StringBuilder sb = new System.Text.StringBuilder(1200);
         sb.Append("[CommandResult] pattern:").Append(pattern);
         if (command != null && command.Data != null)
@@ -11433,6 +11476,11 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attackingUnitInAttackFlow,
         List<CardController> onActionResolvedUnitTargetsAfterApplyOrNull)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (!ShouldAppendMutualUnitsApHpAfterBlockedOnActionCommand(pattern))
         {
             return;
@@ -11701,6 +11749,11 @@ public partial class BattleGameMain : MonoBehaviour
         string patternTag,
         List<UnitStatSnapForCommandLog> beforeSnaps)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
         if (command == null || command.Data == null)
         {
             return;
@@ -11758,10 +11811,38 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>OnAction コマンド系 UI を出す直前の盤面スナップショット。アタック中に渡されたユニットも 1 行で出す。</summary>
     private void LogFullBoardSnapshotForCommandTiming(string context, PlayerType activeSide, CardController attackingUnitInAttackFlow)
     {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            Debug.Log(
+                $"[BoardCompact] ctx:{context} side:{activeSide} turn:{currentPlayerType} "
+                + $"P:{CountAliveUnitsOnZone(playerBattleZoneCards)} E:{CountAliveUnitsOnZone(enemyBattleZoneCards)}");
+            return;
+        }
+
         System.Text.StringBuilder sb = new System.Text.StringBuilder(768);
         sb.AppendLine("[BoardSnapshot]");
         AppendBoardStateSnapshotLines(sb, context, activeSide, attackingUnitInAttackFlow);
         Debug.Log(sb.ToString());
+    }
+
+    private static int CountAliveUnitsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c != null && c.Data != null && c.Data.IsUnitLike() && c.CurrentHp > 0)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>味方・敵それぞれ 1 行に、ゾーン内カードの AP/HP を並べて出す（同時比較用）。攻撃中に <c>[ユニットナウ]</c>、ブロック誘導ユニットに <c>[ブロックナウ]</c> を付与。</summary>
