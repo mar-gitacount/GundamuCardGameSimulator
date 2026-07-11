@@ -1056,25 +1056,25 @@ public partial class BattleGameMain
         _onAttackPreCombatCompletedAttacker = null;
     }
 
-    private int _onAttackPreCombatEffectsAppliedAttackerId = -1;
+    private EntityId _onAttackPreCombatEffectsAppliedAttackerId;
 
     private void ResetOnAttackPreCombatEffectsAppliedGuard()
     {
-        _onAttackPreCombatEffectsAppliedAttackerId = -1;
+        _onAttackPreCombatEffectsAppliedAttackerId = default;
     }
 
     private void MarkOnAttackPreCombatEffectsApplied(CardController attacker)
     {
         if (attacker != null)
         {
-            _onAttackPreCombatEffectsAppliedAttackerId = attacker.GetInstanceID();
+            _onAttackPreCombatEffectsAppliedAttackerId = attacker.GetEntityId();
         }
     }
 
     private bool HasOnAttackPreCombatEffectsBeenApplied(CardController attacker)
     {
         return attacker != null
-            && _onAttackPreCombatEffectsAppliedAttackerId == attacker.GetInstanceID();
+            && _onAttackPreCombatEffectsAppliedAttackerId == attacker.GetEntityId();
     }
 
     /// <summary>

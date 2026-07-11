@@ -353,7 +353,7 @@ MonoBehaviour:
       scrollPos: {x: 0, y: 0}
       m_SelectedIDs: 
       m_LastClickedID: 0
-      m_ExpandedIDs: 16fbffff
+      m_ExpandedIDs: ccf6ffff
       m_RenameOverlay:
         m_UserAcceptedRename: 0
         m_Name: 
@@ -1108,7 +1108,7 @@ MonoBehaviour:
     m_HSlider: 0
     m_VSlider: 0
     m_IgnoreScrollWheelUntilClicked: 0
-    m_EnableMouseInput: 0
+    m_EnableMouseInput: 1
     m_EnableSliderZoomHorizontal: 0
     m_EnableSliderZoomVertical: 0
     m_UniformScale: 1
@@ -1202,7 +1202,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 87}
     m_SelectedIDs: a68e0000
     m_LastClickedID: 36518
-    m_ExpandedIDs: 00000000b6800000b8800000ba800000bc800000be800000c0800000c2800000c4800000c6800000c8800000
+    m_ExpandedIDs: 00000000188100001a8100001c8100001e81000020810000228100002481000026810000288100002a810000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1230,7 +1230,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 0}
     m_SelectedIDs: 
     m_LastClickedID: 0
-    m_ExpandedIDs: 00000000b6800000b8800000ba800000bc800000be800000c0800000c2800000c4800000c6800000c8800000
+    m_ExpandedIDs: 00000000188100001a8100001c8100001e81000020810000228100002481000026810000288100002a810000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1348,7 +1348,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 108.600006}
     m_SelectedIDs: 088f0000
     m_LastClickedID: 36616
-    m_ExpandedIDs: 00000000b6800000b8800000ba800000bc800000be800000c0800000c2800000c4800000c6800000c8800000
+    m_ExpandedIDs: 00000000188100001a8100001c8100001e81000020810000228100002481000026810000288100002a810000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1376,7 +1376,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 0}
     m_SelectedIDs: 
     m_LastClickedID: 0
-    m_ExpandedIDs: 00000000b6800000b8800000ba800000bc800000be800000c0800000c2800000c4800000c6800000c8800000
+    m_ExpandedIDs: 00000000188100001a8100001c8100001e81000020810000228100002481000026810000288100002a810000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 

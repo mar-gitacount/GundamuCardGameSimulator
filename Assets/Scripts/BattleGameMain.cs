@@ -7689,7 +7689,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private static string MakeOnHandAutoPassiveSourceKey(CardController handCard, int timedBlockIndex)
     {
-        return $"OnHandAutoPassive:{handCard.GetInstanceID()}:{timedBlockIndex}";
+        return $"OnHandAutoPassive:{handCard.GetEntityId()}:{timedBlockIndex}";
     }
 
     private void ApplyConditionalOnHandAutoPassiveToCard(CardController cc, PlayerType ownerType)

@@ -7,21 +7,21 @@ public partial class BattleGameMain
 {
     private readonly struct PaidActivationUseKey : System.IEquatable<PaidActivationUseKey>
     {
-        public PaidActivationUseKey(PlayerType owner, int cardInstanceId, int timedBlockIndex)
+        public PaidActivationUseKey(PlayerType owner, EntityId cardEntityId, int timedBlockIndex)
         {
             Owner = owner;
-            CardInstanceId = cardInstanceId;
+            CardEntityId = cardEntityId;
             TimedBlockIndex = timedBlockIndex;
         }
 
         public PlayerType Owner { get; }
-        public int CardInstanceId { get; }
+        public EntityId CardEntityId { get; }
         public int TimedBlockIndex { get; }
 
         public bool Equals(PaidActivationUseKey other)
         {
             return Owner == other.Owner
-                && CardInstanceId == other.CardInstanceId
+                && CardEntityId == other.CardEntityId
                 && TimedBlockIndex == other.TimedBlockIndex;
         }
 
@@ -32,7 +32,7 @@ public partial class BattleGameMain
 
         public override int GetHashCode()
         {
-            return System.HashCode.Combine(Owner, CardInstanceId, TimedBlockIndex);
+            return System.HashCode.Combine(Owner, CardEntityId, TimedBlockIndex);
         }
     }
 
@@ -147,7 +147,7 @@ public partial class BattleGameMain
         }
 
         return _paidActivationUsesThisTurn.Contains(
-            new PaidActivationUseKey(side, card.GetInstanceID(), blockIndex));
+            new PaidActivationUseKey(side, card.GetEntityId(), blockIndex));
     }
 
     private void MarkPaidActivationUsedThisTurn(PlayerType side, CardController card, int blockIndex)
@@ -158,7 +158,7 @@ public partial class BattleGameMain
         }
 
         _paidActivationUsesThisTurn.Add(
-            new PaidActivationUseKey(side, card.GetInstanceID(), blockIndex));
+            new PaidActivationUseKey(side, card.GetEntityId(), blockIndex));
     }
 
     private static bool IsOnMainActivatedFromHand(CardController card, PlayerType ownerType, BattleGameMain host)
