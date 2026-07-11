@@ -144,7 +144,11 @@ public partial class BattleGameMain
 
         if (recipient == PlayerType.Player)
         {
-            NotifyLocalPlayCardDeployed(unit);
+            NotifyLocalPlayCardDeployed(unit, deployToOpponentField: false);
+        }
+        else
+        {
+            NotifyLocalPlayCardDeployed(unit, deployToOpponentField: true);
         }
 
         Debug.Log(
@@ -1011,11 +1015,14 @@ public partial class BattleGameMain
         if (EffectRequiresManualHandSelection(effect))
         {
             PlayerType handOwner = ResolveHandDiscardOwner(ownerType, effect);
+            int requiredDiscard = effect.GetHandDiscardRequiredCount(
+                ResolveEffectMagnitude(effect, ownerType, sourceCard));
             List<CardController> handCandidates = CollectSelectableHandCards(handOwner);
-            if (handCandidates.Count == 0)
+            if (handCandidates.Count < requiredDiscard)
             {
-                Debug.Log("[OnAttackPreCombat] 捨てる手札がありません (DiscardFromHand)。");
-                TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                Debug.Log(
+                    $"[OnAttackPreCombat] 手札が{requiredDiscard}枚未満のため効果中断 (DiscardFromHand)。");
+                onDone?.Invoke();
                 return;
             }
 
@@ -1023,7 +1030,17 @@ public partial class BattleGameMain
                 sourceCard,
                 ownerType,
                 effect,
-                () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+                succeeded =>
+                {
+                    if (!succeeded)
+                    {
+                        Debug.Log("[OnAttackPreCombat] 手札捨てが完了しなかったため以降の効果を中断。");
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                });
             return;
         }
 

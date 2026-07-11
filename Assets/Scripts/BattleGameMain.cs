@@ -3172,6 +3172,27 @@ public partial class BattleGameMain : MonoBehaviour
 
         unitsPendingSendToTrash.Add(cardController);
 
+        System.Action finishTrash = () => FinishSendCardToTrash(cardController, ownerType);
+        bool observedKillWatchScheduled = false;
+        if (cardController.Data.IsUnitLike()
+            && TryResolveEnemyUnitKillContext(
+                cardController,
+                ownerType,
+                destroyedBy,
+                out CardController observedKiller,
+                out PlayerType observedKillerOwner))
+        {
+            // 相打ち時はキラー側の Prune より先に監視報酬を開始する（キラーが先にトラッシュへ入ると登録が外れる）
+            observedKillWatchScheduled = true;
+            TriggerObservedUnitWatchEffects(
+                cardController,
+                ownerType,
+                observedKiller,
+                observedKillerOwner,
+                ObservedUnitTriggerKind.EnemyUnitDestroyed,
+                finishTrash);
+        }
+
         PruneObservedUnitWatchesOnCardRemoved(cardController);
 
         if (attackFlowBlockRedirectUnit != null
@@ -3200,24 +3221,9 @@ public partial class BattleGameMain : MonoBehaviour
         {
             TriggerOnEnemyUnitDestroyedEffects(cardController, ownerType, destroyedBy, () =>
             {
-                if (TryResolveEnemyUnitKillContext(
-                        cardController,
-                        ownerType,
-                        destroyedBy,
-                        out CardController killer,
-                        out PlayerType killerOwner))
+                if (!observedKillWatchScheduled)
                 {
-                    TriggerObservedUnitWatchEffects(
-                        cardController,
-                        ownerType,
-                        killer,
-                        killerOwner,
-                        ObservedUnitTriggerKind.EnemyUnitDestroyed,
-                        () => FinishSendCardToTrash(cardController, ownerType));
-                }
-                else
-                {
-                    FinishSendCardToTrash(cardController, ownerType);
+                    finishTrash();
                 }
             });
         });
@@ -3384,9 +3390,17 @@ public partial class BattleGameMain : MonoBehaviour
         int applied = 0;
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
-            if (TryReturnBattleUnitToHand(targets[i]))
+            CardController target = targets[i];
+            if (target == null)
             {
-                QueueOnlineUnitBounce(targets[i]);
+                continue;
+            }
+
+            SendOnlineUnitFieldRemovalSync(
+                target.BattleInstanceId,
+                OnlineBattleEffectSyncPayload.ChangeKindBounce);
+            if (TryReturnBattleUnitToHand(target))
+            {
                 applied++;
             }
         }
@@ -3489,6 +3503,9 @@ public partial class BattleGameMain : MonoBehaviour
 
             PlayerType targetOwner = ResolveCardOwner(target.transform);
             NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
+            SendOnlineUnitFieldRemovalSync(
+                target.BattleInstanceId,
+                OnlineBattleEffectSyncPayload.ChangeKindDestroy);
             QueueOnlineUnitDestroy(target);
             SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, target));
             applied++;
@@ -4341,18 +4358,23 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (defender.CurrentHp <= 0)
         {
+            SendOnlineUnitFieldRemovalSync(
+                defender.BattleInstanceId,
+                OnlineBattleEffectSyncPayload.ChangeKindDestroy);
             SendCardToTrash(defender, defenderOwner, attacker);
         }
 
         if (attacker.CurrentHp <= 0)
         {
+            SendOnlineUnitFieldRemovalSync(
+                attacker.BattleInstanceId,
+                OnlineBattleEffectSyncPayload.ChangeKindDestroy);
             SendCardToTrash(attacker, attackerOwner);
         }
 
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearAttackScopedTimedStatModifiers();
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
 
@@ -5726,8 +5748,7 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearAttackScopedTimedStatModifiers();
         DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
         Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
@@ -6587,18 +6608,23 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (blocker.CurrentHp <= 0)
         {
+            SendOnlineUnitFieldRemovalSync(
+                blocker.BattleInstanceId,
+                OnlineBattleEffectSyncPayload.ChangeKindDestroy);
             SendCardToTrash(blocker, blockerOwner, attacker);
         }
 
         if (attacker.CurrentHp <= 0)
         {
+            SendOnlineUnitFieldRemovalSync(
+                attacker.BattleInstanceId,
+                OnlineBattleEffectSyncPayload.ChangeKindDestroy);
             SendCardToTrash(attacker, attackerOwner);
         }
 
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearAttackScopedTimedStatModifiers();
         DumpTurnResourceUsageLogs(attackerOwner, "block redirect unit combat");
         SyncAllResourceViewsFromRule();
 
@@ -8464,7 +8490,7 @@ public partial class BattleGameMain : MonoBehaviour
                 sourceCard,
                 ownerType,
                 effect,
-                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+                _ => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
             return;
         }
 
@@ -12570,7 +12596,7 @@ public partial class BattleGameMain : MonoBehaviour
                 source,
                 side,
                 effect,
-                () => TryExecuteOnMainEffectChain(
+                _ => TryExecuteOnMainEffectChain(
                     side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
             return;
         }

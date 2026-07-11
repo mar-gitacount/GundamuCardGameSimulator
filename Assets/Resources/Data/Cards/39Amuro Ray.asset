@@ -59,9 +59,9 @@ MonoBehaviour:
     effectsName: 
     effects:
     - type: 10
-      value: 0
+      value: 1
       target: 2
-      selectionMode: 2
+      selectionMode: 1
       statTarget: 0
       duration: 0
       valueMode: 0

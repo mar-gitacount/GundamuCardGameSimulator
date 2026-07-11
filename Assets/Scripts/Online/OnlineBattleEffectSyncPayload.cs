@@ -43,6 +43,8 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindReturnToDeckBottom = "ReturnToDeckBottom";
     public const string ChangeKindClearStatGrantsFromSource = "ClearStatGrantsFromSource";
     public const string ChangeKindRefreshOwnerTurnFieldPassives = "RefreshOwnerTurnFieldPassives";
+    /// <summary>攻撃フロー終了時の UntilEndOfBattle 等の一括解除（全盤面ユニット）。</summary>
+    public const string ChangeKindClearTimedStatModifiersByDuration = "ClearTimedStatModifiersByDuration";
 
     public static string ToJson(OnlineBattleUnitEffectChange[] changes)
     {

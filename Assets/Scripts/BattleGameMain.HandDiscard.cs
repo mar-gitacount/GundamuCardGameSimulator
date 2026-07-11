@@ -52,28 +52,109 @@ public partial class BattleGameMain
         return result;
     }
 
+    /// <param name="onDone">true=必要枚数を捨てた / false=キャンセル・手札不足で中断</param>
     private void TryExecuteManualHandSelectionEffect(
         CardController sourceCard,
         PlayerType ownerType,
         EffectData effect,
-        Action onDone)
+        Action<bool> onDone)
     {
         if (effect == null || effect.type != EffectType.DiscardFromHand)
         {
-            onDone?.Invoke();
+            onDone?.Invoke(true);
             return;
         }
 
         PlayerType handOwner = ResolveHandDiscardOwner(ownerType, effect);
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
-        int discardCount = magnitude > 0 ? magnitude : 1;
+        int requiredCount = effect.GetHandDiscardRequiredCount(magnitude);
+        if (effect.UsesHandMultiSelection(requiredCount))
+        {
+            StartCoroutine(ExecuteMultiDiscardFromHandSelectionCoroutine(
+                sourceCard,
+                ownerType,
+                handOwner,
+                effect,
+                requiredCount,
+                onDone));
+            return;
+        }
+
         StartCoroutine(ExecuteDiscardFromHandSelectionCoroutine(
             sourceCard,
             ownerType,
             handOwner,
             effect,
-            discardCount,
+            requiredCount,
             onDone));
+    }
+
+    private IEnumerator ExecuteMultiDiscardFromHandSelectionCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        PlayerType handOwner,
+        EffectData effect,
+        int requiredCount,
+        Action<bool> onDone)
+    {
+        List<CardController> candidates = CollectSelectableHandCards(handOwner);
+        if (candidates.Count < requiredCount)
+        {
+            Debug.LogWarning(
+                $"[DiscardFromHand] 手札が{requiredCount}枚未満のため中断 (owner:{handOwner} "
+                + $"hand:{candidates.Count} source:{sourceCard?.Data?.cardName})");
+            onDone?.Invoke(false);
+            yield break;
+        }
+
+        if (handOwner == PlayerType.Enemy)
+        {
+            List<CardController> aiPicks = PickEnemyAiHandDiscardTargets(candidates, requiredCount);
+            if (aiPicks.Count < requiredCount)
+            {
+                onDone?.Invoke(false);
+                yield break;
+            }
+
+            for (int i = 0; i < aiPicks.Count; i++)
+            {
+                yield return DiscardHandCardWithRevealCoroutine(aiPicks[i], handOwner, effect, ownerType);
+            }
+
+            onDone?.Invoke(true);
+            yield break;
+        }
+
+        bool resolved = false;
+        List<CardController> selected = null;
+        OpenManualMultiHandTargetSelectionUI(
+            sourceCard,
+            handOwner,
+            effect,
+            candidates,
+            requiredCount,
+            picks =>
+            {
+                selected = picks;
+                resolved = true;
+            });
+
+        yield return new WaitUntil(() => resolved);
+
+        if (selected == null || selected.Count < requiredCount)
+        {
+            Debug.Log(
+                $"[DiscardFromHand] {requiredCount}枚未選択のため中断 (source:{sourceCard?.Data?.cardName})");
+            onDone?.Invoke(false);
+            yield break;
+        }
+
+        for (int i = 0; i < selected.Count; i++)
+        {
+            yield return DiscardHandCardWithRevealCoroutine(selected[i], handOwner, effect, ownerType);
+        }
+
+        onDone?.Invoke(true);
     }
 
     private IEnumerator ExecuteDiscardFromHandSelectionCoroutine(
@@ -82,11 +163,11 @@ public partial class BattleGameMain
         PlayerType handOwner,
         EffectData effect,
         int remaining,
-        Action onDone)
+        Action<bool> onDone)
     {
         if (remaining <= 0)
         {
-            onDone?.Invoke();
+            onDone?.Invoke(true);
             yield break;
         }
 
@@ -94,8 +175,8 @@ public partial class BattleGameMain
         if (candidates.Count == 0)
         {
             Debug.LogWarning(
-                $"[DiscardFromHand] 手札が空のためスキップ (owner:{handOwner} source:{sourceCard?.Data?.cardName})");
-            onDone?.Invoke();
+                $"[DiscardFromHand] 手札が空のため中断 (owner:{handOwner} source:{sourceCard?.Data?.cardName})");
+            onDone?.Invoke(false);
             yield break;
         }
 
@@ -132,10 +213,15 @@ public partial class BattleGameMain
 
         yield return new WaitUntil(() => resolved);
 
-        if (selected != null)
+        if (selected == null)
         {
-            yield return DiscardHandCardWithRevealCoroutine(selected, handOwner, effect, ownerType);
+            Debug.Log(
+                $"[DiscardFromHand] キャンセルにより中断 (source:{sourceCard?.Data?.cardName})");
+            onDone?.Invoke(false);
+            yield break;
         }
+
+        yield return DiscardHandCardWithRevealCoroutine(selected, handOwner, effect, ownerType);
 
         yield return ExecuteDiscardFromHandSelectionCoroutine(
             sourceCard,
@@ -198,29 +284,36 @@ public partial class BattleGameMain
 
     private CardController PickEnemyAiHandDiscardTarget(List<CardController> candidates)
     {
-        if (candidates == null || candidates.Count == 0)
+        List<CardController> picks = PickEnemyAiHandDiscardTargets(candidates, 1);
+        return picks.Count > 0 ? picks[0] : null;
+    }
+
+    private List<CardController> PickEnemyAiHandDiscardTargets(List<CardController> candidates, int count)
+    {
+        List<CardController> picks = new List<CardController>();
+        if (candidates == null || candidates.Count == 0 || count <= 0)
         {
-            return null;
+            return picks;
         }
 
-        CardController worst = candidates[0];
-        int worstCost = worst.CurrentCost;
-        for (int i = 1; i < candidates.Count; i++)
+        List<CardController> sorted = new List<CardController>(candidates);
+        sorted.Sort((a, b) =>
         {
-            CardController c = candidates[i];
-            if (c == null || c.Data == null)
-            {
-                continue;
-            }
+            int costA = a != null ? a.CurrentCost : int.MaxValue;
+            int costB = b != null ? b.CurrentCost : int.MaxValue;
+            return costA.CompareTo(costB);
+        });
 
-            if (c.CurrentCost < worstCost)
+        int take = Mathf.Min(count, sorted.Count);
+        for (int i = 0; i < take; i++)
+        {
+            if (sorted[i] != null)
             {
-                worst = c;
-                worstCost = c.CurrentCost;
+                picks.Add(sorted[i]);
             }
         }
 
-        return worst;
+        return picks;
     }
 
     private void OpenManualHandTargetSelectionUI(
@@ -253,7 +346,7 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("ManualHandTargetTitle", UIAnchor.TopCenter, 720, 48);
-        title.text = FormatHandDiscardSelectionTitle(effect, source);
+        title.text = FormatHandDiscardSelectionTitle(effect, source, 1);
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
@@ -313,9 +406,162 @@ public partial class BattleGameMain
         });
     }
 
-    private static string FormatHandDiscardSelectionTitle(EffectData effect, CardController source)
+    private void OpenManualMultiHandTargetSelectionUI(
+        CardController source,
+        PlayerType handOwner,
+        EffectData effect,
+        List<CardController> candidates,
+        int requiredCount,
+        Action<List<CardController>> onConfirmed)
     {
-        int count = effect != null && effect.value > 0 ? effect.value : 1;
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onConfirmed?.Invoke(new List<CardController>());
+            return;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "ManualMultiHandTargetSelect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ManualMultiHandTargetTitle", UIAnchor.TopCenter, 720, 48);
+        title.text = FormatHandDiscardSelectionTitle(effect, source, requiredCount);
+        title.color = Color.white;
+        title.fontSize = 24;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
+
+        TextMeshProUGUI summary = root.CreateChildTextCustom("ManualMultiHandTargetSummary", UIAnchor.TopCenter, 720, 32);
+        summary.text = $"カードをタップで選択（赤＝対象）（{requiredCount}枚）→ OK で確定";
+        summary.color = new Color(0.9f, 0.9f, 0.9f);
+        summary.fontSize = 18;
+        summary.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
+
+        GameObject scrollGo = root.CreateGridScrollView(680, 360, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -100f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        List<CardController> selected = new List<CardController>();
+        bool resolved = false;
+        int selectMax = effect != null
+            ? effect.GetSelectMaxCount(candidates.Count)
+            : requiredCount;
+        if (selectMax <= 0 || selectMax > requiredCount)
+        {
+            selectMax = requiredCount;
+        }
+
+        void CloseWithSelection(List<CardController> picks)
+        {
+            if (resolved)
+            {
+                return;
+            }
+
+            resolved = true;
+            Destroy(root);
+            activeOnActionPopupRoot = null;
+            isOnActionPopupOpen = false;
+            onConfirmed?.Invoke(picks ?? new List<CardController>());
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            CardController handCard = candidates[i];
+            if (handCard == null || handCard.Data == null || content == null)
+            {
+                continue;
+            }
+
+            GameObject cardItem = Instantiate(CardImagePrefab, content);
+            CardController preview = cardItem.GetComponent<CardController>();
+            preview.SetUp(handCard.Data, _ => { });
+            Button btn = cardItem.GetComponent<Button>() ?? cardItem.AddComponent<Button>();
+            Image baseImage = cardItem.GetComponent<Image>();
+            Color original = baseImage != null ? baseImage.color : Color.white;
+            CardController pickedRef = handCard;
+            btn.onClick.AddListener(() =>
+            {
+                if (resolved)
+                {
+                    return;
+                }
+
+                if (selected.Contains(pickedRef))
+                {
+                    selected.Remove(pickedRef);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = original;
+                    }
+                }
+                else
+                {
+                    if (selected.Count >= selectMax)
+                    {
+                        Debug.Log($"手札は最大{selectMax}枚まで選択できます。");
+                        return;
+                    }
+
+                    selected.Add(pickedRef);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = ManualMultiSelectHighlightColor;
+                    }
+                }
+            });
+        }
+
+        Button okBtn = root.CreateChildButton("OK");
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(160f, 44f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = new Vector2(-90f, 36f);
+        TextMeshProUGUI okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (okLabel != null)
+        {
+            okLabel.text = "OK";
+        }
+
+        okBtn.onClick.AddListener(() =>
+        {
+            if (selected.Count < requiredCount)
+            {
+                Debug.Log($"手札を{requiredCount}枚選択してください。");
+                return;
+            }
+
+            CloseWithSelection(new List<CardController>(selected));
+        });
+
+        Button cancel = root.CreateChildButton("キャンセル");
+        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(160f, 44f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(90f, 36f);
+        cancel.onClick.AddListener(() => CloseWithSelection(new List<CardController>()));
+    }
+
+    private static string FormatHandDiscardSelectionTitle(EffectData effect, CardController source, int count)
+    {
         string revealHint = effect != null && effect.revealDiscardedToOpponent
             ? "（相手に公開）"
             : string.Empty;
