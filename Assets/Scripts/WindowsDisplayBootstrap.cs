@@ -2,8 +2,8 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 
 /// <summary>
-/// Windows スタンドアロンビルドで、1920×1080 等のフル画面サイズ指定でもタスクバーを隠さない。
-/// 作業領域（Work Area）にウィンドウを収める。
+/// Windows スタンドアロンビルドでウィンドウモードを維持しつつ、
+/// Player Settings で指定した解像度（例: 800×480）を作業領域内に中央配置する。
 /// </summary>
 public static class WindowsDisplayBootstrap
 {
@@ -40,32 +40,44 @@ public static class WindowsDisplayBootstrap
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void ApplyWorkAreaOnStartup()
     {
+        int targetWidth = Screen.width;
+        int targetHeight = Screen.height;
+        if (targetWidth <= 0 || targetHeight <= 0)
+        {
+            targetWidth = 800;
+            targetHeight = 480;
+        }
+
         Rect workArea = new Rect();
         if (!SystemParametersInfo(SpiGetWorkArea, 0, ref workArea, 0))
         {
-            Screen.fullScreenMode = FullScreenMode.Windowed;
+            Screen.SetResolution(targetWidth, targetHeight, FullScreenMode.Windowed);
             return;
         }
 
-        int width = workArea.right - workArea.left;
-        int height = workArea.bottom - workArea.top;
-        if (width <= 0 || height <= 0)
+        int workWidth = workArea.right - workArea.left;
+        int workHeight = workArea.bottom - workArea.top;
+        if (workWidth <= 0 || workHeight <= 0)
         {
-            Screen.fullScreenMode = FullScreenMode.Windowed;
+            Screen.SetResolution(targetWidth, targetHeight, FullScreenMode.Windowed);
             return;
         }
 
-        // フルスクリーン系は画面全体を覆うためタスクバーが隠れる。常にウィンドウモードへ。
+        int width = Mathf.Min(targetWidth, workWidth);
+        int height = Mathf.Min(targetHeight, workHeight);
+        int x = workArea.left + Mathf.Max(0, (workWidth - width) / 2);
+        int y = workArea.top + Mathf.Max(0, (workHeight - height) / 2);
+
         Screen.SetResolution(width, height, FullScreenMode.Windowed);
-        TryPositionWindow(workArea, width, height);
+        TryPositionWindow(x, y, width, height);
 
         var runner = new GameObject(nameof(WindowsDisplayBootstrap));
         Object.DontDestroyOnLoad(runner);
         runner.hideFlags = HideFlags.HideAndDontSave;
-        runner.AddComponent<WorkAreaWindowPositioner>().Initialize(workArea, width, height);
+        runner.AddComponent<WorkAreaWindowPositioner>().Initialize(x, y, width, height);
     }
 
-    private static void TryPositionWindow(Rect workArea, int width, int height)
+    private static void TryPositionWindow(int x, int y, int width, int height)
     {
         System.IntPtr hwnd = GetActiveWindow();
         if (hwnd == System.IntPtr.Zero)
@@ -73,19 +85,21 @@ public static class WindowsDisplayBootstrap
             return;
         }
 
-        SetWindowPos(hwnd, System.IntPtr.Zero, workArea.left, workArea.top, width, height, SwpNoZOrder | SwpShowWindow);
+        SetWindowPos(hwnd, System.IntPtr.Zero, x, y, width, height, SwpNoZOrder | SwpShowWindow);
     }
 
     private sealed class WorkAreaWindowPositioner : MonoBehaviour
     {
-        private Rect _workArea;
+        private int _x;
+        private int _y;
         private int _width;
         private int _height;
         private int _attemptsLeft = 5;
 
-        public void Initialize(Rect workArea, int width, int height)
+        public void Initialize(int x, int y, int width, int height)
         {
-            _workArea = workArea;
+            _x = x;
+            _y = y;
             _width = width;
             _height = height;
         }
@@ -98,7 +112,7 @@ public static class WindowsDisplayBootstrap
                 return;
             }
 
-            TryPositionWindow(_workArea, _width, _height);
+            TryPositionWindow(_x, _y, _width, _height);
         }
     }
 #endif

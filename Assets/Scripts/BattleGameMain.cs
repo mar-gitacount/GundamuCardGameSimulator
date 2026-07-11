@@ -122,6 +122,8 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>攻撃後 OnAction の「プレイヤー手前」に actionthink を挟むテスト用フラグ。</summary>
     [SerializeField] private bool enableAttackFlowActionThinkTest = true;
     [SerializeField] private bool enableShieldAttackFlowDebugLog = true;
+    [Tooltip("ブロック確定後にブロッカー破壊で交換戦闘が中断されるときの詳細ログ。")]
+    [SerializeField] private bool enableBlockRedirectInterruptDebugLog = true;
     [Tooltip("true のとき敵 OnAction はログ用ポップアップのみ。false で AI がコマンドを本番実行。")]
     [SerializeField] private bool enableEnemyOnActionDebugPopupOnly;
     private bool isShieldAttackResolving;
@@ -223,6 +225,32 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return $"{c.Data.cardName}(id:{c.Data.id}) HP:{c.CurrentHp} AP:{c.CurrentPower}";
+    }
+
+    /// <summary>ブロッカー破壊などでブロック交換が中断されるときの調査用ログ。</summary>
+    private void LogDestroyedBlockerInterruptDetail(string phase, string reason, CardController blocker = null)
+    {
+        if (!enableBlockRedirectInterruptDebugLog)
+        {
+            return;
+        }
+
+        CardController logBlocker = blocker ?? attackFlowBlockRedirectUnit;
+        bool onDeployPanel = logBlocker != null
+            && (logBlocker.transform.IsChildOf(cardGameRule.PlayerDeployPanel)
+                || logBlocker.transform.IsChildOf(enemyCardGameRule.PlayerDeployPanel));
+
+        Debug.Log(
+            $"[BlockCombat][DestroyedBlocker] phase:{phase} reason:{reason}\n"
+            + $"  strike:{attackFlowStrikeKind} pipeline:{attackFlowPipelinePhase} "
+            + $"blockOnActionDone:{attackFlowBlockOnActionCompleted} shieldOrigin:{attackFlowBlockRedirectFromShieldStrike}\n"
+            + $"  flags engaged:{attackFlowBlockRedirectEngaged} cancelled:{blockExchangeCancelledForCurrentAttack} "
+            + $"voided:{attackFlowBlockRedirectCombatVoided} pendingTrash:{logBlocker != null && unitsPendingSendToTrash.Contains(logBlocker)}\n"
+            + $"  blocker:{FormatEffectDamageUnitDebugSnap(logBlocker)} onDeployPanel:{onDeployPanel} "
+            + $"aliveOnField:{logBlocker != null && IsUnitAliveOnAnyDeployField(logBlocker)} "
+            + $"exchangeAvailable:{logBlocker != null && IsUnitAvailableForAttackExchange(logBlocker)}\n"
+            + $"  attacker:{FormatEffectDamageUnitDebugSnap(attackFlowAttackerUnit)} "
+            + $"declaredDefender:{FormatEffectDamageUnitDebugSnap(attackFlowDeclaredDefenderUnit)}");
     }
 
     private string FormatEffectDamageUnitDebugSnap(CardController c)
@@ -498,6 +526,10 @@ public partial class BattleGameMain : MonoBehaviour
         CardController blocker = attackFlowBlockRedirectUnit;
         if (!IsUnitAliveOnAnyDeployField(blocker))
         {
+            LogDestroyedBlockerInterruptDetail(
+                "CommitBlockerRestIfBlockWasCommitted",
+                "blocker not alive on deploy field — skip rest without exchange",
+                blocker);
             return;
         }
 
@@ -3950,6 +3982,9 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (blockExchangeCancelledForCurrentAttack)
         {
+            LogDestroyedBlockerInterruptDetail(
+                "TrySettleAttackFlowAfterOnActionPhases",
+                "blockExchangeCancelledForCurrentAttack — finalize without exchange");
             FinalizeBlockInterruptWithoutExchange();
             return true;
         }
@@ -3957,6 +3992,7 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attacker = attackFlowAttackerUnit != null ? attackFlowAttackerUnit : pendingUnitAttackAttacker;
         if (!IsUnitAliveOnAnyDeployField(attacker))
         {
+            
             CancelPendingUnitAttackFlow();
             return true;
         }
@@ -3965,6 +4001,10 @@ public partial class BattleGameMain : MonoBehaviour
         {
             if (!IsUnitAvailableForAttackExchange(attackFlowBlockRedirectUnit))
             {
+                LogDestroyedBlockerInterruptDetail(
+                    "TrySettleAttackFlowAfterOnActionPhases",
+                    "blocker unavailable for exchange after OnAction",
+                    attackFlowBlockRedirectUnit);
                 FinalizeBlockInterruptWithoutExchange();
                 return true;
             }
@@ -4029,6 +4069,10 @@ public partial class BattleGameMain : MonoBehaviour
             "NotifyBlockerRemoved",
             $"blocker HP:{unit.CurrentHp} before MarkBlockExchangeCancelled",
             blocker: unit);
+        LogDestroyedBlockerInterruptDetail(
+            "NotifyBlockRedirectUnitRemovedDuringAttackFlow",
+            "blocker removed by effect during block OnAction",
+            unit);
         MarkBlockExchangeCancelled("Blocker removed by effect during block OnAction.");
     }
 
