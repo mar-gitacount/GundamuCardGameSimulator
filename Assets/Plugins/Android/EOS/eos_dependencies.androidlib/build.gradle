@@ -1,18 +1,8 @@
-buildscript {
-    repositories {
-        google()
-        jcenter()
-        flatDir(dirs: 'libs')
-    }
-    
-    dependencies {
-        classpath "com.android.tools.build:gradle:3.6.0"
-    }
-}
-
 apply plugin: 'com.android.library'
 
 android {
+    namespace "com.pew.eos_dependencies"
+
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
@@ -24,15 +14,15 @@ android {
     }
 
     compileSdkVersion 36
-    buildToolsVersion '34.0.0'
     defaultConfig {
         targetSdkVersion 36
     }
 }
+
 dependencies {
-        implementation 'androidx.appcompat:appcompat:1.5.1'
-        implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-        implementation 'androidx.security:security-crypto:1.0.0'
-        implementation 'androidx.browser:browser:1.4.0'
+    implementation 'androidx.appcompat:appcompat:1.5.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.security:security-crypto:1.0.0'
+    implementation 'androidx.browser:browser:1.4.0'
     //api fileTree(dir: 'libs', include: ['*.aar'])
 }
