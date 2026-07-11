@@ -1,4 +1,5 @@
 /// <summary>攻撃・ターン終了時のアクションステップ（blockthink タイトル用ヘルパー含む）。</summary>
+// アクションタイミングのコメントテスト
 public partial class BattleGameMain
 {
     private static string GetActionStepThinkSubtitle(PlayerType side, string context)
