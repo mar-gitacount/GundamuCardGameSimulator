@@ -3508,9 +3508,16 @@ public partial class BattleGameMain : MonoBehaviour
         int applied = 0;
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
-            if (TryReturnBattleUnitToHand(targets[i]))
+            CardController target = targets[i];
+            if (target == null || target.Data == null || !target.Data.IsUnitLike() || !IsCardOnBattleZone(target))
             {
-                QueueOnlineUnitBounce(targets[i]);
+                continue;
+            }
+
+            // オンライン同期は場から外す前にキュー（zoneIndex / instanceId を保持するため）。
+            QueueOnlineUnitBounce(target);
+            if (TryReturnBattleUnitToHand(target))
+            {
                 applied++;
             }
         }
