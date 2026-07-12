@@ -1415,7 +1415,15 @@ public partial class BattleGameMain
 
                 case OnlineBattleEffectSyncPayload.ChangeKindBounce:
                     Debug.Log($"[EffectSync][ApplyBounce] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
-                    TryReturnBattleUnitToHand(unit);
+                    if (unit.Data != null && unit.Data.IsUnitToken())
+                    {
+                        TryVanishBattleUnitTokenFromZone(unit);
+                    }
+                    else
+                    {
+                        TryReturnBattleUnitToHand(unit);
+                    }
+
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindReturnToDeckBottom:

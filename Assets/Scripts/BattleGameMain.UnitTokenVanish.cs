@@ -113,6 +113,8 @@ public partial class BattleGameMain
         }
 
         FinalizeRemoveCardFromPlay(unit, ownerType, sendToTrashZone: false);
+        Debug.Log(
+            $"[Bounce][Vanish] {unit.Data.cardName}(id:{unit.Data.id}) removed from play (unit token)");
         return true;
     }
 }
