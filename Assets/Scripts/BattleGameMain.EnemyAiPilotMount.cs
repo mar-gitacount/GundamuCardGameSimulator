@@ -131,6 +131,7 @@ public partial class BattleGameMain
         }
 
         ApplyUnitAttackFlgFromLink(unit, PlayerType.Enemy);
+        TryGrantOperationMeteorFirstStrikeOnPilotMount(unit, pilot, PlayerType.Enemy);
         TriggerOnPilotMountedEffects(unit, pilot, PlayerType.Enemy, () =>
         {
             TriggerOnLinkEffects(unit, pilot, PlayerType.Enemy, () =>
@@ -216,6 +217,10 @@ public partial class BattleGameMain
 
         snap.Ap += Mathf.Max(0, pilot.Data.power);
         snap.Hp += Mathf.Max(0, pilot.Data.hp);
+        if (pilot.Data.HasOperationMeteorFeature())
+        {
+            snap.FirstStrike = true;
+        }
     }
 
     private void ApplyVirtualPilotOnMountedEffects(

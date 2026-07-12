@@ -1512,6 +1512,7 @@ public partial class BattleGameMain
         }
 
         ApplyUnitAttackFlgFromLink(hostUnit, hostOwner);
+        TryGrantOperationMeteorFirstStrikeOnPilotMount(hostUnit, pilotController, hostOwner);
         RefreshAllFieldOwnerTurnPassives();
         SyncAllResourceViewsFromRule();
         Debug.Log(

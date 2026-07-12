@@ -53,6 +53,12 @@
             "featureKey": "Triple_Ship_Alliance",
             "displayName": "三隻同盟",
             "description": ""
+        },
+        {
+            "id": 9,
+            "featureKey": "Operation_Meteor",
+            "displayName": "オペレーション・メテオ",
+            "description": "登場ターン、搭乗ユニットに先制攻撃を付与"
         }
         
     ]

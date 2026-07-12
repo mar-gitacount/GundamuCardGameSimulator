@@ -607,8 +607,7 @@ public partial class BattleGameMain
 
         int playerStrike = Mathf.Max(0, playerAtk.Ap);
         int enemyStrike = Mathf.Max(0, enemyDef.Ap);
-        enemyDef.Hp = Mathf.Max(0, enemyDef.Hp - playerStrike);
-        playerAtk.Hp = Mathf.Max(0, playerAtk.Hp - enemyStrike);
+        ApplyVirtualUnitVsUnitCombatHpExchange(playerAtk, enemyDef);
     }
 
     /// <summary>コマンド後＋プレイヤー攻撃交換**後**の結果をスコア化（敵視点・高いほど有利）。</summary>
