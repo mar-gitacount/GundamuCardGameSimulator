@@ -124,6 +124,8 @@ public partial class BattleGameMain : MonoBehaviour
     [SerializeField] private bool enableShieldAttackFlowDebugLog = true;
     [Tooltip("ブロック確定後にブロッカー破壊で交換戦闘が中断されるときの詳細ログ。")]
     [SerializeField] private bool enableBlockRedirectInterruptDebugLog = true;
+    [Tooltip("アタック→ブロック→格闘戦 OnAction で他ユニット破壊時に攻撃者・ブロッカー・被害者の3体をログ。")]
+    [SerializeField] private bool enableAttackBlockCloseCombatTrioDebugLog = true;
     [Tooltip("true のとき敵 OnAction はログ用ポップアップのみ。false で AI がコマンドを本番実行。")]
     [SerializeField] private bool enableEnemyOnActionDebugPopupOnly;
     private bool isShieldAttackResolving;
@@ -251,6 +253,96 @@ public partial class BattleGameMain : MonoBehaviour
             + $"exchangeAvailable:{logBlocker != null && IsUnitAvailableForAttackExchange(logBlocker)}\n"
             + $"  attacker:{FormatEffectDamageUnitDebugSnap(attackFlowAttackerUnit)} "
             + $"declaredDefender:{FormatEffectDamageUnitDebugSnap(attackFlowDeclaredDefenderUnit)}");
+    }
+
+    /// <summary>
+    /// アタック→ブロック→格闘戦 OnAction で「攻撃者・ブロッカー以外」のユニットが破壊されたとき、3体分を1本でログ。
+    /// </summary>
+    private void TryLogAttackBlockCloseCombatTrioDestroy(
+        string phase,
+        CardController destroyedUnit,
+        CardController effectSource = null)
+    {
+        if (!enableAttackBlockCloseCombatTrioDebugLog
+            || destroyedUnit == null
+            || !IsAttackBlockCloseCombatOnActionContext(effectSource))
+        {
+            return;
+        }
+
+        CardController attacker = attackFlowAttackerUnit;
+        CardController blocker = attackFlowBlockRedirectUnit;
+        if (!IsThirdPartyUnitInAttackBlockTrio(destroyedUnit, attacker, blocker))
+        {
+            return;
+        }
+
+        string victimRole = "other";
+        if (IsSameBattleUnit(destroyedUnit, attackFlowDeclaredDefenderUnit))
+        {
+            victimRole = "declaredDefender";
+        }
+
+        Debug.Log(
+            $"[AttackBlockCloseCombat][TrioDestroy] phase:{phase} victimRole:{victimRole}\n"
+            + $"  context:{DescribeAttackBlockCloseCombatOnActionContext()}\n"
+            + $"  effectSource:{FormatEffectDamageSourceDebugSnap(effectSource)}\n"
+            + $"  attacker:{FormatEffectDamageUnitDebugSnap(attacker)}\n"
+            + $"  blocker:{FormatEffectDamageUnitDebugSnap(blocker)}\n"
+            + $"  destroyed:{FormatEffectDamageUnitDebugSnap(destroyedUnit)}");
+    }
+
+    private bool IsAttackBlockCloseCombatOnActionContext(CardController effectSource)
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return false;
+        }
+
+        if (attackFlowBlockRedirectUnit == null && !attackFlowBlockRedirectEngaged)
+        {
+            return false;
+        }
+
+        if (effectSource != null && IsCloseCombatCard(effectSource))
+        {
+            return true;
+        }
+
+        return isOnActionPopupOpen
+            || attackFlowPipelinePhase == AttackFlowPipelinePhase.PostBlockOnAction
+            || (!attackFlowBlockOnActionCompleted && attackFlowBlockRedirectEngaged);
+    }
+
+    private static bool IsThirdPartyUnitInAttackBlockTrio(
+        CardController destroyedUnit,
+        CardController attacker,
+        CardController blocker)
+    {
+        if (destroyedUnit == null)
+        {
+            return false;
+        }
+
+        if (attacker != null && IsSameBattleUnit(destroyedUnit, attacker))
+        {
+            return false;
+        }
+
+        if (blocker != null && IsSameBattleUnit(destroyedUnit, blocker))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private string DescribeAttackBlockCloseCombatOnActionContext()
+    {
+        return $"strike:{attackFlowStrikeKind} pipeline:{attackFlowPipelinePhase} "
+            + $"blockEngaged:{attackFlowBlockRedirectEngaged} blockOnActionDone:{attackFlowBlockOnActionCompleted} "
+            + $"shieldOrigin:{attackFlowBlockRedirectFromShieldStrike} onActionOpen:{isOnActionPopupOpen} "
+            + $"context:{_onlineOnActionActiveContext ?? "local"}";
     }
 
     private string FormatEffectDamageUnitDebugSnap(CardController c)
@@ -3520,6 +3612,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             PlayerType targetOwner = ResolveCardOwner(target.transform);
+            TryLogAttackBlockCloseCombatTrioDestroy("ApplyDestroyEffect", target, sourceCard);
             NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
             QueueOnlineUnitDestroy(target);
             SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, target));
@@ -5302,6 +5395,7 @@ public partial class BattleGameMain : MonoBehaviour
 
                     if (t.CurrentHp <= 0)
                     {
+                        TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffect_Damage", t, sourceCard);
                         NotifyAttackFlowParticipantRemovedDuringOnAction(t);
                         SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
                     }
@@ -9250,6 +9344,7 @@ public partial class BattleGameMain : MonoBehaviour
                         Debug.Log(
                             $"[EffectDamage][LocalDestroyQueue] closeCombat:{isCloseCombat} "
                             + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)}");
+                        TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffectSync_Damage", targetUnit, sourceCard);
                         NotifyAttackFlowParticipantRemovedDuringOnAction(targetUnit);
                         QueueOnlineUnitDestroy(targetUnit);
                         SendCardToTrash(targetUnit, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
