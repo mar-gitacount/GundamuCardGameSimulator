@@ -42,6 +42,14 @@ public class OnlineBattleActionPayload
     /// <summary>OnActionCommandUsed 用。使用時点のコスト／レベル（UI 表示用）。</summary>
     public int cardCost;
     public int cardLevel;
+    /// <summary>OnAction パス種別。0=Pass（Confirm/Cancel）、1=ActionEnd。</summary>
+    public int actionStepPassKind;
+    /// <summary>送信側視点で Player ゾーンが ActionEnd 済み（1/0）。受信側はミラーして適用。</summary>
+    public int sessionPlayerActionEnded;
+    /// <summary>送信側視点で Enemy ゾーンが ActionEnd 済み（1/0）。受信側はミラーして適用。</summary>
+    public int sessionEnemyActionEnded;
+    /// <summary>アクションステップセッション ID（0=レガシー／非セッション）。</summary>
+    public int actionStepSessionId;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
@@ -226,7 +234,8 @@ public class OnlineBattleActionPayload
         int requestId,
         int actingZoneSide,
         string context,
-        int attackerInstanceId)
+        int attackerInstanceId,
+        int actionStepSessionId = 0)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
@@ -234,12 +243,17 @@ public class OnlineBattleActionPayload
             requestId = requestId,
             actingZoneSide = actingZoneSide,
             onActionContext = context ?? string.Empty,
-            attackerInstanceId = attackerInstanceId
+            attackerInstanceId = attackerInstanceId,
+            actionStepSessionId = actionStepSessionId
         });
     }
 
     public static string CreateOnActionEnd(
         int requestId,
+        int actingZoneSide,
+        int actionStepPassKind,
+        int sessionPlayerActionEnded,
+        int sessionEnemyActionEnded,
         int resourceAfter,
         int exResourceAfter,
         int levelAfter)
@@ -248,6 +262,10 @@ public class OnlineBattleActionPayload
         {
             action = OnActionEnd,
             requestId = requestId,
+            actingZoneSide = actingZoneSide,
+            actionStepPassKind = actionStepPassKind,
+            sessionPlayerActionEnded = sessionPlayerActionEnded,
+            sessionEnemyActionEnded = sessionEnemyActionEnded,
             resourceAfter = resourceAfter,
             exResourceAfter = exResourceAfter,
             levelAfter = levelAfter

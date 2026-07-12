@@ -1162,7 +1162,7 @@ public partial class BattleGameMain
 
         Debug.Log($"[EnemyAI] OnAction skip context:{context} (bestSimScore:{bestScore} min:{EnemyAiHandCommandMinScoreToExecute})");
         onStepDone?.Invoke();
-        return false;
+        return true;
     }
 
     /// <summary>スコアが閾値未満でも、仮想適用後に撃破・攻撃無力化など明確な利益があるときだけ実行。</summary>
@@ -1340,6 +1340,8 @@ public partial class BattleGameMain
         }
 
         SyncResourceViewsFromRule(ToRuleSide(side));
+
+        MarkActionStepCardUsed(side, command);
 
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
         if (onActionEffects.Count == 0)

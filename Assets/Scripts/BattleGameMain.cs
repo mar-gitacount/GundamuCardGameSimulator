@@ -3166,7 +3166,7 @@ public partial class BattleGameMain : MonoBehaviour
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = currentPlayerType;
         bool waitingForClose = false;
-        bool startedOnActionStep = TryRunTurnEndOnActionPhases(() => waitingForClose = false);
+        bool startedOnActionStep = TryRunTurnEndOnActionPhases(endingTurnSide, () => waitingForClose = false);
         if (startedOnActionStep)
         {
             waitingForClose = true;
@@ -9962,21 +9962,24 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
-    /// ターン終了時の OnAction。どちらのターンでも「Enemy ゾーン → Player ゾーン」の順で両プレイヤーが実行する。
+    /// ターン終了時の OnAction。非ターンプレイヤー→ターンプレイヤー→交互。両者 ActionEnd で終了。
     /// </summary>
-    private bool TryRunTurnEndOnActionPhases(System.Action onComplete)
+    private bool TryRunTurnEndOnActionPhases(PlayerType endingTurnSide, System.Action onComplete)
     {
-        void runPlayerOnActionOrFinish()
-        {
-            TryRunMandatoryOnActionStepPhase(PlayerType.Player, "turn end:player-action", onComplete);
-        }
-
-        TryRunMandatoryOnActionStepPhase(PlayerType.Enemy, "turn end:enemy-action", runPlayerOnActionOrFinish);
+        PlayerType nonTurnSide = OpponentSide(endingTurnSide);
+        BeginActionStepSession(
+            endingTurnSide,
+            nonTurnSide,
+            isAttackContext: false,
+            defenderContext: "turn end:enemy-action",
+            attackerContext: "turn end:player-action",
+            attackingUnit: null,
+            onComplete);
         return true;
     }
 
     /// <summary>
-    /// 攻撃フロー後半：ブロック応答後の OnAction。防御側 → 攻撃側の順。
+    /// 攻撃フロー後半：ブロック応答後の OnAction。防御側（非ターンプレイヤー）→攻撃側→交互。
     /// </summary>
     private bool TryRunAttackOnActionPhasesAfterBlock(
         PlayerType defenderSide,
@@ -9991,20 +9994,14 @@ public partial class BattleGameMain : MonoBehaviour
             ? "attack:player-action"
             : "attack:enemy-action";
 
-        void runAttackerOnActionOrFinish()
-        {
-            TryRunMandatoryOnActionStepPhase(
-                attackerSide,
-                attackerContext,
-                onComplete,
-                attackingUnitInAttackFlow);
-        }
-
-        TryRunMandatoryOnActionStepPhase(
+        BeginActionStepSession(
+            attackerSide,
             defenderSide,
+            isAttackContext: true,
             defenderContext,
-            runAttackerOnActionOrFinish,
-            attackingUnitInAttackFlow);
+            attackerContext,
+            attackingUnitInAttackFlow,
+            onComplete);
         return true;
     }
 
@@ -12144,6 +12141,8 @@ public partial class BattleGameMain : MonoBehaviour
         dim.raycastTarget = true;
 
         bool hasSelectableCards = onActionSelectableSources.Count > 0;
+        bool useAlternatingActionStepUi = IsActionStepSessionActive
+            || IsOnlineBattle();
         string roleLabel = GetActionStepThinkSubtitle(side, context);
         TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, 720, 48);
         title.text = hasSelectableCards
@@ -12152,6 +12151,9 @@ public partial class BattleGameMain : MonoBehaviour
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        HashSet<CardController> selectedSet = new HashSet<CardController>();
+        List<CardController> selectedCommands = new List<CardController>();
 
         if (hasSelectableCards)
         {
@@ -12167,9 +12169,6 @@ public partial class BattleGameMain : MonoBehaviour
             ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
             RectTransform content = sr != null ? sr.content : null;
 
-            HashSet<CardController> selectedSet = new HashSet<CardController>();
-            List<CardController> selectedCommands = new List<CardController>();
-
             for (int i = 0; i < onActionSelectableSources.Count; i++)
             {
                 CardController command = onActionSelectableSources[i];
@@ -12179,26 +12178,78 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 string typeLabel = command.Data.type == Type.Command ? "Command" : "Unit";
-                AppendSelectableCommandCardToGrid(content, command, typeLabel, selectedSet);
+                bool alreadyUsedInActionStep = useAlternatingActionStepUi
+                    && IsActionStepCardUsedForSide(side, command);
+                AppendSelectableCommandCardToGrid(
+                    content,
+                    command,
+                    typeLabel,
+                    selectedSet,
+                    alreadyUsedInActionStep);
+            }
+        }
+
+        void finishUi(ActionStepPassKind passKind)
+        {
+            if (!IsOnlineBattle())
+            {
+                LogAttackOnActionDecisionWithBoard(
+                    passKind == ActionStepPassKind.ActionEnd ? "ActionEnd" : "Pass",
+                    context,
+                    side,
+                    attackingUnitInAttackFlow);
             }
 
-            Button confirmBtn = root.CreateChildButton("Confirm");
-            RectTransform confirmRt = confirmBtn.GetComponent<RectTransform>();
-            confirmRt.sizeDelta = new Vector2(180f, 48f);
-            confirmRt.anchorMin = new Vector2(0.5f, 0f);
-            confirmRt.anchorMax = new Vector2(0.5f, 0f);
-            confirmRt.pivot = new Vector2(0.5f, 0f);
-            confirmRt.anchoredPosition = new Vector2(-100f, 36f);
-            confirmBtn.onClick.AddListener(() =>
+            if (useAlternatingActionStepUi)
             {
-                selectedCommands.Clear();
-                selectedCommands.AddRange(selectedSet);
-                if (selectedCommands.Count == 0)
+                if (IsActionStepSessionActive)
                 {
-                    Debug.Log("OnAction: Select at least one card.");
+                    if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
+                    {
+                        ExecuteOnActionCommandQueue(
+                            side,
+                            selectedCommands,
+                            0,
+                            () => ResolveActionStepUi(side, passKind, root),
+                            attackingUnitInAttackFlow);
+                        return;
+                    }
+
+                    ResolveActionStepUi(side, passKind, root);
                     return;
                 }
 
+                _onlineOnActionActiveContext = null;
+                isOnActionPopupOpen = false;
+                activeOnActionPopupRoot = null;
+                Destroy(root);
+
+                int requestId = _pendingOnlineOnActionRequestId > 0
+                    ? _pendingOnlineOnActionRequestId
+                    : _onlineOnActionResponseRequestId;
+
+                if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
+                {
+                    ExecuteOnActionCommandQueue(
+                        side,
+                        selectedCommands,
+                        0,
+                        () =>
+                        {
+                            SendOnlineActionStepResolution(requestId, side, passKind);
+                            onStepDone?.Invoke();
+                        },
+                        attackingUnitInAttackFlow);
+                    return;
+                }
+
+                SendOnlineActionStepResolution(requestId, side, passKind);
+                onStepDone?.Invoke();
+                return;
+            }
+
+            if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
+            {
                 ExecuteOnActionCommandQueue(
                     side,
                     selectedCommands,
@@ -12212,21 +12263,7 @@ public partial class BattleGameMain : MonoBehaviour
                         onStepDone?.Invoke();
                     },
                     attackingUnitInAttackFlow);
-            });
-        }
-
-        Button closeBtn = root.CreateChildButton("Close");
-        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
-        closeRt.sizeDelta = new Vector2(180f, 48f);
-        closeRt.anchorMin = new Vector2(0.5f, 0f);
-        closeRt.anchorMax = new Vector2(0.5f, 0f);
-        closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = hasSelectableCards ? new Vector2(100f, 36f) : new Vector2(0f, 36f);
-        closeBtn.onClick.AddListener(() =>
-        {
-            if (!IsOnlineBattle())
-            {
-                LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseCommandPopup", context, side, attackingUnitInAttackFlow);
+                return;
             }
 
             _onlineOnActionActiveContext = null;
@@ -12234,6 +12271,82 @@ public partial class BattleGameMain : MonoBehaviour
             activeOnActionPopupRoot = null;
             Destroy(root);
             onStepDone?.Invoke();
+        }
+
+        Button confirmBtn = root.CreateChildButton("Confirm");
+        RectTransform confirmRt = confirmBtn.GetComponent<RectTransform>();
+        confirmRt.sizeDelta = new Vector2(160f, 48f);
+        confirmRt.anchorMin = new Vector2(0.5f, 0f);
+        confirmRt.anchorMax = new Vector2(0.5f, 0f);
+        confirmRt.pivot = new Vector2(0.5f, 0f);
+        confirmRt.anchoredPosition = new Vector2(-190f, 36f);
+        TextMeshProUGUI confirmLabel = confirmBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (confirmLabel != null)
+        {
+            confirmLabel.text = "Confirm";
+        }
+
+        SetActionStepButtonInteractable(confirmBtn, hasSelectableCards);
+        confirmBtn.onClick.AddListener(() =>
+        {
+            if (!hasSelectableCards)
+            {
+                return;
+            }
+
+            selectedCommands.Clear();
+            selectedCommands.AddRange(selectedSet);
+            if (selectedCommands.Count == 0)
+            {
+                Debug.Log("OnAction: Select at least one card.");
+                return;
+            }
+
+            finishUi(ActionStepPassKind.Pass);
+        });
+
+        Button cancelBtn = root.CreateChildButton("Cancel");
+        RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(160f, 48f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(0f, 36f);
+        TextMeshProUGUI cancelLabel = cancelBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (cancelLabel != null)
+        {
+            cancelLabel.text = "Cancel";
+        }
+
+        SetActionStepButtonInteractable(cancelBtn, hasSelectableCards);
+        cancelBtn.onClick.AddListener(() =>
+        {
+            if (!hasSelectableCards)
+            {
+                return;
+            }
+
+            selectedCommands.Clear();
+            finishUi(ActionStepPassKind.Pass);
+        });
+
+        Button actionEndBtn = root.CreateChildButton("ActionEnd");
+        RectTransform actionEndRt = actionEndBtn.GetComponent<RectTransform>();
+        actionEndRt.sizeDelta = new Vector2(160f, 48f);
+        actionEndRt.anchorMin = new Vector2(0.5f, 0f);
+        actionEndRt.anchorMax = new Vector2(0.5f, 0f);
+        actionEndRt.pivot = new Vector2(0.5f, 0f);
+        actionEndRt.anchoredPosition = new Vector2(190f, 36f);
+        TextMeshProUGUI actionEndLabel = actionEndBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (actionEndLabel != null)
+        {
+            actionEndLabel.text = "ActionEnd";
+        }
+
+        actionEndBtn.onClick.AddListener(() =>
+        {
+            selectedCommands.Clear();
+            finishUi(ActionStepPassKind.ActionEnd);
         });
 
         return true;
@@ -12361,6 +12474,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TryNotifyLocalOnActionCommandUsed(command, side);
+        MarkActionStepCardUsed(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
         string effectDetail =
             $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
@@ -12472,6 +12586,7 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 TryNotifyLocalOnActionCommandUsed(command, side, picked);
+                MarkActionStepCardUsed(side, command);
                 string consumedSummary = command.Data != null ? $"{command.Data.cardName}(id:{command.Data.id})" : "?";
                 string detail =
                     $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{picked.Data.cardName}(id:{picked.Data.id})";
