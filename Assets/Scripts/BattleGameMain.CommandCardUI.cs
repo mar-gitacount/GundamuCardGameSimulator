@@ -431,7 +431,8 @@ public partial class BattleGameMain
         RectTransform content,
         CardController liveCard,
         string typeLabel,
-        HashSet<CardController> selectedSet)
+        HashSet<CardController> selectedSet,
+        bool alreadyUsedInActionStep = false)
     {
         if (content == null || liveCard == null || liveCard.Data == null || CardImagePrefab == null)
         {
@@ -463,6 +464,17 @@ public partial class BattleGameMain
         if (btn == null)
         {
             btn = go.AddComponent<Button>();
+        }
+
+        if (alreadyUsedInActionStep)
+        {
+            if (baseImage != null)
+            {
+                baseImage.color = new Color(0.42f, 0.42f, 0.42f, 0.85f);
+            }
+
+            btn.interactable = false;
+            return;
         }
 
         btn.onClick.AddListener(() =>
