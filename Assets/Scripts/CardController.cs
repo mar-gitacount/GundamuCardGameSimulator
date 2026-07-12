@@ -142,6 +142,20 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     public bool HasNotDirectAttackUntilEndOfTurnGrant => _notDirectAttackUntilEndOfTurnDepth > 0;
 
+    private int _firstStrikeUntilEndOfTurnDepth;
+
+    public bool HasFirstStrikeUntilEndOfTurnGrant => _firstStrikeUntilEndOfTurnDepth > 0;
+
+    public void AddFirstStrikeUntilEndOfTurnGrant()
+    {
+        _firstStrikeUntilEndOfTurnDepth++;
+    }
+
+    public void ClearFirstStrikeUntilEndOfTurnGrants()
+    {
+        _firstStrikeUntilEndOfTurnDepth = 0;
+    }
+
     public void AddNotDirectAttackUntilEndOfTurnGrant()
     {
         _notDirectAttackUntilEndOfTurnDepth++;
@@ -177,8 +191,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         this.Data = carddata;
         
         this.onClickCallback = callback;
-        cardSprite = Resources.Load<Sprite>($"Data/Images/{carddata.imageName.name}");
-        cardImage.sprite = cardSprite;
+        cardSprite = ResolveCardSprite(carddata);
+        if (cardImage != null)
+        {
+            cardImage.sprite = cardSprite;
+        }
 
         // 手札・新規生成時は常に False（ユニット以外は攻撃フラグを使わない）
         _attackFlg = AttackFlg.False;
@@ -280,6 +297,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         MountedPilot = null;
         MountedUnit = null;
         _notDirectAttackUntilEndOfTurnDepth = 0;
+        _firstStrikeUntilEndOfTurnDepth = 0;
         _turnEndRepairBonus = 0;
     }
 
@@ -808,5 +826,29 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         {
             unitFaceTopLayer.sprite = cardSprite;
         }
+    }
+
+    /// <summary>
+    /// CardData に設定済みの Sprite を優先。未設定時のみ Resources から名前解決する。
+    /// Multiple スプライト（名前が *_0）でも Inspector 参照ならそのまま使える。
+    /// </summary>
+    private static Sprite ResolveCardSprite(CardData carddata)
+    {
+        if (carddata == null)
+        {
+            return null;
+        }
+
+        if (carddata.imageName != null)
+        {
+            return carddata.imageName;
+        }
+
+        if (carddata.image != null)
+        {
+            return carddata.image;
+        }
+
+        return null;
     }
 }

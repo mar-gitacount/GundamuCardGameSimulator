@@ -3179,6 +3179,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
         ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
+        ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
         NotifyLocalPlayerEndedTurn();
 
@@ -3844,6 +3845,7 @@ public partial class BattleGameMain : MonoBehaviour
 
                 Debug.Log($"[Pilot] {pilotCard.Data.cardName} を {target.Data.cardName} に搭乗。AP:{target.CurrentPower} HP:{target.CurrentHp}");
                 ApplyUnitAttackFlgFromLink(target, ownerType);
+                TryGrantOperationMeteorFirstStrikeOnPilotMount(target, pilotCard, ownerType);
                 TriggerOnPilotMountedEffects(target, pilotCard, ownerType, () =>
                 {
                     TriggerOnLinkEffects(target, pilotCard, ownerType, () =>
@@ -4472,8 +4474,13 @@ public partial class BattleGameMain : MonoBehaviour
         int defenderHpBeforeExchange = defender.CurrentHp;
         int attackerHpBeforeExchange = attacker.CurrentHp;
 
-        defender.ApplyDamage(attackerPowerForCombat);
-        attacker.ApplyDamage(defenderPowerForCombat);
+        ApplyUnitVsUnitCombatDamageExchange(
+            attacker,
+            defender,
+            attackerOwner,
+            defenderOwner,
+            attackerPowerForCombat,
+            defenderPowerForCombat);
         int defenderHpAfterExchange = defender.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
 
@@ -6706,8 +6713,13 @@ public partial class BattleGameMain : MonoBehaviour
             attacker,
             blocker);
 
-        blocker.ApplyDamage(attackerPowerForCombat);
-        attacker.ApplyDamage(blockerPowerForCombat);
+        ApplyUnitVsUnitCombatDamageExchange(
+            attacker,
+            blocker,
+            attackerOwner,
+            blockerOwner,
+            attackerPowerForCombat,
+            blockerPowerForCombat);
 
         LogArgamaShieldBlockCloseCombatDebug(
             "ExecuteBlockRedirect_AfterExchangeDamage",
@@ -10051,6 +10063,7 @@ public partial class BattleGameMain : MonoBehaviour
         public bool IsRest;
         public int EffectDamageMod;
         public int EffectDamageImmunityCount;
+        public bool FirstStrike;
     }
 
     private List<VirtualBattleUnitSnap> BuildFullBattleVirtualSnapshot()
@@ -10078,6 +10091,7 @@ public partial class BattleGameMain : MonoBehaviour
                     IsRest = c.IsRestState,
                     EffectDamageMod = c.CurrentEffectDamageModifier,
                     EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
+                    FirstStrike = c.HasFirstStrike(),
                 });
             }
         }
@@ -10104,6 +10118,7 @@ public partial class BattleGameMain : MonoBehaviour
                     IsRest = c.IsRestState,
                     EffectDamageMod = c.CurrentEffectDamageModifier,
                     EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
+                    FirstStrike = c.HasFirstStrike(),
                 });
             }
         }
@@ -10251,6 +10266,7 @@ public partial class BattleGameMain : MonoBehaviour
                 IsRest = s.IsRest,
                 EffectDamageMod = s.EffectDamageMod,
                 EffectDamageImmunityCount = s.EffectDamageImmunityCount,
+                FirstStrike = s.FirstStrike,
             });
         }
 
