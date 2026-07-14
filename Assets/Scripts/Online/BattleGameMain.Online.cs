@@ -26,8 +26,12 @@ public partial class BattleGameMain
             return;
         }
 
-        // 相手ミラー用 ID はローカル採番カウンタに影響させない
         controller.AssignBattleInstanceId(instanceId);
+        // ローカル採番と衝突しないよう、受信 ID 以上にカウンタを進める
+        if (instanceId >= _nextBattleInstanceId)
+        {
+            _nextBattleInstanceId = instanceId + 1;
+        }
     }
 
     private static PlayerType MirrorOnlineZoneOwner(PlayerType senderZoneOwner)
@@ -78,9 +82,46 @@ public partial class BattleGameMain
         bool hasZoneOwner = change.targetZoneOwnerSide == (int)PlayerType.Player
             || change.targetZoneOwnerSide == (int)PlayerType.Enemy;
 
-        // 効果同期は送信時点の盤面スロット（zone + index + cardId）のみで解決する。
-        // instanceId / cardId のみのフォールバックは誤解決の原因になるため使わない。
+        // BattleInstanceId を優先（G-fred 等の全員ダメージで途中撃破後にスロットがずれても特定できる）
+        if (change.targetInstanceId > 0)
+        {
+            if (hasZoneOwner)
+            {
+                PlayerType localZone = MirrorOnlineZoneOwner((PlayerType)change.targetZoneOwnerSide);
+                CardController byInstance = FindBattleZoneUnitByInstanceId(
+                    change.targetInstanceId,
+                    localZone,
+                    change.targetCardId);
+                if (byInstance != null)
+                {
+                    Debug.Log(
+                        $"[EffectSync][FindByInstance][OK] unit={FormatOnlineEffectSyncUnit(byInstance)} "
+                        + FormatOnlineEffectSyncChange(change));
+                    return byInstance;
+                }
+            }
+
+            CardController byInstanceEither = FindUnitByInstanceIdEitherZone(change.targetInstanceId, change.targetCardId);
+            if (byInstanceEither != null)
+            {
+                Debug.Log(
+                    $"[EffectSync][FindByInstanceEither][OK] unit={FormatOnlineEffectSyncUnit(byInstanceEither)} "
+                    + FormatOnlineEffectSyncChange(change));
+                return byInstanceEither;
+            }
+        }
+
         return FindEffectSyncTargetUnitBySlot(change, hasZoneOwner);
+    }
+
+    private static bool MatchesEffectSyncTargetCard(CardController unit, OnlineBattleUnitEffectChange change)
+    {
+        if (unit == null || unit.Data == null || change == null)
+        {
+            return false;
+        }
+
+        return change.targetCardId < 0 || unit.Data.id == change.targetCardId;
     }
 
     private static string FormatOnlineEffectSyncChange(OnlineBattleUnitEffectChange change)
@@ -135,6 +176,22 @@ public partial class BattleGameMain
                 $"[EffectSync][FindBySlot][OK] slotUnit={FormatOnlineEffectSyncUnit(bySlot)} "
                 + FormatOnlineEffectSyncChange(change));
             return bySlot;
+        }
+
+        if (change.targetInstanceId > 0)
+        {
+            for (int i = 0; i < zone.Count; i++)
+            {
+                CardController candidate = zone[i];
+                if (candidate != null && candidate.BattleInstanceId == change.targetInstanceId
+                    && MatchesEffectSyncTargetCard(candidate, change))
+                {
+                    Debug.Log(
+                        $"[EffectSync][FindBySlotScanInstance][OK] unit={FormatOnlineEffectSyncUnit(candidate)} "
+                        + FormatOnlineEffectSyncChange(change));
+                    return candidate;
+                }
+            }
         }
 
         Debug.LogWarning(
@@ -279,7 +336,7 @@ public partial class BattleGameMain
         return _nextBattleInstanceId++;
     }
 
-    private CardController FindBattleZoneUnitByInstanceId(int instanceId, PlayerType zoneOwner)
+    private CardController FindBattleZoneUnitByInstanceId(int instanceId, PlayerType zoneOwner, int requiredCardId = -1)
     {
         if (instanceId <= 0)
         {
@@ -292,28 +349,39 @@ public partial class BattleGameMain
             return null;
         }
 
+        CardController fallback = null;
         for (int i = 0; i < zone.Count; i++)
         {
             CardController card = zone[i];
-            if (card != null && card.BattleInstanceId == instanceId)
+            if (card == null || card.BattleInstanceId != instanceId)
+            {
+                continue;
+            }
+
+            if (requiredCardId < 0 || (card.Data != null && card.Data.id == requiredCardId))
             {
                 return card;
             }
+
+            if (fallback == null)
+            {
+                fallback = card;
+            }
         }
 
-        return null;
+        return requiredCardId >= 0 ? null : fallback;
     }
 
     /// <summary>ローカル専用。オンライン同期ではゾーン明示の検索を使うこと。</summary>
-    private CardController FindUnitByInstanceIdEitherZone(int instanceId)
+    private CardController FindUnitByInstanceIdEitherZone(int instanceId, int requiredCardId = -1)
     {
-        CardController unit = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Player);
+        CardController unit = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Player, requiredCardId);
         if (unit != null)
         {
             return unit;
         }
 
-        return FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Enemy);
+        return FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Enemy, requiredCardId);
     }
 
     private bool ShouldSyncOnlineEffects(PlayerType ownerType)
@@ -338,6 +406,7 @@ public partial class BattleGameMain
         FlushOnlineEffectSyncBatch();
     }
 
+    // BeginOnlineEffectSyncBatch   … バッチ開始（溜め始める）
     private void BeginOnlineEffectSyncBatch(PlayerType ownerType)
     {
         if (!ShouldSyncOnlineEffects(ownerType))
@@ -364,7 +433,8 @@ public partial class BattleGameMain
                 + $"pending:{_pendingOnlineEffectChanges.Count}");
         }
     }
-
+    // BeginOnlineEffectSyncBatch   … バッチ開始（溜め始める）
+    // オンライン対戦で溜めた効果変更をまとめて相手に送る処理。
     private void FlushOnlineEffectSyncBatch()
     {
         if (!_onlineEffectSyncActive || _pendingOnlineEffectChanges == null || _pendingOnlineEffectChanges.Count == 0)
@@ -380,20 +450,43 @@ public partial class BattleGameMain
             return;
         }
 
+        int damageCount = 0;
         for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
         {
-            Debug.Log($"[EffectSync][SendFlush] #{i} {FormatOnlineEffectSyncChange(_pendingOnlineEffectChanges[i])}");
+            OnlineBattleUnitEffectChange change = _pendingOnlineEffectChanges[i];
+            Debug.Log($"[EffectSync][SendFlush] #{i} {FormatOnlineEffectSyncChange(change)}");
+            if (change != null && change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindDamage)
+            {
+                damageCount++;
+            }
         }
 
         string json = OnlineBattleEffectSyncPayload.ToJson(_pendingOnlineEffectChanges.ToArray());
         if (!string.IsNullOrWhiteSpace(json))
         {
             SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectSync(json));
-            Debug.Log($"[OnlineBattle] Effect sync sent. changes={_pendingOnlineEffectChanges.Count}");
+            Debug.Log(
+                $"[OnlineBattle] Effect sync sent. changes={_pendingOnlineEffectChanges.Count} "
+                + $"damageChanges={damageCount}");
+        }
+        else
+        {
+            Debug.LogWarning("[OnlineBattle] Effect sync JSON empty; message not sent.");
         }
 
         _pendingOnlineEffectChanges.Clear();
         _onlineEffectSyncActive = false;
+    }
+
+    /// <summary>ダメージ同期をローカル破壊より先に送る（撃破副作用でバッチが潰れるのを防ぐ）。</summary>
+    private void FlushOnlineEffectSyncBatchAfterDamageQueue(bool ownedNestedBatch)
+    {
+        if (ownedNestedBatch)
+        {
+            return;
+        }
+
+        FlushOnlineEffectSyncBatch();
     }
 
     private void QueueOnlineUnitDamage(CardController target)
@@ -410,6 +503,7 @@ public partial class BattleGameMain
             return;
         }
 
+        AssignBattleInstanceIdIfNeeded(target);
         Debug.Log($"[EffectDamage][OnlineQueueDamage] target={FormatOnlineEffectSyncUnit(target)}");
         bool queued = TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
@@ -453,7 +547,7 @@ public partial class BattleGameMain
         });
     }
 
-    private void QueueOnlineClearStatGrantsFromSource(CardController grantingUnit)
+    private void QueueOnlineClearStatGrantsFromSource(CardController grantingUnit, PlayerType battleZoneOwnerSide)
     {
         if (!_onlineEffectSyncActive || grantingUnit == null || grantingUnit.BattleInstanceId <= 0)
         {
@@ -464,7 +558,7 @@ public partial class BattleGameMain
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindClearStatGrantsFromSource,
             grantSourceInstanceId = grantingUnit.BattleInstanceId,
-            grantSourceZoneOwnerSide = (int)ResolveBattleZoneSideForUnit(grantingUnit)
+            grantSourceZoneOwnerSide = (int)battleZoneOwnerSide
         });
     }
 
@@ -595,7 +689,7 @@ public partial class BattleGameMain
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurn());
     }
 
-    private void NotifyLocalPlayCardDeployed(CardController cardController)
+    private void NotifyLocalPlayCardDeployed(CardController cardController, PlayerType deployTargetZoneOwner = PlayerType.Player)
     {
         if (!IsOnlineBattle() || currentPlayerType != PlayerType.Player || cardController == null || cardController.Data == null)
         {
@@ -615,7 +709,10 @@ public partial class BattleGameMain
         }
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
-            OnlineBattleActionPayload.CreateDeployUnit(cardController.Data.id, cardController.BattleInstanceId)));
+            OnlineBattleActionPayload.CreateDeployUnit(
+                cardController.Data.id,
+                cardController.BattleInstanceId,
+                (int)deployTargetZoneOwner)));
     }
 
     private void NotifyLocalPilotMounted(CardController hostUnit, CardController pilotCard)
@@ -998,7 +1095,7 @@ public partial class BattleGameMain
 
         if (action.action == OnlineBattleActionPayload.DeployUnit)
         {
-            ApplyRemoteDeployUnit(action.cardId, action.instanceId);
+            ApplyRemoteDeployUnit(action);
             return;
         }
 
@@ -1014,27 +1111,37 @@ public partial class BattleGameMain
         }
     }
 
-    private void ApplyRemoteDeployUnit(int cardId, int instanceId)
+//    　ApplyRemoteDeployUnit … 相手のカードデプロイを適用する
+    private void ApplyRemoteDeployUnit(OnlineBattleActionPayload action)
     {
-        if (DeckSettinObject.Instance == null)
+        if (action == null || DeckSettinObject.Instance == null)
         {
             return;
         }
 
+        int cardId = action.cardId;
+        int instanceId = action.instanceId;
+        PlayerType senderZoneOwner = action.deployTargetZoneOwnerSide == (int)PlayerType.Enemy
+            ? PlayerType.Enemy
+            : PlayerType.Player;
+        PlayerType localZoneOwner = MirrorOnlineZoneOwner(senderZoneOwner);
+        CardGameRule rule = localZoneOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        List<CardController> zone = localZoneOwner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+
         CardData cardData = DeckSettinObject.Instance.GetCardDataById(cardId);
-        if (cardData == null)
+        if (cardData == null || rule?.PlayerDeployPanel == null)
         {
             Debug.LogWarning($"[OnlineBattle] Unknown card id for remote deploy: {cardId}");
             return;
         }
 
-        GameObject cardObject = Instantiate(CardImagePrefab, enemyCardGameRule.PlayerDeployPanel);
+        GameObject cardObject = Instantiate(CardImagePrefab, rule.PlayerDeployPanel);
         CardController controller = cardObject.GetComponent<CardController>();
         controller.SetUp(cardData, OnCardClicked);
 
-        if (!enemyBattleZoneCards.Contains(controller))
+        if (zone != null && !zone.Contains(controller))
         {
-            enemyBattleZoneCards.Add(controller);
+            zone.Add(controller);
         }
 
         if (cardData.IsUnitLike())
@@ -1052,7 +1159,9 @@ public partial class BattleGameMain
         }
 
         RefreshAllFieldOwnerTurnPassives();
-        Debug.Log($"[OnlineBattle] Remote unit deployed on opponent field: {cardData.cardName} ({cardId})");
+        Debug.Log(
+            $"[OnlineBattle] Remote unit deployed zone:{localZoneOwner} senderZone:{senderZoneOwner} "
+            + $"{cardData.cardName} ({cardId}) inst:{controller.BattleInstanceId}");
     }
 
     private void NotifyLocalShieldAttackResolved(
@@ -1294,10 +1403,18 @@ public partial class BattleGameMain
             _applyingRemoteBattleAction = false;
         }
     }
-
+    // リモート効果同期でのユニット変更を適用
+    // 非プレイヤーのゾーンのユニット変更を適用
     private void ApplyRemoteEffectSync(OnlineBattleEffectSyncPayload sync)
     {
+        // リモート効果同期でのユニット変更を適用
+        // ユニット変更は、ユニットの HP、ステータス、ステートなどの変更を表す
+        // ユニット変更は、ユニットの ID、カード ID、ゾーンインデックス、ゾーンオーナー側などの情報を含む
+        // ユニット変更は、ユニットの変更種別を表す
+        // ユニット変更は、ユニットの変更種別に応じて適用される
+        // ユニット変更は、ユニットの変更種別に応じて適用される
         OnlineBattleUnitEffectChange[] changes = sync.unitChanges;
+        Debug.Log("状態変更されるユニットの数:" + changes.Length);
         if (changes == null)
         {
             Debug.LogWarning("[EffectSync][ApplyStart] changes=null");
@@ -1305,12 +1422,15 @@ public partial class BattleGameMain
         }
 
         Debug.Log($"[EffectSync][ApplyStart] changes={changes.Length}");
+        int unitCount = 0;
         for (int i = 0; i < changes.Length; i++)
         {
+            unitCount++;
+            Debug.Log($"[EffectSync][ApplyStart] unitCount={unitCount}");
             OnlineBattleUnitEffectChange change = changes[i];
             if (change == null)
             {
-                Debug.LogWarning($"[EffectSync][RecvChange] #{i} null");
+                Debug.LogWarning($"[EffectSync][RecvChange][data is null] #{i} null");
                 continue;
             }
 
@@ -1363,12 +1483,25 @@ public partial class BattleGameMain
                     unit.SetCurrentHpForSync(change.hpAfter);
                     Debug.Log(
                         $"[EffectSync][ApplyDamage] #{i} {FormatOnlineEffectSyncUnit(unit)} "
-                        + $"HP:{beforeHp}->{unit.CurrentHp}");
+                        + $"HP:{beforeHp}->{unit.CurrentHp} hpAfterPayload={change.hpAfter}");
                     if (change.hpAfter <= 0)
                     {
                         Debug.Log($"[EffectSync][DamageToTrash] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                         NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
-                        ApplyRemoteUnitToTrash(unit);
+                        if (unit.Data != null && unit.Data.IsUnitToken())
+                        {
+                            TryVanishBattleUnitTokenFromZone(unit);
+                        }
+                        else
+                        {
+                            ApplyRemoteUnitToTrash(unit);
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log(
+                            $"[EffectSync][DamageNoTrash] #{i} unit={FormatOnlineEffectSyncUnit(unit)} "
+                            + $"hpAfterPayload={change.hpAfter}");
                     }
 
                     break;
@@ -1432,10 +1565,13 @@ public partial class BattleGameMain
                     break;
             }
         }
+      
 
         RefreshAllFieldOwnerTurnPassives();
         SyncAllResourceViewsFromRule();
+        // ユニット変更が適用された後のユニットの状ユニット
         Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
+        Debug.Log($"--------------------------------");
     }
 
     /// <summary>リモート効果同期でのユニット破棄。トラッシュは ZoneSync で反映済みのため場から除去のみ。</summary>

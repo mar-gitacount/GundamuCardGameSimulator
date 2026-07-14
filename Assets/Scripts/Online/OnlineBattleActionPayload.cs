@@ -50,6 +50,8 @@ public class OnlineBattleActionPayload
     public int sessionEnemyActionEnded;
     /// <summary>アクションステップセッション ID（0=レガシー／非セッション）。</summary>
     public int actionStepSessionId;
+    /// <summary>DeployUnit 同期：送信側視点の配備先バトルゾーン（0=Player, 1=Enemy）。未指定時は Player。</summary>
+    public int deployTargetZoneOwnerSide;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
@@ -88,13 +90,14 @@ public class OnlineBattleActionPayload
         });
     }
 
-    public static string CreateDeployUnit(int cardId, int instanceId)
+    public static string CreateDeployUnit(int cardId, int instanceId, int deployTargetZoneOwnerSide = 0)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
             action = DeployUnit,
             cardId = cardId,
-            instanceId = instanceId
+            instanceId = instanceId,
+            deployTargetZoneOwnerSide = deployTargetZoneOwnerSide
         });
     }
 

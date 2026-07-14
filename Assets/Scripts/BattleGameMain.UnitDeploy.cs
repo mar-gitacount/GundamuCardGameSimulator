@@ -142,9 +142,9 @@ public partial class BattleGameMain
             TriggerOnPlayedEffects(unit, recipient, RefreshAllHandsConditionalOnHandAuto);
         }
 
-        if (recipient == PlayerType.Player)
+        if (IsOnlineBattle() && currentPlayerType == PlayerType.Player && !_applyingRemoteBattleAction)
         {
-            NotifyLocalPlayCardDeployed(unit);
+            NotifyLocalPlayCardDeployed(unit, recipient);
         }
 
         Debug.Log(

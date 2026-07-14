@@ -5338,7 +5338,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        BeginOnlineEffectSyncBatch(ownerType);
+        bool nestedBatch = _onlineEffectSyncActive;
+        if (!nestedBatch)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+        }
 
         if (effect.type == EffectType.Draw)
         {
@@ -5347,9 +5351,18 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 CardAddtoHand(rule, ownerType);
             }
-            FlushOnlineEffectSyncBatch();
+
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
             return;
         }
+
+        List<CardController> pendingEffectDamageTrash = effect.type == EffectType.Damage
+            ? new List<CardController>()
+            : null;
 
         for (int i = 0; i < targets.Count; i++)
         {
@@ -5394,8 +5407,7 @@ public partial class BattleGameMain : MonoBehaviour
                         Debug.Log(
                             $"[EffectDamage][LocalDestroyQueue] closeCombat:{isCloseCombat} "
                             + $"target:{FormatEffectDamageUnitDebugSnap(t)}");
-                    //    同名カードが破壊されるのでコメントアウト
-                        // QueueOnlineUnitDestroy(t);
+                        pendingEffectDamageTrash?.Add(t);
                     }
 
                     if (logCloseCombat)
@@ -5405,13 +5417,6 @@ public partial class BattleGameMain : MonoBehaviour
                             $"targetAfter:{FormatUnitDebugSnap(t)} willNotifyAndTrash:{t.CurrentHp <= 0}",
                             blocker: t,
                             effectSource: sourceCard);
-                    }
-
-                    if (t.CurrentHp <= 0)
-                    {
-                        TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffect_Damage", t, sourceCard);
-                        NotifyAttackFlowParticipantRemovedDuringOnAction(t);
-                        SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
                     }
 
                     break;
@@ -5448,6 +5453,24 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        FlushOnlineEffectSyncBatchAfterDamageQueue(nestedBatch);
+
+        if (pendingEffectDamageTrash != null && pendingEffectDamageTrash.Count > 0)
+        {
+            for (int i = 0; i < pendingEffectDamageTrash.Count; i++)
+            {
+                CardController t = pendingEffectDamageTrash[i];
+                if (t == null)
+                {
+                    continue;
+                }
+
+                TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffect_Damage", t, sourceCard);
+                NotifyAttackFlowParticipantRemovedDuringOnAction(t);
+                SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
+            }
+        }
+
         if (effect.type == EffectType.Bounce)
         {
             ApplyBounceEffect(effect, targets);
@@ -5478,7 +5501,11 @@ public partial class BattleGameMain : MonoBehaviour
             SetEffectChainLastPickedTargets(targets);
         }
 
-        FlushOnlineEffectSyncBatch();
+        if (!nestedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
+
         SyncAllResourceViewsFromRule();
     }
 
@@ -9277,7 +9304,17 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         List<CardController> targets = ResolveEffectTargets(sourceCard, ownerType, effect);
-        BeginOnlineEffectSyncBatch(ownerType);
+        bool nestedBatch = _onlineEffectSyncActive;
+        if (!nestedBatch)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            if (!_onlineEffectSyncActive)
+            {
+                Debug.LogWarning(
+                    $"[EffectSync] Batch did not start; remote effect sync will be skipped. owner:{ownerType}");
+            }
+        }
+
         switch (effect.type)
         {
             case EffectType.Draw:
@@ -9339,6 +9376,8 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
 
             case EffectType.Damage:
+            {
+                List<CardController> pendingEffectDamageTrash = null;
                 for (int i = 0; i < targets.Count; i++)
                 {
                     CardController targetUnit = targets[i];
@@ -9357,18 +9396,31 @@ public partial class BattleGameMain : MonoBehaviour
                         + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)} "
                         + $"HP:{hpBefore}->{targetUnit.CurrentHp} willTrash:{targetUnit.CurrentHp <= 0}");
                     QueueOnlineUnitDamage(targetUnit);
-                    PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
                     if (targetUnit.CurrentHp <= 0)
                     {
+                        pendingEffectDamageTrash ??= new List<CardController>();
+                        pendingEffectDamageTrash.Add(targetUnit);
+                    }
+                }
+
+                FlushOnlineEffectSyncBatchAfterDamageQueue(nestedBatch);
+
+                if (pendingEffectDamageTrash != null)
+                {
+                    for (int i = 0; i < pendingEffectDamageTrash.Count; i++)
+                    {
+                        CardController targetUnit = pendingEffectDamageTrash[i];
+                        PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
+                        bool isCloseCombat = IsCloseCombatCard(sourceCard);
                         Debug.Log(
                             $"[EffectDamage][LocalDestroyQueue] closeCombat:{isCloseCombat} "
                             + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)}");
                         TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffectSync_Damage", targetUnit, sourceCard);
                         NotifyAttackFlowParticipantRemovedDuringOnAction(targetUnit);
-                        QueueOnlineUnitDestroy(targetUnit);
                         SendCardToTrash(targetUnit, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
                     }
                 }
+
                 if (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)
                 {
                     Gundam2024RuleScript.PlayerSide targetSide = effect.target == TargetType.EnemyPlayer
@@ -9376,8 +9428,10 @@ public partial class BattleGameMain : MonoBehaviour
                         : ToRuleSide(ownerType);
                     ApplyEffectDamageToPlayerArea(targetSide, magnitude);
                 }
+
                 Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");
                 break;
+            }
 
             case EffectType.Buff:
             case EffectType.Debuff:
@@ -9437,7 +9491,11 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
         }
 
-        FlushOnlineEffectSyncBatch();
+        if (!nestedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
+
         SyncAllResourceViewsFromRule();
     }
 
