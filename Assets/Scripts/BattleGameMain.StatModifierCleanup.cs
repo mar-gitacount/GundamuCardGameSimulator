@@ -5,20 +5,28 @@ using UnityEngine;
 public partial class BattleGameMain
 {
     /// <summary>破壊・除外されたユニットが付与した Buff/Debuff を盤上の全ユニットから除去する。</summary>
-    private void ClearStatModifiersGrantedByDestroyedUnit(CardController destroyedUnit)
+    private void ClearStatModifiersGrantedByDestroyedUnit(CardController destroyedUnit, PlayerType battleZoneOwnerSide)
     {
         if (destroyedUnit == null || destroyedUnit.BattleInstanceId <= 0)
         {
             return;
         }
 
+        bool nestedBatch = _onlineEffectSyncActive;
+
         int grantId = destroyedUnit.BattleInstanceId;
         destroyedUnit.ClearPilotMountAllyFieldAuras();
+        if (!nestedBatch)
+        {
+            BeginOnlineEffectSyncBatch(currentPlayerType);
+        }
 
-        BeginOnlineEffectSyncBatch(currentPlayerType);
         ClearStatGrantsFromBattleInstanceOnAllFieldUnits(grantId, destroyedUnit, queueOnlineStatDeltas: false);
-        QueueOnlineClearStatGrantsFromSource(destroyedUnit);
-        FlushOnlineEffectSyncBatch();
+        QueueOnlineClearStatGrantsFromSource(destroyedUnit, battleZoneOwnerSide);
+        if (!nestedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
 
         Debug.Log(
             $"[UnitBuff] cleared grants from destroyed unit instance:{grantId} "

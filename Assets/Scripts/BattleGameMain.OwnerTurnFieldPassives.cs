@@ -28,7 +28,10 @@ public partial class BattleGameMain
         ClearAllOwnerTurnFieldPassiveModifiers();
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
-        QueueOnlineRefreshOwnerTurnFieldPassives();
+        if (!nestedBatch)
+        {
+            QueueOnlineRefreshOwnerTurnFieldPassives();
+        }
         if (!nestedBatch)
         {
             FlushOnlineEffectSyncBatch();

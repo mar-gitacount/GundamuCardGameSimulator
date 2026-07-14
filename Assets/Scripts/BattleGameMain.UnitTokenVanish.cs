@@ -35,6 +35,11 @@ public partial class BattleGameMain
             ownerRule?.AddCardToTrash(cardController.Data.id);
         }
 
+        if (cardController.Data.IsUnitLike() && cardController.BattleInstanceId > 0)
+        {
+            ClearStatModifiersGrantedByDestroyedUnit(cardController, ownerType);
+        }
+
         playerBattleZoneCards.Remove(cardController);
         enemyBattleZoneCards.Remove(cardController);
         playerHandCards.Remove(cardController.Data);
@@ -43,7 +48,6 @@ public partial class BattleGameMain
 
         if (cardController.Data.IsUnitLike() && cardController.BattleInstanceId > 0)
         {
-            ClearStatModifiersGrantedByDestroyedUnit(cardController);
             RefreshAllFieldOwnerTurnPassives();
         }
 

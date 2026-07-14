@@ -18,7 +18,7 @@ MonoBehaviour:
   level: 2
   power: 3
   hp: 2
-  imageName: {fileID: 21300000, guid: 05439dc25a08a324b8b8456ab6e908ef, type: 3}
+  imageName: {fileID: 21300000, guid: a9dc9036a8a495840a94f6d2398dd79c, type: 3}
   image: {fileID: 0}
   version: 1
   sourceType: 2
@@ -32,5 +32,8 @@ MonoBehaviour:
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 1
+  isDeployTurnAttack: 0
   isNotDirectAttack: 1
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
