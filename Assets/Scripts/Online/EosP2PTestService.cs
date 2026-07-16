@@ -142,7 +142,9 @@ public class EosP2PTestService : MonoBehaviour
         Result result = _p2pInterface.SendPacket(ref options);
         if (result != Result.Success)
         {
-            SetStatus($"P2P send failed: {result}");
+            int byteCount = Encoding.UTF8.GetByteCount(message ?? string.Empty);
+            SetStatus($"P2P send failed: {result} bytes={byteCount}");
+            Debug.LogError($"[EosP2P] SendPacket failed: {result} utf8Bytes={byteCount} (EOS max ~1170)");
             return false;
         }
 

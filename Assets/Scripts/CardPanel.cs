@@ -16,7 +16,7 @@ public class CardPanel : MonoBehaviour
         Vector3 panelPosition = cardPanel.position;
         Debug.Log("Card Panel Position: " + panelPosition.x + ", " + panelPosition.y);
         // カードを5枚生成してパネルに配置する例
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 10; i++)
         {
             GameObject cardObj = Instantiate(cardPrefab, cardPanel);
             // カードパネルのxy座標を基準に配置
