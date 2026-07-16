@@ -435,6 +435,9 @@ public partial class BattleGameMain
     }
     // BeginOnlineEffectSyncBatch   … バッチ開始（溜め始める）
     // オンライン対戦で溜めた効果変更をまとめて相手に送る処理。
+    // EOS P2P は 1 パケット約 1170 バイト制限があるため、超過時は分割送信する。
+    private const int OnlineEffectSyncMaxMessageUtf8Bytes = 1100;
+
     private void FlushOnlineEffectSyncBatch()
     {
         if (!_onlineEffectSyncActive || _pendingOnlineEffectChanges == null || _pendingOnlineEffectChanges.Count == 0)
@@ -450,10 +453,12 @@ public partial class BattleGameMain
             return;
         }
 
+        List<OnlineBattleUnitEffectChange> pending = _pendingOnlineEffectChanges;
+        int totalChanges = pending.Count;
         int damageCount = 0;
-        for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
+        for (int i = 0; i < pending.Count; i++)
         {
-            OnlineBattleUnitEffectChange change = _pendingOnlineEffectChanges[i];
+            OnlineBattleUnitEffectChange change = pending[i];
             Debug.Log($"[EffectSync][SendFlush] #{i} {FormatOnlineEffectSyncChange(change)}");
             if (change != null && change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindDamage)
             {
@@ -461,20 +466,78 @@ public partial class BattleGameMain
             }
         }
 
-        string json = OnlineBattleEffectSyncPayload.ToJson(_pendingOnlineEffectChanges.ToArray());
-        if (!string.IsNullOrWhiteSpace(json))
+        int chunkIndex = 0;
+        int sentChanges = 0;
+        int cursor = 0;
+        while (cursor < pending.Count)
         {
-            SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectSync(json));
+            int chunkCount = 0;
+            string messageJson = null;
+            while (cursor + chunkCount < pending.Count)
+            {
+                int nextCount = chunkCount + 1;
+                OnlineBattleUnitEffectChange[] chunk = new OnlineBattleUnitEffectChange[nextCount];
+                for (int i = 0; i < nextCount; i++)
+                {
+                    chunk[i] = pending[cursor + i];
+                }
+
+                string effectJson = OnlineBattleEffectSyncPayload.ToJson(chunk);
+                if (string.IsNullOrWhiteSpace(effectJson))
+                {
+                    break;
+                }
+
+                string candidateMessage = EosOnlineBattleMessage.CreateEffectSync(effectJson);
+                int utf8Bytes = System.Text.Encoding.UTF8.GetByteCount(candidateMessage);
+                if (chunkCount > 0 && utf8Bytes > OnlineEffectSyncMaxMessageUtf8Bytes)
+                {
+                    break;
+                }
+
+                messageJson = candidateMessage;
+                chunkCount = nextCount;
+
+                // 1 件でも上限を超える場合はそのまま送る（分割不可）
+                if (utf8Bytes > OnlineEffectSyncMaxMessageUtf8Bytes)
+                {
+                    Debug.LogWarning(
+                        $"[EffectSync][ChunkOversized] bytes={utf8Bytes} limit={OnlineEffectSyncMaxMessageUtf8Bytes} "
+                        + $"chunkChanges=1 {FormatOnlineEffectSyncChange(chunk[0])}");
+                    break;
+                }
+            }
+
+            if (chunkCount <= 0 || string.IsNullOrWhiteSpace(messageJson))
+            {
+                Debug.LogWarning(
+                    $"[EffectSync][ChunkFail] remaining={pending.Count - cursor} total={totalChanges}");
+                break;
+            }
+
+            bool sent = SendOnlineBattleMessage(messageJson);
             Debug.Log(
-                $"[OnlineBattle] Effect sync sent. changes={_pendingOnlineEffectChanges.Count} "
-                + $"damageChanges={damageCount}");
-        }
-        else
-        {
-            Debug.LogWarning("[OnlineBattle] Effect sync JSON empty; message not sent.");
+                $"[OnlineBattle] Effect sync chunk sent={sent} #{chunkIndex} "
+                + $"changes={chunkCount}/{totalChanges} damageTotal={damageCount} "
+                + $"bytes={System.Text.Encoding.UTF8.GetByteCount(messageJson)}");
+            if (!sent)
+            {
+                break;
+            }
+
+            sentChanges += chunkCount;
+            cursor += chunkCount;
+            chunkIndex++;
         }
 
-        _pendingOnlineEffectChanges.Clear();
+        if (sentChanges < totalChanges)
+        {
+            Debug.LogError(
+                $"[OnlineBattle] Effect sync incomplete. sent={sentChanges}/{totalChanges} "
+                + $"(EOS packet size limit or send failure).");
+        }
+
+        pending.Clear();
         _onlineEffectSyncActive = false;
     }
 
@@ -730,21 +793,28 @@ public partial class BattleGameMain
             $"[OnlineBattle] MountPilot sync sent. host={hostUnit.BattleInstanceId} pilot={pilotCard.Data.id}");
     }
 
-    private void SendOnlineBattleMessage(string json)
+    private bool SendOnlineBattleMessage(string json)
     {
         if (EosP2PTestService.Instance == null)
         {
             Debug.LogWarning("[OnlineBattle] P2P service not found.");
-            return;
+            return false;
         }
 
         if (string.IsNullOrWhiteSpace(EosOnlineMatchState.RemoteProductUserId))
         {
             Debug.LogWarning("[OnlineBattle] Remote ProductUserId is not set.");
-            return;
+            return false;
         }
 
-        EosP2PTestService.Instance.SendText(EosOnlineMatchState.RemoteProductUserId, json);
+        bool sent = EosP2PTestService.Instance.SendText(EosOnlineMatchState.RemoteProductUserId, json);
+        if (!sent)
+        {
+            Debug.LogError(
+                $"[OnlineBattle] P2P send failed. utf8Bytes={System.Text.Encoding.UTF8.GetByteCount(json ?? string.Empty)}");
+        }
+
+        return sent;
     }
 
     private void OnOnlineBattleMessageReceived(string peerId, string payload)
