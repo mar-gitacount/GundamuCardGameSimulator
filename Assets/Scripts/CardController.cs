@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System;
+using TMPro;
 public class CardController : MonoBehaviour,IPointerClickHandler
 {
     [Serializable]
@@ -24,6 +25,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     }
 
     [SerializeField] private Image cardImage;
+    private GameObject _battleStatOverlayRoot;
+    private TextMeshProUGUI _battleStatText;
+    private int _lastDisplayedPower = int.MinValue;
+    private int _lastDisplayedHp = int.MinValue;
     
 
     // !バトルパネルの参照
@@ -202,6 +207,112 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         eligibleForShieldZoneDeploy = false;
         BattleInstanceId = 0;
         ResetRuntimeStatsFromData();
+        SetBattleStatOverlayVisible(false);
+    }
+
+    /// <summary>バトルゾーン上のユニットに現在 AP / HP 表示を出す。</summary>
+    public void SetBattleStatOverlayVisible(bool visible)
+    {
+        bool shouldShow = visible && Data != null && Data.IsUnitLike();
+        if (shouldShow)
+        {
+            EnsureBattleStatOverlay();
+        }
+
+        if (_battleStatOverlayRoot != null)
+        {
+            _battleStatOverlayRoot.SetActive(shouldShow);
+        }
+
+        if (shouldShow)
+        {
+            RefreshBattleStatOverlay(force: true);
+            BringBattleStatOverlayToFront();
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (_battleStatOverlayRoot == null || !_battleStatOverlayRoot.activeSelf)
+        {
+            return;
+        }
+
+        // ローカル効果・戦闘・オンライン同期のどの経路で値が変化しても同フレームに追従する。
+        RefreshBattleStatOverlay(force: false);
+    }
+
+    private void EnsureBattleStatOverlay()
+    {
+        if (_battleStatOverlayRoot != null)
+        {
+            return;
+        }
+
+        _battleStatOverlayRoot = new GameObject(
+            "BattleStatOverlay",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        RectTransform rootRt = _battleStatOverlayRoot.GetComponent<RectTransform>();
+        rootRt.SetParent(transform, false);
+        rootRt.anchorMin = new Vector2(0.03f, 0.82f);
+        rootRt.anchorMax = new Vector2(0.97f, 0.98f);
+        rootRt.offsetMin = Vector2.zero;
+        rootRt.offsetMax = Vector2.zero;
+
+        Image background = _battleStatOverlayRoot.GetComponent<Image>();
+        background.color = new Color(0f, 0f, 0f, 0.78f);
+        background.raycastTarget = false;
+
+        GameObject textObject = new GameObject(
+            "BattleStatText",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        RectTransform textRt = textObject.GetComponent<RectTransform>();
+        textRt.SetParent(rootRt, false);
+        textRt.anchorMin = Vector2.zero;
+        textRt.anchorMax = Vector2.one;
+        textRt.offsetMin = new Vector2(2f, 0f);
+        textRt.offsetMax = new Vector2(-2f, 0f);
+
+        _battleStatText = textObject.GetComponent<TextMeshProUGUI>();
+        _battleStatText.alignment = TextAlignmentOptions.Center;
+        _battleStatText.color = Color.white;
+        _battleStatText.enableAutoSizing = true;
+        _battleStatText.fontSizeMin = 9f;
+        _battleStatText.fontSizeMax = 20f;
+        _battleStatText.raycastTarget = false;
+        _battleStatText.richText = true;
+    }
+
+    private void RefreshBattleStatOverlay(bool force)
+    {
+        if (_battleStatText == null || Data == null || !Data.IsUnitLike())
+        {
+            return;
+        }
+
+        int power = CurrentPower;
+        int hp = CurrentHp;
+        if (!force && power == _lastDisplayedPower && hp == _lastDisplayedHp)
+        {
+            return;
+        }
+
+        _lastDisplayedPower = power;
+        _lastDisplayedHp = hp;
+        _battleStatText.text =
+            $"AP <color=#FFD54F>{power}</color>  HP <color=#80CBC4>{hp}</color>";
+    }
+
+    private void BringBattleStatOverlayToFront()
+    {
+        if (_battleStatOverlayRoot != null)
+        {
+            _battleStatOverlayRoot.transform.SetAsLastSibling();
+        }
     }
 
     public void AssignBattleInstanceId(int instanceId)
@@ -729,6 +840,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             {
                 unitFaceTopLayer.transform.SetAsLastSibling();
             }
+            BringBattleStatOverlayToFront();
         }
 
         Image pilotImage = pilot.GetComponent<Image>();
@@ -779,6 +891,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     /// <summary>ユニットの搭乗・戦場用レイヤーを手札表示向けに戻す。</summary>
     public void CleanupUnitBattleMountVisuals()
     {
+        SetBattleStatOverlayVisible(false);
         if (unitFaceTopLayer != null)
         {
             Destroy(unitFaceTopLayer.gameObject);

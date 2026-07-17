@@ -3679,6 +3679,7 @@ public partial class BattleGameMain : MonoBehaviour
         bool canAttackOnDeployTurn = cardController.Data.CanAttackOnDeployTurn();
         cardController.SetAttackFlg(canAttackOnDeployTurn ? AttackFlg.True : AttackFlg.False);
         cardController.SetUnitRestVisual(false);
+        cardController.SetBattleStatOverlayVisible(true);
     }
 
     private void SendCardToField(CardController cardController, PlayerType ownerType, CardGameRule ownerRule)
