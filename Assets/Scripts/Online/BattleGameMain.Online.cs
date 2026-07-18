@@ -670,10 +670,35 @@ public partial class BattleGameMain
 
     private void QueueOnlineUnitBounce(CardController target)
     {
-        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        if (target == null)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectBounce][OnlineQueueBounceSkip] active:false "
+                + $"target={FormatOnlineEffectSyncUnit(target)}");
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(target);
+        if (target.BattleInstanceId <= 0)
+        {
+            Debug.LogWarning("[OnlineBattle] Bounce sync skipped: unit has no BattleInstanceId.");
+            return;
+        }
+
+        Debug.Log($"[EffectQueueOnlineUnitBounce] target={FormatOnlineEffectSyncUnit(target)}");
+        bool queued = TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindBounce
         });
+        if (!queued)
+        {
+            Debug.LogWarning($"[EffectBounce][OnlineQueueBounceFail] target={FormatOnlineEffectSyncUnit(target)}");
+        }
     }
 
     private void QueueOnlineUnitReturnToDeckBottom(CardController target)
@@ -1508,9 +1533,11 @@ public partial class BattleGameMain
 
             if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindClearStatGrantsFromSource)
             {
+                Debug.Log($"[EffectSync][RecvChange] ClearStatGrantsFromSource change.grantSourceInstanceId={change.grantSourceInstanceId}");
                 if (change.grantSourceInstanceId > 0)
                 {
                     CardController exclude = null;
+                    Debug.Log($"[EffectSync][RecvChange] ClearStatGrantsFromSource change.grantSourceZoneOwnerSide={change.grantSourceZoneOwnerSide}");
                     if (change.grantSourceZoneOwnerSide == (int)PlayerType.Player
                         || change.grantSourceZoneOwnerSide == (int)PlayerType.Enemy)
                     {
