@@ -3500,6 +3500,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyBounceEffect(EffectData effect, List<CardController> targets)
     {
+        Debug.Log($"[Effect] Bounce applied:{effect.value} target:{effect.target}");
         if (effect == null || targets == null || targets.Count == 0)
         {
             return;
@@ -3517,6 +3518,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             // オンライン同期は場から外す前にキュー（zoneIndex / instanceId を保持するため）。
             QueueOnlineUnitBounce(target);
+            // バトルゾーンから手札へ戻すおそらく、発動側の処理。
             if (TryReturnBattleUnitToHand(target))
             {
                 applied++;
@@ -5454,21 +5456,25 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        FlushOnlineEffectSyncBatchAfterDamageQueue(nestedBatch);
-
-        if (pendingEffectDamageTrash != null && pendingEffectDamageTrash.Count > 0)
+        // ダメージ専用の早期 Flush。Bounce/Rest 等より先に呼ぶとバッチが閉じ、同期キューが捨てられる。
+        if (effect.type == EffectType.Damage)
         {
-            for (int i = 0; i < pendingEffectDamageTrash.Count; i++)
-            {
-                CardController t = pendingEffectDamageTrash[i];
-                if (t == null)
-                {
-                    continue;
-                }
+            FlushOnlineEffectSyncBatchAfterDamageQueue(nestedBatch);
 
-                TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffect_Damage", t, sourceCard);
-                NotifyAttackFlowParticipantRemovedDuringOnAction(t);
-                SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
+            if (pendingEffectDamageTrash != null && pendingEffectDamageTrash.Count > 0)
+            {
+                for (int i = 0; i < pendingEffectDamageTrash.Count; i++)
+                {
+                    CardController t = pendingEffectDamageTrash[i];
+                    if (t == null)
+                    {
+                        continue;
+                    }
+
+                    TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffect_Damage", t, sourceCard);
+                    NotifyAttackFlowParticipantRemovedDuringOnAction(t);
+                    SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
+                }
             }
         }
 
