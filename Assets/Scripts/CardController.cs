@@ -323,6 +323,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public void SetCurrentHpForSync(int hp)
     {
         CurrentHp = Mathf.Max(0, hp);
+        // RefreshBattleStatOverlay(force: true);
     }
 
     /// <summary>効果等で付与されるターン終了リペア量（isRepair 定義に加算）。</summary>

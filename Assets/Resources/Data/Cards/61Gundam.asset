@@ -86,8 +86,13 @@ MonoBehaviour:
       revealDiscardedToOpponent: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
     activationCost: 0
     oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   link:
