@@ -1157,8 +1157,9 @@ public partial class BattleGameMain
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = PlayerType.Enemy;
-
-        ApplyTurnEndRepairForAllInPlayUnits();
+        // リペアを持つターンプレイヤーが敵の場合はリペアを適用しない
+       
+        // ApplyTurnEndRepairForAllInPlayUnits();
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
@@ -1606,14 +1607,15 @@ public partial class BattleGameMain
 
                 case OnlineBattleEffectSyncPayload.ChangeKindRepair:
                 {
+                    //リペアがない場合 自分のターン終わりに発動しない
+                    // 二重送信の温床になっている？
                     int beforeHp = unit.CurrentHp;
                     unit.SetCurrentHpForSync(change.hpAfter);
                     Debug.Log(
-                        $"[EffectSync][ApplyRepair] #{i} {FormatOnlineEffectSyncUnit(unit)} "
+                        $"ターンプレイヤー:" + currentPlayerType + "[EffectSync][ApplyRepair] #{i} {FormatOnlineEffectSyncUnit(unit)} "
                         + $"HP:{beforeHp}->{unit.CurrentHp}");
                     break;
                 }
-
                 case OnlineBattleEffectSyncPayload.ChangeKindStat:
                     Debug.Log(
                         $"[EffectSync][ApplyStat] #{i} unit={FormatOnlineEffectSyncUnit(unit)} "

@@ -62,7 +62,7 @@ public partial class BattleGameMain
     {
         List<CardController> result = new List<CardController>();
         CollectTurnEndRepairFromZone(playerBattleZoneCards, result);
-        CollectTurnEndRepairFromZone(enemyBattleZoneCards, result);
+        // CollectTurnEndRepairFromZone(enemyBattleZoneCards, result);
         TryAddTurnEndRepairTarget(GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Player), result);
         TryAddTurnEndRepairTarget(GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Enemy), result);
         return result;
