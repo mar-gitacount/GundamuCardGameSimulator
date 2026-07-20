@@ -28,7 +28,11 @@ public partial class BattleGameMain
         ClearAllOwnerTurnFieldPassiveModifiers();
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
-        if (!nestedBatch)
+
+        // 個別 Stat は送らない。相手には「同じ再計算をして」とだけ伝える。
+        // ネスト中でも外側バッチに載せる（Flush は外側に任せる）。
+        // Begin がスキップされた受信側・Enemy ターンでは active のままなので Queue しない。
+        if (_onlineEffectSyncActive)
         {
             QueueOnlineRefreshOwnerTurnFieldPassives();
         }
@@ -155,10 +159,9 @@ public partial class BattleGameMain
             return;
         }
 
-        if (IsOnlineBattle() && currentPlayerType != PlayerType.Player)
-        {
-            return;
-        }
+        // オンラインでも currentPlayerType 側のローカル再計算は行う。
+        // 以前の「Player のみ」ガードだと、受信側（相手ターン=Enemy）でガンダム等の再付与が走らず
+        // 相手盤面にバフが乗らない。送信可否は Begin/ShouldSyncOnlineEffects 側で制限する。
 
         List<CardController> zone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         if (zone == null)
@@ -276,12 +279,15 @@ public partial class BattleGameMain
                     sourceKey);
                 if (syncOnlineBatch)
                 {
+                    Debug.Log($"[OwnerTurnField][OnlineQueueStat] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} "
+                        + $"source:{sourceUnit.Data?.cardName}(id:{sourceUnit.Data?.id}) side:{ownerType}");
                     QueueOnlineUnitStat(target, signedValue, effect.statTarget, EffectDuration.Permanent, sourceKey);
                 }
             }
 
             Debug.Log(
                 $"[OwnerTurnField] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} "
+                + $"online:{syncOnlineBatch} "
                 + $"source:{sourceUnit.Data?.cardName}(id:{sourceUnit.Data?.id}) side:{ownerType}");
         }
 
