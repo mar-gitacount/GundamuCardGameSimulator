@@ -627,15 +627,35 @@ public partial class BattleGameMain
 
     private void QueueOnlineRefreshOwnerTurnFieldPassives()
     {
-        if (!_onlineEffectSyncActive)
+        if (!_onlineEffectSyncActive || _pendingOnlineEffectChanges == null)
         {
+            Debug.LogWarning(
+                $"[OwnerTurnField][OnlineQueueRefreshSkip] active:{_onlineEffectSyncActive} "
+                + $"pendingNull:{_pendingOnlineEffectChanges == null}");
             return;
+        }
+
+        // 同一バッチ内に既にあれば積まない（ネスト多重呼び出し対策）
+        for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
+        {
+            OnlineBattleUnitEffectChange existing = _pendingOnlineEffectChanges[i];
+            if (existing != null
+                && existing.changeKind == OnlineBattleEffectSyncPayload.ChangeKindRefreshOwnerTurnFieldPassives)
+            {
+                Debug.Log(
+                    $"[OwnerTurnField][OnlineQueueRefreshDup] pending:{_pendingOnlineEffectChanges.Count} "
+                    + $"(already queued, skip)");
+                return;
+            }
         }
 
         _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindRefreshOwnerTurnFieldPassives
         });
+        Debug.Log(
+            $"[OwnerTurnField][OnlineQueueRefresh] pending:{_pendingOnlineEffectChanges.Count} "
+            + $"side:{currentPlayerType}");
     }
 
     private void QueueOnlineUnitRest(CardController target)
@@ -1558,6 +1578,9 @@ public partial class BattleGameMain
 
             if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindRefreshOwnerTurnFieldPassives)
             {
+                Debug.Log(
+                    $"[OwnerTurnField][RecvRefresh] applying local recompute "
+                    + $"currentSide:{currentPlayerType} applyingRemote:{_applyingRemoteBattleAction}");
                 RefreshAllFieldOwnerTurnPassives();
                 continue;
             }

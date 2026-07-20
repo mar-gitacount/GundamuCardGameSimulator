@@ -9441,7 +9441,18 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             case EffectType.Buff:
+                Debug.Log("ターンプレイヤー:" + ownerType);
+                Debug.Log("エフェクト:" + effect.type);
+                Debug.Log("エフェクトのステータス:" + effect.statTarget);
+                Debug.Log("エフェクトのダメージ:" + magnitude);
+                Debug.Log("エフェクトのターゲット:" + effect.target);
+                Debug.Log("エフェクトのソースカード:" + sourceCard.Data.id);
+                Debug.Log("エフェクトのソースカードの名前:" + sourceCard.Data.cardName);
+                Debug.Log("エフェクトのソースカードのID:" + sourceCard.Data.id);
+                break;
             case EffectType.Debuff:
+            {
+               
                 int sign = effect.type == EffectType.Buff ? 1 : -1;
                 int signedValue = sign * magnitude;
                 string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
@@ -9453,6 +9464,7 @@ public partial class BattleGameMain : MonoBehaviour
                 TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);
                 Debug.Log($"[Effect] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} by cardId:{sourceCard.Data.id}");
                 break;
+            }
 
             case EffectType.BlockRedirect:
                 // BlockRedirect は戦闘フロー分岐で解釈するため、ここでは何もしない。

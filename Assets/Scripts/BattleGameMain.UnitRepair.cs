@@ -62,6 +62,7 @@ public partial class BattleGameMain
     {
         List<CardController> result = new List<CardController>();
         CollectTurnEndRepairFromZone(playerBattleZoneCards, result);
+        // 敵のターン終了リペアは適用しない
         // CollectTurnEndRepairFromZone(enemyBattleZoneCards, result);
         TryAddTurnEndRepairTarget(GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Player), result);
         TryAddTurnEndRepairTarget(GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Enemy), result);
