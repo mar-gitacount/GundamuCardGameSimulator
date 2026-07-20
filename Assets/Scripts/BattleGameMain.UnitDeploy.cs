@@ -136,6 +136,8 @@ public partial class BattleGameMain
         ApplyUnitDeployFieldAttackState(unit);
         AssignBattleInstanceIdIfNeeded(unit);
         ApplyPilotMountFieldAurasToDeployedUnit(unit, recipient);
+        // トークン等の効果配置直後にも、ガンダム等の自ターン盤面バフをかけ直す
+        RefreshAllFieldOwnerTurnPassives();
 
         if (triggerOnPlayed)
         {
