@@ -195,6 +195,12 @@ public enum ObservedUnitTriggerKind
     Unset = -1,
     /// <summary>監視ユニットが敵ユニットを破壊した時。</summary>
     EnemyUnitDestroyed = 0,
+    /// <summary>監視ユニットがシールドを破壊した時。</summary>
+    ShieldDestroyed = 1,
+    /// <summary>監視ユニットが配備ベースを破壊した時。</summary>
+    BaseDestroyed = 2,
+    /// <summary>監視ユニットが EX ベースを 0 にした時。</summary>
+    ExBaseDestroyed = 3,
 }
 
 public enum EffectSelectionMode
@@ -634,7 +640,7 @@ public class EffectData
     [Tooltip("SelectMultipleUnits 等: 最大選択体数（0 なら上限なし）。")]
     public int selectMaxCount;
 
-    [Tooltip("MarkObservedUnit: 監視する行動種別。Unset なら EnemyUnitDestroyed。")]
+    [Tooltip("MarkObservedUnit: 監視する行動種別。Unset なら EnemyUnitDestroyed（シールド／配備ベース／EXベース破壊でも同報酬が発動）。")]
     public ObservedUnitTriggerKind observedUnitTriggerKind = ObservedUnitTriggerKind.Unset;
 
     [Tooltip("true のとき対象候補から targetUnitFilterStat（未指定時は Lv）が最も低いユニット1体を自動選択。")]
@@ -1392,7 +1398,16 @@ public static class TimedEffectDataExtensions
             return true;
         }
 
-        return timed.observedUnitTriggerKind == triggerKind;
+        if (timed.observedUnitTriggerKind == triggerKind)
+        {
+            return true;
+        }
+
+        // 敵ユニット破壊時報酬はシールド／配備ベース／EXベース破壊でも同様に発動する
+        return timed.observedUnitTriggerKind == ObservedUnitTriggerKind.EnemyUnitDestroyed
+            && (triggerKind == ObservedUnitTriggerKind.ShieldDestroyed
+                || triggerKind == ObservedUnitTriggerKind.BaseDestroyed
+                || triggerKind == ObservedUnitTriggerKind.ExBaseDestroyed);
     }
 }
 

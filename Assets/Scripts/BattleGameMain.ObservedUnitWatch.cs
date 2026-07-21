@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,6 +14,25 @@ public partial class BattleGameMain
     }
 
     private readonly List<ObservedUnitWatchEntry> _observedUnitWatches = new List<ObservedUnitWatchEntry>();
+
+    /// <summary>
+    /// 監視登録種別と発火イベントが対応するか。
+    /// 敵ユニット破壊監視はシールド／配備ベース／EXベース破壊でも同様に発火する。
+    /// </summary>
+    private static bool IsObservedUnitWatchTriggerMatch(
+        ObservedUnitTriggerKind watchKind,
+        ObservedUnitTriggerKind eventKind)
+    {
+        if (watchKind == eventKind)
+        {
+            return true;
+        }
+
+        return watchKind == ObservedUnitTriggerKind.EnemyUnitDestroyed
+            && (eventKind == ObservedUnitTriggerKind.ShieldDestroyed
+                || eventKind == ObservedUnitTriggerKind.BaseDestroyed
+                || eventKind == ObservedUnitTriggerKind.ExBaseDestroyed);
+    }
 
     private void ClearObservedUnitWatches()
     {
@@ -113,7 +133,7 @@ public partial class BattleGameMain
             if (entry == null
                 || entry.SourceCard == null
                 || entry.SourceCard.Data == null
-                || entry.TriggerKind != triggerKind
+                || !IsObservedUnitWatchTriggerMatch(entry.TriggerKind, triggerKind)
                 || !entry.MarkedInstanceIds.Contains(killer.BattleInstanceId))
             {
                 continue;
@@ -370,6 +390,22 @@ public partial class BattleGameMain
             effect,
             () => TryExecuteOnObservedUnitTriggerEffectChain(
                 sourceCard, ownerType, actingUnit, triggerContextUnit, effects, index + 1, onDone));
+    }
+
+    private IEnumerator WaitObservedUnitWatchEffectsCoroutine(
+        CardController killer,
+        PlayerType killerOwner,
+        ObservedUnitTriggerKind triggerKind)
+    {
+        bool done = false;
+        TriggerObservedUnitWatchEffects(
+            destroyedUnit: null,
+            destroyedOwner: killerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+            killer: killer,
+            killerOwner: killerOwner,
+            triggerKind,
+            () => done = true);
+        yield return new WaitUntil(() => done);
     }
 
     private EffectActivationContext BuildObservedUnitTriggerActivationContext(

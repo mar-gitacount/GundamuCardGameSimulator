@@ -5854,12 +5854,14 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             int shieldBeforeStrike = defender.shield;
+            int exBaseBeforeStrike = defender.exBase;
             if (!TryResolveShieldAttackStrikeDamage(
                     attacker,
                     targetSide,
                     defender,
                     hadExBaseLayerAtShieldAttackStart,
-                    out string shieldStrikeLog))
+                    out string shieldStrikeLog,
+                    out bool destroyedDeployedBase))
             {
                 Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
                 ClearAttackFlowContext();
@@ -5870,14 +5872,18 @@ public partial class BattleGameMain : MonoBehaviour
                 ? gundamRule.Player
                 : gundamRule.Enemy;
             int shieldsBroken = shieldBeforeStrike - defenderAfter.shield;
-            if (shieldsBroken > 0)
+            bool destroyedExBase = exBaseBeforeStrike > 0 && defenderAfter.exBase <= 0;
+            if (shieldsBroken > 0 || destroyedDeployedBase || destroyedExBase)
             {
                 deferredShieldBreakWait = true;
                 StartCoroutine(FinishUnitShieldAttackAfterBreakCoroutine(
                     attacker,
                     attackerOwner,
                     shieldStrikeLog,
-                    hadExBaseLayerAtShieldAttackStart));
+                    hadExBaseLayerAtShieldAttackStart,
+                    triggerShieldDestroyedWatch: shieldsBroken > 0,
+                    triggerBaseDestroyedWatch: destroyedDeployedBase,
+                    triggerExBaseDestroyedWatch: destroyedExBase));
                 return;
             }
 
@@ -5943,18 +5949,46 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attacker,
         PlayerType attackerOwner,
         string shieldStrikeLog,
-        bool hadExBaseLayerAtShieldAttackStart)
+        bool hadExBaseLayerAtShieldAttackStart,
+        bool triggerShieldDestroyedWatch,
+        bool triggerBaseDestroyedWatch,
+        bool triggerExBaseDestroyedWatch)
     {
-        if (_onlineDeferredEnemyShieldBreak.HasValue)
+        if (triggerShieldDestroyedWatch && _onlineDeferredEnemyShieldBreak.HasValue)
         {
             OnlineDeferredEnemyShieldBreak deferred = _onlineDeferredEnemyShieldBreak.Value;
             _onlineDeferredEnemyShieldBreak = null;
             yield return RunOnlineAttackerEnemyShieldBreakHandshakeCoroutine(attacker, deferred);
         }
-        else
+        else if (triggerShieldDestroyedWatch)
         {
             yield return WaitForShieldBreakFlowCompleteCoroutine();
         }
+
+        if (triggerShieldDestroyedWatch)
+        {
+            yield return WaitObservedUnitWatchEffectsCoroutine(
+                attacker,
+                attackerOwner,
+                ObservedUnitTriggerKind.ShieldDestroyed);
+        }
+
+        if (triggerBaseDestroyedWatch)
+        {
+            yield return WaitObservedUnitWatchEffectsCoroutine(
+                attacker,
+                attackerOwner,
+                ObservedUnitTriggerKind.BaseDestroyed);
+        }
+
+        if (triggerExBaseDestroyedWatch)
+        {
+            yield return WaitObservedUnitWatchEffectsCoroutine(
+                attacker,
+                attackerOwner,
+                ObservedUnitTriggerKind.ExBaseDestroyed);
+        }
+
         try
         {
             CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
@@ -6021,9 +6055,11 @@ public partial class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerSide targetSide,
         Gundam2024RuleScript.PlayerState defender,
         bool hadExBaseLayerAtShieldAttackStart,
-        out string logMessage)
+        out string logMessage,
+        out bool destroyedDeployedBase)
     {
         logMessage = null;
+        destroyedDeployedBase = false;
         if (blockExchangeCancelledForCurrentAttack || shieldStrikeAbortedAfterBlockInterrupt)
         {
             Debug.Log("[ShieldAttack] Shield strike skipped — block exchange was cancelled for this attack.");
@@ -6040,7 +6076,11 @@ public partial class BattleGameMain : MonoBehaviour
             && !HasActiveDeployedBaseForRuleSide(targetSide)
             && !hadExBaseLayerAtShieldAttackStart;
 
-        if (TryApplyShieldAttackDamageToDeployedBase(attacker, targetSide, out logMessage))
+        if (TryApplyShieldAttackDamageToDeployedBase(
+                attacker,
+                targetSide,
+                out logMessage,
+                out destroyedDeployedBase))
         {
             return true;
         }

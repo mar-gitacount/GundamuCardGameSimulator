@@ -15,15 +15,15 @@ MonoBehaviour:
   id: 78
   cardName: "\u30AD\u30E9\u30E4\u30DE\u30C8"
   cost: 1
-  level: 4
+  level: 5
   power: 2
-  hp: 1
+  hp: 2
   imageName: {fileID: 21300000, guid: bbff6ffe70b6c3447bf480189a7d0fcd, type: 3}
   image: {fileID: 0}
-  version: 1
-  sourceType: 2
+  version: 5
+  sourceType: 1
   filterType: 0
-  color: 5
+  color: 2
   type: 1
   attackFlg: 0
   timedEffects:
@@ -40,54 +40,6 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: Draw1_OnLink
     effects: []
-    activationCost: 0
-    oncePerTurn: 0
-    observedUnitTriggerKind: -1
-  - timing: 3
-    activationConditions: []
-    requireChainObservationContext: 0
-    effectsName: 
-    effects:
-    - type: 3
-      value: 2
-      target: 2
-      selectionMode: 2
-      statTarget: 0
-      duration: 2
-      valueMode: 0
-      valueCountBoardSide: 1
-      valueCountKind: 0
-      valueCountFeature: {fileID: 0}
-      valueCountMinUnitLevel: 0
-      valueScaleMaximum: 0
-      shieldTokenCardId: 0
-      valueCountExcludeSource: 0
-      targetFeature: {fileID: 0}
-      targetFeatureId: 0
-      targetFeatures: []
-      targetFeatureIds: 
-      targetUnitFilterStat: -1
-      targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 0
-      compareTargetStatToSource: 0
-      requireChainObservationContext: 0
-      effectActivationConditions: []
-      filterTargetUnitLevel: 0
-      filterByTargetCardType: 0
-      targetCardType: 1
-      deployUnitSource: 0
-      deployCardId: 0
-      filterByDeployCardId: 0
-      filterDeployCandidateByFeature: 0
-      deployUnitTriggerOnPlayed: 0
-      grantAttackFlagOnlyIfOff: 1
-      revealDiscardedToOpponent: 0
-      revealDrawnToPlayer: 0
-      filterTargetIsBlocker: 0
-      selectMinCount: 0
-      selectMaxCount: 0
-      observedUnitTriggerKind: -1
-      autoSelectLowestUnitStat: 0
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
