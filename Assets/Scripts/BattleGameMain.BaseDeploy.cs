@@ -546,9 +546,11 @@ public partial class BattleGameMain
     private bool TryApplyShieldAttackDamageToDeployedBase(
         CardController attacker,
         Gundam2024RuleScript.PlayerSide targetSide,
-        out string logMessage)
+        out string logMessage,
+        out bool destroyedDeployedBase)
     {
         logMessage = null;
+        destroyedDeployedBase = false;
         CardController defenderBase = GetDeployedBaseForRuleSide(targetSide);
         if (defenderBase == null || defenderBase.Data == null || defenderBase.CurrentHp <= 0)
         {
@@ -580,6 +582,7 @@ public partial class BattleGameMain
             SendDeployedBaseToTrash(defenderBase, defenderOwner, defenderRule);
             SyncResourceViewsFromRule(targetSide);
             logMessage += " (destroyed)";
+            destroyedDeployedBase = true;
         }
 
         return true;
