@@ -9,6 +9,11 @@ using UnityEngine.UI;
 public partial class BattleGameMain
 {
     private CardController _pendingOnAttackPreCombatResolvedAttacker;
+
+    /// <summary>
+    /// OnAttack の DiscardFromHand が Skip／枚数不足のとき、同攻撃内の ReturnUnitToDeckBottom を抑止する。
+    /// </summary>
+    private bool _suppressOnAttackReturnToDeckBottomAfterFailedDiscard;
     /// <summary>同一攻撃宣言内で OnAttack 非戦闘効果（GrantAttackFlag 等）を解決済みか。</summary>
     private CardController _onAttackPreCombatCompletedAttacker;
 
@@ -888,6 +893,7 @@ public partial class BattleGameMain
             return false;
         }
 
+        _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
         List<TimedEffectData> blocks = CollectOnAttackPreCombatBlocks(attacker, attackerOwner);
         if (blocks.Count == 0)
         {
@@ -1016,7 +1022,8 @@ public partial class BattleGameMain
             List<CardController> handCandidates = CollectSelectableHandCards(handOwner);
             if (handCandidates.Count == 0)
             {
-                Debug.Log("[OnAttackPreCombat] 捨てる手札がありません (DiscardFromHand)。");
+                Debug.Log("[OnAttackPreCombat] 捨てる手札がありません (DiscardFromHand)。山札下送りを抑止。");
+                _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = true;
                 TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
                 return;
             }
@@ -1025,7 +1032,23 @@ public partial class BattleGameMain
                 sourceCard,
                 ownerType,
                 effect,
-                () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+                success =>
+                {
+                    if (!success)
+                    {
+                        _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = true;
+                        Debug.Log(
+                            "[OnAttackPreCombat] DiscardFromHand 未完了（Skip または枚数不足）。"
+                            + " ReturnUnitToDeckBottom を抑止。");
+                    }
+
+                    TryExecuteOnAttackPreCombatEffectChain(
+                        sourceCard,
+                        ownerType,
+                        effects,
+                        index + 1,
+                        onDone);
+                });
             return;
         }
 
