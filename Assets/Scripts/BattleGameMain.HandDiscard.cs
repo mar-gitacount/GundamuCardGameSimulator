@@ -52,15 +52,18 @@ public partial class BattleGameMain
         return result;
     }
 
+    /// <summary>
+    /// 手札捨てを実行する。onDone(true)=要求枚数を捨て切った／onDone(false)=Skip または枚数不足。
+    /// </summary>
     private void TryExecuteManualHandSelectionEffect(
         CardController sourceCard,
         PlayerType ownerType,
         EffectData effect,
-        Action onDone)
+        Action<bool> onDone)
     {
         if (effect == null || effect.type != EffectType.DiscardFromHand)
         {
-            onDone?.Invoke();
+            onDone?.Invoke(false);
             return;
         }
 
@@ -72,8 +75,20 @@ public partial class BattleGameMain
             ownerType,
             handOwner,
             effect,
-            discardCount,
+            remaining: discardCount,
+            requiredCount: discardCount,
+            discardedCount: 0,
             onDone));
+    }
+
+    /// <summary>完了時に成功可否を無視する呼び出し向け。</summary>
+    private void TryExecuteManualHandSelectionEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        Action onDone)
+    {
+        TryExecuteManualHandSelectionEffect(sourceCard, ownerType, effect, _ => onDone?.Invoke());
     }
 
     private IEnumerator ExecuteDiscardFromHandSelectionCoroutine(
@@ -82,11 +97,14 @@ public partial class BattleGameMain
         PlayerType handOwner,
         EffectData effect,
         int remaining,
-        Action onDone)
+        int requiredCount,
+        int discardedCount,
+        Action<bool> onDone)
     {
         if (remaining <= 0)
         {
-            onDone?.Invoke();
+            bool completed = discardedCount >= requiredCount && requiredCount > 0;
+            onDone?.Invoke(completed);
             yield break;
         }
 
@@ -94,17 +112,20 @@ public partial class BattleGameMain
         if (candidates.Count == 0)
         {
             Debug.LogWarning(
-                $"[DiscardFromHand] 手札が空のためスキップ (owner:{handOwner} source:{sourceCard?.Data?.cardName})");
-            onDone?.Invoke();
+                $"[DiscardFromHand] 手札が空のため打ち切り (owner:{handOwner} discarded:{discardedCount}/{requiredCount} "
+                + $"source:{sourceCard?.Data?.cardName})");
+            onDone?.Invoke(discardedCount >= requiredCount && requiredCount > 0);
             yield break;
         }
 
         if (handOwner == PlayerType.Enemy)
         {
             CardController picked = PickEnemyAiHandDiscardTarget(candidates);
+            int nextDiscarded = discardedCount;
             if (picked != null)
             {
                 yield return DiscardHandCardWithRevealCoroutine(picked, handOwner, effect, ownerType);
+                nextDiscarded++;
             }
 
             yield return ExecuteDiscardFromHandSelectionCoroutine(
@@ -113,6 +134,8 @@ public partial class BattleGameMain
                 handOwner,
                 effect,
                 remaining - 1,
+                requiredCount,
+                nextDiscarded,
                 onDone);
             yield break;
         }
@@ -132,17 +155,25 @@ public partial class BattleGameMain
 
         yield return new WaitUntil(() => resolved);
 
-        if (selected != null)
+        // CancelSkipDiscard: 以降の捨て・後続効果（山札下送り等）は不成立
+        if (selected == null)
         {
-            yield return DiscardHandCardWithRevealCoroutine(selected, handOwner, effect, ownerType);
+            Debug.Log(
+                $"[DiscardFromHand] Skip — abort remaining discard "
+                + $"(discarded:{discardedCount}/{requiredCount} source:{sourceCard?.Data?.cardName})");
+            onDone?.Invoke(false);
+            yield break;
         }
 
+        yield return DiscardHandCardWithRevealCoroutine(selected, handOwner, effect, ownerType);
         yield return ExecuteDiscardFromHandSelectionCoroutine(
             sourceCard,
             ownerType,
             handOwner,
             effect,
             remaining - 1,
+            requiredCount,
+            discardedCount + 1,
             onDone);
     }
 

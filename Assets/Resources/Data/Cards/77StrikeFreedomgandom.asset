@@ -44,25 +44,7 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: 0
   - timing: 3
-    activationConditions:
-    - boardSide: -1
-      checkKind: 4
-      turnCheck: -1
-      feature: {fileID: 0}
-      featureId: 0
-      features: []
-      featureIds: 
-      minimumCount: 1
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 0
-      unitCountThreshold: 0
-      pilotCardId: 0
-      trashCardId: 0
-      pilotLevelThreshold: 0
-      activationStatTarget: -1
-      observedCardType: 0
+    activationConditions: []
     requireChainObservationContext: 0
     effectsName: Discard2_ReturnLowestEnemyToDeckBottom_OnAttack
     effects: []

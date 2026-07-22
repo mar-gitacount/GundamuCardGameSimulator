@@ -399,6 +399,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         ResetOnAttackPreCombatEffectsAppliedGuard();
+        _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
     }
 
     private void MarkAttackFlowBlockSelectionResolved()

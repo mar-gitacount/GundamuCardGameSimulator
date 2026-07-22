@@ -51,16 +51,39 @@ public partial class BattleGameMain
         }
 
         CardController pilot = unit.DetachMountedPilotWithoutDestroy();
-        if (pilot != null)
+        int pilotId = 0;
+        string pilotName = null;
+        if (pilot != null && pilot.Data != null)
         {
-            TryReturnCardInstanceToHand(pilot, ownerType, rule);
+            pilotId = pilot.Data.id;
+            pilotName = pilot.Data.cardName;
+            // 搭乗パイロットも山札下へ（手札には戻さない）
+            Destroy(pilot.gameObject);
         }
 
         int cardId = unit.Data.id;
-        rule.AppendCardsToBottom(new[] { cardId });
+        if (pilotId > 0)
+        {
+            rule.AppendCardsToBottom(new[] { pilotId, cardId });
+        }
+        else
+        {
+            rule.AppendCardsToBottom(new[] { cardId });
+        }
+
         PruneObservedUnitWatchesOnCardRemoved(unit);
         FinalizeRemoveCardFromPlay(unit, ownerType, sendToTrashZone: false);
-        Debug.Log($"[ReturnToDeckBottom] {unit.Data.cardName}(id:{cardId}) → {ownerType} deck bottom");
+        if (pilotId > 0)
+        {
+            Debug.Log(
+                $"[ReturnToDeckBottom] {unit.Data.cardName}(id:{cardId}) + pilot:{pilotName}(id:{pilotId}) "
+                + $"→ {ownerType} deck bottom");
+        }
+        else
+        {
+            Debug.Log($"[ReturnToDeckBottom] {unit.Data.cardName}(id:{cardId}) → {ownerType} deck bottom");
+        }
+
         return true;
     }
 
@@ -187,6 +210,14 @@ public partial class BattleGameMain
             || effect.type != EffectType.ReturnUnitToDeckBottom
             || !effect.autoSelectLowestUnitStat)
         {
+            return false;
+        }
+
+        if (_suppressOnAttackReturnToDeckBottomAfterFailedDiscard)
+        {
+            Debug.Log(
+                "[OnAttack] ReturnUnitToDeckBottom skipped — DiscardFromHand が Skip／枚数不足のため "
+                + $"source:{sourceCard?.Data?.cardName}");
             return false;
         }
 
