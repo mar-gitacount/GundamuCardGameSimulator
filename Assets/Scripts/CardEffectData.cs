@@ -129,7 +129,11 @@ public enum TargetType
     /// <summary>相手バトルゾーンの REST ユニットのみ（ACTIVE は対象外）。既存 target 数値互換のため末尾に追加。</summary>
     RestEnemyUnit,
     /// <summary>味方バトルゾーンの生存ユニット（効果の発動元カード自身は対象外）。</summary>
-    AllyOtherUnit
+    AllyOtherUnit,
+    /// <summary>味方バトルゾーンの生存ユニットトークン。</summary>
+    TokenUnit,
+    /// <summary>相手バトルゾーンの生存ユニットトークン。</summary>
+    EnemyTokenUnit
 }
 
 /// <summary><see cref="EffectType"/> のヘルパー。</summary>
@@ -170,7 +174,8 @@ public static class EffectTargetTypeExtensions
     {
         return targetType == TargetType.EnemyUnit
             || targetType == TargetType.EnemyAllUnits
-            || targetType == TargetType.RestEnemyUnit;
+            || targetType == TargetType.RestEnemyUnit
+            || targetType == TargetType.EnemyTokenUnit;
     }
 
     /// <summary>1体選択 UI が必要な相手ユニット対象（REST 限定含む）。</summary>
@@ -839,6 +844,12 @@ public static class EffectDataExtensions
             case EffectTargetUnitFilterStat.Cost:
                 return unit.CurrentCost;
             case EffectTargetUnitFilterStat.Level:
+                // ユニットトークンはレベル 0 として扱う（最低 Lv 選択など）
+                if (unit.Data != null && unit.Data.IsUnitToken())
+                {
+                    return 0;
+                }
+
                 return unit.CurrentLevel;
             default:
                 return 0;

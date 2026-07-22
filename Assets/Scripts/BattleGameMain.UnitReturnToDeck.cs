@@ -40,6 +40,7 @@ public partial class BattleGameMain
 
         if (unit.Data.IsUnitToken())
         {
+            Debug.Log($"[ReturnToDeckBottom] {unit.Data.cardName}(id:{unit.Data.id}) is token, try to vanish");
             return TryVanishBattleUnitTokenFromZone(unit);
         }
 
@@ -99,8 +100,27 @@ public partial class BattleGameMain
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
             CardController target = targets[i];
-            if (target == null)
+            if (target == null || target.Data == null)
             {
+                continue;
+            }
+
+            // ユニットトークンは山札に戻せず Destroy（消滅）で除去する
+            if (target.Data.IsUnitToken())
+            {
+                if (!IsCardControllerInstanceValid(target) || target.CurrentHp <= 0)
+                {
+                    continue;
+                }
+
+                PlayerType targetOwner = ResolveBattleZoneUnitOwner(target);
+                NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
+                QueueOnlineUnitDestroy(target);
+                SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(null, target));
+                applied++;
+                Debug.Log(
+                    $"[Effect] ReturnUnitToDeckBottom → Destroy token "
+                    + $"{target.Data.cardName}(id:{target.Data.id})");
                 continue;
             }
 
@@ -227,6 +247,10 @@ public partial class BattleGameMain
             Debug.Log("[OnAttack] ReturnUnitToDeckBottom: 対象となる敵ユニットがありません。");
             return false;
         }
+
+        Debug.Log(
+            $"[OnAttack] ReturnUnitToDeckBottom candidates:{autoTargets.Count} "
+            + $"(tokens treated as Lv0) source:{sourceCard?.Data?.cardName}");
 
         if (NeedsLowestStatUnitManualPick(effect, autoTargets))
         {
