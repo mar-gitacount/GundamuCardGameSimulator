@@ -36,6 +36,7 @@ public partial class BattleGameMain
 
     private void ClearObservedUnitWatches()
     {
+        Debug.Log($"[ObservedUnitWatch] クリア 登録数:{_observedUnitWatches.Count}");
         _observedUnitWatches.Clear();
     }
 
