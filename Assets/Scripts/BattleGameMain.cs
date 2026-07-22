@@ -3181,6 +3181,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
         ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
         ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
+        ClearObservedUnitWatches();
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
         NotifyLocalPlayerEndedTurn();
 
