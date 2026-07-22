@@ -5137,7 +5137,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
         else if (effect != null && effect.type == EffectType.ReturnUnitToDeckBottom)
         {
-            title.text = "山札の下に戻す敵ユニットを選択";
+            title.text = "山札の下へ戻す敵を選択（トークンは破壊・Lv0扱い）";
         }
         else
         {
@@ -9672,7 +9672,14 @@ public partial class BattleGameMain : MonoBehaviour
             case TargetType.AllyOtherUnit:
                 AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
                 break;
+            case TargetType.TokenUnit:
+                AddAllAliveTokenUnits(allies, result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyTokenUnit:
+                AddAllAliveTokenUnits(enemies, result, null, requiredFeatures);
+                break;
             case TargetType.EnemyUnit:
+                
                 if (effect.autoSelectLowestUnitStat)
                 {
                     AddAllAliveUnits(enemies, result, null, requiredFeatures);
@@ -9767,6 +9774,29 @@ public partial class BattleGameMain : MonoBehaviour
         {
             CardController c = source[i];
             if (c == null || c == exclude || c.Data == null || !c.Data.IsUnitLike() || c.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
+            {
+                continue;
+            }
+
+            result.Add(c);
+        }
+    }
+
+    private static void AddAllAliveTokenUnits(
+        List<CardController> source,
+        List<CardController> result,
+        CardController exclude = null,
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
+    {
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController c = source[i];
+            if (c == null || c == exclude || c.Data == null || !c.Data.IsUnitToken() || c.CurrentHp <= 0)
             {
                 continue;
             }
@@ -13058,6 +13088,12 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case TargetType.AllyOtherUnit:
                 AddAllAliveUnits(allies, result, sourceCard, requiredFeatures);
+                break;
+            case TargetType.TokenUnit:
+                AddAllAliveTokenUnits(allies, result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyTokenUnit:
+                AddAllAliveTokenUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
                 break;
             case TargetType.EnemyUnit:
                 AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
