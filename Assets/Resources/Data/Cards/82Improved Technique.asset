@@ -10,58 +10,52 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 77StrikeFreedomgandom
+  m_Name: 82Improved Technique
   m_EditorClassIdentifier: 
-  id: 77
-  cardName: StrikeFreedomgandom
+  id: 82
+  cardName: Improved Technique
   cost: 3
   level: 3
-  power: 5
-  hp: 6
-  imageName: {fileID: 21300000, guid: c97699cb95e88294cb20e5bf542760f0, type: 3}
+  power: 0
+  hp: 0
+  imageName: {fileID: 1911532324272381287, guid: b5a113bc7a926724b9a7bcda7b7486a4, type: 3}
   image: {fileID: 0}
-  version: 5
+  version: 3
   sourceType: 1
   filterType: 0
-  color: 2
-  type: 0
+  color: 0
+  type: 2
   attackFlg: 0
   timedEffects:
-  - timing: 15
+  - timing: 8
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: MarkAllyUnit_EnemyKillWatch
+    effectsName: Damage3_EnemyLv4OrLess_RelaxIfTrashSelf2
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
-  - timing: 19
+  - timing: 5
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: Draw1_OnMarkedUnitEnemyKill
+    effectsName: Damage3_EnemyLv4OrLess_RelaxIfTrashSelf2
     effects: []
     activationCost: 0
     oncePerTurn: 0
-    observedUnitTriggerKind: 0
-  - timing: 3
+    observedUnitTriggerKind: -1
+  - timing: 12
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: Discard2_ReturnLowestEnemyToDeckBottom_OnAttack
+    effectsName: Damage3_EnemyLv4OrLess_RelaxIfTrashSelf2
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
-  - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
-  link:
-  - pilotCardId: 6
-    pilotFeatures: []
-    pilotFeatureIds: 
-  - pilotCardId: 78
-    pilotFeatures: []
-    pilotFeatureIds: 
+  - {fileID: 11400000, guid: cd8fb7d0c0bd0e047ad30c5e79268c4e, type: 2}
+  link: []
   pilotMountOnPilotMountedSource: 0
-  pilotMountOnPilotMountedOrder: 1
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
