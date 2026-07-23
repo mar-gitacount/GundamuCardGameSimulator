@@ -9246,7 +9246,7 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.selectionMode.RequiresManualUnitPick();
     }
 
-    private static void FilterTargetsByUnitCondition(
+    private void FilterTargetsByUnitCondition(
         List<CardController> targets,
         EffectData effect,
         CardController sourceCard = null)
@@ -9261,9 +9261,24 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        IReadOnlyList<int> ownerTrashIds = null;
+        if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies && sourceCard != null)
+        {
+            PlayerType sourceOwner = ResolveCardOwner(sourceCard.transform);
+            CardGameRule ownerRule = sourceOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+            ownerTrashIds = ownerRule != null ? ownerRule.GetTrashCardIds() : null;
+            if (effect.ShouldRelaxTargetUnitStatFilter(sourceCard, ownerTrashIds))
+            {
+                Debug.Log(
+                    $"[TrashQuery] relax target Lv filter — trash has "
+                    + $"{TrashCardQuery.CountByCardId(ownerTrashIds, sourceCard.Data.id)} of "
+                    + $"{sourceCard.Data.cardName}(id:{sourceCard.Data.id})");
+            }
+        }
+
         for (int i = targets.Count - 1; i >= 0; i--)
         {
-            if (!effect.MatchesTargetUnitFilter(targets[i], sourceCard))
+            if (!effect.MatchesTargetUnitFilter(targets[i], sourceCard, ownerTrashIds))
             {
                 targets.RemoveAt(i);
             }

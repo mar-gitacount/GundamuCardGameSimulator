@@ -323,34 +323,7 @@ public static class EffectActivationEvaluator
         return matched >= need;
     }
 
-    private static bool EvaluateTrashHasCardType(EffectActivationCondition c, EffectActivationContext ctx)
-    {
-        if (c == null || ctx == null)
-        {
-            return false;
-        }
-
-        IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
-        if (trashIds == null || trashIds.Count == 0)
-        {
-            return false;
-        }
-
-        int need = Mathf.Max(1, c.minimumCount);
-        int matched = 0;
-        for (int i = 0; i < trashIds.Count; i++)
-        {
-            CardData data = DeckSettinObject.Instance.GetCardDataById(trashIds[i]);
-            if (data != null && data.type == c.observedCardType)
-            {
-                matched++;
-            }
-        }
-
-        return matched >= need;
-    }
-
-    private static int ResolveTrashConditionCardId(EffectActivationCondition c)
+    private static int ResolveTrashConditionCardId(EffectActivationCondition c, EffectActivationContext ctx)
     {
         if (c == null)
         {
@@ -362,7 +335,18 @@ public static class EffectActivationEvaluator
             return c.trashCardId;
         }
 
-        return c.pilotCardId;
+        if (c.pilotCardId > 0)
+        {
+            return c.pilotCardId;
+        }
+
+        // 未指定時は発動元カード ID（「墓地にこのカードが N 枚」）
+        if (ctx?.SourceCard?.Data != null)
+        {
+            return ctx.SourceCard.Data.id;
+        }
+
+        return 0;
     }
 
     private static bool EvaluateTrashHasCardId(
@@ -375,30 +359,32 @@ public static class EffectActivationEvaluator
             return false;
         }
 
-        int cardId = ResolveTrashConditionCardId(c);
+        int cardId = ResolveTrashConditionCardId(c, ctx);
         if (cardId <= 0)
         {
             return false;
         }
 
         IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
-        if (trashIds == null || trashIds.Count == 0)
-        {
-            return !expectPresent;
-        }
-
-        int matched = 0;
-        for (int i = 0; i < trashIds.Count; i++)
-        {
-            if (trashIds[i] == cardId)
-            {
-                matched++;
-            }
-        }
-
         int need = Mathf.Max(1, c.minimumCount);
-        bool hasEnough = matched >= need;
-        return expectPresent ? hasEnough : matched < need;
+        if (expectPresent)
+        {
+            return TrashCardQuery.HasAtLeast(trashIds, cardId, need);
+        }
+
+        return TrashCardQuery.HasFewerThan(trashIds, cardId, need);
+    }
+
+    private static bool EvaluateTrashHasCardType(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+        int need = Mathf.Max(1, c.minimumCount);
+        return TrashCardQuery.HasCardTypeAtLeast(trashIds, c.observedCardType, need);
     }
 
     private static IReadOnlyList<int> ResolveTrashZone(EffectActivationContext ctx, EffectBoardSide side)

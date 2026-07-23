@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 17
   cardName: "\u30B8\u30E3\u30B9\u30C6\u30A3\u30B9\u30AC\u30F3\u30C0\u30E0"
-  cost: 1
-  level: 1
+  cost: 5
+  level: 7
   power: 5
   hp: 5
   imageName: {fileID: 21300000, guid: 1e60fccbf0967d946a199c53022eef0f, type: 3}
@@ -64,8 +64,19 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
     activationCost: 0
     oncePerTurn: 0
+    observedUnitTriggerKind: -1
   - timing: 3
     activationConditions: []
     requireChainObservationContext: 0
@@ -88,8 +99,7 @@ MonoBehaviour:
       targetFeature: {fileID: 0}
       targetFeatureId: 8
       targetFeatures: []
-      targetFeatureIds:
-      - 8
+      targetFeatureIds: 08000000
       targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
@@ -110,6 +120,7 @@ MonoBehaviour:
         unitCountCompareOp: 0
         unitCountThreshold: 0
         pilotCardId: 0
+        trashCardId: 0
         pilotLevelThreshold: 0
         activationStatTarget: -1
         observedCardType: 0
@@ -122,8 +133,18 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
       grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
     activationCost: 0
     oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
   link:
   - pilotCardId: 58
@@ -135,3 +156,5 @@ MonoBehaviour:
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0

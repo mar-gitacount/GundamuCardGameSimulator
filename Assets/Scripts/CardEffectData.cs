@@ -463,7 +463,7 @@ public class EffectActivationCondition
     [Tooltip("MountedPilot のみ: パイロットカード ID（0 なら ID 条件なし）。")]
     public int pilotCardId;
 
-    [Tooltip("TrashHasCardId / TrashLacksCardId: トラッシュ内で探すカード ID（0 なら pilotCardId を参照）。")]
+    [Tooltip("TrashHasCardId / TrashLacksCardId: トラッシュ内で探すカード ID（0 かつ pilotCardId も 0 なら発動元カード ID）。")]
     public int trashCardId;
 
     [Tooltip("MountedPilot のみ: 搭乗パイロットの実効レベルと compareOp で比較。compareValue=0 かつ pilotCardId/feature も無い場合はレベル判定なし。")]
@@ -650,6 +650,14 @@ public class EffectData
 
     [Tooltip("true のとき対象候補から targetUnitFilterStat（未指定時は Lv）が最も低いユニット1体を自動選択。")]
     public bool autoSelectLowestUnitStat;
+
+    [Tooltip(
+        "true のとき、オーナー墓地に発動元と同 ID のカードが trashRelaxFilterMinCopies 枚以上あると、"
+        + "対象ユニットのステータス絞り込み（Lv 等）を無効化する。")]
+    public bool relaxTargetUnitStatFilterWhenTrashHasSourceCopies;
+
+    [Tooltip("relaxTargetUnitStatFilterWhenTrashHasSourceCopies 時の必要枚数（0 以下は 2）。")]
+    public int trashRelaxFilterMinCopies = 2;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
@@ -856,11 +864,35 @@ public static class EffectDataExtensions
         }
     }
 
+    /// <summary>
+    /// オーナー墓地に発動元と同 ID が十分あるとき、対象ステータス絞り込みを緩和するか。
+    /// </summary>
+    public static bool ShouldRelaxTargetUnitStatFilter(
+        this EffectData effect,
+        CardController sourceCard,
+        IReadOnlyList<int> ownerTrashCardIds)
+    {
+        if (effect == null || !effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies)
+        {
+            return false;
+        }
+
+        int cardId = sourceCard != null && sourceCard.Data != null ? sourceCard.Data.id : 0;
+        if (cardId <= 0)
+        {
+            return false;
+        }
+
+        int need = effect.trashRelaxFilterMinCopies > 0 ? effect.trashRelaxFilterMinCopies : 2;
+        return TrashCardQuery.HasAtLeast(ownerTrashCardIds, cardId, need);
+    }
+
     /// <summary>バトルゾーンのユニットが対象フィルタ（Feature / ステータス）を満たすか。</summary>
     public static bool MatchesTargetUnitFilter(
         this EffectData effect,
         CardController unit,
-        CardController sourceCard = null)
+        CardController sourceCard = null,
+        IReadOnlyList<int> ownerTrashCardIds = null)
     {
         if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
@@ -880,6 +912,11 @@ public static class EffectDataExtensions
 
         if (statFilter != EffectTargetUnitFilterStat.Unset)
         {
+            if (effect.ShouldRelaxTargetUnitStatFilter(sourceCard, ownerTrashCardIds))
+            {
+                return true;
+            }
+
             int compareValue = effect.targetUnitStatCompareValue;
             if (effect.compareTargetStatToSource)
             {
