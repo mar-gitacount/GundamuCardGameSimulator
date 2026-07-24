@@ -1314,7 +1314,12 @@ public partial class BattleGameMain
         CardController defender,
         int attackerHpAfter,
         int defenderHpAfter,
-        bool blockCombat = false)
+        bool blockCombat = false,
+        bool skipAttackDeclarationRest = false,
+        bool includeDefenderAreaSnapshot = false,
+        int defenderShieldAfter = -1,
+        int defenderExBaseAfter = -1,
+        int defenderDeployedBaseHpAfter = -1)
     {
         if (_applyingRemoteBattleAction || !IsOnlineBattle() || currentPlayerType != PlayerType.Player
             || attacker == null || defender == null
@@ -1329,7 +1334,12 @@ public partial class BattleGameMain
                 defender.BattleInstanceId,
                 attackerHpAfter,
                 defenderHpAfter,
-                blockCombat)));
+                blockCombat,
+                skipAttackDeclarationRest,
+                includeDefenderAreaSnapshot,
+                defenderShieldAfter,
+                defenderExBaseAfter,
+                defenderDeployedBaseHpAfter)));
     }
 
     private void HandleRemoteAttack(string payload)
@@ -1385,6 +1395,7 @@ public partial class BattleGameMain
 
         Gundam2024RuleScript.PlayerState defender = gundamRule.Player;
         int oldShield = defender.shield;
+        int oldExBase = defender.exBase;
         defender.shield = Mathf.Max(0, action.defenderShieldAfter);
         defender.exBase = Mathf.Max(0, action.defenderExBaseAfter);
 
@@ -1400,10 +1411,11 @@ public partial class BattleGameMain
         }
 
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
+        SyncBaseZoneHeaderDisplay(Gundam2024RuleScript.PlayerSide.Player);
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Player, force: true);
         Debug.Log(
-            $"[OnlineBattle] Remote shield attack applied. shield={defender.shield} exBase={defender.exBase} "
-            + $"baseHp:{action.defenderDeployedBaseHpAfter}");
+            $"[OnlineBattle] Remote shield attack applied. shield={oldShield}->{defender.shield} "
+            + $"exBase={oldExBase}->{defender.exBase} baseHp:{action.defenderDeployedBaseHpAfter}");
     }
 
     private IEnumerator ApplyRemoteShieldBreakByCardIdsCoroutine(
@@ -1468,7 +1480,11 @@ public partial class BattleGameMain
             return;
         }
 
-        CommitUnitAttackDeclaration(attacker, PlayerType.Enemy);
+        if (!action.skipAttackDeclarationRest)
+        {
+            CommitUnitAttackDeclaration(attacker, PlayerType.Enemy);
+        }
+
         defender.SetCurrentHpForSync(action.defenderHp);
         attacker.SetCurrentHpForSync(action.attackerHp);
 
@@ -1487,9 +1503,51 @@ public partial class BattleGameMain
             ApplyRemoteUnitRemovedFromField(attacker);
         }
 
+        // エフェクトバトル撃破時の突破など、同メッセージに同梱された防御領域スナップショットを適用
+        if (action.includeDefenderAreaSnapshot)
+        {
+            ApplyRemoteDefenderAreaSnapshotFromAttackPayload(action);
+        }
+
         SyncAllResourceViewsFromRule();
         Debug.Log(
-            $"[OnlineBattle] Remote unit attack applied. attackerHp={action.attackerHp} defenderHp={action.defenderHp}");
+            $"[OnlineBattle] Remote unit attack applied. attackerHp={action.attackerHp} defenderHp={action.defenderHp} "
+            + $"areaSnap:{action.includeDefenderAreaSnapshot} baseHp:{action.defenderDeployedBaseHpAfter}");
+    }
+
+    /// <summary>UnitAttack / ShieldAttack に同梱された防御側 shield / exBase / 配備ベース HP をローカル Player 側へ反映。</summary>
+    private void ApplyRemoteDefenderAreaSnapshotFromAttackPayload(OnlineBattleActionPayload action)
+    {
+        if (action == null)
+        {
+            return;
+        }
+
+        ApplyRemoteDeployedBaseHpUpdate(
+            Gundam2024RuleScript.PlayerSide.Player,
+            action.defenderDeployedBaseHpAfter);
+
+        Gundam2024RuleScript.PlayerState defender = gundamRule != null ? gundamRule.Player : null;
+        if (defender != null)
+        {
+            if (action.defenderShieldAfter >= 0)
+            {
+                defender.shield = Mathf.Max(0, action.defenderShieldAfter);
+            }
+
+            if (action.defenderExBaseAfter >= 0)
+            {
+                defender.exBase = Mathf.Max(0, action.defenderExBaseAfter);
+            }
+        }
+
+        SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
+        SyncBaseZoneHeaderDisplay(Gundam2024RuleScript.PlayerSide.Player);
+        ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Player, force: true);
+        Debug.Log(
+            $"[OnlineBattle] Defender area snapshot applied from attack payload. "
+            + $"shield={action.defenderShieldAfter} exBase={action.defenderExBaseAfter} "
+            + $"baseHp={action.defenderDeployedBaseHpAfter}");
     }
 
     private void HandleRemoteEffectSync(string payload)

@@ -20,6 +20,15 @@ public class OnlineBattleActionPayload
     public int defenderExBaseAfter;
     public bool directAttackWin;
     public bool blockCombat;
+    /// <summary>
+    /// UnitAttack: true のとき受信側で攻撃宣言レスト／攻撃権消費を行わない（エフェクトバトル等）。
+    /// </summary>
+    public bool skipAttackDeclarationRest;
+    /// <summary>
+    /// ShieldAttack / UnitAttack: 防御領域スナップショット付きなら true（効果ダメージ・突破の領域同期）。
+    /// JsonUtility が 0 を省略しても識別できるよう明示フラグを使う。
+    /// </summary>
+    public bool includeDefenderAreaSnapshot;
     public bool shieldBreakSimultaneousReveal;
     public int[] brokenShieldCardIds;
     public string attackKind;
@@ -167,8 +176,12 @@ public class OnlineBattleActionPayload
         int[] brokenShieldCardIds = null,
         int shieldBreakRequestId = 0,
         bool shieldBreakSimultaneousReveal = false,
-        int defenderDeployedBaseHpAfter = -1)
+        int defenderDeployedBaseHpAfter = -1,
+        bool includeDefenderAreaSnapshot = false)
     {
+        bool areaSync = includeDefenderAreaSnapshot
+            || attackerInstanceId <= 0
+            || defenderDeployedBaseHpAfter >= 0;
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
             action = ShieldAttack,
@@ -179,7 +192,8 @@ public class OnlineBattleActionPayload
             brokenShieldCardIds = brokenShieldCardIds,
             requestId = shieldBreakRequestId,
             shieldBreakSimultaneousReveal = shieldBreakSimultaneousReveal,
-            defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter
+            defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter,
+            includeDefenderAreaSnapshot = areaSync
         });
     }
 
@@ -220,7 +234,12 @@ public class OnlineBattleActionPayload
         int defenderInstanceId,
         int attackerHp,
         int defenderHp,
-        bool blockCombat = false)
+        bool blockCombat = false,
+        bool skipAttackDeclarationRest = false,
+        bool includeDefenderAreaSnapshot = false,
+        int defenderShieldAfter = -1,
+        int defenderExBaseAfter = -1,
+        int defenderDeployedBaseHpAfter = -1)
     {
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
@@ -229,7 +248,12 @@ public class OnlineBattleActionPayload
             defenderInstanceId = defenderInstanceId,
             attackerHp = attackerHp,
             defenderHp = defenderHp,
-            blockCombat = blockCombat
+            blockCombat = blockCombat,
+            skipAttackDeclarationRest = skipAttackDeclarationRest,
+            includeDefenderAreaSnapshot = includeDefenderAreaSnapshot,
+            defenderShieldAfter = defenderShieldAfter,
+            defenderExBaseAfter = defenderExBaseAfter,
+            defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter
         });
     }
 
@@ -314,8 +338,10 @@ public class OnlineBattleActionPayload
             switch (payload.action)
             {
                 case ShieldAttack:
+                    // attackerInstanceId==0 は効果ダメージ／突破の防御領域同期
                     return payload.attackerInstanceId > 0
                         || payload.directAttackWin
+                        || payload.includeDefenderAreaSnapshot
                         || payload.defenderDeployedBaseHpAfter >= 0;
                 case UnitAttack:
                 case AttackDeclare:

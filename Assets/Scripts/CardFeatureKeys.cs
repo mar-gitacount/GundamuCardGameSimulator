@@ -2,4 +2,5 @@
 public static class CardFeatureKeys
 {
     public const string OperationMeteor = "Operation_Meteor";
+    public const string LondoBell = "Londo Bell";
 }

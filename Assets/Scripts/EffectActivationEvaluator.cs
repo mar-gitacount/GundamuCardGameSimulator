@@ -217,6 +217,11 @@ public static class EffectActivationEvaluator
             return EvaluateTrashHasCardType(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.TrashHasFeature)
+        {
+            return EvaluateTrashHasFeature(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.TrashHasCardId)
         {
             return EvaluateTrashHasCardId(c, ctx, expectPresent: true);
@@ -385,6 +390,24 @@ public static class EffectActivationEvaluator
         IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
         int need = Mathf.Max(1, c.minimumCount);
         return TrashCardQuery.HasCardTypeAtLeast(trashIds, c.observedCardType, need);
+    }
+
+    private static bool EvaluateTrashHasFeature(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+        if (required.Count == 0)
+        {
+            return false;
+        }
+
+        IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+        int need = Mathf.Max(1, c.minimumCount);
+        return TrashCardQuery.HasAnyFeatureAtLeast(trashIds, required, need);
     }
 
     private static IReadOnlyList<int> ResolveTrashZone(EffectActivationContext ctx, EffectBoardSide side)

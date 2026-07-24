@@ -39,7 +39,11 @@ public static class CardTypeExtensions
     {
         return card != null && IsPilot(card.type);
     }
+   
 
+    public static string CardFeature(this CardFeatureData cardFeature){
+        return cardFeature?.displayName;
+    }
     /// <summary>Inspector / UI 向けの日本語ラベル。</summary>
     public static string GetDisplayName(Type cardType)
     {

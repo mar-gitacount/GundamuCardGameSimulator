@@ -196,7 +196,7 @@ public partial class BattleGameMain
 
     private static string FormatTrashOwnerLabel(PlayerType trashOwner)
     {
-        return trashOwner == PlayerType.Player ? "自分" : "相手";
+        return trashOwner == PlayerType.Player ? "Your" : "Opponent's";
     }
 
     private static List<TrashExileCandidate> CollectTrashExileCandidates(CardGameRule trashRule, EffectData effect)
@@ -212,11 +212,15 @@ public partial class BattleGameMain
         {
             int cardId = trashIds[i];
             CardData data = DeckSettinObject.Instance.GetCardDataById(cardId);
+            if (!EffectDataExtensions.MatchesTargetFeatureFilter(effect, data))
+            {
+                continue;
+            }
             if (!EffectDataExtensions.MatchesTargetCardTypeFilter(effect, data))
             {
                 continue;
             }
-
+            // 除外するカード一覧に追加
             candidates.Add(new TrashExileCandidate(i, cardId, data));
         }
 
@@ -225,12 +229,64 @@ public partial class BattleGameMain
 
     private static string FormatExileFromTrashFilterLabel(EffectData effect)
     {
-        if (effect == null || !effect.filterByTargetCardType)
+        if (effect == null)
         {
-            return "カード";
+            return "card";
         }
 
-        return CardTypeExtensions.GetDisplayName(effect.targetCardType);
+        string featureLabel = FormatExileTargetFeaturesEnglishLabel(effect);
+        if (!string.IsNullOrEmpty(featureLabel))
+        {
+            return featureLabel;
+        }
+
+        if (effect.filterByTargetCardType)
+        {
+            return effect.targetCardType.ToString();
+        }
+
+        return "card";
+    }
+
+    private static string FormatExileTargetFeaturesEnglishLabel(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return string.Empty;
+        }
+
+        IReadOnlyList<CardFeatureData> features = effect.GetTargetFeatures();
+        if (features.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        for (int i = 0; i < features.Count; i++)
+        {
+            CardFeatureData feature = features[i];
+            if (feature == null)
+            {
+                continue;
+            }
+
+            string label = !string.IsNullOrWhiteSpace(feature.featureKey)
+                ? feature.featureKey.Replace('_', ' ')
+                : feature.displayName;
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                continue;
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append(" / ");
+            }
+
+            sb.Append(label);
+        }
+
+        return sb.ToString();
     }
 
     private void CommitTrashExileAtIndex(
@@ -331,6 +387,15 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect.requireExactExileCount && candidates.Count < magnitude)
+        {
+            Debug.Log(
+                $"[Effect] ExileFromTrash skipped — need exact {magnitude} but candidates:{candidates.Count} "
+                + $"by cardId:{sourceCard?.Data?.id}");
+            onComplete?.Invoke();
+            return;
+        }
+
         int pickCount = Mathf.Min(magnitude, candidates.Count);
         if (ownerType == PlayerType.Enemy)
         {
@@ -390,7 +455,7 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("ExileTrashTitle", UIAnchor.TopCenter, 760, 48);
-        title.text = "除外するカードを選択";
+        title.text = "Select cards to Exile";
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
@@ -398,8 +463,8 @@ public partial class BattleGameMain
 
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("ExileTrashSubtitle", UIAnchor.TopCenter, 760, 36);
         subtitle.text = pickCount <= 1
-            ? $"{trashLabel}のトラッシュから{filterLabel}を1枚選んで除外"
-            : $"{trashLabel}のトラッシュから{filterLabel}を{pickCount}枚選んで除外";
+            ? $"Choose 1 {filterLabel} from {trashLabel} trash to Exile"
+            : $"Choose {pickCount} {filterLabel} cards from {trashLabel} trash to Exile";
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);

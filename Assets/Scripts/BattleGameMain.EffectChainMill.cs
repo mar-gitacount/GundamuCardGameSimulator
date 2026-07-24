@@ -615,6 +615,16 @@ public partial class BattleGameMain
         sb.AppendLine(data.cardName);
         sb.Append("ID: ").Append(data.id).Append("  ");
         sb.Append(CardTypeExtensions.GetDisplayName(data.type)).AppendLine();
+        for (int i = 0; i < data.features.Count; i++)
+        {
+            CardFeatureData feature = data.features[i];
+            if (feature == null)
+            {
+                continue;
+            }
+            sb.Append("Feature: ").Append(feature.displayName).AppendLine();
+        }
+
         sb.Append("Lv.").Append(data.level)
             .Append("  COST ").Append(data.cost);
         if (data.type != Type.Command)

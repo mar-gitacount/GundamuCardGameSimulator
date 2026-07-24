@@ -59,7 +59,12 @@
             "featureKey": "Operation_Meteor",
             "displayName": "オペレーション・メテオ",
             "description": "登場ターン、搭乗ユニットに先制攻撃を付与"
+        },
+        {
+            "id": 10,
+            "featureKey": "Londo Bell",
+            "displayName": "ロンド・ベル",
+            "description": ""
         }
-        
     ]
 }

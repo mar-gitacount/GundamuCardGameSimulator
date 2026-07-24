@@ -102,7 +102,17 @@ public enum EffectType
     /// </summary>
     MarkObservedUnit,
     /// <summary>対象ユニットをオーナーの山札の一番下へ戻す。トークンは消滅。value=体数上限（0 で対象全員）。</summary>
-    ReturnUnitToDeckBottom
+    ReturnUnitToDeckBottom,
+    /// <summary>
+    /// エフェクトバトル。発動元ユニットが選択した敵ユニットとダメージ交換する。
+    /// 攻撃宣言・レスト・攻撃権消費・ブロックは行わない（ダメージステップ相当）。
+    /// </summary>
+    EffectBattle,
+    /// <summary>
+    /// 突破（Breach）。敵ユニットを破壊したとき、相手シールドエリアの先頭カードへ value ダメージ
+    /// （配備ベース優先、無ければシールド1枚。余剰は溢れない）。
+    /// </summary>
+    Breach
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -157,7 +167,8 @@ public static class EffectTypeExtensions
             || type == EffectType.Activate
             || type == EffectType.Destroy
             || type == EffectType.GrantAttackFlag
-            || type == EffectType.MarkObservedUnit;
+            || type == EffectType.MarkObservedUnit
+            || type == EffectType.EffectBattle;
     }
 
     /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>
@@ -371,7 +382,11 @@ public enum EffectActivationCheckKind
     /// 同一チェーン内の直前効果で、少なくとも1体（またはプレイヤー領域）に実ダメージが入った。
     /// 相手へのダメージをフックにした条件付き自傷などに使用。
     /// </summary>
-    PriorChainDealtDamage
+    PriorChainDealtDamage,
+    /// <summary>
+    /// 指定トラッシュに、features / featureIds のいずれか（OR）を持つカードが minimumCount 枚以上ある。
+    /// </summary>
+    TrashHasFeature
 }
 
 public enum EffectTurnCheckKind
@@ -658,6 +673,16 @@ public class EffectData
 
     [Tooltip("relaxTargetUnitStatFilterWhenTrashHasSourceCopies 時の必要枚数（0 以下は 2）。")]
     public int trashRelaxFilterMinCopies = 2;
+
+    [Tooltip(
+        "ExileFromTrash: true のとき候補が value 枚未満なら除外を行わない（部分除外しない）。"
+        + "Nu Gundam のロンド・ベル3枚除外などに使用。")]
+    public bool requireExactExileCount;
+
+    [Tooltip(
+        "EffectBattle 等: true のとき対象選択の前にプレイヤーへ実行可否を確認する。"
+        + "Cancel なら後続を含まずその効果のみスキップ。")]
+    public bool optionalPlayerConfirm;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
@@ -750,6 +775,15 @@ public static class EffectDataExtensions
         return effect != null && effect.GetTargetFeatures().Count > 0;
     }
 
+    public static bool MatchesTargetFeatureFilter(this EffectData effect, CardData card)
+    {
+        if (effect == null || !effect.HasTargetFeatureFilter())
+        {
+            return true;
+        }
+
+        return card != null && card.HasAnyFeature(effect.GetTargetFeatures());
+    }
     public static bool MatchesTargetCardTypeFilter(this EffectData effect, CardData card)
     {
         if (effect == null || !effect.filterByTargetCardType)
