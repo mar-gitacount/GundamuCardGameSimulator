@@ -22,7 +22,7 @@ public enum EffectTiming
     OnPilotMounted, // パイロットをユニットに搭乗した時（ユニット・パイロット双方の timedEffects が対象）
     /// <summary>OnDestroyed の別名（ユニット破壊時）。Inspector / JSON どちらでも指定可。</summary>
     OnUnitDestroyed = OnDestroyed,
-    /// <summary>このカードが敵ユニットを破壊した時（キルしたカード自身の timedEffects のみ発動）。</summary>
+    /// <summary>このカードが敵ユニットを破壊した時（キル元ユニット本体＋搭乗パイロットの timedEffects）。</summary>
     OnEnemyUnitDestroyed = 16,
     /// <summary>Look 効果で山札を見た直後（見た枚の中から手札へ加える等の誘発効果用）。</summary>
     OnLook = 17,
@@ -112,7 +112,12 @@ public enum EffectType
     /// 突破（Breach）。敵ユニットを破壊したとき、相手シールドエリアの先頭カードへ value ダメージ
     /// （配備ベース優先、無ければシールド1枚。余剰は溢れない）。
     /// </summary>
-    Breach
+    Breach,
+    /// <summary>
+    /// 対象ユニットの HP を value 回復する（ダメージカウンタ除去。上限超過分は切り捨て）。
+    /// 敵ユニット撃破時（戦闘／エフェクトバトル等）の回復にも使用する。
+    /// </summary>
+    RecoverHp
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
