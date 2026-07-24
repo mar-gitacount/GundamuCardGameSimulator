@@ -189,10 +189,11 @@ public partial class BattleGameMain
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttack(
             OnlineBattleActionPayload.CreateShieldAttack(
                 attackerInstanceId: 0,
-                defender.shield,
-                defender.exBase,
+                defenderShieldAfter: defender.shield,
+                defenderExBaseAfter: defender.exBase,
                 directAttackWin: false,
-                defenderDeployedBaseHpAfter: defenderDeployedBaseHpAfter)));
+                defenderDeployedBaseHpAfter: defenderDeployedBaseHpAfter,
+                includeDefenderAreaSnapshot: true)));
         Debug.Log(
             $"[OnlineBattle] Defender area state sync sent. shield={defender.shield} exBase={defender.exBase} "
             + $"baseHp:{defenderDeployedBaseHpAfter}");

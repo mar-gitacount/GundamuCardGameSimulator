@@ -68,6 +68,39 @@ public static class TrashCardQuery
         return CountByCardType(trashCardIds, cardType) >= need;
     }
 
+    /// <summary>指定 Feature（OR）のいずれかを持つカード枚数。</summary>
+    public static int CountByAnyFeature(IReadOnlyList<int> trashCardIds, IReadOnlyList<CardFeatureData> features)
+    {
+        if (trashCardIds == null || trashCardIds.Count == 0
+            || features == null || features.Count == 0
+            || DeckSettinObject.Instance == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = 0; i < trashCardIds.Count; i++)
+        {
+            CardData data = DeckSettinObject.Instance.GetCardDataById(trashCardIds[i]);
+            if (data != null && data.HasAnyFeature(features))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>指定 Feature（OR）を持つカードが minimumCount 枚以上あるか。</summary>
+    public static bool HasAnyFeatureAtLeast(
+        IReadOnlyList<int> trashCardIds,
+        IReadOnlyList<CardFeatureData> features,
+        int minimumCount)
+    {
+        int need = Mathf.Max(1, minimumCount);
+        return CountByAnyFeature(trashCardIds, features) >= need;
+    }
+
     /// <summary>
     /// ルール側トラッシュから ID 枚数を数える。
     /// </summary>

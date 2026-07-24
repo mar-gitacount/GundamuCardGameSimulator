@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 83Nu Gundam 1
+  m_EditorClassIdentifier: 
+  id: 83
+  cardName: Nu Gundam
+  cost: 5
+  level: 7
+  power: 5
+  hp: 5
+  imageName: {fileID: 3020834385081325284, guid: d9c636d251a744643b9216fc22e2f40f, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 1
+  filterType: 0
+  color: 1
+  type: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Breach5
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 15
+    activationConditions:
+    - boardSide: 4
+      checkKind: 15
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+      featureId: 10
+      features: []
+      featureIds: 
+      minimumCount: 3
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+    requireChainObservationContext: 0
+    effectsName: Exile3_LondoBell_OptionalEffectBattle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+  link:
+  - pilotCardId: 39
+    pilotFeatures: []
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0

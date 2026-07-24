@@ -8,6 +8,12 @@ public partial class BattleGameMain
     /// <summary>オンライン同期用。直近の配備ベース HP 変化（-1=なし、0=破壊、1+=現在HP）。</summary>
     private int _pendingDefenderDeployedBaseHpForOnlineSync = -1;
 
+    /// <summary>
+    /// true のとき効果ダメージ／突破の防御領域 Notify を抑止する。
+    /// エフェクトバトル撃破時は UnitAttack にスナップショットを同梱するため二重送信を避ける。
+    /// </summary>
+    private bool _suppressOnlineDefenderAreaStateNotify;
+
     private void ClearPendingDefenderDeployedBaseHpForOnlineSync()
     {
         _pendingDefenderDeployedBaseHpForOnlineSync = -1;
@@ -498,6 +504,7 @@ public partial class BattleGameMain
             gundamRule.DamageExBaseOnly(targetSide, exDamage);
             Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {target.exBase}).");
             SyncResourceViewsFromRule(targetSide);
+            SyncBaseZoneHeaderDisplay(targetSide);
             TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
             return;
         }
@@ -524,6 +531,11 @@ public partial class BattleGameMain
         int shieldBefore,
         int exBaseBefore)
     {
+        if (_suppressOnlineDefenderAreaStateNotify)
+        {
+            return;
+        }
+
         if (!IsOnlineBattle()
             || currentPlayerType != PlayerType.Player
             || _applyingRemoteBattleAction

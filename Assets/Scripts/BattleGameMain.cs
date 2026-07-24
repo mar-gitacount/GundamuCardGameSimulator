@@ -3323,6 +3323,17 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        // 突破は破壊時効果より先に解決（公式: 攻撃側 Breach → 相手 Destroyed）
+        if (TryResolveEnemyUnitKillContext(
+                cardController,
+                ownerType,
+                destroyedBy,
+                out CardController breachKiller,
+                out PlayerType breachKillerOwner))
+        {
+            TryTriggerBreachOnEnemyUnitDestroyed(breachKiller, breachKillerOwner, ownerType);
+        }
+
         TriggerOnDestroyedEffects(cardController, ownerType, () =>
         {
             TriggerOnEnemyUnitDestroyedEffects(cardController, ownerType, destroyedBy, () =>
@@ -5338,7 +5349,8 @@ public partial class BattleGameMain : MonoBehaviour
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
             && effect.type != EffectType.GrantAttackFlag
-            && effect.type != EffectType.MarkObservedUnit)
+            && effect.type != EffectType.MarkObservedUnit
+            && effect.type != EffectType.EffectBattle)
         {
             return;
         }
@@ -5495,6 +5507,10 @@ public partial class BattleGameMain : MonoBehaviour
         else if (effect.type == EffectType.ReturnUnitToDeckBottom)
         {
             ApplyReturnUnitToDeckBottomEffect(effect, targets);
+        }
+        else if (effect.type == EffectType.EffectBattle)
+        {
+            ApplyEffectBattleToTargets(sourceCard, ownerType, targets);
         }
         else if (effect.type == EffectType.GrantAttackFlag)
         {
@@ -8703,12 +8719,29 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (EffectRequiresManualUnitSelection(effect))
         {
-            TryExecuteManualUnitSelectionEffect(
-                sourceCard,
-                ownerType,
-                effect,
-                null,
-                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            void RunManualSelection()
+            {
+                TryExecuteManualUnitSelectionEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    null,
+                    () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            }
+
+            if (effect.optionalPlayerConfirm)
+            {
+                TryBeginOptionalConfirmedEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    onAccepted: RunManualSelection,
+                    onDeclined: () => TryExecuteOnPlayedEffectChain(
+                        sourceCard, ownerType, effects, index + 1, onDone));
+                return;
+            }
+
+            RunManualSelection();
             return;
         }
 
@@ -8810,7 +8843,8 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag;
+        bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag
+            || effect.type == EffectType.EffectBattle;
         if (!forceSelectionUi && candidates.Count == 1)
         {
             ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, candidates);
@@ -9540,6 +9574,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.Suppress:
                 // 制圧は TryResolveShieldAttackStrikeDamage でのみ解決する。
+                break;
+
+            case EffectType.Breach:
+                // 突破は敵ユニット撃破時（SendCardToTrash）でのみ解決する。
                 break;
 
             case EffectType.Bounce:
@@ -10520,7 +10558,9 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.AttackActiveEnemyUnit
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
-            || effect.type == EffectType.Suppress)
+            || effect.type == EffectType.Suppress
+            || effect.type == EffectType.Breach
+            || effect.type == EffectType.EffectBattle)
         {
             return;
         }
@@ -13166,6 +13206,13 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect.type == EffectType.MarkObservedUnit)
         {
             return $"監視対象ユニットを選択{effect.FormatSelectCountRangeLabel()}";
+        }
+
+        if (effect.type == EffectType.EffectBattle)
+        {
+            return isAttackContext
+                ? $"Effect Battle — Choose an enemy Unit ({attackingUnitInAttackFlow.Data.cardName})"
+                : "Effect Battle — Choose an enemy Unit (No Rest)";
         }
 
         if (effect.type == EffectType.GrantAttackFlag)

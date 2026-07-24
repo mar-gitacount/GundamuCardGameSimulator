@@ -341,6 +341,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.ExileFromDeck
                 || eff.type == EffectType.ExileFromTrash
+                || eff.type == EffectType.EffectBattle
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit
                 || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.AddSelfToHand || eff.type == EffectType.DeployShieldFromHand
@@ -350,7 +351,8 @@ public partial class BattleGameMain
                 || eff.type == EffectType.DiscardFromHand
                 || eff.type == EffectType.Activate
                 || eff.type == EffectType.NotDirectAttack
-                || eff.type == EffectType.Suppress)
+                || eff.type == EffectType.Suppress
+                || eff.type == EffectType.Breach)
             {
                 continue;
             }
