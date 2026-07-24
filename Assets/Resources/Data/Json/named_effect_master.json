@@ -966,6 +966,46 @@
             ]
         },
         {
+            "effectSetName": "OnEnemyUnitDestroyed_RecoverHp2_Self",
+            "displayName": "敵ユニット破壊時：自身を2回復（戦闘／エフェクトバトル共通）",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "RecoverHp2_Self",
+            "displayName": "自身を2回復（タイミングはカード側で指定）",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
             "effectSetName": "Exile3_LondoBell_OptionalEffectBattle",
             "displayName": "ロンド・ベル3枚を除外し、任意でエフェクトバトル（レストなし）",
             "effects": [

@@ -5520,6 +5520,10 @@ public partial class BattleGameMain : MonoBehaviour
         {
             ApplyActivateEffect(effect, ownerType, targets);
         }
+        else if (effect.type == EffectType.RecoverHp)
+        {
+            ApplyRecoverHpEffect(targets, magnitude);
+        }
 
         if (targets != null && targets.Count > 0)
         {
@@ -8505,7 +8509,9 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
-    /// このカードが敵ユニットを破壊した時。キルしたカード（destroyedBy）自身の OnEnemyUnitDestroyed のみ解決する。
+    /// このカードが敵ユニットを破壊した時。
+    /// キル元ユニット本体および搭乗パイロットの OnEnemyUnitDestroyed を解決する
+    /// （戦闘ダメージ破壊・エフェクトバトル破壊の双方。効果適用元は常にキル元ユニット＝Self はペア本体）。
     /// </summary>
     private void TriggerOnEnemyUnitDestroyedEffects(
         CardController destroyedUnit,
@@ -8519,17 +8525,41 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (!HasEffectTiming(killer.Data, EffectTiming.OnEnemyUnitDestroyed))
+        EffectActivationContext activationContext = BuildActivationContext(killerOwner, killer);
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        AppendOnEnemyUnitDestroyedBlocks(killer.Data, activationContext, blocks);
+        if (killer.MountedPilot != null)
+        {
+            AppendOnEnemyUnitDestroyedBlocks(killer.MountedPilot.Data, activationContext, blocks);
+        }
+
+        if (blocks.Count == 0)
         {
             onComplete?.Invoke();
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(killerOwner, killer);
-        List<TimedEffectData> blocks = new List<TimedEffectData>();
-        for (int i = 0; i < killer.Data.timedEffects.Count; i++)
+        string pilotName = killer.MountedPilot?.Data != null ? killer.MountedPilot.Data.cardName : "-";
+        Debug.Log(
+            $"[OnEnemyUnitDestroyed] キル:{killer.Data.cardName}(id:{killer.Data.id}) pilot:{pilotName} "
+            + $"→ 破壊:{destroyedUnit.Data.cardName}(id:{destroyedUnit.Data.id}) blocks:{blocks.Count}");
+        // パイロット効果も Self＝ホストユニットとして解決する
+        RunOnEnemyUnitDestroyedTimedBlocks(killer, killerOwner, blocks, 0, onComplete);
+    }
+
+    private static void AppendOnEnemyUnitDestroyedBlocks(
+        CardData data,
+        EffectActivationContext activationContext,
+        List<TimedEffectData> blocks)
+    {
+        if (data?.timedEffects == null || blocks == null)
         {
-            TimedEffectData timed = killer.Data.timedEffects[i];
+            return;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
             if (timed == null || !timed.IsOnEnemyUnitDestroyedResolutionBlock())
             {
                 continue;
@@ -8542,17 +8572,6 @@ public partial class BattleGameMain : MonoBehaviour
 
             blocks.Add(timed);
         }
-
-        if (blocks.Count == 0)
-        {
-            onComplete?.Invoke();
-            return;
-        }
-
-        Debug.Log(
-            $"[OnEnemyUnitDestroyed] キル:{killer.Data.cardName}(id:{killer.Data.id}) "
-            + $"→ 破壊:{destroyedUnit.Data.cardName}(id:{destroyedUnit.Data.id}) blocks:{blocks.Count}");
-        RunOnEnemyUnitDestroyedTimedBlocks(killer, killerOwner, blocks, 0, onComplete);
     }
 
     private void RunOnEnemyUnitDestroyedTimedBlocks(
@@ -9603,6 +9622,10 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.GrantAttackFlag:
                 ApplyGrantAttackFlagEffect(effect, ownerType, targets);
                 break;
+
+            case EffectType.RecoverHp:
+                ApplyRecoverHpEffect(targets, magnitude);
+                break;
         }
 
         if (!nestedBatch)
@@ -10560,7 +10583,8 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.DeployBase
             || effect.type == EffectType.Suppress
             || effect.type == EffectType.Breach
-            || effect.type == EffectType.EffectBattle)
+            || effect.type == EffectType.EffectBattle
+            || effect.type == EffectType.RecoverHp)
         {
             return;
         }
