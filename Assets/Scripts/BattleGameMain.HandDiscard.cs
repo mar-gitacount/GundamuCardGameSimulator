@@ -359,7 +359,8 @@ public partial class BattleGameMain
     private IEnumerator ShowHandDiscardRevealPanelCoroutine(
         int cardId,
         string cardName,
-        bool isOpponentView)
+        bool isOpponentView,
+        string revealTitle = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
@@ -387,9 +388,17 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("HandDiscardRevealTitle", UIAnchor.TopCenter, 720, 48);
-        title.text = isOpponentView
-            ? "相手が手札から捨てたカード（公開）"
-            : "捨てたカードを相手に公開";
+        if (!string.IsNullOrEmpty(revealTitle))
+        {
+            title.text = revealTitle;
+        }
+        else
+        {
+            title.text = isOpponentView
+                ? "相手が手札から捨てたカード（公開）"
+                : "捨てたカードを相手に公開";
+        }
+
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -30f);

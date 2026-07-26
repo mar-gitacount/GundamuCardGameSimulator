@@ -3130,6 +3130,7 @@ public partial class BattleGameMain : MonoBehaviour
             || isActionThinkPauseOpen
             || isMulliganPromptOpen
             || isMulliganThinkPauseOpen
+            || isOnlineEffectThinkPauseOpen
             || ShouldBlockOnlineLocalPlayDueToOnAction()
             || isOnlineShieldBreakThinkPauseOpen
             || isShieldBreakFlowOpen
@@ -3285,6 +3286,97 @@ public partial class BattleGameMain : MonoBehaviour
         SyncResourceViewsFromRule(side);
     }
 
+    /// <summary>SendCardToTrash の非同期パイプライン（OnDestroyed / Look UI 等）が未完了の件数。</summary>
+    private int _pendingSendToTrashPipelines;
+
+    /// <summary>
+    /// アクションタイミングのコマンド了承 UI 表示中は破壊時効果（Look／手札回収等）を保留する。
+    /// OK 押下でホールド解除 → 保留分をフラッシュする（レイテンシー）。
+    /// </summary>
+    private int _onDestroyedLatencyHoldCount;
+
+    private readonly List<System.Action> _deferredOnDestroyedResolutions = new List<System.Action>();
+
+    /// <summary>
+    /// 破壊時 Look・コマンド確認など、プレイヤー選択 UI が開いている／トラッシュ解決中か。
+    /// この間は非選択側の進行を止める。
+    /// </summary>
+    private bool HasBlockingChoiceOrTrashUi()
+    {
+        // isOnActionPopupOpen はコマンド確認中も true になるため、Wait ではトラッシュ／Look／公開 UI だけ見る
+        return _pendingSendToTrashPipelines > 0
+            || _deferredOnDestroyedResolutions.Count > 0
+            || HasPendingRemoteOnDestroyedResolution
+            || _activeLookDeckPopupRoot != null
+            || _activeHandDiscardRevealRoot != null
+            || _activeOnActionCommandRevealRoot != null;
+    }
+
+    private IEnumerator WaitUntilBlockingChoiceOrTrashUiCleared()
+    {
+        // SendCardToTrash が同フレームで同期完了する場合も、Look 開始を1フレ待つ
+        yield return null;
+        yield return new WaitUntil(() => !HasBlockingChoiceOrTrashUi());
+    }
+
+    private void BeginOnDestroyedLatencyHold()
+    {
+        _onDestroyedLatencyHoldCount++;
+    }
+
+    private void EndOnDestroyedLatencyHold()
+    {
+        if (_onDestroyedLatencyHoldCount <= 0)
+        {
+            return;
+        }
+
+        _onDestroyedLatencyHoldCount--;
+        if (_onDestroyedLatencyHoldCount == 0)
+        {
+            FlushDeferredOnDestroyedResolutions();
+        }
+    }
+
+    private void FlushDeferredOnDestroyedResolutions()
+    {
+        if (_deferredOnDestroyedResolutions.Count == 0)
+        {
+            return;
+        }
+
+        List<System.Action> pending = new List<System.Action>(_deferredOnDestroyedResolutions);
+        _deferredOnDestroyedResolutions.Clear();
+        Debug.Log($"[OnDestroyed][Latency] flush deferred resolutions count:{pending.Count}");
+        for (int i = 0; i < pending.Count; i++)
+        {
+            pending[i]?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// コマンド了承 OK 待ち中は破壊時効果を保留し、OK 後に Look／回収を実行する。
+    /// </summary>
+    private void RunOrDeferOnDestroyedEffects(
+        CardController cardController,
+        PlayerType ownerType,
+        System.Action onComplete)
+    {
+        if (_onDestroyedLatencyHoldCount > 0)
+        {
+            string cardName = cardController != null && cardController.Data != null
+                ? cardController.Data.cardName
+                : "(null)";
+            Debug.Log(
+                $"[OnDestroyed][Latency] defer until command ack OK: {cardName} hold:{_onDestroyedLatencyHoldCount}");
+            _deferredOnDestroyedResolutions.Add(
+                () => TriggerOnDestroyedEffects(cardController, ownerType, onComplete));
+            return;
+        }
+
+        TriggerOnDestroyedEffects(cardController, ownerType, onComplete);
+    }
+
     private void SendCardToTrash(CardController cardController, PlayerType ownerType, CardController destroyedBy = null)
     {
         if (cardController == null || cardController.Data == null)
@@ -3298,6 +3390,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         unitsPendingSendToTrash.Add(cardController);
+        _pendingSendToTrashPipelines++;
 
         PruneObservedUnitWatchesOnCardRemoved(cardController);
 
@@ -3334,7 +3427,7 @@ public partial class BattleGameMain : MonoBehaviour
             TryTriggerBreachOnEnemyUnitDestroyed(breachKiller, breachKillerOwner, ownerType);
         }
 
-        TriggerOnDestroyedEffects(cardController, ownerType, () =>
+        void ContinueAfterOwnerOnDestroyed()
         {
             TriggerOnEnemyUnitDestroyedEffects(cardController, ownerType, destroyedBy, () =>
             {
@@ -3351,14 +3444,29 @@ public partial class BattleGameMain : MonoBehaviour
                         killer,
                         killerOwner,
                         ObservedUnitTriggerKind.EnemyUnitDestroyed,
-                        () => FinishSendCardToTrash(cardController, ownerType));
+                        () => CompleteSendCardToTrashPipeline(cardController, ownerType));
                 }
                 else
                 {
-                    FinishSendCardToTrash(cardController, ownerType);
+                    CompleteSendCardToTrashPipeline(cardController, ownerType);
                 }
             });
-        });
+        }
+
+        if (ShouldDelegateOnDestroyedToRemoteOwner(ownerType))
+        {
+            // オンラインの相手所有カードは、選択権を持つ相手クライアントで破壊時効果を解決する。
+            ContinueAfterOwnerOnDestroyed();
+            return;
+        }
+
+        RunOrDeferOnDestroyedEffects(cardController, ownerType, ContinueAfterOwnerOnDestroyed);
+    }
+
+    private void CompleteSendCardToTrashPipeline(CardController cardController, PlayerType ownerType)
+    {
+        FinishSendCardToTrash(cardController, ownerType);
+        _pendingSendToTrashPipelines = Mathf.Max(0, _pendingSendToTrashPipelines - 1);
     }
 
     private bool TryResolveEnemyUnitKillContext(
@@ -4516,13 +4624,21 @@ public partial class BattleGameMain : MonoBehaviour
             SendCardToTrash(attacker, attackerOwner);
         }
 
+        StartCoroutine(CoFinishUnitVsUnitCombatAfterTrashUi(attacker, attackerOwner));
+    }
+
+    private IEnumerator CoFinishUnitVsUnitCombatAfterTrashUi(
+        CardController attacker,
+        PlayerType attackerOwner)
+    {
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
-
         LogAttackPostBattleFieldCompact(attacker, attackerOwner);
         ClearAttackFlowContext();
     }
@@ -6848,6 +6964,31 @@ public partial class BattleGameMain : MonoBehaviour
             SendCardToTrash(attacker, attackerOwner);
         }
 
+        StartCoroutine(CoFinishBlockRedirectCombatAfterTrashUi(
+            attacker,
+            blocker,
+            attackerOwner,
+            attackerPowerForCombat,
+            blockerPowerForCombat,
+            attackerHpBeforeExchange,
+            blockerHpBeforeExchange,
+            attackerHpAfterExchange,
+            blockerHpAfterExchange));
+    }
+
+    private IEnumerator CoFinishBlockRedirectCombatAfterTrashUi(
+        CardController attacker,
+        CardController blocker,
+        PlayerType attackerOwner,
+        int attackerPowerForCombat,
+        int blockerPowerForCombat,
+        int attackerHpBeforeExchange,
+        int blockerHpBeforeExchange,
+        int attackerHpAfterExchange,
+        int blockerHpAfterExchange)
+    {
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
@@ -8010,7 +8151,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (timing == EffectTiming.OnDestroyed || timing == EffectTiming.OnUnitDestroyed)
         {
-            TriggerOnDestroyedEffects(sourceCard, ownerType, null);
+            RunOrDeferOnDestroyedEffects(sourceCard, ownerType, null);
             return;
         }
 
@@ -8391,7 +8532,8 @@ public partial class BattleGameMain : MonoBehaviour
         });
     }
 
-    /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）。条件付きブロック内の効果を順に解決する。</summary>
+    /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）。条件付きブロック内の効果を順に解決する。
+    /// 自分／相手ターン・アクションステップ中など、破壊が発生したタイミングを問わず実行する。</summary>
     private void TriggerOnDestroyedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
     {
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
@@ -8427,7 +8569,8 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         Debug.Log(
-            $"[OnDestroyed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count}");
+            $"[OnDestroyed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count} "
+            + $"owner:{ownerType} turn:{currentPlayerType} phase:{currentPhase}");
         RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
     }
 
@@ -12701,10 +12844,17 @@ public partial class BattleGameMain : MonoBehaviour
         int commandQueueCount,
         System.Action onDone)
     {
-        yield return ShowCommandUsePreviewCoroutine(command, attackingUnitInAttackFlow, resolvedBeforeApply, null);
+        // 了承表示〜効果適用まで破壊時効果を保留し、OK 後の適用直後に Look／回収をフラッシュ
+        BeginOnDestroyedLatencyHold();
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            resolvedBeforeApply,
+            "コマンド発動");
 
         if (!TryConsumeResourceForCommandPlay(side, command, "OnAction"))
         {
+            EndOnDestroyedLatencyHold();
             LogCommandUseResultWithBoard(
                 "OnAction_Failed_InsufficientResource",
                 side,
@@ -12724,6 +12874,9 @@ public partial class BattleGameMain : MonoBehaviour
             $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
         List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
         ApplyEffect(command, side, applied);
+        // OK 後: 保留していた破壊時 Look／手札回収を実行
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
         FinalizeOnActionSourceCard(command, side);
         List<CardController> unitTargetsForEvalLog = BuildOnActionUnitTargetListAfterApply(resolvedBeforeApply);
@@ -12815,62 +12968,105 @@ public partial class BattleGameMain : MonoBehaviour
             attackingUnitInAttackFlow,
             picked =>
             {
-                if (!TryConsumeResourceForCommandPlay(side, command, "OnAction"))
-                {
-                    LogCommandUseResultWithBoard(
-                        "OnAction_Failed_InsufficientResource",
-                        side,
-                        command,
-                        attackingUnitInAttackFlow,
-                        commandQueueIndex,
-                        commandQueueCount,
-                        "phase:unit_target_ui cost not consumed");
-                    onDone?.Invoke();
-                    return;
-                }
-
-                TryNotifyLocalOnActionCommandUsed(command, side, picked);
-                MarkActionStepCardUsed(side, command);
-                string consumedSummary = command.Data != null ? $"{command.Data.cardName}(id:{command.Data.id})" : "?";
-                string detail =
-                    $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{picked.Data.cardName}(id:{picked.Data.id})";
-                List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { picked });
-
-                if (IsCloseCombatCard(command) && attackFlowBlockRedirectFromShieldStrike)
-                {
-                    LogArgamaShieldBlockCloseCombatDebug(
-                        "CloseCombatOnActionPick",
-                        $"side:{side} {detail} redirectBlocker:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)} "
-                        + $"pickedIsBlocker:{picked == attackFlowBlockRedirectUnit}",
-                        attackFlowAttackerUnit,
-                        attackFlowBlockRedirectUnit,
-                        command);
-                }
-
-                ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { picked });
-                if (attackingUnitInAttackFlow != null && picked == attackingUnitInAttackFlow)
-                {
-                    Debug.Log(
-                        $"[OnActionUnitTarget] effect applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(picked)} "
-                        + $"(card:{picked.Data.cardName})");
-                }
-
-                LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
-                FinalizeOnActionSourceCard(command, side);
-                List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(new List<CardController> { picked });
-                LogCommandUseResultWithBoard(
-                    "OnAction_AfterApplyUnitTarget",
+                StartCoroutine(CoApplyOnActionUnitTargetAfterAcknowledgement(
                     side,
-                    null,
+                    command,
+                    effect,
+                    picked,
                     attackingUnitInAttackFlow,
                     commandQueueIndex,
                     commandQueueCount,
-                    detail,
-                    pickedForEval);
-                onDone?.Invoke();
+                    onDone));
             },
             onDone,
             blockRedirectUnit);
+    }
+
+    /// <summary>
+    /// 対象選択後: コマンド確認 OK → 効果適用 → 破壊時 Look／回収（レイテンシー解除）→ UI 完了待ち。
+    /// </summary>
+    private IEnumerator CoApplyOnActionUnitTargetAfterAcknowledgement(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        CardController picked,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (picked == null || command == null || command.Data == null || effect == null)
+        {
+            onDone?.Invoke();
+            yield break;
+        }
+
+        // 了承表示〜効果適用まで破壊時効果を保留し、OK 後の適用直後に Look／回収をフラッシュ
+        BeginOnDestroyedLatencyHold();
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            new List<CardController> { picked },
+            "コマンド発動");
+
+        if (!TryConsumeResourceForCommandPlay(side, command, "OnAction"))
+        {
+            EndOnDestroyedLatencyHold();
+            LogCommandUseResultWithBoard(
+                "OnAction_Failed_InsufficientResource",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "phase:unit_target_ui cost not consumed");
+            onDone?.Invoke();
+            yield break;
+        }
+
+        TryNotifyLocalOnActionCommandUsed(command, side, picked);
+        MarkActionStepCardUsed(side, command);
+        string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
+        string detail =
+            $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{picked.Data.cardName}(id:{picked.Data.id})";
+        List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { picked });
+
+        if (IsCloseCombatCard(command) && attackFlowBlockRedirectFromShieldStrike)
+        {
+            LogArgamaShieldBlockCloseCombatDebug(
+                "CloseCombatOnActionPick",
+                $"side:{side} {detail} redirectBlocker:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)} "
+                + $"pickedIsBlocker:{picked == attackFlowBlockRedirectUnit}",
+                attackFlowAttackerUnit,
+                attackFlowBlockRedirectUnit,
+                command);
+        }
+
+        ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { picked });
+        if (attackingUnitInAttackFlow != null && picked == attackingUnitInAttackFlow)
+        {
+            Debug.Log(
+                $"[OnActionUnitTarget] effect applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(picked)} "
+                + $"(card:{picked.Data.cardName})");
+        }
+
+        // OK 後: 保留していた破壊時 Look／手札回収を実行し、完了まで待機
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+
+        LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
+        FinalizeOnActionSourceCard(command, side);
+        List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(new List<CardController> { picked });
+        LogCommandUseResultWithBoard(
+            "OnAction_AfterApplyUnitTarget",
+            side,
+            null,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            detail,
+            pickedForEval);
+        onDone?.Invoke();
     }
 
     private bool TryAddOnMainEffectApplyButton(
@@ -13586,8 +13782,9 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Destroy(activeOnActionPopupRoot);
             activeOnActionPopupRoot = null;
-            isOnActionPopupOpen = false;
         }
+
+        isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
     }
 
     private void ShowResultOverlay(string resultText)

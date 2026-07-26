@@ -201,9 +201,17 @@ public partial class BattleGameMain
     private void CloseActionStepPopupState()
     {
         _onlineOnActionActiveContext = null;
-        isOnActionPopupOpen = false;
-        activeOnActionPopupRoot = null;
-        DestroyActiveOnActionPopupIfAny();
+        // Look UI は別ルート。アクション終了で破壊時 Look を消さない。
+        if (activeOnActionPopupRoot != null && activeOnActionPopupRoot != _activeLookDeckPopupRoot)
+        {
+            DestroyActiveOnActionPopupIfAny();
+        }
+        else
+        {
+            activeOnActionPopupRoot = null;
+        }
+
+        isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
     }
 
     private static void SetActionStepButtonInteractable(Button btn, bool interactable)

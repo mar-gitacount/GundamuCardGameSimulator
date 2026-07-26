@@ -17,7 +17,7 @@ MonoBehaviour:
   cost: 3
   level: 4
   power: 4
-  hp: 2
+  hp: 1
   imageName: {fileID: -6840277896065140009, guid: 77a81039ad3f05b4aa875d3670cda625, type: 3}
   image: {fileID: 0}
   version: 5
@@ -26,7 +26,31 @@ MonoBehaviour:
   color: 1
   type: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 9
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: LookTop3_SelfDeck
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnLook_AddLondoBellUnit1_Reveal
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ShuffleLookedRemainderToDeckBottom
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
   link: []

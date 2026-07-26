@@ -26,6 +26,51 @@ public class OnlineBattleUnitEffectChange
     public int grantSourceInstanceId;
     /// <summary>ClearStatGrantsFromSource 用。送信側視点の付与元ゾーン（0=Player, 1=Enemy）。</summary>
     public int grantSourceZoneOwnerSide;
+    /// <summary>
+    /// 相手所有カードの破壊時効果を相手クライアントで解決するための要求 ID。
+    /// 0 は破壊時効果の完了待ちなし。
+    /// </summary>
+    public int onDestroyedRequestId;
+}
+
+/// <summary>
+/// OnDestroyedComplete（破壊時効果の解決完了通知）の payload。
+/// 所有者側 Look で手札回収した後の山札残数を破壊側ミラーへ反映する。
+/// </summary>
+[Serializable]
+public class OnlineOnDestroyedCompletePayload
+{
+    public int requestId;
+    /// <summary>解決完了時点の所有者（送信側視点 Player）山札残数。-1 は未指定。</summary>
+    public int ownerDeckRemainCount = -1;
+
+    public static string ToJson(int requestId, int ownerDeckRemainCount)
+    {
+        return JsonUtility.ToJson(new OnlineOnDestroyedCompletePayload
+        {
+            requestId = requestId,
+            ownerDeckRemainCount = ownerDeckRemainCount
+        });
+    }
+
+    public static bool TryParse(string raw, out OnlineOnDestroyedCompletePayload payload)
+    {
+        payload = null;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        try
+        {
+            payload = JsonUtility.FromJson<OnlineOnDestroyedCompletePayload>(raw);
+            return payload != null && payload.requestId > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 
 [Serializable]

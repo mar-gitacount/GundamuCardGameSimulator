@@ -650,7 +650,9 @@ public class EffectData
     [Tooltip("GrantAttackFlag: true のとき AttackFlg=False のユニットのみ候補・UI 表示（既に ON のユニットは選べない）。")]
     public bool grantAttackFlagOnlyIfOff = true;
 
-    [Tooltip("DiscardFromHand: true のとき捨てたカードを相手に公開（オンラインは OK まで進行停止）。")]
+    [Tooltip(
+        "DiscardFromHand / AddToHandFromLooked: true のとき対象カードを相手に公開"
+        + "（オンラインは OK まで進行停止）。")]
     public bool revealDiscardedToOpponent;
 
     [Tooltip("Draw: true のとき引いたカードをプレイヤーに公開してから次の効果へ進む。")]
@@ -1075,9 +1077,19 @@ public static class EffectDataExtensions
         return $"{effect.type} / {effect.target} / 値:{effect.value} / 条件:{filter}";
     }
 
-    /// <summary>Look 直後に見た山札カードが effect の targetFeature（複数可・OR）のいずれかと一致するか。</summary>
+    /// <summary>Look 直後に見た山札カードが effect の Feature／カード種類フィルタに合うか。</summary>
     public static bool MatchesLookedCardDataFeatureFilter(this EffectData effect, CardData card)
     {
+        if (effect == null || card == null)
+        {
+            return false;
+        }
+
+        if (!effect.MatchesTargetCardTypeFilter(card))
+        {
+            return false;
+        }
+
         return effect.MatchesTargetFeatureOnCard(card);
     }
 
