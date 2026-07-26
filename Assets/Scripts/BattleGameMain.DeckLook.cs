@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,6 +8,12 @@ using TMPro;
 /// <summary>山札トップを見る（Look）効果と OnLook 誘発。</summary>
 public partial class BattleGameMain
 {
+    /// <summary>
+    /// Look / OnLook UI 専用ルート。
+    /// OnAction の activeOnActionPopupRoot と共有すると、アクション終了や相手ターン進行で破壊時 Look が消えるため分離する。
+    /// </summary>
+    private GameObject _activeLookDeckPopupRoot;
+
     private sealed class LookedDeckEntry
     {
         public int DeckIndex;
@@ -30,6 +37,41 @@ public partial class BattleGameMain
         public int RequestedLookCount;
         public List<LookedDeckEntry> Entries = new List<LookedDeckEntry>();
         public HashSet<int> TakenCardIds = new HashSet<int>();
+    }
+
+    private void BeginLookDeckPopup(GameObject root)
+    {
+        DestroyActiveLookDeckPopupIfAny();
+        _activeLookDeckPopupRoot = root;
+        // OnAction UI は残したまま前面に Look を重ねる（アクション／相手ターンでも破壊時 Look を消さない）
+        isOnActionPopupOpen = true;
+    }
+
+    private void EndLookDeckPopup(GameObject root)
+    {
+        if (_activeLookDeckPopupRoot == root)
+        {
+            _activeLookDeckPopupRoot = null;
+        }
+
+        if (root != null)
+        {
+            Destroy(root);
+        }
+
+        // OnAction ポップアップが残っていれば開いたまま、無ければ閉じる
+        isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
+    }
+
+    private void DestroyActiveLookDeckPopupIfAny()
+    {
+        if (_activeLookDeckPopupRoot == null)
+        {
+            return;
+        }
+
+        Destroy(_activeLookDeckPopupRoot);
+        _activeLookDeckPopupRoot = null;
     }
 
     private CardGameRule ResolveDeckRuleForLook(PlayerType effectOwner, EffectData effect)
@@ -428,6 +470,13 @@ public partial class BattleGameMain
             featureLabel = "未指定";
         }
 
+        string typeLabel = effect.filterByTargetCardType
+            ? CardTypeExtensions.GetDisplayName(effect.targetCardType)
+            : string.Empty;
+        string filterLabel = string.IsNullOrEmpty(typeLabel)
+            ? featureLabel
+            : $"{typeLabel}・{featureLabel}";
+
         if (context.OwnerType == PlayerType.Enemy)
         {
             for (int i = 0; i < pickCount && selectable.Count > 0; i++)
@@ -437,22 +486,99 @@ public partial class BattleGameMain
                 selectable.RemoveAt(0);
             }
 
-            onComplete?.Invoke();
+            ContinueAfterAddToHandFromLooked(context, effect, onComplete);
             return;
         }
 
         if (selectable.Count == 0)
         {
             Debug.Log(
-                $"[OnLook] 手札に加えられるカードなし（特性:{featureLabel}）— 閲覧のみ");
+                $"[OnLook] 手札に加えられるカードなし（条件:{filterLabel}）— 閲覧のみ");
             ShowLookDeckViewOnlyPopup(
                 context,
                 onComplete,
-                $"特性「{featureLabel}」に合うカードはありませんでした");
+                $"条件「{filterLabel}」に合うカードはありませんでした");
             return;
         }
 
-        ShowLookDeckPickToHandPopup(context, effect, selectable, pickCount, handOwner, handRule, onComplete);
+        string subtitle = effect.revealDiscardedToOpponent
+            ? $"条件に合うカードを1枚選んで OK（相手に公開して手札へ）— {filterLabel}"
+            : $"条件に合うカードを1枚選んで OK（手札へ）— {filterLabel}";
+        if (pickCount > 1)
+        {
+            subtitle = effect.revealDiscardedToOpponent
+                ? $"手札に加えるカードを選び OK（最大{pickCount}枚・相手に公開）— {filterLabel}"
+                : $"手札に加えるカードを選び OK（最大{pickCount}枚）— {filterLabel}";
+        }
+
+        ShowLookDeckPickToHandPopup(
+            context,
+            effect,
+            selectable,
+            pickCount,
+            handOwner,
+            handRule,
+            () => ContinueAfterAddToHandFromLooked(context, effect, onComplete),
+            subtitle);
+    }
+
+    /// <summary>手札追加後、必要なら相手公開してから OnLook チェーンを続行する。</summary>
+    private void ContinueAfterAddToHandFromLooked(
+        LookResolutionContext context,
+        EffectData effect,
+        System.Action onComplete)
+    {
+        if (context == null
+            || effect == null
+            || !effect.revealDiscardedToOpponent
+            || context.TakenCardIds == null
+            || context.TakenCardIds.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        StartCoroutine(RevealLookedCardsAddedToHandCoroutine(context, onComplete));
+    }
+
+    private IEnumerator RevealLookedCardsAddedToHandCoroutine(
+        LookResolutionContext context,
+        System.Action onComplete)
+    {
+        if (context?.TakenCardIds == null || context.TakenCardIds.Count == 0)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        PlayerType handOwner = context.OwnerType;
+        List<int> takenIds = new List<int>(context.TakenCardIds);
+        for (int i = 0; i < takenIds.Count; i++)
+        {
+            int cardId = takenIds[i];
+            CardData data = DeckSettinObject.Instance != null
+                ? DeckSettinObject.Instance.GetCardDataById(cardId)
+                : null;
+            string cardName = data != null ? data.cardName : $"id:{cardId}";
+
+            if (handOwner == PlayerType.Player && data != null)
+            {
+                MemorizeEnemyAiPlayerPlayedCard(data, "AddToHandFromLooked");
+            }
+
+            string revealTitle = handOwner == PlayerType.Enemy
+                ? "相手が山札から手札に加えたカード（公開）"
+                : "山札から手札に加えたカードを相手に公開";
+            yield return WaitForHandDiscardRevealAcknowledgedCoroutine(
+                cardId,
+                cardName,
+                handOwner,
+                context.OwnerType,
+                isInitiator: handOwner == PlayerType.Player && context.OwnerType == PlayerType.Player,
+                revealTitle);
+        }
+
+        onComplete?.Invoke();
     }
 
     private static List<LookedDeckEntry> FilterLookedEntriesForAddEffect(
@@ -683,14 +809,13 @@ public partial class BattleGameMain
             return;
         }
 
-        DestroyActiveOnActionPopupIfAny();
+        DestroyActiveLookDeckPopupIfAny();
         GameObject root = new GameObject(
             "LookRemainderDispositionChoice",
             typeof(RectTransform),
             typeof(CanvasRenderer),
             typeof(Image));
-        activeOnActionPopupRoot = root;
-        isOnActionPopupOpen = true;
+        BeginLookDeckPopup(root);
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
@@ -712,9 +837,7 @@ public partial class BattleGameMain
 
         void CloseAndChoose(LookedRemainderDispositionChoice choice)
         {
-            isOnActionPopupOpen = false;
-            activeOnActionPopupRoot = null;
-            Destroy(root);
+            EndLookDeckPopup(root);
             Debug.Log($"[OnLook] ChooseLookedRemainderDisposition → {choice}");
             onChosen?.Invoke(choice);
         }
@@ -773,12 +896,17 @@ public partial class BattleGameMain
         int pickCount,
         PlayerType handOwner,
         CardGameRule handRule,
-        System.Action onComplete)
+        System.Action onComplete,
+        string subtitle = null)
     {
-        string featureLabel = addEffect?.FormatTargetFeaturesLabel();
-        string subtitle = string.IsNullOrEmpty(featureLabel)
-            ? $"見たカードから{pickCount}枚選んで手札に加えられます"
-            : $"特性「{featureLabel}」のカードを{pickCount}枚選んで手札に加えられます";
+        if (string.IsNullOrEmpty(subtitle))
+        {
+            string featureLabel = addEffect?.FormatTargetFeaturesLabel();
+            subtitle = string.IsNullOrEmpty(featureLabel)
+                ? $"見たカードから{pickCount}枚選んで手札に加えられます"
+                : $"特性「{featureLabel}」のカードを{pickCount}枚選んで手札に加えられます";
+        }
+
         ShowLookDeckPopupCore(
             context,
             selectableEntries,
@@ -823,10 +951,9 @@ public partial class BattleGameMain
             }
         }
 
-        DestroyActiveOnActionPopupIfAny();
+        DestroyActiveLookDeckPopupIfAny();
         GameObject root = new GameObject("LookDeckTopPopup", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        activeOnActionPopupRoot = root;
-        isOnActionPopupOpen = true;
+        BeginLookDeckPopup(root);
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
@@ -858,14 +985,94 @@ public partial class BattleGameMain
 
         ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
         RectTransform content = sr != null ? sr.content : null;
-        int remainingPicks = pickCount;
+
+        // 選択確定用（クリック即手札追加ではなく、選んで OK）
+        List<LookedDeckEntry> pendingPicks = new List<LookedDeckEntry>();
+        Dictionary<int, GameObject> cardVisualById = new Dictionary<int, GameObject>();
 
         void ClosePopup()
         {
-            isOnActionPopupOpen = false;
-            activeOnActionPopupRoot = null;
-            Destroy(root);
+            // Look OK／確定時に破壊側 effectthink を解除する完了通知を送る
+            NotifyOnlineOnDestroyedPlayerAcknowledged();
+            EndLookDeckPopup(root);
             onClose?.Invoke();
+        }
+
+        void RefreshSelectionVisuals()
+        {
+            foreach (KeyValuePair<int, GameObject> kv in cardVisualById)
+            {
+                if (kv.Value == null)
+                {
+                    continue;
+                }
+
+                bool isSelected = false;
+                for (int p = 0; p < pendingPicks.Count; p++)
+                {
+                    if (pendingPicks[p] != null && pendingPicks[p].CardId == kv.Key)
+                    {
+                        isSelected = true;
+                        break;
+                    }
+                }
+
+                Image img = kv.Value.GetComponent<Image>();
+                if (img != null)
+                {
+                    img.color = isSelected
+                        ? new Color(0.55f, 1f, 0.65f, 1f)
+                        : Color.white;
+                }
+            }
+        }
+
+        void TogglePendingPick(LookedDeckEntry entry)
+        {
+            if (entry == null || !selectionMode)
+            {
+                return;
+            }
+
+            for (int i = 0; i < pendingPicks.Count; i++)
+            {
+                if (pendingPicks[i] != null && pendingPicks[i].CardId == entry.CardId)
+                {
+                    pendingPicks.RemoveAt(i);
+                    RefreshSelectionVisuals();
+                    return;
+                }
+            }
+
+            if (pendingPicks.Count >= pickCount)
+            {
+                if (pickCount == 1)
+                {
+                    pendingPicks.Clear();
+                    pendingPicks.Add(entry);
+                }
+
+                RefreshSelectionVisuals();
+                return;
+            }
+
+            pendingPicks.Add(entry);
+            RefreshSelectionVisuals();
+        }
+
+        void ConfirmPendingPicks()
+        {
+            if (!selectionMode || pendingPicks.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < pendingPicks.Count; i++)
+            {
+                TakeLookedEntryToHand(context, handRule, handOwner, pendingPicks[i], addEffect);
+            }
+
+            ClosePopup();
         }
 
         if (content != null)
@@ -880,25 +1087,14 @@ public partial class BattleGameMain
 
                 bool canPick = selectionMode && selectableIds.Contains(entry.CardId);
                 GameObject go = Instantiate(CardImagePrefab, content);
+                cardVisualById[entry.CardId] = go;
                 CardController cc = go.GetComponent<CardController>();
                 if (cc != null)
                 {
                     if (canPick)
                     {
-                        cc.SetUp(entry.Data, _ =>
-                        {
-                            if (remainingPicks <= 0)
-                            {
-                                return;
-                            }
-
-                            TakeLookedEntryToHand(context, handRule, handOwner, entry, addEffect);
-                            remainingPicks--;
-                            if (remainingPicks <= 0)
-                            {
-                                ClosePopup();
-                            }
-                        });
+                        LookedDeckEntry entryRef = entry;
+                        cc.SetUp(entry.Data, _ => TogglePendingPick(entryRef));
                     }
                     else
                     {
@@ -926,13 +1122,48 @@ public partial class BattleGameMain
             }
         }
 
-        Button closeBtn = root.CreateChildButton(selectionMode ? "Skip" : "Close");
-        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
-        closeRt.sizeDelta = new Vector2(180f, 48f);
-        closeRt.anchorMin = new Vector2(0.5f, 0f);
-        closeRt.anchorMax = new Vector2(0.5f, 0f);
-        closeRt.pivot = new Vector2(0.5f, 0f);
-        closeRt.anchoredPosition = new Vector2(0f, 36f);
-        closeBtn.onClick.AddListener(ClosePopup);
+        if (selectionMode)
+        {
+            Button okBtn = root.CreateChildButton("LookDeckOk");
+            RectTransform okRt = okBtn.GetComponent<RectTransform>();
+            okRt.sizeDelta = new Vector2(180f, 48f);
+            okRt.anchorMin = new Vector2(0.5f, 0f);
+            okRt.anchorMax = new Vector2(0.5f, 0f);
+            okRt.pivot = new Vector2(0.5f, 0f);
+            okRt.anchoredPosition = new Vector2(-110f, 36f);
+            TextMeshProUGUI okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+            if (okLabel != null)
+            {
+                okLabel.text = "OK";
+            }
+
+            okBtn.onClick.AddListener(ConfirmPendingPicks);
+
+            Button skipBtn = root.CreateChildButton("LookDeckSkip");
+            RectTransform skipRt = skipBtn.GetComponent<RectTransform>();
+            skipRt.sizeDelta = new Vector2(180f, 48f);
+            skipRt.anchorMin = new Vector2(0.5f, 0f);
+            skipRt.anchorMax = new Vector2(0.5f, 0f);
+            skipRt.pivot = new Vector2(0.5f, 0f);
+            skipRt.anchoredPosition = new Vector2(110f, 36f);
+            TextMeshProUGUI skipLabel = skipBtn.GetComponentInChildren<TextMeshProUGUI>();
+            if (skipLabel != null)
+            {
+                skipLabel.text = "Skip";
+            }
+
+            skipBtn.onClick.AddListener(ClosePopup);
+        }
+        else
+        {
+            Button closeBtn = root.CreateChildButton("Close");
+            RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+            closeRt.sizeDelta = new Vector2(180f, 48f);
+            closeRt.anchorMin = new Vector2(0.5f, 0f);
+            closeRt.anchorMax = new Vector2(0.5f, 0f);
+            closeRt.pivot = new Vector2(0.5f, 0f);
+            closeRt.anchoredPosition = new Vector2(0f, 36f);
+            closeBtn.onClick.AddListener(ClosePopup);
+        }
     }
 }

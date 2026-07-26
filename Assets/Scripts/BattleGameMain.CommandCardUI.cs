@@ -141,8 +141,12 @@ public partial class BattleGameMain
         {
             acknowledged = true;
             Destroy(root);
-            activeOnActionPopupRoot = null;
-            isOnActionPopupOpen = false;
+            if (activeOnActionPopupRoot == root)
+            {
+                activeOnActionPopupRoot = null;
+            }
+
+            isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
         });
 
         yield return new WaitUntil(() => acknowledged);

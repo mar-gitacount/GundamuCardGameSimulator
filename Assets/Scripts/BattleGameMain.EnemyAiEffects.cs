@@ -1095,12 +1095,15 @@ public partial class BattleGameMain
             PlayerType.Enemy,
             EffectTiming.OnMain,
             null);
+        BeginOnDestroyedLatencyHold();
         yield return ShowCommandUseAcknowledgementCoroutine(
             command,
             null,
             previewTargets,
             "敵 — コマンド（OnMain）");
         TryExecuteOnMainCard(PlayerType.Enemy, command, null);
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
     }
 
     private bool TryExecuteEnemyOnActionStep(
@@ -1323,6 +1326,7 @@ public partial class BattleGameMain
         CardController attackingUnitInAttackFlow,
         System.Action onDone)
     {
+        BeginOnDestroyedLatencyHold();
         yield return ShowCommandUseAcknowledgementCoroutine(
             command,
             attackingUnitInAttackFlow,
@@ -1336,6 +1340,7 @@ public partial class BattleGameMain
                 command.Data.id,
                 command.CurrentLevel))
         {
+            EndOnDestroyedLatencyHold();
             Debug.Log("[EnemyAI] OnAction: リソース不足で実行できません。");
             onDone?.Invoke();
             yield break;
@@ -1348,6 +1353,7 @@ public partial class BattleGameMain
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
         if (onActionEffects.Count == 0)
         {
+            EndOnDestroyedLatencyHold();
             FinalizeOnActionSourceCard(command, side);
             onDone?.Invoke();
             yield break;
@@ -1363,11 +1369,24 @@ public partial class BattleGameMain
             ctx,
             () =>
             {
-                FinalizeOnActionSourceCard(command, side);
-                SyncAllResourceViewsFromRule();
-                onDone?.Invoke();
+                EndOnDestroyedLatencyHold();
+                StartCoroutine(CoFinishEnemyOnActionAfterTrashUi(
+                    command,
+                    side,
+                    onDone));
             },
             attackingUnitInAttackFlow);
+    }
+
+    private IEnumerator CoFinishEnemyOnActionAfterTrashUi(
+        CardController command,
+        PlayerType side,
+        System.Action onDone)
+    {
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+        FinalizeOnActionSourceCard(command, side);
+        SyncAllResourceViewsFromRule();
+        onDone?.Invoke();
     }
 
     private void ExecuteEnemyOnActionEffectsChain(

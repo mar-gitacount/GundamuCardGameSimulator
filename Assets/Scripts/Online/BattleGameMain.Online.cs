@@ -568,14 +568,21 @@ public partial class BattleGameMain
 
         AssignBattleInstanceIdIfNeeded(target);
         Debug.Log($"[EffectDamage][OnlineQueueDamage] target={FormatOnlineEffectSyncUnit(target)}");
-        bool queued = TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        OnlineBattleUnitEffectChange change = new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDamage,
             hpAfter = target.CurrentHp
-        });
+        };
+        bool queued = TryQueueOnlineUnitTargetChange(target, change);
         if (!queued)
         {
             Debug.LogWarning($"[EffectDamage][OnlineQueueDamageFail] target={FormatOnlineEffectSyncUnit(target)}");
+            return;
+        }
+
+        if (target.CurrentHp <= 0)
+        {
+            change.onDestroyedRequestId = PrepareOnlineOnDestroyedWait(target);
         }
     }
 
@@ -677,15 +684,19 @@ public partial class BattleGameMain
     private void QueueOnlineUnitDestroy(CardController target)
     {
         Debug.Log($"[EffectDamage][OnlineQueueDestroy] target={FormatOnlineEffectSyncUnit(target)}");
-        bool queued = TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        OnlineBattleUnitEffectChange change = new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroy,
             hpAfter = 0
-        });
+        };
+        bool queued = TryQueueOnlineUnitTargetChange(target, change);
         if (!queued)
         {
             Debug.LogWarning($"[EffectDamage][OnlineQueueDestroyFail] target={FormatOnlineEffectSyncUnit(target)}");
+            return;
         }
+
+        change.onDestroyedRequestId = PrepareOnlineOnDestroyedWait(target);
     }
 
     private void QueueOnlineUnitBounce(CardController target)
@@ -925,6 +936,9 @@ public partial class BattleGameMain
                 break;
             case "HandDiscardRevealComplete":
                 HandleRemoteHandDiscardRevealComplete(message.payload);
+                break;
+            case EosOnlineBattleMessage.OnDestroyedComplete:
+                HandleRemoteOnDestroyedComplete(message.payload);
                 break;
         }
     }
@@ -1667,14 +1681,9 @@ public partial class BattleGameMain
                     {
                         Debug.Log($"[EffectSync][DamageToTrash] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                         NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
-                        if (unit.Data != null && unit.Data.IsUnitToken())
-                        {
-                            TryVanishBattleUnitTokenFromZone(unit);
-                        }
-                        else
-                        {
-                            ApplyRemoteUnitToTrash(unit);
-                        }
+                        ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
+                            unit,
+                            change.onDestroyedRequestId);
                     }
                     else
                     {
@@ -1723,7 +1732,9 @@ public partial class BattleGameMain
                     Debug.Log($"[EffectSync][ApplyDestroy] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
                     unit.SetCurrentHpForSync(0);
-                    ApplyRemoteUnitToTrash(unit);
+                    ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
+                        unit,
+                        change.onDestroyedRequestId);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindBounce:

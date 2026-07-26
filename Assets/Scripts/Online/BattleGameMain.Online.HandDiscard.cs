@@ -21,7 +21,8 @@ public partial class BattleGameMain
         string cardName,
         PlayerType handOwner,
         PlayerType effectOwner,
-        bool isInitiator)
+        bool isInitiator,
+        string revealTitle = null)
     {
         int requestId = 0;
         if (IsOnlineBattle() && isInitiator && !_applyingRemoteBattleAction)
@@ -35,7 +36,7 @@ public partial class BattleGameMain
         }
 
         bool isOpponentView = handOwner == PlayerType.Enemy;
-        yield return ShowHandDiscardRevealPanelCoroutine(cardId, cardName, isOpponentView);
+        yield return ShowHandDiscardRevealPanelCoroutine(cardId, cardName, isOpponentView, revealTitle);
 
         if (IsOnlineBattle() && isInitiator && !_applyingRemoteBattleAction && requestId > 0)
         {
@@ -75,8 +76,24 @@ public partial class BattleGameMain
 
     private IEnumerator HandleRemoteHandDiscardRevealCoroutine(int cardId, string cardName, int requestId)
     {
+        // effectthink の上に公開 UI を出せるように、いったん think を閉じる（OK 後に完了が来る想定）
+        if (isOnlineEffectThinkPauseOpen)
+        {
+            CloseOnlineEffectThinkOverlay();
+        }
+
         yield return ShowHandDiscardRevealPanelCoroutine(cardId, cardName, isOpponentView: true);
         SendOnlineHandDiscardRevealComplete(requestId);
+
+        // 公開 OK 時点でまだ破壊時待機が残っていれば解除（Look 完了通知の取りこぼし対策）
+        if (_pendingRemoteOnDestroyedRequestIds.Count > 0)
+        {
+            Debug.Log(
+                $"[OnDestroyed][Online] clear effectthink after reveal OK "
+                + $"pending:{_pendingRemoteOnDestroyedRequestIds.Count}");
+            _pendingRemoteOnDestroyedRequestIds.Clear();
+            CloseOnlineEffectThinkOverlay();
+        }
     }
 
     private void HandleRemoteHandDiscardRevealComplete(string payload)

@@ -35,7 +35,7 @@ MonoBehaviour:
     activationConditions: []
     effectsName: 
     effects:
-    - type: 13
+    - type: 14
       value: 1
       target: 5
       selectionMode: 0
@@ -63,7 +63,7 @@ MonoBehaviour:
     activationConditions: []
     effectsName: ShuffleLookedRemainderToDeckBottom
     effects:
-    - type: 13
+    - type: 16
       value: 1
       target: 5
       selectionMode: 0

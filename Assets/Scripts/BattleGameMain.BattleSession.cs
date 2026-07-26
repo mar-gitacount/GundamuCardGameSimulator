@@ -9,6 +9,7 @@ public partial class BattleGameMain
         UnregisterNetworkBattleHooksIfNeeded();
         CloseAllBattleMenuOverlays();
         DestroyActiveOnActionPopupIfAny();
+        DestroyActiveLookDeckPopupIfAny();
         DestroyActiveAttackFlowDebugPanelIfAny();
         DetachPersistentButtonsBeforeFieldClear();
         ClearBattleFieldPanels();
@@ -159,6 +160,7 @@ public partial class BattleGameMain
         isActionThinkPauseOpen = false;
         isMulliganPromptOpen = false;
         isMulliganThinkPauseOpen = false;
+        ResetOnlineOnDestroyedWaitState();
         CloseOnlineOnActionOpponentWaitOverlay();
         CloseOnlineShieldBreakThinkOverlay();
         _onlineDeferredEnemyShieldBreak = null;
