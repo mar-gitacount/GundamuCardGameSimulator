@@ -353,7 +353,8 @@ public partial class BattleGameMain
                 || eff.type == EffectType.NotDirectAttack
                 || eff.type == EffectType.Suppress
                 || eff.type == EffectType.Breach
-                || eff.type == EffectType.RecoverHp)
+                || eff.type == EffectType.RecoverHp
+                || eff.type == EffectType.AddExResource)
             {
                 continue;
             }

@@ -3269,21 +3269,58 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// カード効果の共通入口: EXリソース増減を適用してUIを同期する。
-    /// amount が正なら増加、負なら減少。
+    /// amount が正なら増加、負なら減少。どのカード効果からも呼べる。
     /// </summary>
     public void ApplyCardEffectExResourceDelta(PlayerType target, int amount)
     {
-        Gundam2024RuleScript.PlayerSide side = ToRuleSide(target);
-        if (amount > 0)
+        if (amount == 0 || gundamRule == null)
         {
-            gundamRule.AddExResource(side, amount);
-        }
-        else if (amount < 0)
-        {
-            gundamRule.AddExResource(side, amount);
+            return;
         }
 
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(target);
+        gundamRule.AddExResource(side, amount);
         SyncResourceViewsFromRule(side);
+        NotifyLocalExResourceDeltaIfNeeded(target, amount);
+        Debug.Log($"[Effect] AddExResource delta:{amount} target:{target} side:{side}");
+    }
+
+    /// <summary>
+    /// <see cref="EffectType.AddExResource"/> を解決する。
+    /// value が 0 以下なら 1 枚追加。target で付与先プレイヤーを決める。
+    /// </summary>
+    private void ApplyAddExResourceEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null)
+        {
+            return;
+        }
+
+        int amount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+        if (amount <= 0)
+        {
+            amount = 1;
+        }
+
+        PlayerType targetPlayer = ResolveAddExResourceTargetPlayer(ownerType, effect.target);
+        ApplyCardEffectExResourceDelta(targetPlayer, amount);
+        Debug.Log(
+            $"[Effect] AddExResource x{amount} to:{targetPlayer} "
+            + $"by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+    }
+
+    private static PlayerType ResolveAddExResourceTargetPlayer(PlayerType ownerType, TargetType target)
+    {
+        if (target == TargetType.EnemyPlayer)
+        {
+            return ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        }
+
+        // SelfPlayer / Self / 未指定などは効果オーナー側
+        return ownerType;
     }
 
     /// <summary>SendCardToTrash の非同期パイプライン（OnDestroyed / Look UI 等）が未完了の件数。</summary>
@@ -5493,6 +5530,18 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.AddExResource)
+        {
+            ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         List<CardController> pendingEffectDamageTrash = effect.type == EffectType.Damage
             ? new List<CardController>()
             : null;
@@ -5639,6 +5688,10 @@ public partial class BattleGameMain : MonoBehaviour
         else if (effect.type == EffectType.RecoverHp)
         {
             ApplyRecoverHpEffect(targets, magnitude);
+        }
+        else if (effect.type == EffectType.AddExResource)
+        {
+            ApplyAddExResourceEffect(sourceCard, ownerType, effect);
         }
 
         if (targets != null && targets.Count > 0)
@@ -9545,6 +9598,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.AddExResource)
+        {
+            ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.MarkObservedUnit)
         {
             Debug.LogWarning(
@@ -9768,6 +9830,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.RecoverHp:
                 ApplyRecoverHpEffect(targets, magnitude);
+                break;
+
+            case EffectType.AddExResource:
+                ApplyAddExResourceEffect(sourceCard, ownerType, effect);
                 break;
         }
 

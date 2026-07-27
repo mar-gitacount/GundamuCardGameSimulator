@@ -26,12 +26,42 @@ MonoBehaviour:
   color: 1
   type: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 15
+    activationConditions:
+    - boardSide: 4
+      checkKind: 15
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+      featureId: 10
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+    requireChainObservationContext: 0
+    effectsName: AddExResource1_Self
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
-  link: []
+  link:
+  - pilotCardId: 0
+    pilotFeatures:
+    - {fileID: 0}
+    pilotFeatureIds: 2700000058000000
   pilotMountOnPilotMountedSource: 0
-  pilotMountOnPilotMountedOrder: 0
+  pilotMountOnPilotMountedOrder: 1
   isBlocker: 0
   isDeployTurnAttack: 0
   isNotDirectAttack: 0

@@ -117,7 +117,13 @@ public enum EffectType
     /// 対象ユニットの HP を value 回復する（ダメージカウンタ除去。上限超過分は切り捨て）。
     /// 敵ユニット撃破時（戦闘／エフェクトバトル等）の回復にも使用する。
     /// </summary>
-    RecoverHp
+    RecoverHp,
+    /// <summary>
+    /// EXリソースを value 枚追加する（0 以下は 1 枚扱い）。
+    /// target で SelfPlayer / EnemyPlayer を指定（未指定・ユニット対象は効果オーナー側）。
+    /// 条件付き発動は timed / effect の activationConditions（例: TrashHasFeature）と組み合わせる。
+    /// </summary>
+    AddExResource
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>

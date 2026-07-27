@@ -834,6 +834,59 @@ public partial class BattleGameMain
                 (int)deployTargetZoneOwner)));
     }
 
+    /// <summary>EXリソース増減を相手へスナップショット同期する（AddExResource 等）。</summary>
+    private void NotifyLocalExResourceDeltaIfNeeded(PlayerType target, int amount)
+    {
+        if (amount == 0
+            || !IsOnlineBattle()
+            || _applyingRemoteBattleAction
+            || gundamRule == null)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(target);
+        Gundam2024RuleScript.PlayerState state = GetRuleState(side);
+        if (state == null)
+        {
+            return;
+        }
+
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateResourceState(
+            OnlineBattleActionPayload.CreateResourceState(
+                (int)target,
+                state.resource,
+                state.exResource,
+                state.level)));
+        Debug.Log(
+            $"[OnlineBattle] ResourceState sent zone:{target} "
+            + $"resource:{state.resource} ex:{state.exResource} level:{state.level} delta:{amount}");
+    }
+
+    private void HandleRemoteResourceState(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
+            || action.action != OnlineBattleActionPayload.ResourceState)
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid ResourceState payload: {payload}");
+            return;
+        }
+
+        PlayerType senderZone = action.actingZoneSide == (int)PlayerType.Enemy
+            ? PlayerType.Enemy
+            : PlayerType.Player;
+        PlayerType localZone = MirrorOnlineZoneOwner(senderZone);
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(localZone);
+        ApplyRemoteOnActionResourceSnapshot(
+            ruleSide,
+            action.resourceAfter,
+            action.exResourceAfter,
+            action.levelAfter);
+        Debug.Log(
+            $"[OnlineBattle] ResourceState applied localZone:{localZone} "
+            + $"resource:{action.resourceAfter} ex:{action.exResourceAfter} level:{action.levelAfter}");
+    }
+
     private void NotifyLocalPilotMounted(CardController hostUnit, CardController pilotCard)
     {
         if (_applyingRemoteBattleAction || !IsOnlineBattle() || currentPlayerType != PlayerType.Player
@@ -936,6 +989,9 @@ public partial class BattleGameMain
                 break;
             case "HandDiscardRevealComplete":
                 HandleRemoteHandDiscardRevealComplete(message.payload);
+                break;
+            case EosOnlineBattleMessage.ResourceState:
+                HandleRemoteResourceState(message.payload);
                 break;
             case EosOnlineBattleMessage.OnDestroyedComplete:
                 HandleRemoteOnDestroyedComplete(message.payload);
