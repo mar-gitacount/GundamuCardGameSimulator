@@ -190,6 +190,17 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public const string ResourceState = "ResourceState";
+
+    public static string CreateResourceState(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = ResourceState,
+            payload = payload ?? string.Empty
+        });
+    }
+
     public const string OnDestroyedComplete = "OnDestroyedComplete";
 
     public static string CreateOnDestroyedComplete(string payload)

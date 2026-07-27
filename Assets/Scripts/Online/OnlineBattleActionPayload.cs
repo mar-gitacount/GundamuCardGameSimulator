@@ -79,6 +79,7 @@ public class OnlineBattleActionPayload
 
     public const string HandDiscardReveal = "HandDiscardReveal";
     public const string HandDiscardRevealComplete = "HandDiscardRevealComplete";
+    public const string ResourceState = "ResourceState";
 
     public static string CreateHandDiscardReveal(int cardId, int requestId)
     {
@@ -319,6 +320,23 @@ public class OnlineBattleActionPayload
         });
     }
 
+    /// <summary>EX／リソース変動のスナップショット同期（送信側視点のゾーン側）。</summary>
+    public static string CreateResourceState(
+        int actingZoneSide,
+        int resourceAfter,
+        int exResourceAfter,
+        int levelAfter)
+    {
+        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        {
+            action = ResourceState,
+            actingZoneSide = actingZoneSide,
+            resourceAfter = resourceAfter,
+            exResourceAfter = exResourceAfter,
+            levelAfter = levelAfter
+        });
+    }
+
     public static bool TryParse(string raw, out OnlineBattleActionPayload payload)
     {
         payload = null;
@@ -357,6 +375,8 @@ public class OnlineBattleActionPayload
                     return payload.requestId > 0;
                 case HandDiscardReveal:
                     return payload.cardId > 0 && payload.requestId > 0;
+                case ResourceState:
+                    return payload.actingZoneSide == 0 || payload.actingZoneSide == 1;
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;
                 case DeployBase:
