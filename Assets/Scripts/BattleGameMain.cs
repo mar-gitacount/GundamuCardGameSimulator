@@ -5168,14 +5168,19 @@ public partial class BattleGameMain : MonoBehaviour
                             continue;
                         }
 
-                        OpenEnemyUnitEffectSelectionUI(
+                        if (TryResolveOnAttackManualUnitPick(
                             sourceCard,
                             attacker,
                             attackerOwner,
                             effect,
                             bounceCandidates,
-                            stepResolved);
-                        return true;
+                            stepResolved,
+                            onResolved))
+                        {
+                            return true;
+                        }
+
+                        continue;
                     }
 
                     if (effect.selectionMode.IsAttackedTargetOnlyMode())
@@ -5252,13 +5257,140 @@ public partial class BattleGameMain : MonoBehaviour
         return false;
     }
 
+    /// <summary>OnAttack 手動ユニット選択。相手選択・AI選択・Destroy 後の OnDestroyed 完了待ちを含む。</summary>
+    private bool TryResolveOnAttackManualUnitPick(
+        CardController sourceCard,
+        CardController attacker,
+        PlayerType attackerOwner,
+        EffectData effect,
+        List<CardController> candidates,
+        System.Action stepResolved,
+        System.Action onAllComplete = null)
+    {
+        if (sourceCard == null || effect == null || candidates == null || candidates.Count == 0)
+        {
+            return false;
+        }
+
+        PlayerType chooser = ResolveOnAttackEffectChooser(attackerOwner, effect);
+        if (chooser == PlayerType.Enemy)
+        {
+            CardController picked = PickOnAttackChooserTarget(effect, attackerOwner, sourceCard, attacker, candidates);
+            if (picked == null)
+            {
+                return false;
+            }
+
+            Debug.Log(
+                $"[OnAttack] AI/相手側が対象を選択: {picked.Data?.cardName}(id:{picked.Data?.id}) "
+                + $"effect:{effect.type} opponentChooses:{effect.opponentChoosesTarget}");
+            ApplyEffectToSpecificTargets(
+                sourceCard,
+                attackerOwner,
+                effect,
+                new List<CardController> { picked });
+            ContinueOnAttackAfterAppliedEffect(attacker, effect, stepResolved);
+            return true;
+        }
+
+        OpenEnemyUnitEffectSelectionUI(
+            sourceCard,
+            attacker,
+            attackerOwner,
+            effect,
+            candidates,
+            stepResolved,
+            onAllComplete);
+        return true;
+    }
+
+    private static PlayerType ResolveOnAttackEffectChooser(PlayerType effectOwner, EffectData effect)
+    {
+        if (effect != null && effect.opponentChoosesTarget)
+        {
+            return effectOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        }
+
+        return effectOwner;
+    }
+
+    private CardController PickOnAttackChooserTarget(
+        EffectData effect,
+        PlayerType attackerOwner,
+        CardController sourceCard,
+        CardController attacker,
+        List<CardController> candidates)
+    {
+        if (candidates == null || candidates.Count == 0)
+        {
+            return null;
+        }
+
+        // 自軍を犠牲にする Destroy は弱いユニットを優先
+        if (effect != null
+            && effect.type == EffectType.Destroy
+            && (effect.target.IsAllyUnitPickTarget() || effect.opponentChoosesTarget))
+        {
+            CardController sacrifice = PickLowestHpUnit(candidates);
+            return sacrifice != null ? sacrifice : candidates[0];
+        }
+
+        EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(
+            attackerOwner,
+            sourceCard,
+            attacker,
+            null);
+        return PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+    }
+
+    /// <summary>Destroy は OnDestroyed（Look 等）完了まで待ってから次の OnAttack／攻撃続行へ。</summary>
+    private void ContinueOnAttackAfterAppliedEffect(
+        CardController attackUnit,
+        EffectData effect,
+        System.Action onResolved)
+    {
+        if (effect != null && effect.type == EffectType.Destroy)
+        {
+            StartCoroutine(CoContinueOnAttackAfterDestroyPipeline(attackUnit, onResolved));
+            return;
+        }
+
+        pendingOnAttackEffectResolvedAttacker = attackUnit;
+        onResolved?.Invoke();
+    }
+
+    private IEnumerator CoContinueOnAttackAfterDestroyPipeline(
+        CardController attackUnit,
+        System.Action onResolved)
+    {
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+
+        if (attackUnit == null
+            || !IsCardControllerInstanceValid(attackUnit)
+            || attackUnit.Data == null
+            || !attackUnit.Data.IsUnitLike()
+            || attackUnit.CurrentHp <= 0
+            || !IsCardOnBattleZone(attackUnit))
+        {
+            Debug.Log("[OnAttack] 攻撃ユニットが破壊されたため攻撃を中断します。");
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            CancelPendingUnitAttackFlow();
+            yield break;
+        }
+
+        pendingOnAttackEffectResolvedAttacker = attackUnit;
+        onResolved?.Invoke();
+    }
+
     private void OpenEnemyUnitEffectSelectionUI(
         CardController effectSourceCard,
         CardController attackingUnit,
         PlayerType attackerOwner,
         EffectData effect,
         List<CardController> enemyUnits,
-        System.Action onResolved = null)
+        System.Action onResolved = null,
+        System.Action onSkipRemainingEffects = null)
     {
         CardController attackUnit = attackingUnit ?? pendingUnitAttackAttacker ?? effectSourceCard;
 
@@ -5281,34 +5413,7 @@ public partial class BattleGameMain : MonoBehaviour
         bg.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("EffectSelectTitle", UIAnchor.TopCenter, 620, 48);
-        if (effect != null && effect.type == EffectType.Bounce)
-        {
-            title.text = "バウンス — 手札に戻すユニットを選択";
-        }
-        else if (effect != null && effect.type == EffectType.Rest)
-        {
-            title.text = "REST — 対象ユニットを選択";
-        }
-        else if (effect != null && effect.type == EffectType.Activate)
-        {
-            title.text = effect.filterTargetIsBlocker
-                ? "ACTIVE化 — ブロッカーを選択（RESTのみ）"
-                : "ACTIVE化 — 対象ユニットを選択（RESTのみ）";
-        }
-        else if (effect != null && effect.type == EffectType.Destroy)
-        {
-            title.text = "破壊 — 対象ユニットを選択";
-        }
-        else if (effect != null && effect.type == EffectType.ReturnUnitToDeckBottom)
-        {
-            title.text = "山札の下へ戻す敵を選択（トークンは破壊・Lv0扱い）";
-        }
-        else
-        {
-            title.text = effect != null && effect.target == TargetType.RestEnemyUnit
-                ? "Select REST enemy unit"
-                : "Select effect target unit";
-        }
+        title.text = FormatOnAttackUnitSelectionTitle(effect);
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -5377,12 +5482,11 @@ public partial class BattleGameMain : MonoBehaviour
                         attackerOwner,
                         effect,
                         new List<CardController> { unit });
-                    pendingOnAttackEffectResolvedAttacker = attackUnit;
                     Debug.Log(
-                        $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName})。攻撃を続行します。");
+                        $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName})。");
                     ReleaseOnActionPopupState(root);
                     Destroy(root);
-                    onResolved?.Invoke();
+                    ContinueOnAttackAfterAppliedEffect(attackUnit, effect, onResolved);
                     return;
                 }
 
@@ -5427,27 +5531,104 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
                 ApplyEffectToSpecificTargets(effectSourceCard, attackerOwner, effect, selected);
-                pendingOnAttackEffectResolvedAttacker = attackUnit;
                 Debug.Log(
-                    $"[OnAttack] 効果対象を複数選択 ({effectSourceCard?.Data?.cardName})。攻撃を続行します。");
+                    $"[OnAttack] 効果対象を複数選択 ({effectSourceCard?.Data?.cardName})。");
                 ReleaseOnActionPopupState(root);
                 Destroy(root);
-                onResolved?.Invoke();
+                ContinueOnAttackAfterAppliedEffect(attackUnit, effect, onResolved);
             });
         }
 
-        Button cancel = root.CreateChildButton("Cancel");
-        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
-        cancelRt.sizeDelta = new Vector2(180f, 46f);
-        cancelRt.anchoredPosition = new Vector2(100f, 48f);
-        cancel.onClick.AddListener(() =>
+        bool optionalSkip = effect != null && effect.optionalPlayerConfirm;
+        bool showCancel = optionalSkip
+            || effect == null
+            || effect.type != EffectType.Destroy;
+
+        if (showCancel)
         {
-            pendingUnitAttackAttacker = null;
-            pendingOnAttackEffectResolvedAttacker = null;
-            ReleaseOnActionPopupState(root);
-            Destroy(root);
-            CancelPendingUnitAttackFlow();
-        });
+            Button cancel = root.CreateChildButton("Cancel");
+            RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+            cancelRt.sizeDelta = new Vector2(180f, 46f);
+            cancelRt.anchoredPosition = new Vector2(100f, 48f);
+            cancel.onClick.AddListener(() =>
+            {
+                ReleaseOnActionPopupState(root);
+                Destroy(root);
+
+                if (optionalSkip)
+                {
+                    // 任意効果をスキップし、攻撃自体は続行 → アクションステップへ
+                    Debug.Log(
+                        $"[OnAttack] 任意効果を Cancel（スキップ）: {effectSourceCard?.Data?.cardName} "
+                        + $"effect:{effect?.type}");
+                    pendingOnAttackEffectResolvedAttacker = attackUnit;
+                    if (onSkipRemainingEffects != null)
+                    {
+                        onSkipRemainingEffects.Invoke();
+                    }
+                    else
+                    {
+                        onResolved?.Invoke();
+                    }
+
+                    return;
+                }
+
+                pendingUnitAttackAttacker = null;
+                pendingOnAttackEffectResolvedAttacker = null;
+                CancelPendingUnitAttackFlow();
+            });
+        }
+    }
+
+    private static string FormatOnAttackUnitSelectionTitle(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return "Select effect target unit";
+        }
+
+        if (effect.type == EffectType.Bounce)
+        {
+            return "Bounce — Choose a Unit to return to hand";
+        }
+
+        if (effect.type == EffectType.Rest)
+        {
+            return "REST — Choose a Unit";
+        }
+
+        if (effect.type == EffectType.Activate)
+        {
+            return effect.filterTargetIsBlocker
+                ? "Activate — Choose a Blocker (REST only)"
+                : "Activate — Choose a Unit (REST only)";
+        }
+
+        if (effect.type == EffectType.Destroy)
+        {
+            string optionalSuffix = effect.optionalPlayerConfirm ? " (Cancel to skip)" : string.Empty;
+            if (effect.opponentChoosesTarget)
+            {
+                return "Destroy — Choose one of your Units" + optionalSuffix;
+            }
+
+            if (effect.target.IsAllyUnitPickTarget())
+            {
+                return "Destroy — Choose one of your Units" + optionalSuffix;
+            }
+
+            return "Destroy — Choose an enemy Unit" + optionalSuffix;
+        }
+
+        if (effect.type == EffectType.ReturnUnitToDeckBottom)
+        {
+            return "Return to bottom of deck (tokens are destroyed · Lv0)";
+        }
+
+        return effect.target == TargetType.RestEnemyUnit
+            ? "Select REST enemy unit"
+            : "Select effect target unit";
     }
 
     private List<CardController> GetAliveEnemyUnits(PlayerType attackerOwner)
@@ -7229,8 +7410,11 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                // 敵ユニット対象は TryOpenOnAttackEnemySelectionPanel で攻撃前に解決済み。二重適用しない。
-                if (effect.target.IsOpponentUnitTarget())
+                // 敵ユニット対象／Destroy 等の手動選択は TryOpenOnAttackEnemySelectionPanel で攻撃前に解決済み。
+                if (effect.target.IsOpponentUnitTarget()
+                    || effect.type.UsesTargetCountValue()
+                    || effect.type.RequiresManualUnitSelection()
+                    || effect.opponentChoosesTarget)
                 {
                     continue;
                 }
