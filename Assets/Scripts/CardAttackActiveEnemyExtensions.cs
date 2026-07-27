@@ -134,12 +134,13 @@ public static class CardAttackActiveEnemyExtensions
                 continue;
             }
 
-            if (!effect.HasTargetUnitFilter())
+            // Feature は付与先候補用。攻撃可能敵の条件はステータスのみ。
+            if (!effect.HasAttackActiveEnemyTargetStatFilter())
             {
                 return true;
             }
 
-            if (effect.MatchesTargetUnitFilter(target, attacker))
+            if (effect.MatchesAttackActiveEnemyTargetFilter(target, attacker))
             {
                 return true;
             }
