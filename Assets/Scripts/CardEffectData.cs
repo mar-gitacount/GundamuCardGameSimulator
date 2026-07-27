@@ -698,9 +698,15 @@ public class EffectData
     public bool requireExactExileCount;
 
     [Tooltip(
-        "EffectBattle 等: true のとき対象選択の前にプレイヤーへ実行可否を確認する。"
-        + "Cancel なら後続を含まずその効果のみスキップ。")]
+        "true のとき対象選択の前にプレイヤーへ実行可否を確認する。"
+        + "OnAttack の Destroy 等では Cancel で効果全体をスキップし攻撃／アクションステップへ続行。"
+        + "通常チェーンでは Cancel なら後続を含まずその効果のみスキップ。")]
     public bool optionalPlayerConfirm;
+
+    [Tooltip(
+        "Destroy 等の手動ユニット選択: true のとき効果オーナーではなく相手プレイヤーが対象を選ぶ。"
+        + "例: 攻撃側が Destroy(EnemyUnit) を解決し、相手が自分のユニット1体を選んで破壊する。")]
+    public bool opponentChoosesTarget;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
