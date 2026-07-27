@@ -5472,8 +5472,22 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyEffectToSpecificTargets(CardController sourceCard, PlayerType ownerType, EffectData effect, List<CardController> targets)
     {
-        if (TryApplyAttackActiveEnemyUnitMarker(sourceCard, ownerType, effect))
+        if (effect != null && effect.type == EffectType.AttackActiveEnemyUnit)
         {
+            if (effect.IsAttackActiveEnemyAllyGrant())
+            {
+                ApplyAttackActiveEnemyGrantsToTargets(effect, ownerType, targets);
+            }
+            else
+            {
+                TryApplyAttackActiveEnemyUnitMarker(sourceCard, ownerType, effect);
+            }
+
+            if (targets != null && targets.Count > 0)
+            {
+                SetEffectChainLastPickedTargets(targets);
+            }
+
             BeginOnlineEffectSyncBatch(ownerType);
             FlushOnlineEffectSyncBatch();
             SyncAllResourceViewsFromRule();
@@ -9059,7 +9073,8 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag
-            || effect.type == EffectType.EffectBattle;
+            || effect.type == EffectType.EffectBattle
+            || effect.IsAttackActiveEnemyAllyGrant();
         if (!forceSelectionUi && candidates.Count == 1)
         {
             ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, candidates);
@@ -9491,6 +9506,12 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
+        // AttackActiveEnemyUnit の味方付与は選択 UI 必須（自身含む AllyUnit）
+        if (effect.IsAttackActiveEnemyAllyGrant())
+        {
+            return true;
+        }
+
         return IsEffectTargetRequiringUnitSelection(effect.target)
             && effect.selectionMode.RequiresManualUnitPick();
     }
@@ -9552,8 +9573,17 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyEffect(CardController sourceCard, PlayerType ownerType, EffectData effect)
     {
-        if (TryApplyAttackActiveEnemyUnitMarker(sourceCard, ownerType, effect))
+        if (effect != null && effect.type == EffectType.AttackActiveEnemyUnit)
         {
+            if (effect.IsAttackActiveEnemyAllyGrant())
+            {
+                Debug.LogWarning(
+                    $"[Effect] Skipped auto-apply for AttackActiveEnemyUnit ally grant "
+                    + $"(cardId:{sourceCard?.Data?.id}). Use manual selection path.");
+                return;
+            }
+
+            TryApplyAttackActiveEnemyUnitMarker(sourceCard, ownerType, effect);
             BeginOnlineEffectSyncBatch(ownerType);
             FlushOnlineEffectSyncBatch();
             SyncAllResourceViewsFromRule();
@@ -10212,13 +10242,19 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    /// <summary>AttackActiveEnemyUnit マーカーを解決（UntilEndOfTurn 等はここでランタイム付与）。</summary>
+    /// <summary>AttackActiveEnemyUnit マーカーを解決（UntilEndOfTurn 等はここでランタイム付与）。
+    /// 味方選択付与（AllyUnit）は <see cref="ApplyAttackActiveEnemyGrantsToTargets"/> を使う。</summary>
     private bool TryApplyAttackActiveEnemyUnitMarker(
         CardController sourceCard,
         PlayerType ownerType,
         EffectData effect)
     {
         if (effect == null || effect.type != EffectType.AttackActiveEnemyUnit)
+        {
+            return false;
+        }
+
+        if (effect.IsAttackActiveEnemyAllyGrant())
         {
             return false;
         }
@@ -10236,24 +10272,88 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
+        GrantAttackActiveEnemyToUnit(grantHost, effect, ownerType, sourceCard);
+        return true;
+    }
+
+    /// <summary>選択した味方ユニットへ AttackActiveEnemyUnit をランタイム付与する。</summary>
+    private void ApplyAttackActiveEnemyGrantsToTargets(
+        EffectData effect,
+        PlayerType ownerType,
+        List<CardController> targets)
+    {
+        if (effect == null || effect.type != EffectType.AttackActiveEnemyUnit || targets == null)
+        {
+            return;
+        }
+
+        if (effect.duration == EffectDuration.Permanent)
+        {
+            Debug.LogWarning(
+                "[AttackActiveEnemyUnit] 味方付与では Permanent は未対応です。UntilEndOfTurn / UntilEndOfBattle を指定してください。");
+            return;
+        }
+
+        int applied = 0;
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController target = targets[i];
+            if (target == null || target.Data == null || !target.Data.IsUnitLike() || target.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!IsCardOnBattleZone(target))
+            {
+                continue;
+            }
+
+            GrantAttackActiveEnemyToUnit(target, effect, ownerType, sourceCard: null);
+            applied++;
+        }
+
+        Debug.Log(
+            $"[AttackActiveEnemyUnit] 味方付与 applied:{applied}/{targets.Count} "
+            + $"duration:{effect.duration} filter:{effect.FormatTargetUnitFilterDescription()} owner:{ownerType}");
+    }
+
+    private static void GrantAttackActiveEnemyToUnit(
+        CardController grantHost,
+        EffectData effect,
+        PlayerType ownerType,
+        CardController sourceCard)
+    {
+        if (grantHost == null || grantHost.Data == null || effect == null)
+        {
+            return;
+        }
+
         if (effect.duration == EffectDuration.UntilEndOfTurn)
         {
             grantHost.AddAttackActiveEnemyUntilEndOfTurnGrant(effect);
             Debug.Log(
                 $"[AttackActiveEnemyUnit] UntilEndOfTurn 付与: {grantHost.Data.cardName} "
-                + $"filter:{effect.FormatTargetUnitFilterDescription()} "
-                + $"(source:{sourceCard.Data?.cardName} owner:{ownerType})");
+                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(effect)} "
+                + $"(source:{sourceCard?.Data?.cardName} owner:{ownerType})");
         }
         else if (effect.duration == EffectDuration.UntilEndOfBattle)
         {
             grantHost.AddAttackActiveEnemyUntilEndOfBattleGrant(effect);
             Debug.Log(
                 $"[AttackActiveEnemyUnit] UntilEndOfBattle 付与: {grantHost.Data.cardName} "
-                + $"filter:{effect.FormatTargetUnitFilterDescription()} "
-                + $"(source:{sourceCard.Data?.cardName} owner:{ownerType})");
+                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(effect)} "
+                + $"(source:{sourceCard?.Data?.cardName} owner:{ownerType})");
+        }
+    }
+
+    private static string FormatAttackActiveEnemyAttackFilter(EffectData effect)
+    {
+        if (effect == null || !effect.HasAttackActiveEnemyTargetStatFilter())
+        {
+            return "any ACTIVE";
         }
 
-        return true;
+        return effect.FormatAttackActiveEnemyTargetStatDescription();
     }
 
     private static CardController ResolveAttackActiveEnemyGrantHost(CardController sourceCard)
@@ -13444,8 +13544,13 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
         }
 
-        FilterTargetsByUnitCondition(result, effect, sourceCard);
         FilterSelectableEffectTargets(result, effect);
+        // AttackActiveEnemyUnit のステータス条件は「攻撃できる敵」用。付与候補には Feature のみ適用済み。
+        if (effect.type != EffectType.AttackActiveEnemyUnit)
+        {
+            FilterTargetsByUnitCondition(result, effect, sourceCard);
+        }
+
         if (effect.type == EffectType.Rest)
         {
             FilterOutAlreadyRestedUnits(result);
@@ -13525,6 +13630,20 @@ public partial class BattleGameMain : MonoBehaviour
             return isAttackContext
                 ? $"アタック可能にする味方ユニットを選択{filterHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
                 : $"アタック可能にする味方ユニットを選択{filterHint}";
+        }
+
+        if (effect.IsAttackActiveEnemyAllyGrant())
+        {
+            string featureLabel = effect.FormatTargetFeaturesLabel("/");
+            string attackFilter = effect.HasAttackActiveEnemyTargetStatFilter()
+                ? effect.FormatAttackActiveEnemyTargetStatDescription()
+                : "ACTIVE敵";
+            string filterHint = string.IsNullOrEmpty(featureLabel)
+                ? string.Empty
+                : $"（{featureLabel}）";
+            return isAttackContext
+                ? $"アクティブ攻撃（{attackFilter}）を付与する味方を選択{filterHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
+                : $"アクティブ攻撃（{attackFilter}）を付与する味方を選択{filterHint}";
         }
 
         if (effect.type == EffectType.Damage && effect.selectionMode.IsMultipleUnitPickMode())

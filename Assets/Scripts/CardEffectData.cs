@@ -53,7 +53,12 @@ public enum EffectType
     Rest,
     /// <summary>高機動。攻撃時に敵ブロッカーを無視し、ブロックフェイズをスキップして OnAction へ進む。</summary>
     HighMobility,
-    /// <summary>アクティブ攻撃。通常は REST の敵ユニットのみ攻撃可能だが、この効果を持つ攻撃者は ACTIVE な敵ユニットも攻撃できる。Permanent=常時、UntilEndOfTurn/UntilEndOfBattle は OnPlayed 等の解決時に付与。</summary>
+    /// <summary>
+    /// アクティブ攻撃。通常は REST の敵ユニットのみ攻撃可能だが、この効果を持つ攻撃者は ACTIVE な敵ユニットも攻撃できる。
+    /// Permanent=カード常時。UntilEndOfTurn/UntilEndOfBattle は解決時に付与。
+    /// target=AllyUnit/AllyOtherUnit のときは味方を手動選択して付与（targetFeature で候補絞り込み）。
+    /// targetUnitFilterStat 等は「攻撃できる敵」の条件（例: AP≤4）。付与候補の絞り込みには使わない。
+    /// </summary>
     AttackActiveEnemyUnit,
     /// <summary>山札の上から value 枚を見る（山札からは取り出さない）。target で自分／相手の山札を指定。</summary>
     Look,
@@ -883,6 +888,71 @@ public static class EffectDataExtensions
                 || effect.compareTargetStatToSource);
     }
 
+    /// <summary>
+    /// AttackActiveEnemyUnit の「攻撃できる ACTIVE 敵」条件に使うステータス絞り込みがあるか。
+    /// Feature 絞り込みは付与先候補用のため、ここでは含めない。
+    /// </summary>
+    public static bool HasAttackActiveEnemyTargetStatFilter(this EffectData effect)
+    {
+        return effect != null
+            && (effect.HasTargetUnitStatFilter() || effect.compareTargetStatToSource);
+    }
+
+    /// <summary>
+    /// AttackActiveEnemyUnit 用。敵ユニットがステータス条件を満たすか（Feature は見ない）。
+    /// 条件未設定なら true。
+    /// </summary>
+    public static bool MatchesAttackActiveEnemyTargetFilter(
+        this EffectData effect,
+        CardController targetUnit,
+        CardController attacker)
+    {
+        if (effect == null || targetUnit == null || targetUnit.Data == null || !targetUnit.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (!effect.HasAttackActiveEnemyTargetStatFilter())
+        {
+            return true;
+        }
+
+        EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+        if (statFilter == EffectTargetUnitFilterStat.Unset && effect.compareTargetStatToSource)
+        {
+            statFilter = EffectTargetUnitFilterStat.AP;
+        }
+
+        if (statFilter == EffectTargetUnitFilterStat.Unset)
+        {
+            return true;
+        }
+
+        int compareValue = effect.targetUnitStatCompareValue;
+        if (effect.compareTargetStatToSource)
+        {
+            if (attacker == null)
+            {
+                return false;
+            }
+
+            compareValue = GetTargetUnitFilterStatValue(attacker, statFilter);
+        }
+
+        return EffectCompareHelper.Compare(
+            GetTargetUnitFilterStatValue(targetUnit, statFilter),
+            compareValue,
+            effect.targetUnitStatCompareOp);
+    }
+
+    /// <summary>AttackActiveEnemyUnit を味方ユニットへ手動選択付与するか。</summary>
+    public static bool IsAttackActiveEnemyAllyGrant(this EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.AttackActiveEnemyUnit
+            && effect.target.IsAllyUnitPickTarget();
+    }
+
     public static int GetTargetUnitFilterStatValue(CardController unit, EffectTargetUnitFilterStat stat)
     {
         if (unit == null)
@@ -1043,6 +1113,42 @@ public static class EffectDataExtensions
                 sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
                     .Append(effect.targetUnitStatCompareValue);
             }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>AttackActiveEnemyUnit の攻撃対象ステータス条件のみを文言化（Feature は含めない）。</summary>
+    public static string FormatAttackActiveEnemyTargetStatDescription(this EffectData effect)
+    {
+        if (effect == null || !effect.HasAttackActiveEnemyTargetStatFilter())
+        {
+            return string.Empty;
+        }
+
+        EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+        if (statFilter == EffectTargetUnitFilterStat.Unset && effect.compareTargetStatToSource)
+        {
+            statFilter = EffectTargetUnitFilterStat.AP;
+        }
+
+        if (statFilter == EffectTargetUnitFilterStat.Unset)
+        {
+            return string.Empty;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.Append(FormatTargetUnitFilterStatLabel(statFilter));
+        if (effect.compareTargetStatToSource)
+        {
+            sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                .Append("自")
+                .Append(FormatTargetUnitFilterStatLabel(statFilter));
+        }
+        else
+        {
+            sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                .Append(effect.targetUnitStatCompareValue);
         }
 
         return sb.ToString();
