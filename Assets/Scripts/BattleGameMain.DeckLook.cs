@@ -85,7 +85,7 @@ public partial class BattleGameMain
 
     private static string FormatLookDeckOwnerLabel(PlayerType deckOwner)
     {
-        return deckOwner == PlayerType.Player ? "自分" : "相手";
+        return deckOwner == PlayerType.Player ? "Your" : "Opponent";
     }
 
     private static PlayerType ResolveHandOwnerForLookEffect(PlayerType effectOwner, TargetType target)
@@ -824,13 +824,15 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("DispositionTitle", UIAnchor.TopCenter, 720, 56);
-        title.text = $"残り{remainderCount}枚の行き先を選んでください";
+        title.text = remainderCount <= 1
+            ? "Choose where to place the looked card"
+            : $"Choose where to place the remaining {remainderCount} cards";
         title.fontSize = 24;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -80f);
 
         TextMeshProUGUI sub = root.CreateChildTextCustom("DispositionSubtitle", UIAnchor.TopCenter, 700, 40);
-        sub.text = $"対象山札: {context.DeckLabel}";
+        sub.text = $"Deck: {context.DeckLabel}";
         sub.fontSize = 18;
         sub.color = new Color(0.85f, 0.9f, 1f, 1f);
         sub.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -130f);
@@ -852,7 +854,7 @@ public partial class BattleGameMain
         TextMeshProUGUI topLabel = topBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (topLabel != null)
         {
-            topLabel.text = "山札の上に戻す";
+            topLabel.text = "Put on top of deck";
         }
 
         topBtn.onClick.AddListener(() => CloseAndChoose(LookedRemainderDispositionChoice.ReturnToDeckTop));
@@ -867,7 +869,10 @@ public partial class BattleGameMain
         TextMeshProUGUI bottomLabel = bottomBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (bottomLabel != null)
         {
-            bottomLabel.text = "山札の下にランダムで送る";
+            // 1枚ならランダム順は意味がない
+            bottomLabel.text = remainderCount <= 1
+                ? "Put on bottom of deck"
+                : "Put on bottom of deck (random order)";
         }
 
         bottomBtn.onClick.AddListener(() => CloseAndChoose(LookedRemainderDispositionChoice.ShuffleToDeckBottom));
@@ -963,8 +968,8 @@ public partial class BattleGameMain
 
         TextMeshProUGUI title = root.CreateChildTextCustom("LookDeckTitle", UIAnchor.TopCenter, 720, 52);
         title.text = selectionMode
-            ? $"山札を見る — {context.DeckLabel}（上から{context.RequestedLookCount}枚）"
-            : $"山札を見る（{context.DeckLabel}・上から{context.RequestedLookCount}枚中 {context.Entries.Count}枚）";
+            ? $"Look at deck — {context.DeckLabel} (top {context.RequestedLookCount})"
+            : $"Look at deck ({context.DeckLabel} · {context.Entries.Count} of top {context.RequestedLookCount})";
         title.fontSize = 24;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);

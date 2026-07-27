@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 90Kayra's Re-GZ
+  m_EditorClassIdentifier: 
+  id: 90
+  cardName: 'Kayra''s Re-GZ '
+  cost: 2
+  level: 3
+  power: 3
+  hp: 3
+  imageName: {fileID: -4291194650049935315, guid: df82f484f608f594cbdd434c82aafa53, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 2
+  filterType: 0
+  color: 1
+  type: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: LookTop1_PlayDeck
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ChooseLookedRemainderDisposition
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
