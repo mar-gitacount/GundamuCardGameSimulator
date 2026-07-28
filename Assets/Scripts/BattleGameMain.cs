@@ -3345,6 +3345,7 @@ public partial class BattleGameMain : MonoBehaviour
             || _deferredOnDestroyedResolutions.Count > 0
             || HasPendingRemoteOnDestroyedResolution
             || _pendingOnlineOpponentUnitPickRequestId > 0
+            || _unitPilotEffectOrderUiOpen
             || _activeLookDeckPopupRoot != null
             || _activeHandDiscardRevealRoot != null
             || _activeOnActionCommandRevealRoot != null;
@@ -3415,6 +3416,92 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerOnDestroyedEffects(cardController, ownerType, onComplete);
     }
 
+    /// <summary>ユニット破壊時、搭乗パイロットと双方に効果があれば順番選択してから解決する。</summary>
+    private void RunOrDeferUnitAndPilotOnDestroyedEffects(
+        CardController unit,
+        CardController detachedPilot,
+        PlayerType ownerType,
+        System.Action onComplete)
+    {
+        if (_onDestroyedLatencyHoldCount > 0)
+        {
+            string cardName = unit != null && unit.Data != null ? unit.Data.cardName : "(null)";
+            Debug.Log(
+                $"[OnDestroyed][Latency] defer unit+pilot until command ack OK: {cardName} "
+                + $"hold:{_onDestroyedLatencyHoldCount}");
+            _deferredOnDestroyedResolutions.Add(
+                () => TriggerUnitAndPilotOnDestroyedEffects(unit, detachedPilot, ownerType, onComplete));
+            return;
+        }
+
+        TriggerUnitAndPilotOnDestroyedEffects(unit, detachedPilot, ownerType, onComplete);
+    }
+
+    private void TriggerUnitAndPilotOnDestroyedEffects(
+        CardController unit,
+        CardController detachedPilot,
+        PlayerType ownerType,
+        System.Action onComplete)
+    {
+        List<TimedEffectData> unitBlocks = CollectOnDestroyedTimedBlocks(unit, ownerType);
+        List<TimedEffectData> pilotBlocks = CollectOnDestroyedTimedBlocks(detachedPilot, ownerType);
+
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        ResolveUnitPilotEffectOrder(
+            ownerType,
+            unit,
+            detachedPilot,
+            unitBlocks,
+            pilotBlocks,
+            unit != null ? unit.Data : null,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    onComplete?.Invoke();
+                    return;
+                }
+
+                RunOrderedOnDestroyedEntries(ownerType, ordered, 0, onComplete);
+            });
+    }
+
+    private void RunOrderedOnDestroyedEntries(
+        PlayerType ownerType,
+        List<UnitPilotEffectOrderEntry> ordered,
+        int index,
+        System.Action onComplete)
+    {
+        if (ordered == null || index >= ordered.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        UnitPilotEffectOrderEntry entry = ordered[index];
+        if (entry == null || entry.Source == null || entry.Blocks == null || entry.Blocks.Count == 0)
+        {
+            RunOrderedOnDestroyedEntries(ownerType, ordered, index + 1, onComplete);
+            return;
+        }
+
+        Debug.Log(
+            $"[OnDestroyed] 順番解決 #{index + 1}: "
+            + $"{(entry.Source.Data != null ? entry.Source.Data.cardName : "?")} "
+            + $"blocks:{entry.Blocks.Count}");
+        RunOnDestroyedTimedBlocks(
+            entry.Source,
+            ownerType,
+            entry.Blocks,
+            0,
+            () => RunOrderedOnDestroyedEntries(ownerType, ordered, index + 1, onComplete));
+    }
+
     private void SendCardToTrash(CardController cardController, PlayerType ownerType, CardController destroyedBy = null)
     {
         if (cardController == null || cardController.Data == null)
@@ -3445,13 +3532,10 @@ public partial class BattleGameMain : MonoBehaviour
             MarkBlockExchangeCancelled("Blocker entered trash during block flow.");
         }
 
+        CardController detachedPilot = null;
         if (cardController.Data.IsUnitLike() && cardController.MountedPilot != null)
         {
-            CardController pilot = cardController.DetachMountedPilotWithoutDestroy();
-            if (pilot != null)
-            {
-                SendCardToTrash(pilot, ownerType);
-            }
+            detachedPilot = cardController.DetachMountedPilotWithoutDestroy();
         }
 
         // 突破は破壊時効果より先に解決（公式: 攻撃側 Breach → 相手 Destroyed）
@@ -3467,6 +3551,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         void ContinueAfterOwnerOnDestroyed()
         {
+            // 破壊時効果解決後に搭乗パイロットを墓地へ（OnDestroyed は再実行しない）
+            if (detachedPilot != null)
+            {
+                FinishSendCardToTrash(detachedPilot, ownerType);
+                detachedPilot = null;
+            }
+
             TriggerOnEnemyUnitDestroyedEffects(cardController, ownerType, destroyedBy, () =>
             {
                 if (TryResolveEnemyUnitKillContext(
@@ -3499,12 +3590,19 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         // 自分が破壊時効果を解決するあいだ、相手に effectthink を出して待たせる
-        int remoteThinkRequestId = BeginOnlineRemoteEffectThinkForLocalOnDestroyed(cardController, ownerType);
-        RunOrDeferOnDestroyedEffects(cardController, ownerType, () =>
-        {
-            EndOnlineRemoteEffectThinkForLocalOnDestroyed(remoteThinkRequestId);
-            ContinueAfterOwnerOnDestroyed();
-        });
+        int remoteThinkRequestId = BeginOnlineRemoteEffectThinkForLocalOnDestroyed(
+            cardController,
+            detachedPilot,
+            ownerType);
+        RunOrDeferUnitAndPilotOnDestroyedEffects(
+            cardController,
+            detachedPilot,
+            ownerType,
+            () =>
+            {
+                EndOnlineRemoteEffectThinkForLocalOnDestroyed(remoteThinkRequestId);
+                ContinueAfterOwnerOnDestroyed();
+            });
     }
 
     private void CompleteSendCardToTrashPipeline(CardController cardController, PlayerType ownerType)
@@ -5058,9 +5156,18 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    /// <summary>搭乗パイロットの OnAttack をユニット本体より先に解決する（例: キラのデバフ→ストフリの山札下送り）。</summary>
-    private static List<CardController> BuildOnAttackEnemyEffectSources(CardController attacker)
+    /// <summary>搭乗パイロットとユニット双方に敵対象 OnAttack がある場合の解決順（選択結果）。</summary>
+    private List<CardController> _pendingOnAttackEnemyEffectSourceOrder;
+
+    /// <summary>OnAttack 敵対象効果のソース順。プレイヤー選択があればそれを優先。</summary>
+    private List<CardController> BuildOnAttackEnemyEffectSources(CardController attacker)
     {
+        if (_pendingOnAttackEnemyEffectSourceOrder != null)
+        {
+            return new List<CardController>(_pendingOnAttackEnemyEffectSourceOrder);
+        }
+
+        // フォールバック（AI／片方のみ）: 従来どおりパイロット優先
         List<CardController> effectSources = new List<CardController>();
         if (attacker?.MountedPilot != null && attacker.MountedPilot.Data != null)
         {
@@ -5075,6 +5182,57 @@ public partial class BattleGameMain : MonoBehaviour
         return effectSources;
     }
 
+    private List<TimedEffectData> CollectOnAttackEnemyTargetBlocksForSource(
+        CardController sourceCard,
+        CardController attacker,
+        PlayerType attackerOwner)
+    {
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        if (sourceCard?.Data?.timedEffects == null || attacker == null)
+        {
+            return blocks;
+        }
+
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(attackerOwner, attacker);
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            bool relevant = false;
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                if (effect.target.IsOpponentUnitTarget() || effect.type.UsesTargetCountValue())
+                {
+                    relevant = true;
+                    break;
+                }
+            }
+
+            if (relevant)
+            {
+                blocks.Add(timed);
+            }
+        }
+
+        return blocks;
+    }
+
     private void ContinueOnAttackEnemyEffectResolution(
         CardController attacker,
         PlayerType attackerOwner,
@@ -5087,6 +5245,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        _pendingOnAttackEnemyEffectSourceOrder = null;
         onAllComplete?.Invoke();
     }
 
@@ -5096,6 +5255,93 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attackedTarget,
         System.Action onResolved = null,
         OnAttackEnemyEffectCursor cursor = default)
+    {
+        if (attacker == null || attacker.Data == null)
+        {
+            return false;
+        }
+
+        bool isStartCursor = cursor.SourceIndex == 0 && cursor.TimedIndex == 0 && cursor.EffectIndex == 0;
+        if (isStartCursor && _pendingOnAttackEnemyEffectSourceOrder == null)
+        {
+            List<TimedEffectData> unitBlocks = CollectOnAttackEnemyTargetBlocksForSource(
+                attacker,
+                attacker,
+                attackerOwner);
+            CardController pilot = attacker.MountedPilot;
+            List<TimedEffectData> pilotBlocks = CollectOnAttackEnemyTargetBlocksForSource(
+                pilot,
+                attacker,
+                attackerOwner);
+            if (unitBlocks.Count > 0 && pilotBlocks.Count > 0)
+            {
+                ResolveUnitPilotEffectOrder(
+                    attackerOwner,
+                    attacker,
+                    pilot,
+                    unitBlocks,
+                    pilotBlocks,
+                    attacker.Data,
+                    ordered =>
+                    {
+                        if (ordered == null || ordered.Count == 0)
+                        {
+                            _pendingOnAttackEnemyEffectSourceOrder = null;
+                            onResolved?.Invoke();
+                            return;
+                        }
+
+                        _pendingOnAttackEnemyEffectSourceOrder = new List<CardController>(ordered.Count);
+                        for (int i = 0; i < ordered.Count; i++)
+                        {
+                            if (ordered[i]?.Source != null)
+                            {
+                                _pendingOnAttackEnemyEffectSourceOrder.Add(ordered[i].Source);
+                            }
+                        }
+
+                        if (!TryOpenOnAttackEnemySelectionPanelCore(
+                            attacker,
+                            attackerOwner,
+                            attackedTarget,
+                            () =>
+                            {
+                                _pendingOnAttackEnemyEffectSourceOrder = null;
+                                onResolved?.Invoke();
+                            },
+                            default))
+                        {
+                            _pendingOnAttackEnemyEffectSourceOrder = null;
+                            onResolved?.Invoke();
+                        }
+                    },
+                    autoPilotFirst: true);
+                return true;
+            }
+        }
+
+        return TryOpenOnAttackEnemySelectionPanelCore(
+            attacker,
+            attackerOwner,
+            attackedTarget,
+            () =>
+            {
+                if (isStartCursor)
+                {
+                    _pendingOnAttackEnemyEffectSourceOrder = null;
+                }
+
+                onResolved?.Invoke();
+            },
+            cursor);
+    }
+
+    private bool TryOpenOnAttackEnemySelectionPanelCore(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController attackedTarget,
+        System.Action onResolved,
+        OnAttackEnemyEffectCursor cursor)
     {
         if (attacker == null || attacker.Data == null)
         {
@@ -8470,7 +8716,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    /// <summary>パイロット搭乗時（OnPilotMounted）。ホストユニットの設定に従い片方のみ／両方・順序を解決。</summary>
+    /// <summary>パイロット搭乗時（OnPilotMounted）。ユニット／パイロット双方にあれば順番選択 UI。</summary>
     private void TriggerOnPilotMountedEffects(
         CardController hostUnit,
         CardController pilot,
@@ -8487,7 +8733,7 @@ public partial class BattleGameMain : MonoBehaviour
             hostUnit.Data,
             out bool resolveUnit,
             out bool resolvePilot,
-            out bool unitFirst);
+            out _);
 
         List<TimedEffectData> unitBlocks = resolveUnit
             ? CollectMountTimedBlocks(hostUnit, ownerType, hostUnit, pilot, EffectTiming.OnPilotMounted)
@@ -8504,24 +8750,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         Debug.Log(
             $"[OnPilotMounted] 開始: {pilot.Data.cardName} → {hostUnit.Data.cardName} "
-            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} order:{hostUnit.Data.pilotMountOnPilotMountedOrder} "
+            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} "
             + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
-
-        void RunUnitThenPilot()
-        {
-            RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
-            {
-                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, FinishPilotMountChain);
-            }, hostUnit, pilot);
-        }
-
-        void RunPilotThenUnit()
-        {
-            RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
-            {
-                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, FinishPilotMountChain);
-            }, hostUnit, pilot);
-        }
 
         void FinishPilotMountChain()
         {
@@ -8533,17 +8763,32 @@ public partial class BattleGameMain : MonoBehaviour
 
         _pilotMountEffectHostUnit = hostUnit;
         BeginEffectChainObservationScope();
-        if (unitFirst)
-        {
-            RunUnitThenPilot();
-        }
-        else
-        {
-            RunPilotThenUnit();
-        }
+        ResolveUnitPilotEffectOrder(
+            ownerType,
+            hostUnit,
+            pilot,
+            unitBlocks,
+            pilotBlocks,
+            hostUnit.Data,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    FinishPilotMountChain();
+                    return;
+                }
+
+                RunOrderedUnitPilotEffectEntries(
+                    ownerType,
+                    ordered,
+                    0,
+                    hostUnit,
+                    pilot,
+                    FinishPilotMountChain);
+            });
     }
 
-    /// <summary>Link 条件を満たす搭乗時（OnLink）。ホストの pilotMount 設定に従いユニット／パイロット双方を解決。</summary>
+    /// <summary>Link 条件を満たす搭乗時（OnLink）。双方にあれば順番選択 UI。</summary>
     private void TriggerOnLinkEffects(
         CardController hostUnit,
         CardController pilot,
@@ -8566,7 +8811,7 @@ public partial class BattleGameMain : MonoBehaviour
             hostUnit.Data,
             out bool resolveUnit,
             out bool resolvePilot,
-            out bool unitFirst);
+            out _);
 
         List<TimedEffectData> unitBlocks = resolveUnit
             ? CollectMountTimedBlocks(hostUnit, ownerType, hostUnit, pilot, EffectTiming.OnLink)
@@ -8583,24 +8828,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         Debug.Log(
             $"[OnLink] 開始: {pilot.Data.cardName} → {hostUnit.Data.cardName} "
-            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} order:{hostUnit.Data.pilotMountOnPilotMountedOrder} "
+            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} "
             + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
-
-        void RunUnitThenPilot()
-        {
-            RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, () =>
-            {
-                RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, FinishOnLinkChain);
-            }, hostUnit, pilot);
-        }
-
-        void RunPilotThenUnit()
-        {
-            RunMountTimedBlocks(pilot, ownerType, pilotBlocks, 0, () =>
-            {
-                RunMountTimedBlocks(hostUnit, ownerType, unitBlocks, 0, FinishOnLinkChain);
-            }, hostUnit, pilot);
-        }
 
         void FinishOnLinkChain()
         {
@@ -8612,14 +8841,29 @@ public partial class BattleGameMain : MonoBehaviour
 
         _pilotMountEffectHostUnit = hostUnit;
         BeginEffectChainObservationScope();
-        if (unitFirst)
-        {
-            RunUnitThenPilot();
-        }
-        else
-        {
-            RunPilotThenUnit();
-        }
+        ResolveUnitPilotEffectOrder(
+            ownerType,
+            hostUnit,
+            pilot,
+            unitBlocks,
+            pilotBlocks,
+            hostUnit.Data,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    FinishOnLinkChain();
+                    return;
+                }
+
+                RunOrderedUnitPilotEffectEntries(
+                    ownerType,
+                    ordered,
+                    0,
+                    hostUnit,
+                    pilot,
+                    FinishOnLinkChain);
+            });
     }
 
     private List<TimedEffectData> CollectMountTimedBlocks(
@@ -8780,14 +9024,28 @@ public partial class BattleGameMain : MonoBehaviour
     /// 自分／相手ターン・アクションステップ中など、破壊が発生したタイミングを問わず実行する。</summary>
     private void TriggerOnDestroyedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
     {
-        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        List<TimedEffectData> blocks = CollectOnDestroyedTimedBlocks(sourceCard, ownerType);
+        if (blocks.Count == 0)
         {
             onComplete?.Invoke();
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        Debug.Log(
+            $"[OnDestroyed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count} "
+            + $"owner:{ownerType} turn:{currentPlayerType} phase:{currentPhase}");
+        RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
+    }
+
+    private List<TimedEffectData> CollectOnDestroyedTimedBlocks(CardController sourceCard, PlayerType ownerType)
+    {
         List<TimedEffectData> blocks = new List<TimedEffectData>();
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            return blocks;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
@@ -8806,16 +9064,7 @@ public partial class BattleGameMain : MonoBehaviour
             blocks.Add(timed);
         }
 
-        if (blocks.Count == 0)
-        {
-            onComplete?.Invoke();
-            return;
-        }
-
-        Debug.Log(
-            $"[OnDestroyed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count} "
-            + $"owner:{ownerType} turn:{currentPlayerType} phase:{currentPhase}");
-        RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
+        return blocks;
     }
 
     private void RunOnDestroyedTimedBlocks(
@@ -8913,25 +9162,78 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         EffectActivationContext activationContext = BuildActivationContext(killerOwner, killer);
-        List<TimedEffectData> blocks = new List<TimedEffectData>();
-        AppendOnEnemyUnitDestroyedBlocks(killer.Data, activationContext, blocks);
-        if (killer.MountedPilot != null)
+        List<TimedEffectData> unitBlocks = new List<TimedEffectData>();
+        List<TimedEffectData> pilotBlocks = new List<TimedEffectData>();
+        AppendOnEnemyUnitDestroyedBlocks(killer.Data, activationContext, unitBlocks);
+        CardController killerPilot = killer.MountedPilot;
+        if (killerPilot != null)
         {
-            AppendOnEnemyUnitDestroyedBlocks(killer.MountedPilot.Data, activationContext, blocks);
+            AppendOnEnemyUnitDestroyedBlocks(killerPilot.Data, activationContext, pilotBlocks);
         }
 
-        if (blocks.Count == 0)
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
         {
             onComplete?.Invoke();
             return;
         }
 
-        string pilotName = killer.MountedPilot?.Data != null ? killer.MountedPilot.Data.cardName : "-";
+        string pilotName = killerPilot?.Data != null ? killerPilot.Data.cardName : "-";
         Debug.Log(
             $"[OnEnemyUnitDestroyed] キル:{killer.Data.cardName}(id:{killer.Data.id}) pilot:{pilotName} "
-            + $"→ 破壊:{destroyedUnit.Data.cardName}(id:{destroyedUnit.Data.id}) blocks:{blocks.Count}");
-        // パイロット効果も Self＝ホストユニットとして解決する
-        RunOnEnemyUnitDestroyedTimedBlocks(killer, killerOwner, blocks, 0, onComplete);
+            + $"→ 破壊:{destroyedUnit.Data.cardName}(id:{destroyedUnit.Data.id}) "
+            + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
+
+        ResolveUnitPilotEffectOrder(
+            killerOwner,
+            killer,
+            killerPilot,
+            unitBlocks,
+            pilotBlocks,
+            killer.Data,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    onComplete?.Invoke();
+                    return;
+                }
+
+                // パイロット効果も Self＝ホストユニットとして解決する
+                RunOrderedOnEnemyUnitDestroyedEntries(killer, killerOwner, ordered, 0, onComplete);
+            });
+    }
+
+    private void RunOrderedOnEnemyUnitDestroyedEntries(
+        CardController killer,
+        PlayerType killerOwner,
+        List<UnitPilotEffectOrderEntry> ordered,
+        int index,
+        System.Action onComplete)
+    {
+        if (ordered == null || index >= ordered.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        UnitPilotEffectOrderEntry entry = ordered[index];
+        if (entry == null || entry.Blocks == null || entry.Blocks.Count == 0)
+        {
+            RunOrderedOnEnemyUnitDestroyedEntries(killer, killerOwner, ordered, index + 1, onComplete);
+            return;
+        }
+
+        RunOnEnemyUnitDestroyedTimedBlocks(
+            killer,
+            killerOwner,
+            entry.Blocks,
+            0,
+            () => RunOrderedOnEnemyUnitDestroyedEntries(
+                killer,
+                killerOwner,
+                ordered,
+                index + 1,
+                onComplete));
     }
 
     private static void AppendOnEnemyUnitDestroyedBlocks(
@@ -14146,6 +14448,7 @@ public partial class BattleGameMain : MonoBehaviour
             activeOnActionPopupRoot = null;
         }
 
+        _unitPilotEffectOrderUiOpen = false;
         isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
     }
 

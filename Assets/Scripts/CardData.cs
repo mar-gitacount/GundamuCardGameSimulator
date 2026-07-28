@@ -34,7 +34,7 @@ public class CardData : ScriptableObject
     [Tooltip("ユニット／ユニットトークン向け。搭乗時 OnPilotMounted / OnLink をユニット/パイロット/両方のどれで解決するか。")]
     public PilotMountOnPilotMountedSource pilotMountOnPilotMountedSource = PilotMountOnPilotMountedSource.Both;
 
-    [Tooltip("Both 時の解決順（UnitFirst / PilotFirst）。")]
+    [Tooltip("Both 時の AI／自動解決用フォールバック順（UnitFirst / PilotFirst）。プレイヤーは順番選択 UI で上書き可能。")]
     public PilotMountOnPilotMountedOrder pilotMountOnPilotMountedOrder = PilotMountOnPilotMountedOrder.UnitFirst;
 
     [Tooltip("敵の攻撃をブロックし、身代わりのユニット戦にできる（ACTIVE 時のみ選択可）。")]

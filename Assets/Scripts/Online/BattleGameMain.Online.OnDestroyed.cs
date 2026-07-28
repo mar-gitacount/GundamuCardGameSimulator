@@ -57,8 +57,14 @@ public partial class BattleGameMain
         if (!IsOnlineBattle()
             || _applyingRemoteBattleAction
             || target == null
-            || ResolveCardOwner(target.transform) != PlayerType.Enemy
-            || !HasOnDestroyedResolution(target))
+            || ResolveCardOwner(target.transform) != PlayerType.Enemy)
+        {
+            return 0;
+        }
+
+        bool hasResolution = HasOnDestroyedResolution(target)
+            || (target.MountedPilot != null && HasOnDestroyedResolution(target.MountedPilot));
+        if (!hasResolution)
         {
             return 0;
         }
@@ -66,9 +72,12 @@ public partial class BattleGameMain
         int requestId = AllocateOnlineOnDestroyedRequestId();
         _pendingRemoteOnDestroyedRequestIds.Add(requestId);
         ShowOnlineEffectThinkOverlay();
+        string pilotName = target.MountedPilot != null && target.MountedPilot.Data != null
+            ? target.MountedPilot.Data.cardName
+            : "-";
         Debug.Log(
             $"[OnDestroyed][Online] wait begin request:{requestId} "
-            + $"target:{target.Data.cardName}(id:{target.Data.id})");
+            + $"target:{target.Data.cardName}(id:{target.Data.id}) pilot:{pilotName}");
         return requestId;
     }
 
@@ -90,10 +99,23 @@ public partial class BattleGameMain
         CardController card,
         PlayerType ownerType)
     {
+        return BeginOnlineRemoteEffectThinkForLocalOnDestroyed(card, null, ownerType);
+    }
+
+    private int BeginOnlineRemoteEffectThinkForLocalOnDestroyed(
+        CardController unit,
+        CardController detachedPilot,
+        PlayerType ownerType)
+    {
         if (!IsOnlineBattle()
             || _applyingRemoteBattleAction
-            || ownerType != PlayerType.Player
-            || !HasOnDestroyedResolution(card))
+            || ownerType != PlayerType.Player)
+        {
+            return 0;
+        }
+
+        bool hasResolution = HasOnDestroyedResolution(unit) || HasOnDestroyedResolution(detachedPilot);
+        if (!hasResolution)
         {
             return 0;
         }
@@ -102,9 +124,13 @@ public partial class BattleGameMain
         _activeLocalOnDestroyedRemoteThinkRequestId = requestId;
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectThinkWait(
             OnlineOnDestroyedCompletePayload.ToJson(requestId, -1)));
+        string unitName = unit != null && unit.Data != null ? unit.Data.cardName : "?";
+        string pilotName = detachedPilot != null && detachedPilot.Data != null
+            ? detachedPilot.Data.cardName
+            : "-";
         Debug.Log(
             $"[OnDestroyed][Online] EffectThinkWait sent request:{requestId} "
-            + $"card:{(card != null && card.Data != null ? card.Data.cardName : "?")}");
+            + $"unit:{unitName} pilot:{pilotName}");
         return requestId;
     }
 
@@ -208,13 +234,40 @@ public partial class BattleGameMain
         }
 
         PlayerType ownerType = ResolveCardOwner(unit.transform);
-        if (ownerType == PlayerType.Player && HasOnDestroyedResolution(unit))
+        CardController detachedPilot = null;
+        if (unit.Data.IsUnitLike() && unit.MountedPilot != null)
+        {
+            detachedPilot = unit.DetachMountedPilotWithoutDestroy();
+        }
+
+        bool hasAny =
+            (ownerType == PlayerType.Player)
+            && (HasOnDestroyedResolution(unit) || HasOnDestroyedResolution(detachedPilot));
+        if (hasAny)
         {
             Debug.Log(
                 $"[OnDestroyed][Online] resolve locally request:{requestId} "
-                + $"card:{unit.Data.cardName}(id:{unit.Data.id})");
-            RunOrDeferOnDestroyedEffects(unit, ownerType, Complete);
+                + $"card:{unit.Data.cardName}(id:{unit.Data.id}) "
+                + $"pilot:{(detachedPilot != null && detachedPilot.Data != null ? detachedPilot.Data.cardName : "-")}");
+            RunOrDeferUnitAndPilotOnDestroyedEffects(
+                unit,
+                detachedPilot,
+                ownerType,
+                () =>
+                {
+                    if (detachedPilot != null)
+                    {
+                        FinishSendCardToTrash(detachedPilot, ownerType);
+                    }
+
+                    Complete();
+                });
             return;
+        }
+
+        if (detachedPilot != null)
+        {
+            FinishSendCardToTrash(detachedPilot, ownerType);
         }
 
         Complete();

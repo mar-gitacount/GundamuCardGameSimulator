@@ -842,6 +842,42 @@ public partial class BattleGameMain
         return list;
     }
 
+    private List<TimedEffectData> CollectOnAttackPreCombatBlocksForSource(
+        CardController source,
+        CardController attacker,
+        PlayerType attackerOwner)
+    {
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        if (source?.Data?.timedEffects == null || attacker == null)
+        {
+            return blocks;
+        }
+
+        EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
+        for (int i = 0; i < source.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = source.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!TimedBlockNeedsOnAttackPreCombatResolution(timed))
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+
+        return blocks;
+    }
+
     private List<TimedEffectData> CollectOnAttackPreCombatBlocks(
         CardController attacker,
         PlayerType attackerOwner)
@@ -850,33 +886,10 @@ public partial class BattleGameMain
         List<OnAttackEffectSource> sources = BuildOnAttackEffectSources(attacker, attackerOwner);
         for (int si = 0; si < sources.Count; si++)
         {
-            OnAttackEffectSource src = sources[si];
-            if (src.Source?.Data?.timedEffects == null)
-            {
-                continue;
-            }
-
-            EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
-            for (int i = 0; i < src.Source.Data.timedEffects.Count; i++)
-            {
-                TimedEffectData timed = src.Source.Data.timedEffects[i];
-                if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
-                {
-                    continue;
-                }
-
-                if (!TimedBlockNeedsOnAttackPreCombatResolution(timed))
-                {
-                    continue;
-                }
-
-                if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
-                {
-                    continue;
-                }
-
-                blocks.Add(timed);
-            }
+            blocks.AddRange(CollectOnAttackPreCombatBlocksForSource(
+                sources[si].Source,
+                attacker,
+                attackerOwner));
         }
 
         return blocks;
@@ -894,26 +907,92 @@ public partial class BattleGameMain
         }
 
         _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
-        List<TimedEffectData> blocks = CollectOnAttackPreCombatBlocks(attacker, attackerOwner);
-        if (blocks.Count == 0)
+        List<TimedEffectData> unitBlocks = CollectOnAttackPreCombatBlocksForSource(
+            attacker,
+            attacker,
+            attackerOwner);
+        CardController pilot = attacker.MountedPilot;
+        List<TimedEffectData> pilotBlocks = CollectOnAttackPreCombatBlocksForSource(
+            pilot,
+            attacker,
+            attackerOwner);
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
         {
             return false;
         }
 
         Debug.Log(
-            $"[OnAttackPreCombat] Start blocks:{blocks.Count} attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id}) "
-            + $"pilot:{attacker.MountedPilot?.Data?.cardName ?? "none"}");
+            $"[OnAttackPreCombat] Start unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count} "
+            + $"attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id}) "
+            + $"pilot:{pilot?.Data?.cardName ?? "none"}");
 
         _pendingOnAttackPreCombatResolvedAttacker = attacker;
         BeginEffectChainObservationScope();
-        RunOnAttackPreCombatTimedBlocks(attacker, attackerOwner, blocks, 0, () =>
+
+        void FinishPreCombat()
         {
             EndEffectChainObservationScope();
             MarkOnAttackPreCombatEffectsApplied(attacker);
             _onAttackPreCombatCompletedAttacker = attacker;
             onResolved?.Invoke();
-        });
+        }
+
+        ResolveUnitPilotEffectOrder(
+            attackerOwner,
+            attacker,
+            pilot,
+            unitBlocks,
+            pilotBlocks,
+            attacker.Data,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    FinishPreCombat();
+                    return;
+                }
+
+                RunOrderedOnAttackPreCombatEntries(
+                    attacker,
+                    attackerOwner,
+                    ordered,
+                    0,
+                    FinishPreCombat);
+            });
         return true;
+    }
+
+    private void RunOrderedOnAttackPreCombatEntries(
+        CardController attacker,
+        PlayerType attackerOwner,
+        List<UnitPilotEffectOrderEntry> ordered,
+        int index,
+        Action onComplete)
+    {
+        if (ordered == null || index >= ordered.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        UnitPilotEffectOrderEntry entry = ordered[index];
+        if (entry == null || entry.Source == null || entry.Blocks == null || entry.Blocks.Count == 0)
+        {
+            RunOrderedOnAttackPreCombatEntries(attacker, attackerOwner, ordered, index + 1, onComplete);
+            return;
+        }
+
+        RunOnAttackPreCombatTimedBlocks(
+            attacker,
+            attackerOwner,
+            entry.Blocks,
+            0,
+            () => RunOrderedOnAttackPreCombatEntries(
+                attacker,
+                attackerOwner,
+                ordered,
+                index + 1,
+                onComplete));
     }
 
     private void RunOnAttackPreCombatTimedBlocks(
