@@ -85,6 +85,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     private readonly List<StatModifier> levelModifiers = new List<StatModifier>();
     private readonly List<StatModifier> effectDamageModifiers = new List<StatModifier>();
     private readonly List<StatModifier> effectDamageImmunityModifiers = new List<StatModifier>();
+    private readonly List<StatModifier> incomingDamageReductionModifiers = new List<StatModifier>();
     private readonly List<PilotMountAllyFieldAuraEntry> _pilotMountAllyFieldAuras = new List<PilotMountAllyFieldAuraEntry>();
 
     /// <summary>効果ダメージ（戦闘交換以外）への実効補正。</summary>
@@ -92,6 +93,9 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     /// <summary>効果ダメージ無効化レイヤー数（Buff/Debuff の EffectDamageImmunity）。</summary>
     public int CurrentEffectDamageImmunityCount => Mathf.Max(0, SumModifierValues(effectDamageImmunityModifiers));
+
+    /// <summary>受けるダメージの軽減量（正の値ほど軽減。戦闘・効果ダメージ共通）。</summary>
+    public int CurrentIncomingDamageReduction => Mathf.Max(0, SumModifierValues(incomingDamageReductionModifiers));
 
     /// <summary>効果ダメージ無効化が有効か。</summary>
     public bool HasEffectDamageImmunity => CurrentEffectDamageImmunityCount > 0;
@@ -405,6 +409,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         levelModifiers.Clear();
         effectDamageModifiers.Clear();
         effectDamageImmunityModifiers.Clear();
+        incomingDamageReductionModifiers.Clear();
         _pilotMountAllyFieldAuras.Clear();
         MountedPilot = null;
         MountedUnit = null;
@@ -413,7 +418,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _turnEndRepairBonus = 0;
     }
 
-    /// <summary>戦闘ダメージ。ユニット以外では呼ばない想定。</summary>
+    /// <summary>戦闘ダメージ。ユニット以外では呼ばない想定。IncomingDamageReduction を適用する。</summary>
     public void ApplyDamage(int amount)
     {
         if (amount <= 0)
@@ -421,7 +426,22 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             return;
         }
 
-        CurrentHp = Mathf.Max(0, CurrentHp - amount);
+        int reduction = CurrentIncomingDamageReduction;
+        int applied = Mathf.Max(0, amount - reduction);
+        if (applied <= 0)
+        {
+            Debug.Log(
+                $"[DamageReduction] {Data?.cardName} blocked {amount} (reduction:{reduction})");
+            return;
+        }
+
+        if (reduction > 0)
+        {
+            Debug.Log(
+                $"[DamageReduction] {Data?.cardName} {amount} → {applied} (reduction:{reduction})");
+        }
+
+        CurrentHp = Mathf.Max(0, CurrentHp - applied);
     }
 
     /// <summary>シールドとして裏向き表示する（カード画像の上に全面カバーを重ねる）。</summary>
@@ -519,7 +539,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         EffectDuration duration = EffectDuration.Permanent,
         string statModifierSourceKey = null,
         int effectDamageDelta = 0,
-        int effectDamageImmunityDelta = 0)
+        int effectDamageImmunityDelta = 0,
+        int incomingDamageReductionDelta = 0)
     {
         string key = statModifierSourceKey ?? string.Empty;
         if (powerDelta != 0)
@@ -550,6 +571,16 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         if (effectDamageImmunityDelta != 0)
         {
             effectDamageImmunityModifiers.Add(new StatModifier { value = effectDamageImmunityDelta, duration = duration, sourceKey = key });
+        }
+
+        if (incomingDamageReductionDelta != 0)
+        {
+            incomingDamageReductionModifiers.Add(new StatModifier
+            {
+                value = incomingDamageReductionDelta,
+                duration = duration,
+                sourceKey = key
+            });
         }
     }
 
@@ -633,6 +664,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
                 return effectDamageModifiers;
             case EffectStatTarget.EffectDamageImmunity:
                 return effectDamageImmunityModifiers;
+            case EffectStatTarget.IncomingDamageReduction:
+                return incomingDamageReductionModifiers;
             default:
                 return powerModifiers;
         }
@@ -661,6 +694,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             removed,
             EffectStatTarget.EffectDamageImmunity,
             RemoveKeyedModifiers(effectDamageImmunityModifiers, sourceKey));
+        AppendRemovalIfNonZero(
+            removed,
+            EffectStatTarget.IncomingDamageReduction,
+            RemoveKeyedModifiers(incomingDamageReductionModifiers, sourceKey));
         return removed;
     }
 
@@ -687,6 +724,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             removed,
             EffectStatTarget.EffectDamageImmunity,
             RemoveKeyedModifiersByPrefix(effectDamageImmunityModifiers, ownerTurnPrefix));
+        AppendRemovalIfNonZero(
+            removed,
+            EffectStatTarget.IncomingDamageReduction,
+            RemoveKeyedModifiersByPrefix(incomingDamageReductionModifiers, ownerTurnPrefix));
         return removed;
     }
 
@@ -765,6 +806,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         ClearModifierListByDuration(levelModifiers, duration);
         ClearModifierListByDuration(effectDamageModifiers, duration);
         ClearModifierListByDuration(effectDamageImmunityModifiers, duration);
+        ClearModifierListByDuration(incomingDamageReductionModifiers, duration);
     }
 
     public void ClearPowerModifiersByDuration(EffectDuration duration)

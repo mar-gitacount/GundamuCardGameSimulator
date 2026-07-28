@@ -99,7 +99,7 @@ public enum EffectType
     Activate,
     /// <summary>対象ユニットがそのターン（UntilEndOfTurn）相手プレイヤー／シールドへ直接攻撃できない。</summary>
     NotDirectAttack,
-    /// <summary>OnBurst 時は破壊公開されたカード自身をオーナーの手札へ加える。</summary>
+    /// <summary>OnBurst 時は破壊公開されたカード自身をオーナーの手札へ加える。OnDestroyed 時はトラッシュ経由で自身を手札へ戻す。</summary>
     AddSelfToHand,
     /// <summary>
     /// 手動選択した味方ユニットを監視登録する。observedUnitTriggerKind で監視する行動を指定。
@@ -299,7 +299,12 @@ public enum EffectStatTarget
     /// <summary>戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。対象カード自身が受ける効果ダメージのみ）。</summary>
     EffectDamage,
     /// <summary>効果ダメージを完全無効化（Buff で付与。対象カード自身が受ける効果ダメージのみ0）。</summary>
-    EffectDamageImmunity
+    EffectDamageImmunity,
+    /// <summary>
+    /// 受けるダメージ軽減（Buff で付与。value=軽減量）。
+    /// 戦闘ダメージ・効果ダメージの両方に適用（ApplyDamage 時）。UntilEndOfTurn 等と組み合わせる。
+    /// </summary>
+    IncomingDamageReduction
 }
 
 /// <summary>バウンス等の対象ユニット絞り込みに使うステータス（実効値で比較）。</summary>
@@ -402,7 +407,13 @@ public enum EffectActivationCheckKind
     /// <summary>
     /// 指定トラッシュに、features / featureIds のいずれか（OR）を持つカードが minimumCount 枚以上ある。
     /// </summary>
-    TrashHasFeature
+    TrashHasFeature,
+    /// <summary>
+    /// このカードを破壊したカード（DestroyedBy）が、features / featureIds のいずれか（OR）を持つ。
+    /// 破壊元ユニットに搭乗パイロットがいる場合、パイロット側の Feature でも可。
+    /// destroyedByOwnerRelation で味方のみ / 敵のみ / 両方を指定可能。
+    /// </summary>
+    DestroyedByHasFeature
 }
 
 public enum EffectTurnCheckKind
@@ -413,6 +424,20 @@ public enum EffectTurnCheckKind
     OwnerTurn = 0,
     /// <summary>現在が相手側のターン。</summary>
     NotOwnerTurn = 1
+}
+
+/// <summary>
+/// <see cref="EffectActivationCheckKind.DestroyedByHasFeature"/> で、
+/// 破壊者カードがソース（破壊された側）から見て味方か敵か。
+/// </summary>
+public enum EffectDestroyedByOwnerRelation
+{
+    /// <summary>味方・敵どちらでも可。</summary>
+    Either = 0,
+    /// <summary>破壊されたカードと同じオーナーのカードに破壊されたときのみ（味方効果など）。</summary>
+    Ally = 1,
+    /// <summary>相手オーナーのカードに破壊されたときのみ（敵効果など）。</summary>
+    Enemy = 2
 }
 
 public enum EffectLevelAggregate
@@ -464,7 +489,9 @@ public class EffectActivationCondition
     [Tooltip("Unset ならターン判定しない。OwnerTurn/NotOwnerTurn を指定した場合のみ判定する。")]
     public EffectTurnCheckKind turnCheck = EffectTurnCheckKind.Unset;
 
-    [Tooltip("HasFeature / ObservedCardHasFeature 時に参照。未設定なら featureId / features で解決。")]
+    [Tooltip(
+        "HasFeature / ObservedCardHasFeature / TrashHasFeature / DestroyedByHasFeature 時に参照。"
+        + "未設定なら featureId / features で解決。")]
     public CardFeatureData feature;
 
     [Tooltip("JSON 用。feature 未設定時に ID で解決（0=未指定）。")]
@@ -505,6 +532,13 @@ public class EffectActivationCondition
 
     [Tooltip("ObservedCardIsType: 観測カードの種類（Unit/Pilot/Command 等）。")]
     public Type observedCardType = Type.Unit;
+
+    [Tooltip(
+        "DestroyedByHasFeature 専用。"
+        + "Ally=味方（同一オーナー）のカードに破壊されたときのみ / "
+        + "Enemy=敵のカードに破壊されたときのみ / "
+        + "Either=どちらでも可。")]
+    public EffectDestroyedByOwnerRelation destroyedByOwnerRelation = EffectDestroyedByOwnerRelation.Either;
 }
 
 /// <summary><see cref="EffectActivationCondition"/> の Feature 解決（複数は OR）。</summary>
@@ -1187,12 +1221,15 @@ public static class EffectDataExtensions
         }
 
         string filter = effect.FormatTargetUnitFilterDescription();
+        string statNote = effect.statTarget == EffectStatTarget.IncomingDamageReduction
+            ? " / ダメージ軽減"
+            : string.Empty;
         if (string.IsNullOrEmpty(filter))
         {
-            return $"{effect.type} / {effect.target} / 値:{effect.value}";
+            return $"{effect.type} / {effect.target} / 値:{effect.value}{statNote}";
         }
 
-        return $"{effect.type} / {effect.target} / 値:{effect.value} / 条件:{filter}";
+        return $"{effect.type} / {effect.target} / 値:{effect.value}{statNote} / 条件:{filter}";
     }
 
     /// <summary>Look 直後に見た山札カードが effect の Feature／カード種類フィルタに合うか。</summary>

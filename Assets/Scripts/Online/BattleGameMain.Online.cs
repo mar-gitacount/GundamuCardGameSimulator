@@ -552,7 +552,7 @@ public partial class BattleGameMain
         FlushOnlineEffectSyncBatch();
     }
 
-    private void QueueOnlineUnitDamage(CardController target)
+    private void QueueOnlineUnitDamage(CardController target, CardController destroyer = null)
     {
         if (!_onlineEffectSyncActive || target == null)
         {
@@ -567,11 +567,17 @@ public partial class BattleGameMain
         }
 
         AssignBattleInstanceIdIfNeeded(target);
+        if (destroyer != null)
+        {
+            AssignBattleInstanceIdIfNeeded(destroyer);
+        }
+
         Debug.Log($"[EffectDamage][OnlineQueueDamage] target={FormatOnlineEffectSyncUnit(target)}");
         OnlineBattleUnitEffectChange change = new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDamage,
-            hpAfter = target.CurrentHp
+            hpAfter = target.CurrentHp,
+            destroyerInstanceId = destroyer != null ? destroyer.BattleInstanceId : 0
         };
         bool queued = TryQueueOnlineUnitTargetChange(target, change);
         if (!queued)
@@ -681,13 +687,19 @@ public partial class BattleGameMain
         });
     }
 
-    private void QueueOnlineUnitDestroy(CardController target)
+    private void QueueOnlineUnitDestroy(CardController target, CardController destroyer = null)
     {
         Debug.Log($"[EffectDamage][OnlineQueueDestroy] target={FormatOnlineEffectSyncUnit(target)}");
+        if (destroyer != null)
+        {
+            AssignBattleInstanceIdIfNeeded(destroyer);
+        }
+
         OnlineBattleUnitEffectChange change = new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroy,
-            hpAfter = 0
+            hpAfter = 0,
+            destroyerInstanceId = destroyer != null ? destroyer.BattleInstanceId : 0
         };
         bool queued = TryQueueOnlineUnitTargetChange(target, change);
         if (!queued)
@@ -1748,7 +1760,8 @@ public partial class BattleGameMain
                         NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
                         ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
                             unit,
-                            change.onDestroyedRequestId);
+                            change.onDestroyedRequestId,
+                            FindDestroyerForRemoteOnDestroyed(change.destroyerInstanceId));
                     }
                     else
                     {
@@ -1799,7 +1812,8 @@ public partial class BattleGameMain
                     unit.SetCurrentHpForSync(0);
                     ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
                         unit,
-                        change.onDestroyedRequestId);
+                        change.onDestroyedRequestId,
+                        FindDestroyerForRemoteOnDestroyed(change.destroyerInstanceId));
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindBounce:
@@ -1828,6 +1842,17 @@ public partial class BattleGameMain
         // ユニット変更が適用された後のユニットの状ユニット
         Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
         Debug.Log($"--------------------------------");
+    }
+
+    /// <summary>リモート破壊時効果用に、破壊元ユニットを instanceId から探す。</summary>
+    private CardController FindDestroyerForRemoteOnDestroyed(int destroyerInstanceId)
+    {
+        if (destroyerInstanceId <= 0)
+        {
+            return null;
+        }
+
+        return FindUnitByInstanceIdEitherZone(destroyerInstanceId);
     }
 
     /// <summary>リモート効果同期でのユニット破棄。トラッシュは ZoneSync で反映済みのため場から除去のみ。</summary>

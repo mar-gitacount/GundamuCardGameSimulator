@@ -37,6 +37,15 @@ public sealed class EffectActivationContext
     /// <summary>同一チェーン内で直前までに実ダメージが1以上入ったか。</summary>
     public bool PriorChainDealtDamage { get; }
 
+    /// <summary>破壊時効果用。このカードを破壊したカード（未設定可）。</summary>
+    public CardController DestroyingCard { get; }
+
+    /// <summary>破壊者のオーナー。DestroyingCard があるときのみ意味を持つ。</summary>
+    public BattleGameMain.PlayerType DestroyingCardOwner { get; }
+
+    /// <summary>破壊者オーナーが解決済みか。</summary>
+    public bool HasDestroyingCardOwner { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -51,7 +60,10 @@ public sealed class EffectActivationContext
         IReadOnlyList<int> ownerTrashCardIds = null,
         IReadOnlyList<int> opponentTrashCardIds = null,
         int frozenOwnerBattleAliveUnitCount = -1,
-        bool priorChainDealtDamage = false)
+        bool priorChainDealtDamage = false,
+        CardController destroyingCard = null,
+        bool hasDestroyingCardOwner = false,
+        BattleGameMain.PlayerType destroyingCardOwner = default)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -67,6 +79,9 @@ public sealed class EffectActivationContext
         OpponentTrashCardIds = opponentTrashCardIds ?? System.Array.Empty<int>();
         FrozenOwnerBattleAliveUnitCount = frozenOwnerBattleAliveUnitCount;
         PriorChainDealtDamage = priorChainDealtDamage;
+        DestroyingCard = destroyingCard;
+        HasDestroyingCardOwner = hasDestroyingCardOwner;
+        DestroyingCardOwner = destroyingCardOwner;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -90,7 +105,10 @@ public sealed class EffectActivationContext
             OwnerTrashCardIds,
             OpponentTrashCardIds,
             count,
-            PriorChainDealtDamage);
+            PriorChainDealtDamage,
+            DestroyingCard,
+            HasDestroyingCardOwner,
+            DestroyingCardOwner);
     }
 }
 
@@ -220,6 +238,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.TrashHasFeature)
         {
             return EvaluateTrashHasFeature(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.DestroyedByHasFeature)
+        {
+            return EvaluateDestroyedByHasFeature(c, ctx);
         }
 
         if (c.checkKind == EffectActivationCheckKind.TrashHasCardId)
@@ -408,6 +431,79 @@ public static class EffectActivationEvaluator
         IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
         int need = Mathf.Max(1, c.minimumCount);
         return TrashCardQuery.HasAnyFeatureAtLeast(trashIds, required, need);
+    }
+
+    private static bool EvaluateDestroyedByHasFeature(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+        if (required.Count == 0)
+        {
+            return false;
+        }
+
+        CardController destroyer = ctx.DestroyingCard;
+        if (destroyer == null || destroyer.Data == null)
+        {
+            return false;
+        }
+
+        // 破壊者の所属（味方 / 敵 / 両方）
+        if (c.destroyedByOwnerRelation == EffectDestroyedByOwnerRelation.Ally)
+        {
+            if (!ctx.HasDestroyingCardOwner || ctx.DestroyingCardOwner != ctx.OwnerType)
+            {
+                return false;
+            }
+        }
+        else if (c.destroyedByOwnerRelation == EffectDestroyedByOwnerRelation.Enemy)
+        {
+            if (!ctx.HasDestroyingCardOwner || ctx.DestroyingCardOwner == ctx.OwnerType)
+            {
+                return false;
+            }
+        }
+
+        if (CardMatchesAnyActivationFeature(destroyer.Data, required))
+        {
+            return true;
+        }
+
+        // 搭乗パイロットが条件 Feature を持つ場合も「そのカードに破壊された」とみなす
+        CardController pilot = destroyer.MountedPilot;
+        return pilot != null
+            && pilot.Data != null
+            && CardMatchesAnyActivationFeature(pilot.Data, required);
+    }
+
+    private static bool CardMatchesAnyActivationFeature(
+        CardData card,
+        IReadOnlyList<CardFeatureData> required)
+    {
+        if (card == null || required == null || required.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < required.Count; i++)
+        {
+            CardFeatureData feature = required[i];
+            if (feature == null)
+            {
+                continue;
+            }
+
+            if (card.HasFeature(feature) || card.HasFeatureId(feature.id))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<int> ResolveTrashZone(EffectActivationContext ctx, EffectBoardSide side)

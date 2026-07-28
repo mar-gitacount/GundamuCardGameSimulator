@@ -20,11 +20,14 @@ public partial class BattleGameMain
     private bool _activeResolvingOnDestroyedCompleteSent;
     /// <summary>自軍カードの破壊時効果解決中に相手へ出した EffectThinkWait の requestId。</summary>
     private int _activeLocalOnDestroyedRemoteThinkRequestId;
+    /// <summary>直近の OnDestroyed で手札へ戻したカード ID（オンライン完了通知用）。</summary>
+    private int _pendingOnDestroyedReturnedToHandCardId = -1;
 
     private sealed class RemoteDestroyedResolution
     {
         public CardController Unit;
         public int RequestId;
+        public CardController DestroyedBy;
     }
 
     private bool HasPendingRemoteOnDestroyedResolution =>
@@ -152,11 +155,13 @@ public partial class BattleGameMain
 
         _activeLocalOnDestroyedRemoteThinkRequestId = 0;
         int ownerDeckRemain = cardGameRule != null ? cardGameRule.GetRemainingCount() : -1;
+        int returnedId = _pendingOnDestroyedReturnedToHandCardId;
+        _pendingOnDestroyedReturnedToHandCardId = -1;
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnDestroyedComplete(
-            OnlineOnDestroyedCompletePayload.ToJson(requestId, ownerDeckRemain)));
+            OnlineOnDestroyedCompletePayload.ToJson(requestId, ownerDeckRemain, returnedId)));
         Debug.Log(
             $"[OnDestroyed][Online] EffectThinkWait complete sent request:{requestId} "
-            + $"deckRemain:{ownerDeckRemain}");
+            + $"deckRemain:{ownerDeckRemain} returnedToHand:{returnedId}");
     }
 
     private void HandleRemoteEffectThinkWait(string payload)
@@ -188,12 +193,14 @@ public partial class BattleGameMain
     /// </summary>
     private void ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
         CardController unit,
-        int requestId)
+        int requestId,
+        CardController destroyedBy = null)
     {
         _remoteDestroyedResolutionQueue.Enqueue(new RemoteDestroyedResolution
         {
             Unit = unit,
-            RequestId = requestId
+            RequestId = requestId,
+            DestroyedBy = destroyedBy
         });
         TryRunNextRemoteDestroyedResolution();
     }
@@ -214,7 +221,8 @@ public partial class BattleGameMain
 
         void Complete()
         {
-            if (unit != null && unit.Data != null)
+            // AddSelfToHand 等で既に手札へ戻っている場合は場からの除去をスキップ
+            if (unit != null && unit.Data != null && IsCardOnBattleZone(unit))
             {
                 ApplyRemoteUnitToTrash(unit);
             }
@@ -255,13 +263,19 @@ public partial class BattleGameMain
                 ownerType,
                 () =>
                 {
-                    if (detachedPilot != null)
+                    if (detachedPilot != null
+                        && unitsPendingSendToTrash.Contains(detachedPilot))
+                    {
+                        FinishSendCardToTrash(detachedPilot, ownerType);
+                    }
+                    else if (detachedPilot != null && IsCardOnBattleZone(detachedPilot))
                     {
                         FinishSendCardToTrash(detachedPilot, ownerType);
                     }
 
                     Complete();
-                });
+                },
+                entry.DestroyedBy);
             return;
         }
 
@@ -310,10 +324,13 @@ public partial class BattleGameMain
 
         // Look で自山札から手札回収した後の残数を破壊側ミラーへ伝える
         int ownerDeckRemain = cardGameRule != null ? cardGameRule.GetRemainingCount() : -1;
+        int returnedId = _pendingOnDestroyedReturnedToHandCardId;
+        _pendingOnDestroyedReturnedToHandCardId = -1;
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnDestroyedComplete(
-            OnlineOnDestroyedCompletePayload.ToJson(requestId, ownerDeckRemain)));
+            OnlineOnDestroyedCompletePayload.ToJson(requestId, ownerDeckRemain, returnedId)));
         Debug.Log(
-            $"[OnDestroyed][Online] complete sent request:{requestId} deckRemain:{ownerDeckRemain}");
+            $"[OnDestroyed][Online] complete sent request:{requestId} deckRemain:{ownerDeckRemain} "
+            + $"returnedToHand:{returnedId}");
     }
 
     private void HandleRemoteOnDestroyedComplete(string payload)
@@ -339,14 +356,52 @@ public partial class BattleGameMain
                 complete.ownerDeckRemainCount);
         }
 
+        if (complete.returnedToHandCardId > 0)
+        {
+            ApplyRemoteDestroyedUnitReturnedToHand(complete.returnedToHandCardId);
+        }
+
         Debug.Log(
             $"[OnDestroyed][Online] wait complete request:{complete.requestId} "
-            + $"deckRemain:{complete.ownerDeckRemainCount} "
+            + $"deckRemain:{complete.ownerDeckRemainCount} returnedToHand:{complete.returnedToHandCardId} "
             + $"remaining:{_pendingRemoteOnDestroyedRequestIds.Count}");
         if (_pendingRemoteOnDestroyedRequestIds.Count == 0)
         {
             CloseOnlineEffectThinkOverlay();
         }
+    }
+
+    /// <summary>相手が破壊時効果でユニットを手札へ戻したのを、Enemy 手札ミラーへ反映する。</summary>
+    private void ApplyRemoteDestroyedUnitReturnedToHand(int cardId)
+    {
+        if (cardId <= 0 || DeckSettinObject.Instance == null || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        CardData data = DeckSettinObject.Instance.GetCardDataById(cardId);
+        if (data == null || enemyCardGameRule?.HandScrollContent == null)
+        {
+            Debug.LogWarning($"[OnDestroyed][Online] returned-to-hand mirror failed cardId:{cardId}");
+            return;
+        }
+
+        // 誤って相手トラッシュへ乗っていたら除去
+        enemyCardGameRule.TryRemoveCardFromTrash(cardId, out _);
+
+        GameObject go = Instantiate(CardImagePrefab, enemyCardGameRule.HandScrollContent);
+        CardController cc = go.GetComponent<CardController>();
+        if (cc == null)
+        {
+            Destroy(go);
+            return;
+        }
+
+        cc.SetUp(data, OnCardClicked);
+        RegisterCardInHandLists(cc, PlayerType.Enemy);
+        enemyCardGameRule.ApplyHandZoneLayoutToCard(cc);
+        enemyCardGameRule.RefreshHandCountDisplay();
+        Debug.Log($"[OnDestroyed][Online] enemy hand mirror add {data.cardName}(id:{cardId})");
     }
 
     private void ShowOnlineEffectThinkOverlay()
@@ -418,6 +473,7 @@ public partial class BattleGameMain
         _activeResolvingOnDestroyedRequestId = 0;
         _activeResolvingOnDestroyedCompleteSent = false;
         _activeLocalOnDestroyedRemoteThinkRequestId = 0;
+        _pendingOnDestroyedReturnedToHandCardId = -1;
         _nextOnlineOnDestroyedRequestId = 1;
         CloseOnlineEffectThinkOverlay();
     }
