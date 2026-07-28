@@ -300,42 +300,127 @@ public partial class BattleGameMain
         PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect.target);
         CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
 
-        if (!IsResolvingBurstEffect)
+        if (IsResolvingBurstEffect)
         {
-            Debug.LogWarning(
-                $"[AddSelfToHand] OnBurst 以外では未対応です (cardId:{sourceCard?.Data?.id ?? -1})。");
-            return;
-        }
-
-        if (sourceCard == null || recipient != sourceOwner)
-        {
-            Debug.LogWarning(
-                $"[AddSelfToHand] バースト元カードを手札へ移せません (cardId:{sourceCard?.Data?.id ?? -1})。");
-            return;
-        }
-
-        int applied = 0;
-        int count = magnitude > 0 ? magnitude : 1;
-        for (int i = 0; i < count; i++)
-        {
-            if (!TryMoveBurstSourceCardToHand(sourceCard, recipient, rule))
+            if (sourceCard == null || recipient != sourceOwner)
             {
-                if (applied == 0)
+                Debug.LogWarning(
+                    $"[AddSelfToHand] バースト元カードを手札へ移せません (cardId:{sourceCard?.Data?.id ?? -1})。");
+                return;
+            }
+
+            int applied = 0;
+            int count = magnitude > 0 ? magnitude : 1;
+            for (int i = 0; i < count; i++)
+            {
+                if (!TryMoveBurstSourceCardToHand(sourceCard, recipient, rule))
                 {
-                    Debug.LogWarning(
-                        $"[AddSelfToHand] burst source move failed side:{recipient} cardId:{sourceCard.Data?.id}");
+                    if (applied == 0)
+                    {
+                        Debug.LogWarning(
+                            $"[AddSelfToHand] burst source move failed side:{recipient} cardId:{sourceCard.Data?.id}");
+                    }
+
+                    break;
                 }
 
+                applied++;
                 break;
             }
 
-            applied++;
-            break;
+            Debug.Log(
+                $"[Effect] AddSelfToHand x{applied}/{count} target:{effect.target} "
+                + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+            return;
         }
 
-        Debug.Log(
-            $"[Effect] AddSelfToHand x{applied}/{count} target:{effect.target} "
-            + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+        // OnDestroyed: トラッシュへ置いた扱いの後、自身を手札へ戻す
+        if (unitsPendingSendToTrash.Contains(sourceCard)
+            || (sourceCard != null && IsCardOnBattleZone(sourceCard)))
+        {
+            if (sourceCard == null || recipient != sourceOwner || rule == null)
+            {
+                Debug.LogWarning(
+                    $"[AddSelfToHand] OnDestroyed 手札戻し不可 (cardId:{sourceCard?.Data?.id ?? -1})。");
+                return;
+            }
+
+            if (TryReturnDestroyedUnitToHandViaTrash(sourceCard, sourceOwner, rule))
+            {
+                Debug.Log(
+                    $"[Effect] AddSelfToHand(OnDestroyed via trash) "
+                    + $"{sourceCard.Data.cardName}(id:{sourceCard.Data.id}) → {sourceOwner} hand");
+            }
+
+            return;
+        }
+
+        Debug.LogWarning(
+            $"[AddSelfToHand] OnBurst / OnDestroyed 以外では未対応です (cardId:{sourceCard?.Data?.id ?? -1})。");
+    }
+
+    /// <summary>
+    /// 破壊時効果用。いったんトラッシュへ積み、直後に取り出して手札へ戻す。
+    /// GameObject は Destroy せずバウンス同様に手札へ移す（パイプラインの再トラッシュは pending 解除で抑止）。
+    /// </summary>
+    private bool TryReturnDestroyedUnitToHandViaTrash(
+        CardController card,
+        PlayerType ownerType,
+        CardGameRule rule)
+    {
+        if (card == null || card.Data == null || rule == null)
+        {
+            return false;
+        }
+
+        if (card.Data.IsUnitToken())
+        {
+            return false;
+        }
+
+        int cardId = card.Data.id;
+        // 公式どおり「トラッシュに置いた後」手札へ（ZoneSync の一瞬の AddTrash は抑止）
+        WithZoneSyncSuppressed(() =>
+        {
+            rule.AddCardToTrash(cardId);
+            rule.TryRemoveCardFromTrash(cardId, out _);
+        });
+
+        // 搭乗パイロットが残っていれば先に手札へ（通常は破壊時に既に切り離し済み）
+        if (card.Data.IsUnitLike() && card.MountedPilot != null)
+        {
+            CardController pilot = card.DetachMountedPilotWithoutDestroy();
+            if (pilot != null)
+            {
+                TryReturnCardInstanceToHand(pilot, ownerType, rule);
+            }
+        }
+
+        playerBattleZoneCards.Remove(card);
+        enemyBattleZoneCards.Remove(card);
+        unitsPendingSendToTrash.Remove(card);
+
+        if (card.Data.IsUnitLike() && card.BattleInstanceId > 0)
+        {
+            ClearStatModifiersGrantedByDestroyedUnit(card, ownerType);
+            RefreshAllFieldOwnerTurnPassives();
+        }
+
+        card.ResetRuntimeStatsFromData();
+        card.CleanupUnitBattleMountVisuals();
+        card.SetAttackFlg(AttackFlg.False);
+        card.SetUnitRestVisual(false);
+        card.RevealShieldFace();
+        card.RebindClickHandler(OnCardClicked);
+        card.transform.SetParent(rule.HandScrollContent, false);
+        rule.ApplyHandZoneLayoutToCard(card);
+
+        RegisterCardInHandLists(card, ownerType);
+        TriggerOnHandAutoEffects(card, ownerType, skipHandZoneCheck: true);
+        rule.RefreshHandCountDisplay();
+        SyncResourceViewsFromRule(ToRuleSide(ownerType));
+        _pendingOnDestroyedReturnedToHandCardId = cardId;
+        return true;
     }
 
     private bool TryMoveBurstSourceCardToHand(CardController card, PlayerType ownerType, CardGameRule rule)

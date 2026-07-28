@@ -31,6 +31,8 @@ public class OnlineBattleUnitEffectChange
     /// 0 は破壊時効果の完了待ちなし。
     /// </summary>
     public int onDestroyedRequestId;
+    /// <summary>破壊元ユニットの BattleInstanceId（0=不明）。受信側 OnDestroyed 条件用。</summary>
+    public int destroyerInstanceId;
 }
 
 /// <summary>
@@ -43,13 +45,16 @@ public class OnlineOnDestroyedCompletePayload
     public int requestId;
     /// <summary>解決完了時点の所有者（送信側視点 Player）山札残数。-1 は未指定。</summary>
     public int ownerDeckRemainCount = -1;
+    /// <summary>OnDestroyed で自身を手札へ戻した場合のカード ID。-1 はなし。</summary>
+    public int returnedToHandCardId = -1;
 
-    public static string ToJson(int requestId, int ownerDeckRemainCount)
+    public static string ToJson(int requestId, int ownerDeckRemainCount, int returnedToHandCardId = -1)
     {
         return JsonUtility.ToJson(new OnlineOnDestroyedCompletePayload
         {
             requestId = requestId,
-            ownerDeckRemainCount = ownerDeckRemainCount
+            ownerDeckRemainCount = ownerDeckRemainCount,
+            returnedToHandCardId = returnedToHandCardId
         });
     }
 

@@ -3409,7 +3409,7 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log(
                 $"[OnDestroyed][Latency] defer until command ack OK: {cardName} hold:{_onDestroyedLatencyHoldCount}");
             _deferredOnDestroyedResolutions.Add(
-                () => TriggerOnDestroyedEffects(cardController, ownerType, onComplete));
+                () => TriggerOnDestroyedEffects(cardController, ownerType, onComplete, destroyedBy: null));
             return;
         }
 
@@ -3421,7 +3421,8 @@ public partial class BattleGameMain : MonoBehaviour
         CardController unit,
         CardController detachedPilot,
         PlayerType ownerType,
-        System.Action onComplete)
+        System.Action onComplete,
+        CardController destroyedBy = null)
     {
         if (_onDestroyedLatencyHoldCount > 0)
         {
@@ -3430,21 +3431,27 @@ public partial class BattleGameMain : MonoBehaviour
                 $"[OnDestroyed][Latency] defer unit+pilot until command ack OK: {cardName} "
                 + $"hold:{_onDestroyedLatencyHoldCount}");
             _deferredOnDestroyedResolutions.Add(
-                () => TriggerUnitAndPilotOnDestroyedEffects(unit, detachedPilot, ownerType, onComplete));
+                () => TriggerUnitAndPilotOnDestroyedEffects(
+                    unit,
+                    detachedPilot,
+                    ownerType,
+                    onComplete,
+                    destroyedBy));
             return;
         }
 
-        TriggerUnitAndPilotOnDestroyedEffects(unit, detachedPilot, ownerType, onComplete);
+        TriggerUnitAndPilotOnDestroyedEffects(unit, detachedPilot, ownerType, onComplete, destroyedBy);
     }
 
     private void TriggerUnitAndPilotOnDestroyedEffects(
         CardController unit,
         CardController detachedPilot,
         PlayerType ownerType,
-        System.Action onComplete)
+        System.Action onComplete,
+        CardController destroyedBy = null)
     {
-        List<TimedEffectData> unitBlocks = CollectOnDestroyedTimedBlocks(unit, ownerType);
-        List<TimedEffectData> pilotBlocks = CollectOnDestroyedTimedBlocks(detachedPilot, ownerType);
+        List<TimedEffectData> unitBlocks = CollectOnDestroyedTimedBlocks(unit, ownerType, destroyedBy);
+        List<TimedEffectData> pilotBlocks = CollectOnDestroyedTimedBlocks(detachedPilot, ownerType, destroyedBy);
 
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
         {
@@ -3602,12 +3609,18 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 EndOnlineRemoteEffectThinkForLocalOnDestroyed(remoteThinkRequestId);
                 ContinueAfterOwnerOnDestroyed();
-            });
+            },
+            destroyedBy);
     }
 
     private void CompleteSendCardToTrashPipeline(CardController cardController, PlayerType ownerType)
     {
-        FinishSendCardToTrash(cardController, ownerType);
+        // OnDestroyed 中に AddSelfToHand 等で既に場から外れている場合は再トラッシュしない
+        if (cardController != null && unitsPendingSendToTrash.Contains(cardController))
+        {
+            FinishSendCardToTrash(cardController, ownerType);
+        }
+
         _pendingSendToTrashPipelines = Mathf.Max(0, _pendingSendToTrashPipelines - 1);
     }
 
@@ -3887,8 +3900,18 @@ public partial class BattleGameMain : MonoBehaviour
             PlayerType targetOwner = ResolveCardOwner(target.transform);
             TryLogAttackBlockCloseCombatTrioDestroy("ApplyDestroyEffect", target, sourceCard);
             NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
-            QueueOnlineUnitDestroy(target);
-            SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, target));
+            // OnDestroyed 条件用: 敵キルでなくても破壊効果の発動元ユニットを破壊者として渡す
+            CardController destroyedBy = ResolveUnitKillSourceForTrash(sourceCard, target);
+            if (destroyedBy == null
+                && sourceCard != null
+                && sourceCard.Data != null
+                && sourceCard.Data.IsUnitLike())
+            {
+                destroyedBy = sourceCard;
+            }
+
+            QueueOnlineUnitDestroy(target, destroyedBy);
+            SendCardToTrash(target, targetOwner, destroyedBy);
             applied++;
         }
 
@@ -6017,7 +6040,7 @@ public partial class BattleGameMain : MonoBehaviour
                         + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
                         + $"target:{FormatEffectDamageUnitDebugSnap(t)} "
                         + $"HP:{hpBefore}->{t.CurrentHp} willTrash:{t.CurrentHp <= 0}");
-                    QueueOnlineUnitDamage(t);
+                    QueueOnlineUnitDamage(t, ResolveUnitKillSourceForTrash(sourceCard, t));
                     if (t.CurrentHp <= 0)
                     {
                         Debug.Log(
@@ -9022,9 +9045,13 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）。条件付きブロック内の効果を順に解決する。
     /// 自分／相手ターン・アクションステップ中など、破壊が発生したタイミングを問わず実行する。</summary>
-    private void TriggerOnDestroyedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
+    private void TriggerOnDestroyedEffects(
+        CardController sourceCard,
+        PlayerType ownerType,
+        System.Action onComplete,
+        CardController destroyedBy = null)
     {
-        List<TimedEffectData> blocks = CollectOnDestroyedTimedBlocks(sourceCard, ownerType);
+        List<TimedEffectData> blocks = CollectOnDestroyedTimedBlocks(sourceCard, ownerType, destroyedBy);
         if (blocks.Count == 0)
         {
             onComplete?.Invoke();
@@ -9033,11 +9060,15 @@ public partial class BattleGameMain : MonoBehaviour
 
         Debug.Log(
             $"[OnDestroyed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count} "
-            + $"owner:{ownerType} turn:{currentPlayerType} phase:{currentPhase}");
+            + $"owner:{ownerType} turn:{currentPlayerType} phase:{currentPhase} "
+            + $"destroyedBy:{(destroyedBy != null && destroyedBy.Data != null ? destroyedBy.Data.cardName : "-")}");
         RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
     }
 
-    private List<TimedEffectData> CollectOnDestroyedTimedBlocks(CardController sourceCard, PlayerType ownerType)
+    private List<TimedEffectData> CollectOnDestroyedTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        CardController destroyedBy = null)
     {
         List<TimedEffectData> blocks = new List<TimedEffectData>();
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
@@ -9045,7 +9076,10 @@ public partial class BattleGameMain : MonoBehaviour
             return blocks;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        EffectActivationContext activationContext = BuildOnDestroyedActivationContext(
+            ownerType,
+            sourceCard,
+            destroyedBy);
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
@@ -9065,6 +9099,36 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return blocks;
+    }
+
+    private EffectActivationContext BuildOnDestroyedActivationContext(
+        PlayerType ownerType,
+        CardController sourceCard,
+        CardController destroyedBy)
+    {
+        bool hasDestroyerOwner = false;
+        PlayerType destroyerOwner = default;
+        if (destroyedBy != null)
+        {
+            destroyerOwner = ResolveCardOwner(destroyedBy.transform);
+            hasDestroyerOwner = true;
+        }
+
+        return new EffectActivationContext(
+            ownerType,
+            sourceCard,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            destroyingCard: destroyedBy,
+            hasDestroyingCardOwner: hasDestroyerOwner,
+            destroyingCardOwner: destroyerOwner);
     }
 
     private void RunOnDestroyedTimedBlocks(
@@ -9112,6 +9176,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+            FilterOutUnitsPendingSendToTrash(candidates);
             if (candidates.Count == 0)
             {
                 TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
@@ -9131,9 +9196,25 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            Debug.Log(
-                $"[OnDestroyed] 手動対象選択は破壊解決中未対応のためスキップ ({effect.FormatEffectSelectionSummary()})。");
-            TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            OpenManualUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                null,
+                picked =>
+                {
+                    if (picked != null)
+                    {
+                        ApplyEffectToSpecificTargets(
+                            sourceCard,
+                            ownerType,
+                            effect,
+                            new List<CardController> { picked });
+                    }
+
+                    TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                });
             return;
         }
 
@@ -9973,6 +10054,23 @@ public partial class BattleGameMain : MonoBehaviour
         return picks;
     }
 
+    private void FilterOutUnitsPendingSendToTrash(List<CardController> candidates)
+    {
+        if (candidates == null || candidates.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = candidates.Count - 1; i >= 0; i--)
+        {
+            CardController c = candidates[i];
+            if (c == null || unitsPendingSendToTrash.Contains(c))
+            {
+                candidates.RemoveAt(i);
+            }
+        }
+    }
+
     private static bool EffectRequiresManualUnitSelection(EffectData effect)
     {
         if (effect == null)
@@ -10226,7 +10324,7 @@ public partial class BattleGameMain : MonoBehaviour
                         + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
                         + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)} "
                         + $"HP:{hpBefore}->{targetUnit.CurrentHp} willTrash:{targetUnit.CurrentHp <= 0}");
-                    QueueOnlineUnitDamage(targetUnit);
+                    QueueOnlineUnitDamage(targetUnit, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
                     if (targetUnit.CurrentHp <= 0)
                     {
                         pendingEffectDamageTrash ??= new List<CardController>();
@@ -10362,6 +10460,7 @@ public partial class BattleGameMain : MonoBehaviour
         int levelDelta = 0;
         int effectDamageDelta = 0;
         int effectDamageImmunityDelta = 0;
+        int incomingDamageReductionDelta = 0;
         switch (statTarget)
         {
             case EffectStatTarget.AP:
@@ -10382,6 +10481,9 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectStatTarget.EffectDamageImmunity:
                 effectDamageImmunityDelta = signedValue > 0 ? 1 : (signedValue < 0 ? -1 : 0);
                 break;
+            case EffectStatTarget.IncomingDamageReduction:
+                incomingDamageReductionDelta = signedValue;
+                break;
             default:
                 powerDelta = signedValue;
                 hpDelta = signedValue;
@@ -10397,7 +10499,8 @@ public partial class BattleGameMain : MonoBehaviour
             duration,
             statModifierSourceKey,
             effectDamageDelta,
-            effectDamageImmunityDelta);
+            effectDamageImmunityDelta,
+            incomingDamageReductionDelta);
     }
 
     /// <summary>

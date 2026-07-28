@@ -10,46 +10,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 92Quess's Jagd Doga
+  m_Name: 93Quess Paraya
   m_EditorClassIdentifier: 
-  id: 92
-  cardName: Quess's Jagd Doga
-  cost: 2
+  id: 94
+  cardName: Quess Paraya
+  cost: 1
   level: 3
-  power: 3
-  hp: 2
-  imageName: {fileID: -3894421324810160188, guid: 1d957169a22b3864d86bdfb0d137cc39, type: 3}
+  power: 1
+  hp: 1
+  imageName: {fileID: 0}
   image: {fileID: 0}
   version: 5
-  sourceType: 1
+  sourceType: 2
   filterType: 0
   color: 6
-  type: 0
+  type: 1
   attackFlg: 0
   timedEffects:
   - timing: 9
-    activationConditions:
-    - boardSide: -1
-      checkKind: 16
-      turnCheck: -1
-      feature: {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
-      featureId: 6
-      features: []
-      featureIds: 
-      minimumCount: 1
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 0
-      unitCountThreshold: 0
-      pilotCardId: 0
-      trashCardId: 0
-      pilotLevelThreshold: 0
-      activationStatTarget: -1
-      observedCardType: 0
-      destroyedByOwnerRelation: 1
+    activationConditions: []
     requireChainObservationContext: 0
-    effectsName: OnDestroyed_AddSelfToHand_IfDestroyedByNeoZeon
+    effectsName: OnDestroyed_BuffAllyNeoZeon_IncomingDamageReduction2_UntilEOT
     effects: []
     activationCost: 0
     oncePerTurn: 0

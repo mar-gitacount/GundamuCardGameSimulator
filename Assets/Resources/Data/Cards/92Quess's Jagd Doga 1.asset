@@ -10,21 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 92Quess's Jagd Doga
+  m_Name: 92Quess's Jagd Doga 1
   m_EditorClassIdentifier: 
-  id: 92
-  cardName: Quess's Jagd Doga
-  cost: 2
+  id: 93
+  cardName: Quess Paraya
+  cost: 1
   level: 3
-  power: 3
-  hp: 2
-  imageName: {fileID: -3894421324810160188, guid: 1d957169a22b3864d86bdfb0d137cc39, type: 3}
+  power: 1
+  hp: 1
+  imageName: {fileID: 2187706778667496124, guid: b00d398040bf6b048b04d55be02f9a1b, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
   filterType: 0
   color: 6
-  type: 0
+  type: 1
   attackFlg: 0
   timedEffects:
   - timing: 9
