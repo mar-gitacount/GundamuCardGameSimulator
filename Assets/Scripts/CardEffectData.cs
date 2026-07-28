@@ -128,7 +128,12 @@ public enum EffectType
     /// target で SelfPlayer / EnemyPlayer を指定（未指定・ユニット対象は効果オーナー側）。
     /// 条件付き発動は timed / effect の activationConditions（例: TrashHasFeature）と組み合わせる。
     /// </summary>
-    AddExResource
+    AddExResource,
+    /// <summary>
+    /// 同一チェーン中に山札からトラッシュへ送ったカード一覧から、条件に合うカードを選んで手札へ加える。
+    /// 直前の MillTopToTrash と組み合わせて使う。対象は「その効果で送ったカード」のみ。
+    /// </summary>
+    AddObservedToHandFromTrash
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>

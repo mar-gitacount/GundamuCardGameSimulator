@@ -9508,6 +9508,22 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (EffectRequiresManualUnitSelection(effect))
         {
+            bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
+            // AllyOtherUnit 等で候補0（例: 95Sazabi 自身しかいない）なら UI を出さず終了
+            List<CardController> preCandidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+            if (preCandidates.Count == 0)
+            {
+                if (abortRemainingOnSkip)
+                {
+                    onDone?.Invoke();
+                }
+                else
+                {
+                    TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                }
+                return;
+            }
+
             void RunManualSelection()
             {
                 TryExecuteManualUnitSelectionEffect(
@@ -9515,7 +9531,18 @@ public partial class BattleGameMain : MonoBehaviour
                     ownerType,
                     effect,
                     null,
-                    () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+                    () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone),
+                    () =>
+                    {
+                        if (abortRemainingOnSkip)
+                        {
+                            onDone?.Invoke();
+                        }
+                        else
+                        {
+                            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                        }
+                    });
             }
 
             if (effect.optionalPlayerConfirm)
@@ -9525,8 +9552,17 @@ public partial class BattleGameMain : MonoBehaviour
                     ownerType,
                     effect,
                     onAccepted: RunManualSelection,
-                    onDeclined: () => TryExecuteOnPlayedEffectChain(
-                        sourceCard, ownerType, effects, index + 1, onDone));
+                    onDeclined: () =>
+                    {
+                        if (abortRemainingOnSkip)
+                        {
+                            onDone?.Invoke();
+                        }
+                        else
+                        {
+                            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                        }
+                    });
                 return;
             }
 
@@ -9571,7 +9607,8 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         EffectData effect,
         CardController attackingUnitInAttackFlow,
-        System.Action onDone)
+        System.Action onDone,
+        System.Action onSkipped = null)
     {
         if (effect == null)
         {
@@ -9584,7 +9621,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log(
                 $"[Effect] 選択可能な対象がありません ({effect.FormatEffectSelectionSummary()})。");
-            onDone?.Invoke();
+            onSkipped?.Invoke();
             return;
         }
 
@@ -9597,6 +9634,11 @@ public partial class BattleGameMain : MonoBehaviour
                 if (aiPicks.Count > 0)
                 {
                     ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, aiPicks);
+                    onDone?.Invoke();
+                }
+                else
+                {
+                    onSkipped?.Invoke();
                 }
             }
             else
@@ -9605,10 +9647,14 @@ public partial class BattleGameMain : MonoBehaviour
                 if (picked != null)
                 {
                     ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                    onDone?.Invoke();
+                }
+                else
+                {
+                    onSkipped?.Invoke();
                 }
             }
 
-            onDone?.Invoke();
             return;
         }
 
@@ -9625,9 +9671,12 @@ public partial class BattleGameMain : MonoBehaviour
                     if (selected != null && selected.Count > 0)
                     {
                         ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, selected);
+                        onDone?.Invoke();
                     }
-
-                    onDone?.Invoke();
+                    else
+                    {
+                        onSkipped?.Invoke();
+                    }
                 });
             return;
         }
@@ -9653,10 +9702,23 @@ public partial class BattleGameMain : MonoBehaviour
                 if (picked != null)
                 {
                     ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                    onDone?.Invoke();
                 }
-
-                onDone?.Invoke();
+                else
+                {
+                    onSkipped?.Invoke();
+                }
             });
+    }
+
+    private static bool ShouldAbortRemainingOnPlayedEffectsWhenSkipped(CardController sourceCard, EffectData effect)
+    {
+        return sourceCard != null
+            && sourceCard.Data != null
+            && sourceCard.Data.id == 95
+            && effect != null
+            && effect.type == EffectType.Destroy
+            && effect.target == TargetType.AllyOtherUnit;
     }
 
     private void OpenManualUnitTargetSelectionUI(
@@ -10269,6 +10331,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.ExileFromTrash:
                 ApplyExileFromTrashEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.AddObservedToHandFromTrash:
+                ApplyAddObservedToHandFromTrashEffect(sourceCard, ownerType, effect);
                 break;
 
             case EffectType.AddToHandFromLooked:
