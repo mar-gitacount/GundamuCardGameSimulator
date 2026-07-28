@@ -15,6 +15,8 @@ public partial class BattleGameMain
     private EffectChainObservation _effectChainObservation;
     private int _effectChainObservationDepth;
     private bool _effectChainDealtDamage;
+    private List<TrashExileCandidate> _effectChainLastMilledTrashCandidates;
+    private PlayerType _effectChainLastMilledTrashOwner = PlayerType.Player;
 
     private bool HasEffectChainObservation => _effectChainObservation != null && _effectChainObservation.HasCards;
 
@@ -24,6 +26,7 @@ public partial class BattleGameMain
         {
             _effectChainObservation = new EffectChainObservation();
             _effectChainDealtDamage = false;
+            _effectChainLastMilledTrashCandidates = null;
             ClearEffectChainLastPickedTargets();
         }
     }
@@ -39,6 +42,7 @@ public partial class BattleGameMain
         {
             _effectChainObservation?.Clear();
             _effectChainObservation = null;
+            _effectChainLastMilledTrashCandidates = null;
         }
     }
 
@@ -50,6 +54,24 @@ public partial class BattleGameMain
     private void ObserveCardInEffectChain(CardData cardData)
     {
         _effectChainObservation?.Add(cardData);
+    }
+
+    private void SetObservedMilledTrashCandidates(PlayerType trashOwner, List<TrashExileCandidate> candidates)
+    {
+        _effectChainLastMilledTrashOwner = trashOwner;
+        _effectChainLastMilledTrashCandidates = candidates != null
+            ? new List<TrashExileCandidate>(candidates)
+            : null;
+    }
+
+    private List<TrashExileCandidate> GetObservedMilledTrashCandidates(PlayerType trashOwner)
+    {
+        if (_effectChainLastMilledTrashCandidates == null || _effectChainLastMilledTrashOwner != trashOwner)
+        {
+            return new List<TrashExileCandidate>();
+        }
+
+        return new List<TrashExileCandidate>(_effectChainLastMilledTrashCandidates);
     }
 
     private bool CanRunTimedBlockAtChainTime(TimedEffectData timed, EffectActivationContext activationContext, string logTag)
@@ -350,6 +372,7 @@ public partial class BattleGameMain
         string deckLabel = FormatLookDeckOwnerLabel(deckOwner);
         List<CardData> milledCards = new List<CardData>(magnitude);
         List<int> milledCardIds = new List<int>(magnitude);
+        List<TrashExileCandidate> observedTrashCandidates = new List<TrashExileCandidate>(magnitude);
 
         WithZoneSyncSuppressed(() =>
         {
@@ -363,6 +386,10 @@ public partial class BattleGameMain
                 CardData data = DeckSettinObject.Instance.GetCardDataById(cardId);
                 deckRule.AddCardToTrash(cardId);
                 milledCardIds.Add(cardId);
+                observedTrashCandidates.Add(new TrashExileCandidate(
+                    deckRule.GetTrashCardIds().Count - 1,
+                    cardId,
+                    data));
                 if (data != null)
                 {
                     milledCards.Add(data);
@@ -381,6 +408,8 @@ public partial class BattleGameMain
             SyncGundamRuleDeckCount(deckOwner, deckRemain);
             NotifyLocalZoneDeckToTrash(deckOwner, milledCardIds, deckRemain);
         }
+
+        SetObservedMilledTrashCandidates(deckOwner, observedTrashCandidates);
 
         if (ownerType == PlayerType.Player && milledCards.Count > 0)
         {

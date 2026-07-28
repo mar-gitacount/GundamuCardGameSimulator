@@ -643,6 +643,368 @@ public partial class BattleGameMain
         onComplete?.Invoke();
     }
 
+    private void ApplyAddObservedToHandFromTrashEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        Action onComplete = null)
+    {
+        CardGameRule trashRule = ResolveTrashRuleForEffect(ownerType, effect);
+        PlayerType trashOwner = effect != null && effect.target == TargetType.EnemyPlayer
+            ? (ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
+            : ownerType;
+        if (trashRule == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        List<TrashExileCandidate> observedCandidates = GetObservedMilledTrashCandidates(trashOwner);
+        List<TrashExileCandidate> candidates = new List<TrashExileCandidate>();
+        IReadOnlyList<int> currentTrashIds = trashRule.GetTrashCardIds();
+        for (int i = 0; i < observedCandidates.Count; i++)
+        {
+            TrashExileCandidate candidate = observedCandidates[i];
+            if (candidate.TrashIndex < 0 || candidate.TrashIndex >= currentTrashIds.Count)
+            {
+                continue;
+            }
+
+            if (currentTrashIds[candidate.TrashIndex] != candidate.CardId)
+            {
+                continue;
+            }
+
+            candidates.Add(candidate);
+        }
+
+        if (candidates.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        int pickCount = Mathf.Max(1, ResolveEffectMagnitude(effect, ownerType, sourceCard));
+        if (ownerType == PlayerType.Enemy)
+        {
+            ResolveAddObservedToHandFromTrashAuto(trashRule, trashOwner, effect, candidates, pickCount);
+            onComplete?.Invoke();
+            return;
+        }
+
+        StartCoroutine(ShowAddObservedToHandFromTrashSelectionCoroutine(
+            sourceCard,
+            trashRule,
+            ownerType,
+            trashOwner,
+            effect,
+            candidates,
+            pickCount,
+            onComplete));
+    }
+
+    private void ResolveAddObservedToHandFromTrashAuto(
+        CardGameRule trashRule,
+        PlayerType handOwner,
+        EffectData effect,
+        List<TrashExileCandidate> observedCandidates,
+        int pickCount)
+    {
+        List<TrashExileCandidate> selectable = FilterObservedTrashCandidatesForHand(observedCandidates, effect);
+        int taken = 0;
+        selectable.Sort((a, b) => b.TrashIndex.CompareTo(a.TrashIndex));
+        for (int i = 0; i < selectable.Count && taken < pickCount; i++)
+        {
+            if (TryMoveTrashCandidateToHand(trashRule, handOwner, selectable[i]))
+            {
+                taken++;
+            }
+        }
+    }
+
+    private IEnumerator ShowAddObservedToHandFromTrashSelectionCoroutine(
+        CardController sourceCard,
+        CardGameRule trashRule,
+        PlayerType effectOwner,
+        PlayerType trashOwner,
+        EffectData effect,
+        List<TrashExileCandidate> observedCandidates,
+        int pickCount,
+        Action onComplete)
+    {
+        if (trashRule == null || observedCandidates == null || observedCandidates.Count == 0 || CardImagePrefab == null)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        HashSet<int> selectableIds = new HashSet<int>();
+        List<TrashExileCandidate> selectable = FilterObservedTrashCandidatesForHand(observedCandidates, effect);
+        for (int i = 0; i < selectable.Count; i++)
+        {
+            selectableIds.Add(selectable[i].TrashIndex);
+        }
+
+        string featureLabel = effect != null ? effect.FormatTargetFeaturesLabel("/") : string.Empty;
+        string typeLabel = effect != null && effect.filterByTargetCardType
+            ? CardTypeExtensions.GetDisplayName(effect.targetCardType)
+            : string.Empty;
+        string filterLabel = string.IsNullOrEmpty(featureLabel)
+            ? typeLabel
+            : (string.IsNullOrEmpty(typeLabel) ? featureLabel : $"{typeLabel}・{featureLabel}");
+        if (string.IsNullOrEmpty(filterLabel))
+        {
+            filterLabel = "カード";
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "ObservedTrashToHandSelect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.62f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ObservedTrashToHandTitle", UIAnchor.TopCenter, 780, 48);
+        title.text = "トラッシュに送ったカードから手札に加える";
+        title.fontSize = 26;
+        title.fontStyle = FontStyles.Bold;
+        title.color = Color.white;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
+
+        string sourceName = sourceCard?.Data?.cardName ?? "このカード";
+        TextMeshProUGUI subtitle = root.CreateChildTextCustom("ObservedTrashToHandSubtitle", UIAnchor.TopCenter, 780, 40);
+        subtitle.text = selectable.Count > 0
+            ? $"{sourceName} の効果でトラッシュに送った3枚から {filterLabel} を選択して OK"
+            : $"{sourceName} の効果でトラッシュに送った3枚に対象となる {filterLabel} はありません";
+        subtitle.fontSize = 17;
+        subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
+        subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
+
+        GameObject scrollGo = root.CreateGridScrollView(760, 400, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -96f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        HashSet<int> selectedTrashIndices = new HashSet<int>();
+        Dictionary<int, GameObject> cardObjectsByTrashIndex = new Dictionary<int, GameObject>();
+        bool dismissed = false;
+        bool confirmed = false;
+        Button okBtn = null;
+        TextMeshProUGUI okLabel = null;
+
+        void RefreshSelectionVisuals()
+        {
+            foreach (KeyValuePair<int, GameObject> pair in cardObjectsByTrashIndex)
+            {
+                SetExileTrashSelectionHighlight(pair.Value, selectedTrashIndices.Contains(pair.Key));
+            }
+
+            bool ready = selectedTrashIndices.Count >= pickCount;
+            if (okBtn != null)
+            {
+                okBtn.interactable = selectable.Count == 0 || ready;
+            }
+
+            if (okLabel != null)
+            {
+                okLabel.color = selectable.Count == 0 || ready
+                    ? Color.white
+                    : new Color(0.55f, 0.55f, 0.55f, 1f);
+            }
+        }
+
+        void ClosePopup()
+        {
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+        }
+
+        if (content != null)
+        {
+            for (int i = 0; i < observedCandidates.Count; i++)
+            {
+                TrashExileCandidate candidate = observedCandidates[i];
+                if (candidate.Data == null)
+                {
+                    continue;
+                }
+
+                bool canPick = selectableIds.Contains(candidate.TrashIndex);
+                GameObject go = Instantiate(CardImagePrefab, content);
+                cardObjectsByTrashIndex[candidate.TrashIndex] = go;
+                CardController cc = go.GetComponent<CardController>();
+                if (cc != null)
+                {
+                    int capturedIndex = candidate.TrashIndex;
+                    if (canPick)
+                    {
+                        cc.SetUp(candidate.Data, _ =>
+                        {
+                            selectedTrashIndices.Clear();
+                            selectedTrashIndices.Add(capturedIndex);
+                            RefreshSelectionVisuals();
+                        });
+                    }
+                    else
+                    {
+                        cc.SetUp(candidate.Data, _ => { });
+                    }
+
+                    go.transform.localScale = new Vector3(0.42f, 0.42f, 1f);
+                }
+
+                if (!canPick)
+                {
+                    CanvasGroup cg = go.GetComponent<CanvasGroup>();
+                    if (cg == null)
+                    {
+                        cg = go.AddComponent<CanvasGroup>();
+                    }
+
+                    cg.alpha = 0.45f;
+                }
+
+                SetExileTrashSelectionHighlight(go, false);
+            }
+        }
+
+        okBtn = root.CreateChildButton("OK");
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(220f, 50f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = new Vector2(0f, 36f);
+        okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (okLabel != null)
+        {
+            okLabel.text = "OK";
+        }
+
+        okBtn.interactable = selectable.Count == 0;
+        okBtn.onClick.AddListener(() =>
+        {
+            if (!okBtn.interactable)
+            {
+                return;
+            }
+
+            dismissed = true;
+            confirmed = true;
+            ClosePopup();
+        });
+
+        RefreshSelectionVisuals();
+        yield return new WaitUntil(() => dismissed);
+
+        if (confirmed)
+        {
+            List<int> orderedIndices = new List<int>(selectedTrashIndices);
+            orderedIndices.Sort((a, b) => b.CompareTo(a));
+            int taken = 0;
+            for (int i = 0; i < orderedIndices.Count && taken < pickCount; i++)
+            {
+                int trashIndex = orderedIndices[i];
+                for (int c = 0; c < observedCandidates.Count; c++)
+                {
+                    if (observedCandidates[c].TrashIndex != trashIndex)
+                    {
+                        continue;
+                    }
+
+                    if (TryMoveTrashCandidateToHand(trashRule, trashOwner, observedCandidates[c]))
+                    {
+                        taken++;
+                    }
+                    break;
+                }
+            }
+        }
+
+        onComplete?.Invoke();
+    }
+
+    private static List<TrashExileCandidate> FilterObservedTrashCandidatesForHand(
+        List<TrashExileCandidate> candidates,
+        EffectData effect)
+    {
+        List<TrashExileCandidate> result = new List<TrashExileCandidate>();
+        if (candidates == null)
+        {
+            return result;
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            TrashExileCandidate candidate = candidates[i];
+            if (candidate.Data == null)
+            {
+                continue;
+            }
+
+            if (!EffectDataExtensions.MatchesTargetFeatureFilter(effect, candidate.Data))
+            {
+                continue;
+            }
+
+            if (!EffectDataExtensions.MatchesTargetCardTypeFilter(effect, candidate.Data))
+            {
+                continue;
+            }
+
+            result.Add(candidate);
+        }
+
+        return result;
+    }
+
+    private bool TryMoveTrashCandidateToHand(
+        CardGameRule trashRule,
+        PlayerType handOwner,
+        TrashExileCandidate candidate)
+    {
+        if (trashRule == null || candidate.CardId < 0)
+        {
+            return false;
+        }
+
+        if (!trashRule.TryRemoveCardFromTrashAt(candidate.TrashIndex, out int removedId))
+        {
+            return false;
+        }
+
+        if (removedId != candidate.CardId)
+        {
+            trashRule.AddCardToTrash(removedId);
+            return false;
+        }
+
+        CardGameRule handRule = handOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        AddCardIdToHand(handRule, handOwner, removedId);
+        Debug.Log(
+            $"[Effect] AddObservedToHandFromTrash {candidate.Data?.cardName ?? "?"}(id:{removedId}) "
+            + $"handOwner:{handOwner}");
+        return true;
+    }
+
     private static void SetExileTrashSelectionHighlight(GameObject cardGo, bool selected)
     {
         if (cardGo == null)
