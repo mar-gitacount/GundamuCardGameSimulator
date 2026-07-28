@@ -212,6 +212,39 @@ public class EosOnlineBattleMessage
         });
     }
 
+    /// <summary>自分が破壊時効果を解決中なので、相手は effectthink で待て、という通知。</summary>
+    public const string EffectThinkWait = "EffectThinkWait";
+
+    public static string CreateEffectThinkWait(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = EffectThinkWait,
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public const string OpponentUnitPickRequest = "OpponentUnitPickRequest";
+    public const string OpponentUnitPickResponse = "OpponentUnitPickResponse";
+
+    public static string CreateOpponentUnitPickRequest(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = OpponentUnitPickRequest,
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateOpponentUnitPickResponse(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = OpponentUnitPickResponse,
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static bool TryParse(string raw, out EosOnlineBattleMessage message)
     {
         message = null;

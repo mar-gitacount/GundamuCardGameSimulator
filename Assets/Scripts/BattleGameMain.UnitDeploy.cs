@@ -1232,9 +1232,8 @@ public partial class BattleGameMain
     {
         void ProceedUnitAttack()
         {
-            pendingOnAttackEffectResolvedAttacker = attacker;
-            _onAttackPreCombatCompletedAttacker = attacker;
-            TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner);
+            // OnAttack 完了後はブロック→アクションの順で続行する
+            ContinueUnitAttackAfterOnAttackEffects(attacker, attackerOwner, defender, skipOnActionPause: false);
         }
 
         if (TryOpenOnAttackEffectSelectionBeforeCombat(attacker, attackerOwner, defender, ProceedUnitAttack))
@@ -1263,41 +1262,7 @@ public partial class BattleGameMain
                 attacker,
                 attackerOwner,
                 defender,
-                () =>
-                {
-                    if (attackFlowBlockSelectionResolved)
-                    {
-                        if (attackFlowPostBlockPassOnActionDone)
-                        {
-                            CardController resumeAttacker = attackFlowAttackerUnit != null
-                                ? attackFlowAttackerUnit
-                                : attacker;
-                            CardController resumeDefender = attackFlowDeclaredDefenderUnit != null
-                                ? attackFlowDeclaredDefenderUnit
-                                : defender;
-                            ExecuteUnitVsUnitDeclaredCombat(
-                                resumeAttacker,
-                                resumeDefender,
-                                attackFlowAttackerOwner,
-                                ResolveCardOwner(resumeDefender.transform));
-                        }
-                        else
-                        {
-                            RunOnActionStepsImmediatelyAfterBlockPass(
-                                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
-                                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
-                                attackFlowAttackerOwner,
-                                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null
-                                    ? attackFlowDeclaredDefenderUnit
-                                    : defender).transform),
-                                AttackFlowStrikeKind.UnitVsUnit);
-                        }
-
-                        return;
-                    }
-
-                    TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, skipAttackedSidePanelPause);
-                }))
+                () => ContinueUnitAttackAfterOnAttackEffects(attacker, attackerOwner, defender, skipOnActionPause)))
             {
                 return;
             }
@@ -1305,6 +1270,74 @@ public partial class BattleGameMain
             pendingOnAttackEffectResolvedAttacker = attacker;
         }
 
-        TryResumeUnitVsUnitAttackAfterOnAction(skipOnActionPause, skipAttackedSidePanelPause);
+        ContinueUnitAttackAfterOnAttackEffects(attacker, attackerOwner, defender, skipOnActionPause);
+    }
+
+    /// <summary>
+    /// OnAttack（Sazabi 等）完了後の続行。
+    /// ブロッカーがいればブロック → アクションの順（アクションを先に始めない）。
+    /// </summary>
+    private void ContinueUnitAttackAfterOnAttackEffects(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController defender,
+        bool skipOnActionPause)
+    {
+        if (attacker == null)
+        {
+            return;
+        }
+
+        pendingOnAttackEffectResolvedAttacker = attacker;
+        _onAttackPreCombatCompletedAttacker = attacker;
+
+        if (attackFlowBlockSelectionResolved)
+        {
+            if (attackFlowPostBlockPassOnActionDone)
+            {
+                CardController resumeAttacker = attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker;
+                CardController resumeDefender = attackFlowDeclaredDefenderUnit != null
+                    ? attackFlowDeclaredDefenderUnit
+                    : defender;
+                if (!IsUnitAliveOnAnyDeployField(resumeDefender))
+                {
+                    CancelPendingUnitAttackFlow();
+                    return;
+                }
+
+                ExecuteUnitVsUnitDeclaredCombat(
+                    resumeAttacker,
+                    resumeDefender,
+                    attackFlowAttackerOwner,
+                    ResolveCardOwner(resumeDefender.transform));
+                return;
+            }
+
+            RunOnActionStepsImmediatelyAfterBlockPass(
+                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
+                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
+                attackFlowAttackerOwner,
+                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null
+                    ? attackFlowDeclaredDefenderUnit
+                    : defender).transform),
+                AttackFlowStrikeKind.UnitVsUnit);
+            return;
+        }
+
+        PlayerType defenderOwner = defender != null
+            ? ResolveCardOwner(defender.transform)
+            : (attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player);
+
+        Debug.Log(
+            $"[AttackFlow] OnAttack 完了 → ブロック→アクションへ "
+            + $"attacker:{attacker.Data?.cardName}");
+        // skipAttackedSidePanelPause=false: ブロック UI／オンラインブロック待ちをスキップしない
+        TryUnitVsUnitAttack(
+            attacker,
+            defender,
+            attackerOwner,
+            defenderOwner,
+            skipOnActionPause,
+            skipAttackedSidePanelPause: false);
     }
 }

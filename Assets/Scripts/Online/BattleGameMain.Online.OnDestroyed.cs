@@ -18,6 +18,8 @@ public partial class BattleGameMain
     /// <summary>所有者側で現在解決中の破壊時効果 requestId（Look OK で完了送信するため）。</summary>
     private int _activeResolvingOnDestroyedRequestId;
     private bool _activeResolvingOnDestroyedCompleteSent;
+    /// <summary>自軍カードの破壊時効果解決中に相手へ出した EffectThinkWait の requestId。</summary>
+    private int _activeLocalOnDestroyedRemoteThinkRequestId;
 
     private sealed class RemoteDestroyedResolution
     {
@@ -61,18 +63,87 @@ public partial class BattleGameMain
             return 0;
         }
 
-        int requestId = _nextOnlineOnDestroyedRequestId++;
-        if (_nextOnlineOnDestroyedRequestId <= 0)
-        {
-            _nextOnlineOnDestroyedRequestId = 1;
-        }
-
+        int requestId = AllocateOnlineOnDestroyedRequestId();
         _pendingRemoteOnDestroyedRequestIds.Add(requestId);
         ShowOnlineEffectThinkOverlay();
         Debug.Log(
             $"[OnDestroyed][Online] wait begin request:{requestId} "
             + $"target:{target.Data.cardName}(id:{target.Data.id})");
         return requestId;
+    }
+
+    private int AllocateOnlineOnDestroyedRequestId()
+    {
+        int requestId = _nextOnlineOnDestroyedRequestId++;
+        if (_nextOnlineOnDestroyedRequestId <= 0)
+        {
+            _nextOnlineOnDestroyedRequestId = 1;
+        }
+
+        return requestId;
+    }
+
+    /// <summary>
+    /// 自軍ユニットの破壊時効果をローカル解決するあいだ、相手に effectthink を出させる。
+    /// </summary>
+    private int BeginOnlineRemoteEffectThinkForLocalOnDestroyed(
+        CardController card,
+        PlayerType ownerType)
+    {
+        if (!IsOnlineBattle()
+            || _applyingRemoteBattleAction
+            || ownerType != PlayerType.Player
+            || !HasOnDestroyedResolution(card))
+        {
+            return 0;
+        }
+
+        int requestId = AllocateOnlineOnDestroyedRequestId();
+        _activeLocalOnDestroyedRemoteThinkRequestId = requestId;
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEffectThinkWait(
+            OnlineOnDestroyedCompletePayload.ToJson(requestId, -1)));
+        Debug.Log(
+            $"[OnDestroyed][Online] EffectThinkWait sent request:{requestId} "
+            + $"card:{(card != null && card.Data != null ? card.Data.cardName : "?")}");
+        return requestId;
+    }
+
+    /// <summary>
+    /// 自軍破壊時効果の解決完了を相手へ通知し、相手の effectthink を閉じる。
+    /// </summary>
+    private void EndOnlineRemoteEffectThinkForLocalOnDestroyed(int requestId)
+    {
+        if (requestId <= 0 || !IsOnlineBattle())
+        {
+            return;
+        }
+
+        // Look OK 等で既に送信済みなら二重送信しない
+        if (_activeLocalOnDestroyedRemoteThinkRequestId != requestId)
+        {
+            return;
+        }
+
+        _activeLocalOnDestroyedRemoteThinkRequestId = 0;
+        int ownerDeckRemain = cardGameRule != null ? cardGameRule.GetRemainingCount() : -1;
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnDestroyedComplete(
+            OnlineOnDestroyedCompletePayload.ToJson(requestId, ownerDeckRemain)));
+        Debug.Log(
+            $"[OnDestroyed][Online] EffectThinkWait complete sent request:{requestId} "
+            + $"deckRemain:{ownerDeckRemain}");
+    }
+
+    private void HandleRemoteEffectThinkWait(string payload)
+    {
+        if (!OnlineOnDestroyedCompletePayload.TryParse(payload, out OnlineOnDestroyedCompletePayload wait))
+        {
+            Debug.LogWarning($"[OnDestroyed][Online] invalid EffectThinkWait payload:{payload}");
+            return;
+        }
+
+        _pendingRemoteOnDestroyedRequestIds.Add(wait.requestId);
+        ShowOnlineEffectThinkOverlay();
+        Debug.Log($"[OnDestroyed][Online] EffectThinkWait received request:{wait.requestId}");
     }
 
     /// <summary>
@@ -154,12 +225,16 @@ public partial class BattleGameMain
     /// </summary>
     private void NotifyOnlineOnDestroyedPlayerAcknowledged()
     {
-        if (_activeResolvingOnDestroyedRequestId <= 0)
+        if (_activeResolvingOnDestroyedRequestId > 0)
         {
-            return;
+            SendOnlineOnDestroyedCompleteIfNeeded(_activeResolvingOnDestroyedRequestId);
         }
 
-        SendOnlineOnDestroyedCompleteIfNeeded(_activeResolvingOnDestroyedRequestId);
+        // 自軍破壊時効果（Sazabi 自軍破壊など）の Look OK でも相手の待機を先に閉じる
+        if (_activeLocalOnDestroyedRemoteThinkRequestId > 0)
+        {
+            EndOnlineRemoteEffectThinkForLocalOnDestroyed(_activeLocalOnDestroyedRemoteThinkRequestId);
+        }
     }
 
     private void SendOnlineOnDestroyedCompleteIfNeeded(int requestId)
@@ -265,7 +340,7 @@ public partial class BattleGameMain
             UIAnchor.TopCenter,
             720,
             44);
-        sub.text = "相手の破壊時効果の解決を待っています…";
+        sub.text = "相手の効果解決を待っています…";
         sub.color = Color.white;
         sub.fontSize = 18;
         sub.alignment = TextAlignmentOptions.Center;
@@ -289,6 +364,7 @@ public partial class BattleGameMain
         _remoteDestroyedResolutionRunning = false;
         _activeResolvingOnDestroyedRequestId = 0;
         _activeResolvingOnDestroyedCompleteSent = false;
+        _activeLocalOnDestroyedRemoteThinkRequestId = 0;
         _nextOnlineOnDestroyedRequestId = 1;
         CloseOnlineEffectThinkOverlay();
     }

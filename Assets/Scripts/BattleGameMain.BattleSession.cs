@@ -161,6 +161,7 @@ public partial class BattleGameMain
         isMulliganPromptOpen = false;
         isMulliganThinkPauseOpen = false;
         ResetOnlineOnDestroyedWaitState();
+        ResetOnlineOpponentUnitPickState();
         CloseOnlineOnActionOpponentWaitOverlay();
         CloseOnlineShieldBreakThinkOverlay();
         _onlineDeferredEnemyShieldBreak = null;

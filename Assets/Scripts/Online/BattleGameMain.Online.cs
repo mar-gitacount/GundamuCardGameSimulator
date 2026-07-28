@@ -996,6 +996,15 @@ public partial class BattleGameMain
             case EosOnlineBattleMessage.OnDestroyedComplete:
                 HandleRemoteOnDestroyedComplete(message.payload);
                 break;
+            case EosOnlineBattleMessage.EffectThinkWait:
+                HandleRemoteEffectThinkWait(message.payload);
+                break;
+            case EosOnlineBattleMessage.OpponentUnitPickRequest:
+                HandleRemoteOpponentUnitPickRequest(message.payload);
+                break;
+            case EosOnlineBattleMessage.OpponentUnitPickResponse:
+                HandleRemoteOpponentUnitPickResponse(message.payload);
+                break;
         }
     }
 
