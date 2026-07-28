@@ -3344,6 +3344,7 @@ public partial class BattleGameMain : MonoBehaviour
         return _pendingSendToTrashPipelines > 0
             || _deferredOnDestroyedResolutions.Count > 0
             || HasPendingRemoteOnDestroyedResolution
+            || _pendingOnlineOpponentUnitPickRequestId > 0
             || _activeLookDeckPopupRoot != null
             || _activeHandDiscardRevealRoot != null
             || _activeOnActionCommandRevealRoot != null;
@@ -3497,7 +3498,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        RunOrDeferOnDestroyedEffects(cardController, ownerType, ContinueAfterOwnerOnDestroyed);
+        // 自分が破壊時効果を解決するあいだ、相手に effectthink を出して待たせる
+        int remoteThinkRequestId = BeginOnlineRemoteEffectThinkForLocalOnDestroyed(cardController, ownerType);
+        RunOrDeferOnDestroyedEffects(cardController, ownerType, () =>
+        {
+            EndOnlineRemoteEffectThinkForLocalOnDestroyed(remoteThinkRequestId);
+            ContinueAfterOwnerOnDestroyed();
+        });
     }
 
     private void CompleteSendCardToTrashPipeline(CardController cardController, PlayerType ownerType)
@@ -4531,10 +4538,12 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        // 登録済み攻撃コンテキストがあるときは TryUnitVsUnitAttack 先頭（ブロック UI 再表示）に戻さない。
-        if (attackFlowStrikeKind != AttackFlowStrikeKind.None)
+        // ブロック未解決のまま OnAttack 再開から来た場合はブロック UI をスキップしない。
+        // （skip=true だとアクションが先に走り、Sazabi 等の効果がブロックを飛ばす）
+        if (attackFlowStrikeKind != AttackFlowStrikeKind.None
+            && (attackFlowBlockSelectionResolved || attackFlowPostBlockPassOnActionDone))
         {
-            Debug.LogWarning("[AttackFlow] Resume with active attack context but no block redirect — advancing to block/onAction phase.");
+            Debug.Log("[AttackFlow] Resume after block resolved — skip re-showing block UI.");
             skipAttackedSidePanelPause = true;
         }
 
@@ -5257,7 +5266,7 @@ public partial class BattleGameMain : MonoBehaviour
         return false;
     }
 
-    /// <summary>OnAttack 手動ユニット選択。相手選択・AI選択・Destroy 後の OnDestroyed 完了待ちを含む。</summary>
+    /// <summary>OnAttack 手動ユニット選択。相手選択は UI（オンラインは相手クライアント）で行い、Destroy 後は OnDestroyed 完了まで待つ。</summary>
     private bool TryResolveOnAttackManualUnitPick(
         CardController sourceCard,
         CardController attacker,
@@ -5273,26 +5282,24 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         PlayerType chooser = ResolveOnAttackEffectChooser(attackerOwner, effect);
-        if (chooser == PlayerType.Enemy)
-        {
-            CardController picked = PickOnAttackChooserTarget(effect, attackerOwner, sourceCard, attacker, candidates);
-            if (picked == null)
-            {
-                return false;
-            }
 
-            Debug.Log(
-                $"[OnAttack] AI/相手側が対象を選択: {picked.Data?.cardName}(id:{picked.Data?.id}) "
-                + $"effect:{effect.type} opponentChooses:{effect.opponentChoosesTarget}");
-            ApplyEffectToSpecificTargets(
+        // オンライン：相手が選ぶ場合は相手クライアントの UI へ委譲し、自分は effectthink で待つ
+        if (chooser == PlayerType.Enemy
+            && IsOnlineBattle()
+            && !_applyingRemoteBattleAction
+            && TryBeginOnlineOpponentUnitPick(
                 sourceCard,
+                attacker,
                 attackerOwner,
                 effect,
-                new List<CardController> { picked });
-            ContinueOnAttackAfterAppliedEffect(attacker, effect, stepResolved);
+                candidates,
+                stepResolved,
+                onAllComplete))
+        {
             return true;
         }
 
+        // ローカル UI（プレイヤー選択、またはオフライン時の相手選択）
         OpenEnemyUnitEffectSelectionUI(
             sourceCard,
             attacker,
@@ -5300,7 +5307,8 @@ public partial class BattleGameMain : MonoBehaviour
             effect,
             candidates,
             stepResolved,
-            onAllComplete);
+            onAllComplete,
+            chooser);
         return true;
     }
 
@@ -5314,36 +5322,7 @@ public partial class BattleGameMain : MonoBehaviour
         return effectOwner;
     }
 
-    private CardController PickOnAttackChooserTarget(
-        EffectData effect,
-        PlayerType attackerOwner,
-        CardController sourceCard,
-        CardController attacker,
-        List<CardController> candidates)
-    {
-        if (candidates == null || candidates.Count == 0)
-        {
-            return null;
-        }
-
-        // 自軍を犠牲にする Destroy は弱いユニットを優先
-        if (effect != null
-            && effect.type == EffectType.Destroy
-            && (effect.target.IsAllyUnitPickTarget() || effect.opponentChoosesTarget))
-        {
-            CardController sacrifice = PickLowestHpUnit(candidates);
-            return sacrifice != null ? sacrifice : candidates[0];
-        }
-
-        EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(
-            attackerOwner,
-            sourceCard,
-            attacker,
-            null);
-        return PickEnemyAiEffectTarget(effect, pickCtx, candidates);
-    }
-
-    /// <summary>Destroy は OnDestroyed（Look 等）完了まで待ってから次の OnAttack／攻撃続行へ。</summary>
+    /// <summary>Destroy は OnDestroyed（Look 等）完了まで待ってから次へ。解決側には effectthink を出さない。</summary>
     private void ContinueOnAttackAfterAppliedEffect(
         CardController attackUnit,
         EffectData effect,
@@ -5363,6 +5342,8 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attackUnit,
         System.Action onResolved)
     {
+        // 破壊時 Look／回収が終わるまで待つ。
+        // effectthink は「待たされている側」だけに出す（PrepareOnlineOnDestroyedWait / OpponentUnitPick / EffectThinkWait）。
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
 
         if (attackUnit == null
@@ -5390,7 +5371,8 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect,
         List<CardController> enemyUnits,
         System.Action onResolved = null,
-        System.Action onSkipRemainingEffects = null)
+        System.Action onSkipRemainingEffects = null,
+        PlayerType chooserSide = PlayerType.Player)
     {
         CardController attackUnit = attackingUnit ?? pendingUnitAttackAttacker ?? effectSourceCard;
 
@@ -5412,10 +5394,10 @@ public partial class BattleGameMain : MonoBehaviour
         bg.color = new Color(0f, 0f, 0f, 0.5f);
         bg.raycastTarget = true;
 
-        TextMeshProUGUI title = root.CreateChildTextCustom("EffectSelectTitle", UIAnchor.TopCenter, 620, 48);
-        title.text = FormatOnAttackUnitSelectionTitle(effect);
+        TextMeshProUGUI title = root.CreateChildTextCustom("EffectSelectTitle", UIAnchor.TopCenter, 720, 48);
+        title.text = FormatOnAttackUnitSelectionTitle(effect, chooserSide);
         title.color = Color.white;
-        title.fontSize = 24;
+        title.fontSize = 22;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
         GameObject scrollGo = root.CreateGridScrollView(620, 420, UIAnchor.TopCenter);
@@ -5483,7 +5465,8 @@ public partial class BattleGameMain : MonoBehaviour
                         effect,
                         new List<CardController> { unit });
                     Debug.Log(
-                        $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName})。");
+                        $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName}) "
+                        + $"chooser:{chooserSide}");
                     ReleaseOnActionPopupState(root);
                     Destroy(root);
                     ContinueOnAttackAfterAppliedEffect(attackUnit, effect, onResolved);
@@ -5539,7 +5522,11 @@ public partial class BattleGameMain : MonoBehaviour
             });
         }
 
-        bool optionalSkip = effect != null && effect.optionalPlayerConfirm;
+        // 任意効果の Cancel＝効果スキップして攻撃続行。相手選択 Destroy は必須。
+        bool optionalSkip = effect != null
+            && effect.optionalPlayerConfirm
+            && !effect.opponentChoosesTarget
+            && chooserSide == attackerOwner;
         bool showCancel = optionalSkip
             || effect == null
             || effect.type != EffectType.Destroy;
@@ -5557,7 +5544,6 @@ public partial class BattleGameMain : MonoBehaviour
 
                 if (optionalSkip)
                 {
-                    // 任意効果をスキップし、攻撃自体は続行 → アクションステップへ
                     Debug.Log(
                         $"[OnAttack] 任意効果を Cancel（スキップ）: {effectSourceCard?.Data?.cardName} "
                         + $"effect:{effect?.type}");
@@ -5581,7 +5567,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private static string FormatOnAttackUnitSelectionTitle(EffectData effect)
+    private static string FormatOnAttackUnitSelectionTitle(EffectData effect, PlayerType chooserSide)
     {
         if (effect == null)
         {
@@ -5607,15 +5593,22 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect.type == EffectType.Destroy)
         {
-            string optionalSuffix = effect.optionalPlayerConfirm ? " (Cancel to skip)" : string.Empty;
+            string optionalSuffix = effect.optionalPlayerConfirm && !effect.opponentChoosesTarget
+                ? " (Cancel to skip)"
+                : string.Empty;
+
             if (effect.opponentChoosesTarget)
             {
-                return "Destroy — Choose one of your Units" + optionalSuffix;
+                return chooserSide == PlayerType.Player
+                    ? "Destroy — Choose one of your Units" + optionalSuffix
+                    : "Destroy — Opponent chooses a Unit" + optionalSuffix;
             }
 
             if (effect.target.IsAllyUnitPickTarget())
             {
-                return "Destroy — Choose one of your Units" + optionalSuffix;
+                return chooserSide == PlayerType.Player
+                    ? "Destroy — Choose one of your Units" + optionalSuffix
+                    : "Destroy — Choose an opponent Unit" + optionalSuffix;
             }
 
             return "Destroy — Choose an enemy Unit" + optionalSuffix;
