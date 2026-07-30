@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 95Sazabi 1
+  m_Name: 96Alpha Azieru
   m_EditorClassIdentifier: 
-  id: 95
-  cardName: Sazabi
-  cost: 4
-  level: 5
-  power: 5
-  hp: 4
-  imageName: {fileID: 1235584507115434388, guid: e12a067db42f6ac42aa1a35edd7fc2d5, type: 3}
+  id: 96
+  cardName: Alpha Azieru
+  cost: 7
+  level: 8
+  power: 6
+  hp: 5
+  imageName: {fileID: -2382360975425209135, guid: 083ad3b0f4ef70749b2366cbb2ba842c, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 2
@@ -27,13 +27,13 @@ MonoBehaviour:
   type: 0
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 20
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: OnPlayed_OptionalDestroyAllyThenMill3_AddObservedNeoZeonUnitToHand
+    effectsName: OnUnitDestroyedByOwnerEffect_Draw1
     effects: []
     activationCost: 0
-    oncePerTurn: 0
+    oncePerTurn: 1
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}

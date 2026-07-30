@@ -30,6 +30,12 @@ public enum EffectTiming
     OnLink = 18,
     /// <summary>MarkObservedUnit で登録したユニットが監視イベントを起こした時（効果源カードの timedEffects）。</summary>
     OnObservedUnitTrigger = 19,
+    /// <summary>
+    /// 自分のユニットがカード効果で破壊された時。EffectType.Destroy と効果ダメージ破壊の両方を含む。
+    /// 破壊した効果は自分・相手どちらのものでもよいが、破壊されたユニットは自分のものに限る。
+    /// 戦闘（攻撃）ダメージ破壊は含まない。盤面にいるこの効果持ちが監視する（破壊された自身も含む）。
+    /// </summary>
+    OnUnitDestroyedByOwnerEffect = 20,
 }
 
 public enum EffectType
@@ -1437,7 +1443,7 @@ public class TimedEffectData
     [Tooltip("能動発動（OnMain 等）時に支払うリソース。0 のとき手札コマンドはカードのコスト、場のユニットは無料。")]
     public int activationCost;
 
-    [Tooltip("true のときこの timed ブロックは1ターンに1回まで能動発動できる。")]
+    [Tooltip("true のときこの timed ブロックは1ターンに1回まで（能動発動 / OnUnitDestroyedByOwnerEffect 等の受動トリガー）。")]
     public bool oncePerTurn;
 
     [Tooltip("OnObservedUnitTrigger: 応答する監視イベント種別。Unset なら全種別に応答。")]
@@ -1616,6 +1622,19 @@ public static class TimedEffectDataExtensions
     public static bool IsOnEnemyUnitDestroyedResolutionBlock(this TimedEffectData timed)
     {
         if (timed == null || timed.timing != EffectTiming.OnEnemyUnitDestroyed || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>自分のユニットの効果破壊（EffectType.Destroy／効果ダメージ、自分相手いずれの効果でも）で解決するブロック。</summary>
+    public static bool IsOnUnitDestroyedByOwnerEffectResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnUnitDestroyedByOwnerEffect
+            || !timed.HasResolvedEffects())
         {
             return false;
         }

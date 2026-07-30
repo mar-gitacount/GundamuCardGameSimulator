@@ -33,6 +33,12 @@ public class OnlineBattleUnitEffectChange
     public int onDestroyedRequestId;
     /// <summary>破壊元ユニットの BattleInstanceId（0=不明）。受信側 OnDestroyed 条件用。</summary>
     public int destroyerInstanceId;
+    /// <summary>
+    /// 効果破壊として扱わない除去なら 1（トークン消滅など）。既定の 0 は EffectType.Destroy による効果破壊。
+    /// 受信側で「カード効果で破壊された時」の監視効果を発動させるために使う。
+    /// 既定値が効果破壊なので、この項目を持たない旧ビルドからの同期でも発動する。
+    /// </summary>
+    public int nonEffectDestroy;
 }
 
 /// <summary>
