@@ -1897,6 +1897,7 @@ public partial class BattleGameMain : MonoBehaviour
             PlayerresourcePointText.text = gundamRule.Player.resource.ToString();
             ApplyTurnStartAttackFlgForCurrentPlayer();
             ClearPaidActivationUsesForSide(PlayerType.Player);
+            ClearOwnerEffectDestroyWatchUsesThisTurn();
             TriggerAllTimedEffectsForSide(PlayerType.Player, EffectTiming.OnTurnStart);
         }
         else
@@ -1916,6 +1917,7 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log($"[ドロー] エネミーのターン開始ドロー1枚。LV:{gundamRule.Enemy.level} Resource:{gundamRule.Enemy.resource}");
             ApplyTurnStartAttackFlgForCurrentPlayer();
             ClearPaidActivationUsesForSide(PlayerType.Enemy);
+            ClearOwnerEffectDestroyWatchUsesThisTurn();
             TriggerAllTimedEffectsForSide(PlayerType.Enemy, EffectTiming.OnTurnStart);
         }
     }
@@ -3910,7 +3912,15 @@ public partial class BattleGameMain : MonoBehaviour
                 destroyedBy = sourceCard;
             }
 
-            QueueOnlineUnitDestroy(target, destroyedBy);
+            QueueOnlineUnitDestroy(target, destroyedBy, byCardEffect: true);
+            // 場から外れる前に通知する。破壊される監視カード自身（Alpha Azieru 等）を
+            // 生存中の効果源として解決できるようにするため、SendCardToTrash より先に呼ぶ。
+            // 戦闘ダメージ破壊は通らない。効果ダメージ破壊はダメージ処理側で通知する。
+            NotifyOwnerEffectUnitDestroyed(
+                ownerType,
+                sourceCard,
+                CollectEffectDestroyWatchers(),
+                targetOwner);
             SendCardToTrash(target, targetOwner, destroyedBy);
             applied++;
         }
@@ -6002,6 +6012,11 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> pendingEffectDamageTrash = effect.type == EffectType.Damage
             ? new List<CardController>()
             : null;
+        // 効果ダメージ（G-fred の全体ダメージや近接戦闘など）で HP が 0 になった破壊も
+        // 「カード効果による破壊」として扱うため、ダメージ適用前に監視カードを確保する。
+        List<EffectDestroyWatcher> effectDamageDestroyWatchers = effect.type == EffectType.Damage
+            ? CollectEffectDestroyWatchers()
+            : null;
 
         for (int i = 0; i < targets.Count; i++)
         {
@@ -6099,6 +6114,12 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (pendingEffectDamageTrash != null && pendingEffectDamageTrash.Count > 0)
             {
+                // 破壊されたユニットが場から外れる前に通知する（監視カード自身の破壊も対象にするため）
+                NotifyOwnerEffectUnitsDestroyed(
+                    ownerType,
+                    sourceCard,
+                    effectDamageDestroyWatchers,
+                    pendingEffectDamageTrash);
                 for (int i = 0; i < pendingEffectDamageTrash.Count; i++)
                 {
                     CardController t = pendingEffectDamageTrash[i];
@@ -10373,6 +10394,8 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.Damage:
             {
                 List<CardController> pendingEffectDamageTrash = null;
+                // 効果ダメージによる破壊も「カード効果による破壊」として通知するため、適用前に確保する。
+                List<EffectDestroyWatcher> effectDamageDestroyWatchers = CollectEffectDestroyWatchers();
                 for (int i = 0; i < targets.Count; i++)
                 {
                     CardController targetUnit = targets[i];
@@ -10402,6 +10425,12 @@ public partial class BattleGameMain : MonoBehaviour
 
                 if (pendingEffectDamageTrash != null)
                 {
+                    // 破壊されたユニットが場から外れる前に通知する（監視カード自身の破壊も対象にするため）
+                    NotifyOwnerEffectUnitsDestroyed(
+                        ownerType,
+                        sourceCard,
+                        effectDamageDestroyWatchers,
+                        pendingEffectDamageTrash);
                     for (int i = 0; i < pendingEffectDamageTrash.Count; i++)
                     {
                         CardController targetUnit = pendingEffectDamageTrash[i];

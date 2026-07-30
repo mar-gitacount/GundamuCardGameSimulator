@@ -687,7 +687,10 @@ public partial class BattleGameMain
         });
     }
 
-    private void QueueOnlineUnitDestroy(CardController target, CardController destroyer = null)
+    private void QueueOnlineUnitDestroy(
+        CardController target,
+        CardController destroyer = null,
+        bool byCardEffect = true)
     {
         Debug.Log($"[EffectDamage][OnlineQueueDestroy] target={FormatOnlineEffectSyncUnit(target)}");
         if (destroyer != null)
@@ -699,7 +702,8 @@ public partial class BattleGameMain
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroy,
             hpAfter = 0,
-            destroyerInstanceId = destroyer != null ? destroyer.BattleInstanceId : 0
+            destroyerInstanceId = destroyer != null ? destroyer.BattleInstanceId : 0,
+            nonEffectDestroy = byCardEffect ? 0 : 1
         };
         bool queued = TryQueueOnlineUnitTargetChange(target, change);
         if (!queued)
@@ -1758,6 +1762,9 @@ public partial class BattleGameMain
                     {
                         Debug.Log($"[EffectSync][DamageToTrash] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                         NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
+                        // 相手の効果ダメージ（G-fred の全体ダメージ等）で破壊された場合も
+                        // 自分の「カード効果で破壊された時」監視カードを解決する。
+                        NotifyRemoteEffectDestroyForLocalWatchers(unit, change);
                         ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
                             unit,
                             change.onDestroyedRequestId,
@@ -1810,6 +1817,7 @@ public partial class BattleGameMain
                     Debug.Log($"[EffectSync][ApplyDestroy] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
                     unit.SetCurrentHpForSync(0);
+                    NotifyRemoteEffectDestroyForLocalWatchers(unit, change);
                     ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
                         unit,
                         change.onDestroyedRequestId,

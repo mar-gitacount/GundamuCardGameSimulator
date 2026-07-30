@@ -115,7 +115,7 @@ public partial class BattleGameMain
 
                 PlayerType targetOwner = ResolveBattleZoneUnitOwner(target);
                 NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
-                QueueOnlineUnitDestroy(target);
+                QueueOnlineUnitDestroy(target, destroyer: null, byCardEffect: false);
                 SendCardToTrash(target, targetOwner, ResolveUnitKillSourceForTrash(null, target));
                 applied++;
                 Debug.Log(
