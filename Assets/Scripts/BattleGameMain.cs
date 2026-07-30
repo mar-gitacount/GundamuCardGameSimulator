@@ -6172,7 +6172,8 @@ public partial class BattleGameMain : MonoBehaviour
             ApplyAddExResourceEffect(sourceCard, ownerType, effect);
         }
 
-        if (targets != null && targets.Count > 0)
+        // Activate は ApplyActivateEffect 内で、実際に REST→ACTIVE になった対象だけを保存する。
+        if (effect.type != EffectType.Activate && targets != null && targets.Count > 0)
         {
             SetEffectChainLastPickedTargets(targets);
         }
@@ -10161,6 +10162,12 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        // Self は選択 UI 不要（Gyunei の Activate Self / NotDirectAttack Self など）
+        if (effect.target == TargetType.Self)
+        {
+            return false;
+        }
+
         if (effect.type.RequiresManualUnitSelection())
         {
             return true;
@@ -10301,6 +10308,27 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.LogWarning(
                 $"[Effect] MarkObservedUnit は手動選択後に適用してください (cardId:{sourceCard?.Data?.id})。");
+            return;
+        }
+
+        // Self / 自動解決の NotDirectAttack（Gyunei 等）。手動選択経路の ApplyEffectToSpecificTargets と同等。
+        if (effect.type == EffectType.NotDirectAttack)
+        {
+            int notDirectMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (notDirectMagnitude == 0 && !effect.type.UsesTargetCountValue())
+            {
+                return;
+            }
+
+            List<CardController> notDirectTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyNotDirectAttackMarker(effect, notDirectTargets))
+            {
+                SetEffectChainLastPickedTargets(notDirectTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
             return;
         }
 
@@ -10699,7 +10727,8 @@ public partial class BattleGameMain : MonoBehaviour
             FilterOutAlreadyRestedUnits(result);
         }
 
-        if (effect.type == EffectType.Activate)
+        // Self の ACTIVE 化は既に ACTIVE でも「そうしたなら」後続へ進めるため、REST 絞り込みしない
+        if (effect.type == EffectType.Activate && effect.target != TargetType.Self)
         {
             FilterOutNonRestedUnits(result);
         }
@@ -14033,7 +14062,7 @@ public partial class BattleGameMain : MonoBehaviour
             source,
             timed.GetResolvedEffects(),
             0,
-            true,
+            !deferPayment,
             chainActivationContext,
             () =>
             {
@@ -14125,6 +14154,13 @@ public partial class BattleGameMain : MonoBehaviour
             if (candidates.Count == 0)
             {
                 Debug.Log($"OnMain: 選択可能な対象がありません (target:{effect.target})。");
+                if (!activationCostAlreadyPaid)
+                {
+                    // 「選んで破壊する」が発動条件。対象が無ければ「そうしたなら」以降は解決しない。
+                    onDone?.Invoke();
+                    return;
+                }
+
                 TryExecuteOnMainEffectChain(
                     side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
                 return;
@@ -14136,11 +14172,22 @@ public partial class BattleGameMain : MonoBehaviour
                 CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
                 if (picked != null)
                 {
+                    if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
                     ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
+                }
+                else if (!activationCostAlreadyPaid)
+                {
+                    onDone?.Invoke();
+                    return;
                 }
 
                 TryExecuteOnMainEffectChain(
-                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+                    side, source, effects, index + 1, true, chainActivationContext, onDone);
                 return;
             }
 
@@ -14233,7 +14280,8 @@ public partial class BattleGameMain : MonoBehaviour
             FilterOutAlreadyRestedUnits(result);
         }
 
-        if (effect.type == EffectType.Activate)
+        // Self の ACTIVE 化は既に ACTIVE でも後続効果を解決するため、REST 絞り込みしない
+        if (effect.type == EffectType.Activate && effect.target != TargetType.Self)
         {
             FilterOutNonRestedUnits(result);
         }
@@ -14457,13 +14505,20 @@ public partial class BattleGameMain : MonoBehaviour
             null,
             picked =>
             {
+                if (!activationCostAlreadyPaid
+                    && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
                 ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
                 TryExecuteOnMainEffectChain(
                     side,
                     source,
                     allEffects,
                     effectIndex + 1,
-                    activationCostAlreadyPaid,
+                    true,
                     chainActivationContext,
                     onDone);
             },

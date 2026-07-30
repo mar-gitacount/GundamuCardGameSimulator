@@ -73,13 +73,38 @@ public partial class BattleGameMain
 
     private bool NeedsDeferredOnMainPayment(TimedEffectData timed, PlayerType side, CardController source)
     {
-        if (side == PlayerType.Enemy || timed == null || source == null)
+        if (timed == null || source == null)
         {
             return false;
         }
 
         IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
-        return effects.Count > 0 && effects[0].type == EffectType.ExileFromTrash;
+        if (effects.Count == 0)
+        {
+            return false;
+        }
+
+        return IsDeferredOnMainDestroyCost(timed)
+            || (side != PlayerType.Enemy && effects[0].type == EffectType.ExileFromTrash);
+    }
+
+    /// <summary>
+    /// 起動・メインの先頭にある「自身以外の味方1体を選んで破壊」を発動条件として扱う。
+    /// 対象を選ぶ前にターン1回を消費せず、実際に選択して破壊する直前に確定する。
+    /// </summary>
+    private static bool IsDeferredOnMainDestroyCost(TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> effects = timed?.GetResolvedEffects();
+        if (effects == null || effects.Count == 0)
+        {
+            return false;
+        }
+
+        EffectData first = effects[0];
+        return first != null
+            && first.type == EffectType.Destroy
+            && first.target == TargetType.AllyOtherUnit
+            && first.selectionMode.RequiresManualUnitPick();
     }
 
     private bool TryFinalizeOnMainPaidActivation(PaidActivationBlockContext context)
@@ -291,6 +316,15 @@ public partial class BattleGameMain
         if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
         {
             return false;
+        }
+
+        if (IsDeferredOnMainDestroyCost(timed))
+        {
+            EffectData destroyCost = timed.GetResolvedEffects()[0];
+            if (ResolveSelectableEffectTargets(source, side, destroyCost).Count == 0)
+            {
+                return false;
+            }
         }
 
         return CanAffordOnMainActivation(side, source, timed);
