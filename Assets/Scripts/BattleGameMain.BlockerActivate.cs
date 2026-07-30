@@ -90,6 +90,9 @@ public partial class BattleGameMain
 
     private void ApplyActivateEffect(EffectData effect, PlayerType ownerType, List<CardController> targets)
     {
+        // 後続の UsePriorChainPickedTarget は「実際に ACTIVE になったユニット」だけを参照する。
+        // 既に ACTIVE の場合、直前の別効果で選んだ対象を誤って引き継がない。
+        ClearEffectChainLastPickedTargets();
         if (effect == null || targets == null || targets.Count == 0)
         {
             return;
@@ -97,17 +100,20 @@ public partial class BattleGameMain
 
         int limit = effect.value > 0 ? effect.value : targets.Count;
         int applied = 0;
+        List<CardController> activated = new List<CardController>();
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
             if (TryApplyActivateToUnit(targets[i]))
             {
                 QueueOnlineUnitActivate(targets[i]);
+                activated.Add(targets[i]);
                 applied++;
             }
         }
 
         if (applied > 0)
         {
+            SetEffectChainLastPickedTargets(activated);
             Debug.Log($"[Effect] Activate applied:{applied} target:{effect.target}");
         }
     }
