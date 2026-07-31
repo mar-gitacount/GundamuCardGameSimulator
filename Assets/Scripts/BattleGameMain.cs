@@ -2441,7 +2441,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!unit.Data.IsBlockerUnit())
+            if (!unit.HasBlockerAbility)
             {
                 continue;
             }
@@ -2631,7 +2631,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             bool canRedirectUnitCombat = CouldPlayerUnitRedirectShieldAttackToUnitCombat(ru);
             sb.Append("  --- reactionUnit:").Append(ru.Data.cardName).Append("(id:").Append(ru.Data.id).Append(") REST:").Append(ru.IsRestState)
-                .Append(" isBlocker:").Append(ru.Data.IsBlockerUnit())
+                .Append(" isBlocker:").Append(ru.HasBlockerAbility)
                 .Append(" couldRedirectToUnitCombat:").Append(canRedirectUnitCombat).AppendLine();
             if (!canRedirectUnitCombat)
             {
@@ -3745,6 +3745,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         RegisterCardInHandLists(unit, ownerType);
         TriggerOnHandAutoEffects(unit, ownerType, skipHandZoneCheck: true);
+        RefreshAllFieldOwnerTurnPassives();
         Debug.Log($"[Bounce] {unit.Data.cardName}(id:{unit.Data.id}) → {ownerType} hand");
         return true;
     }
@@ -7926,7 +7927,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (unit.Data.IsBlockerUnit())
+            if (unit.HasBlockerAbility)
             {
                 result.Add(unit);
             }
