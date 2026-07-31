@@ -28,6 +28,7 @@ public partial class BattleGameMain
         ClearAllOwnerTurnFieldPassiveModifiers();
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
+        RefreshConditionalBlockerAbilities();
 
         // 個別 Stat は送らない。相手には「同じ再計算をして」とだけ伝える。
         // ネスト中でも外側バッチに載せる（Flush は外側に任せる）。
@@ -39,6 +40,47 @@ public partial class BattleGameMain
         if (!nestedBatch)
         {
             FlushOnlineEffectSyncBatch();
+        }
+    }
+
+    /// <summary>
+    /// 条件付き《ブロッカー》を盤面状態から再評価する。
+    /// OnEnemyAttack の activationConditions を条件として使い、配備・破壊・バウンス等のたびに
+    /// 各 CardController のランタイム状態を ON/OFF する。
+    /// </summary>
+    private void RefreshConditionalBlockerAbilities()
+    {
+        RefreshConditionalBlockerAbilitiesOnZone(playerBattleZoneCards, PlayerType.Player);
+        RefreshConditionalBlockerAbilitiesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+    }
+
+    private void RefreshConditionalBlockerAbilitiesOnZone(
+        List<CardController> zone,
+        PlayerType ownerType)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            EffectActivationContext context = BuildActivationContext(ownerType, unit);
+            bool enabled = unit.Data.IsBlockerEligible(context);
+            bool changed = unit.HasBlockerAbility != enabled;
+            unit.SetRuntimeBlockerAbility(enabled);
+            if (changed)
+            {
+                Debug.Log(
+                    $"[ConditionalBlocker] {unit.Data.cardName}(id:{unit.Data.id}) "
+                    + $"owner:{ownerType} blocker:{enabled}");
+            }
         }
     }
 

@@ -1364,7 +1364,7 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.filterTargetIsBlocker && !unit.Data.IsBlockerUnit())
+        if (effect.filterTargetIsBlocker && !unit.HasBlockerAbility)
         {
             return false;
         }

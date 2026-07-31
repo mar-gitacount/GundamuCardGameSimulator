@@ -107,6 +107,19 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public AttackFlg AttackFlgState => _attackFlg;
     public bool IsRestState { get; private set; }
 
+    /// <summary>
+    /// 盤面条件を含めて現在《ブロッカー》が有効か。
+    /// CardData は共有アセットなので変更せず、カードインスタンスごとに保持する。
+    /// </summary>
+    private bool _runtimeBlockerAbilityEnabled;
+    public bool HasBlockerAbility =>
+        Data != null && Data.IsUnitLike() && _runtimeBlockerAbilityEnabled;
+
+    public void SetRuntimeBlockerAbility(bool enabled)
+    {
+        _runtimeBlockerAbilityEnabled = enabled;
+    }
+
     /// <summary>AttackActiveEnemyUnit（UntilEndOfTurn）のランタイム付与（効果定義ごとに保持）。</summary>
     private readonly List<EffectData> _attackActiveEnemyUntilEndOfTurnGrants = new List<EffectData>();
 
@@ -416,6 +429,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _notDirectAttackUntilEndOfTurnDepth = 0;
         _firstStrikeUntilEndOfTurnDepth = 0;
         _turnEndRepairBonus = 0;
+        _runtimeBlockerAbilityEnabled = Data.IsBlockerUnit();
     }
 
     /// <summary>戦闘ダメージ。ユニット以外では呼ばない想定。IncomingDamageReduction を適用する。</summary>
