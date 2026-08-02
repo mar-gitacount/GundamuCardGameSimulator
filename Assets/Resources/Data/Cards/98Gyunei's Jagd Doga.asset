@@ -38,7 +38,7 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
   link:
-  - pilotCardId: 0
+  - pilotCardId: 106
     pilotFeatures:
     - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
     pilotFeatureIds: 

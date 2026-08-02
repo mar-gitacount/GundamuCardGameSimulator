@@ -7896,7 +7896,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         EffectActivationContext ctx = BuildActivationContext(defenderOwner, reactionUnit);
-        bool shouldRedirect = reactionUnit.Data.IsBlockerEligible(ctx);
+        bool shouldRedirect = reactionUnit.IsBlockerEligible(ctx);
         if (shouldRedirect)
         {
             return true;
@@ -8047,7 +8047,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         EffectActivationContext ctx = BuildActivationContext(defenderOwner, unit);
-        return unit.Data.IsBlockerEligible(ctx);
+        return unit.IsBlockerEligible(ctx);
     }
 
     private List<CardController> CollectSelectableBlockRedirectUnits(PlayerType attackerOwner)

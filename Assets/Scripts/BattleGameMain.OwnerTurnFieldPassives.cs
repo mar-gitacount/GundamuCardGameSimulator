@@ -45,8 +45,8 @@ public partial class BattleGameMain
 
     /// <summary>
     /// 条件付き《ブロッカー》を盤面状態から再評価する。
-    /// OnEnemyAttack の activationConditions を条件として使い、配備・破壊・バウンス等のたびに
-    /// 各 CardController のランタイム状態を ON/OFF する。
+    /// ユニット自身の isBlocker、および搭乗パイロットの isBlocker（Gyunei 等）を
+    /// OnEnemyAttack の activationConditions でゲートし、ランタイム状態を ON/OFF する。
     /// </summary>
     private void RefreshConditionalBlockerAbilities()
     {
@@ -72,7 +72,7 @@ public partial class BattleGameMain
             }
 
             EffectActivationContext context = BuildActivationContext(ownerType, unit);
-            bool enabled = unit.Data.IsBlockerEligible(context);
+            bool enabled = unit.IsBlockerEligible(context);
             bool changed = unit.HasBlockerAbility != enabled;
             unit.SetRuntimeBlockerAbility(enabled);
             if (changed)
