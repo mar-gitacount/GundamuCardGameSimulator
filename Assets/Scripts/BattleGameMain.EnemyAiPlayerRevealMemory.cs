@@ -630,7 +630,7 @@ public partial class BattleGameMain
 
         string stats = card.IsUnitLike()
             ? $"AP{card.power}/HP{card.hp}"
-            : card.type == Type.Pilot
+            : card.IsPilot()
                 ? "AP+ pilot"
                 : "-";
         return $"{index,3}. id:{card.id,3} Lv{card.level} Cost{card.cost} {card.type,-7} {card.color,-9} {stats,-8} {card.cardName}";

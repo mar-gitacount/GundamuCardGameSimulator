@@ -617,7 +617,7 @@ public partial class BattleGameMain
         statBgImg.color = new Color(0f, 0f, 0f, 0.65f);
         statBgImg.raycastTarget = false;
 
-        string statLine = data.type == Type.Command
+        string statLine = data.IsCommand()
             ? $"COST {data.cost}"
             : $"AP {data.power}  HP {data.hp}";
 
@@ -656,7 +656,7 @@ public partial class BattleGameMain
 
         sb.Append("Lv.").Append(data.level)
             .Append("  COST ").Append(data.cost);
-        if (data.type != Type.Command)
+        if (!data.IsCommand())
         {
             sb.Append("  AP ").Append(data.power)
                 .Append("  HP ").Append(data.hp);

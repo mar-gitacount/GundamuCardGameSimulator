@@ -633,7 +633,7 @@ public static class EffectActivationEvaluator
             return ctx.SourceCard;
         }
 
-        if (ctx.SourceCard.Data.type == Type.Pilot && ctx.SourceCard.MountedUnit != null)
+        if (ctx.SourceCard.Data.IsPilot() && ctx.SourceCard.MountedUnit != null)
         {
             return ctx.SourceCard.MountedUnit;
         }
@@ -802,7 +802,7 @@ public static class EffectActivationEvaluator
 
     private static bool PilotMeetsMountedPilotCondition(CardController pilot, EffectActivationCondition c)
     {
-        if (pilot == null || pilot.Data == null || pilot.Data.type != Type.Pilot)
+        if (pilot == null || pilot.Data == null || !pilot.Data.IsPilot())
         {
             return false;
         }

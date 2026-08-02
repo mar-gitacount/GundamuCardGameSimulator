@@ -51,6 +51,9 @@ public enum Type
     ExResource,
     [InspectorName("ユニットトークン")]
     UnitToken,
+    /// <summary>コマンドとしてもパイロットとしても扱える兼用カード。</summary>
+    [InspectorName("コマンドパイロット")]
+    CommandPilot,
 }
 
 /// <summary>

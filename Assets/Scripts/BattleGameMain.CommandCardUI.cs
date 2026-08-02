@@ -171,7 +171,7 @@ public partial class BattleGameMain
         statBgImg.color = new Color(0f, 0f, 0f, 0.6f);
         statBgImg.raycastTarget = false;
 
-        string statLine = liveCard.Data.type == Type.Command
+        string statLine = liveCard.Data.IsCommand()
             ? $"COST {liveCard.CurrentCost}"
             : $"AP {liveCard.CurrentPower}  HP {liveCard.CurrentHp}" + (liveCard.IsRestState ? "  REST" : "");
 

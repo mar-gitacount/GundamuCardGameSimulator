@@ -26,7 +26,7 @@ public partial class BattleGameMain
             return;
         }
 
-        if (command == null || command.Data == null || command.Data.type != Type.Command)
+        if (command == null || command.Data == null || !command.Data.IsCommand())
         {
             return;
         }

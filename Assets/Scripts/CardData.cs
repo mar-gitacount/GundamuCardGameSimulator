@@ -17,7 +17,7 @@ public class CardData : ScriptableObject
     public CardSourceType sourceType;
     public FilterType filterType;
     public CardColor color;
-    [Tooltip("カード種類（ユニット / パイロット / コマンド / ベース / EXリソース / ユニットトークン）。")]
+    [Tooltip("カード種類（ユニット / パイロット / コマンド / ベース / EXリソース / ユニットトークン / コマンドパイロット）。")]
     public Type type;
     /// <summary>ユニット（Type.Unit）向け。アセット上の既定値。実行時は CardController で上書き。</summary>
     [Tooltip("ユニットのみ。配備ターンは False（isDeployTurnAttack 時は True）。Link 条件搭乗で同日 True。次の自分ターン開始で True。")]
