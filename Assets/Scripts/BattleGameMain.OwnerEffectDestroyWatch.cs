@@ -7,6 +7,7 @@ using UnityEngine;
 /// HP が 0 になった破壊の両方が対象。破壊した効果は自分・相手どちらのものでもよいが、
 /// 破壊されたユニットは監視カードの持ち主のものに限る（相手が相手自身のユニットを破壊しても発動しない）。
 /// Alpha Azieru 等: ターン1回・強制ドロー。戦闘（攻撃）ダメージによる破壊は対象外。
+/// Axis 等: 配備ベースも監視対象。DestroyingOwnerIsAlly 条件で自分の効果破壊時のみフラグを立てる。
 /// </summary>
 public partial class BattleGameMain
 {
@@ -47,9 +48,11 @@ public partial class BattleGameMain
     {
         List<EffectDestroyWatcher> watchers = new List<EffectDestroyWatcher>();
         AppendEffectDestroyWatchers(playerBattleZoneCards, PlayerType.Player, watchers);
+        AppendDeployedBaseEffectDestroyWatcher(PlayerType.Player, watchers);
         if (!IsOnlineBattle())
         {
             AppendEffectDestroyWatchers(enemyBattleZoneCards, PlayerType.Enemy, watchers);
+            AppendDeployedBaseEffectDestroyWatcher(PlayerType.Enemy, watchers);
         }
 
         return watchers;
@@ -63,7 +66,24 @@ public partial class BattleGameMain
     {
         List<EffectDestroyWatcher> watchers = new List<EffectDestroyWatcher>();
         AppendEffectDestroyWatchers(playerBattleZoneCards, PlayerType.Player, watchers);
+        AppendDeployedBaseEffectDestroyWatcher(PlayerType.Player, watchers);
         return watchers;
+    }
+
+    private void AppendDeployedBaseEffectDestroyWatcher(PlayerType owner, List<EffectDestroyWatcher> watchers)
+    {
+        if (watchers == null)
+        {
+            return;
+        }
+
+        CardController baseCard = GetDeployedBaseForRuleSide(ToRuleSide(owner));
+        if (baseCard == null || baseCard.Data == null || !HasOwnerEffectDestroyWatch(baseCard.Data))
+        {
+            return;
+        }
+
+        watchers.Add(new EffectDestroyWatcher(baseCard, owner));
     }
 
     private static void AppendEffectDestroyWatchers(
@@ -225,12 +245,28 @@ public partial class BattleGameMain
         }
 
         // 破壊された監視カード自身も対象。場から外れている場合は効果源なしで解決する。
+        // Base（Axis 等）はベーススロット上でもソースとして扱う。
         CardController sourceCard =
-            IsCardControllerInstanceValid(watcher.Unit) && IsCardOnBattleZone(watcher.Unit)
+            IsCardControllerInstanceValid(watcher.Unit)
+            && (IsCardOnBattleZone(watcher.Unit) || IsCardInBaseSlot(watcher.Unit))
                 ? watcher.Unit
                 : null;
         PlayerType watcherOwner = watcher.Owner;
-        EffectActivationContext activationContext = BuildActivationContext(watcherOwner, sourceCard);
+        EffectActivationContext activationContext = new EffectActivationContext(
+            watcherOwner,
+            sourceCard,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: watcherOwner == currentPlayerType,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            destroyingCard: effectSource,
+            hasDestroyingCardOwner: true,
+            destroyingCardOwner: effectOwner);
         for (int blockIndex = 0; blockIndex < data.timedEffects.Count; blockIndex++)
         {
             TimedEffectData timed = data.timedEffects[blockIndex];
@@ -286,6 +322,22 @@ public partial class BattleGameMain
 
                 if (!ShouldApplyChainedEffect(effect, activationContext, "OnUnitDestroyedByOwnerEffect"))
                 {
+                    continue;
+                }
+
+                if (effect.type == EffectType.ArmOwnerEffectDestroyFlag)
+                {
+                    CardController armTarget = sourceCard != null
+                        ? sourceCard
+                        : (IsCardControllerInstanceValid(watcher.Unit) ? watcher.Unit : null);
+                    if (armTarget != null)
+                    {
+                        armTarget.ArmOwnerEffectDestroyWatch();
+                        Debug.Log(
+                            $"[OnUnitDestroyedByOwnerEffect] ArmOwnerEffectDestroyFlag "
+                            + $"{armTarget.Data?.cardName}(id:{armTarget.Data?.id})");
+                    }
+
                     continue;
                 }
 

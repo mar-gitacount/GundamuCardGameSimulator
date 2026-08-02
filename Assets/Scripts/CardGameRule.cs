@@ -909,6 +909,15 @@ public class CardGameRule
             rt.anchoredPosition = Vector2.zero;
             rt.sizeDelta = new Vector2(58f, 82f);
             rt.localScale = Vector3.one;
+            // レスト中に再アタッチした場合も横倒しを維持
+            if (baseCard.IsRestState)
+            {
+                baseCard.SetUnitRestVisual(true);
+            }
+            else
+            {
+                rt.localRotation = Quaternion.identity;
+            }
         }
 
         if (exBaseDisplayText != null)

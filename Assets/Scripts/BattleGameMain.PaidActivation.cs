@@ -327,7 +327,70 @@ public partial class BattleGameMain
             }
         }
 
+        if (TimedStartsWithRestSelf(timed) && source.IsRestState)
+        {
+            return false;
+        }
+
+        if (!HasOnMainHandDeployCandidatesIfRequired(side, timed))
+        {
+            return false;
+        }
+
         return CanAffordOnMainActivation(side, source, timed);
+    }
+
+    /// <summary>OnMain の先頭が「自身を REST」のとき true（Axis 等）。</summary>
+    private static bool TimedStartsWithRestSelf(TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> effects = timed?.GetResolvedEffects();
+        if (effects == null || effects.Count == 0)
+        {
+            return false;
+        }
+
+        EffectData first = effects[0];
+        return first != null
+            && first.type == EffectType.Rest
+            && first.target == TargetType.Self;
+    }
+
+    /// <summary>手札配備（選択必須）を含む OnMain は、候補が1枚以上あるときだけ発動可。</summary>
+    private bool HasOnMainHandDeployCandidatesIfRequired(PlayerType side, TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> effects = timed?.GetResolvedEffects();
+        if (effects == null)
+        {
+            return true;
+        }
+
+        bool hasHandDeploySelect = false;
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null || effect.type != EffectType.DeployUnit)
+            {
+                continue;
+            }
+
+            if (effect.deployUnitSource != DeployUnitSource.Hand)
+            {
+                continue;
+            }
+
+            if (!effect.RequiresDeployUnitZoneSelection())
+            {
+                continue;
+            }
+
+            hasHandDeploySelect = true;
+            if (CollectHandDeployCandidates(side, effect).Count > 0)
+            {
+                return true;
+            }
+        }
+
+        return !hasHandDeploySelect;
     }
 
     private List<OnMainExecutableBlock> CollectExecutableOnMainBlocks(PlayerType side, CardController source)

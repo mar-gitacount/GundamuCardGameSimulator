@@ -220,6 +220,21 @@ public static class EffectActivationEvaluator
             return EvaluateSourceUnitIsRest(ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceUnitIsNotRest)
+        {
+            return EvaluateSourceUnitIsNotRest(ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.SourceHasOwnerEffectDestroyArmed)
+        {
+            return EvaluateSourceHasOwnerEffectDestroyArmed(ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.DestroyingOwnerIsAlly)
+        {
+            return EvaluateDestroyingOwnerIsAlly(ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
         {
             return ctx.PriorChainDealtDamage;
@@ -635,8 +650,44 @@ public static class EffectActivationEvaluator
 
     private static bool EvaluateSourceUnitIsRest(EffectActivationContext ctx)
     {
+        CardController card = ResolveRestConditionCard(ctx);
+        return card != null && card.IsRestState;
+    }
+
+    private static bool EvaluateSourceUnitIsNotRest(EffectActivationContext ctx)
+    {
+        CardController card = ResolveRestConditionCard(ctx);
+        return card != null && !card.IsRestState;
+    }
+
+    private static bool EvaluateSourceHasOwnerEffectDestroyArmed(EffectActivationContext ctx)
+    {
+        return ctx?.SourceCard != null && ctx.SourceCard.HasOwnerEffectDestroyArmed;
+    }
+
+    private static bool EvaluateDestroyingOwnerIsAlly(EffectActivationContext ctx)
+    {
+        return ctx != null
+            && ctx.HasDestroyingCardOwner
+            && ctx.DestroyingCardOwner == ctx.OwnerType;
+    }
+
+    /// <summary>REST 判定用。リンク条件のユニット解決に加え、Base 自身も対象にする。</summary>
+    private static CardController ResolveRestConditionCard(EffectActivationContext ctx)
+    {
         CardController unit = ResolveLinkConditionUnit(ctx);
-        return unit != null && unit.Data != null && unit.Data.IsUnitLike() && unit.IsRestState;
+        if (unit != null)
+        {
+            return unit;
+        }
+
+        if (ctx?.SourceCard?.Data != null
+            && (ctx.SourceCard.Data.IsUnitLike() || ctx.SourceCard.Data.type == Type.Base))
+        {
+            return ctx.SourceCard;
+        }
+
+        return null;
     }
 
     private static bool EvaluateUnitStatOnField(IReadOnlyList<CardController> zone, EffectActivationCondition c)

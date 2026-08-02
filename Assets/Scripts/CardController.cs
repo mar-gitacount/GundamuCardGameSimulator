@@ -108,6 +108,23 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public bool IsRestState { get; private set; }
 
     /// <summary>
+    /// 配備後に「自分のユニットが自分プレイヤーの効果で破壊された」ことを記録する監視フラグ（Axis 等）。
+    /// 場を離れる／ランタイム初期化でクリアする。
+    /// </summary>
+    private bool _ownerEffectDestroyArmed;
+    public bool HasOwnerEffectDestroyArmed => _ownerEffectDestroyArmed;
+
+    public void ArmOwnerEffectDestroyWatch()
+    {
+        _ownerEffectDestroyArmed = true;
+    }
+
+    public void ClearOwnerEffectDestroyArmed()
+    {
+        _ownerEffectDestroyArmed = false;
+    }
+
+    /// <summary>
     /// 盤面条件を含めて現在《ブロッカー》が有効か。
     /// CardData は共有アセットなので変更せず、カードインスタンスごとに保持する。
     /// </summary>
@@ -250,6 +267,12 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     private void LateUpdate()
     {
+        if (IsRestState)
+        {
+            // GridLayout 等のレイアウト再計算後も横倒しを維持する
+            ApplyRestRotationVisual();
+        }
+
         if (_battleStatOverlayRoot == null || !_battleStatOverlayRoot.activeSelf)
         {
             return;
@@ -429,6 +452,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _notDirectAttackUntilEndOfTurnDepth = 0;
         _firstStrikeUntilEndOfTurnDepth = 0;
         _turnEndRepairBonus = 0;
+        _ownerEffectDestroyArmed = false;
         _runtimeBlockerAbilityEnabled = Data.IsBlockerUnit();
     }
 
@@ -506,9 +530,12 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         Debug.Log($"[AttackFlg] {name} (id:{id}) => {_attackFlg}");
     }
 
+    /// <summary>レスト時の Z 回転角（画面上でカードが横向きになる）。</summary>
+    private const float RestAngleZDegrees = -90f;
+
     /// <summary>
-    /// ユニットの表示状態を更新する。
-    /// isRest=true: レスト（横向き） / false: アクティブ（起き）
+    /// ユニット／ベースの表示状態を更新する。
+    /// isRest=true: 中心を軸に 90 度横倒し / false: 正立（ACTIVE）
     /// </summary>
     public void SetUnitRestVisual(bool isRest)
     {
@@ -522,15 +549,53 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             return;
         }
 
+        IsRestState = isRest;
+        ApplyRestRotationVisual();
+    }
+
+    /// <summary>中心ピボットで REST/ACTIVE の回転を適用する（レイアウト後の再適用にも使う）。</summary>
+    private void ApplyRestRotationVisual()
+    {
         RectTransform rt = transform as RectTransform;
         if (rt == null)
         {
             return;
         }
 
-        IsRestState = isRest;
-        float z = isRest ? -90f : 0f;
-        rt.localRotation = Quaternion.Euler(0f, 0f, z);
+        EnsureCenterPivotForRestTilt(rt);
+
+        float targetZ = IsRestState ? RestAngleZDegrees : 0f;
+        if (Mathf.Abs(Mathf.DeltaAngle(rt.localEulerAngles.z, targetZ)) > 0.05f)
+        {
+            rt.localRotation = Quaternion.Euler(0f, 0f, targetZ);
+        }
+    }
+
+    /// <summary>
+    /// プレハブが左上ピボットのままだと 90 度回転がセル外へ飛び、横倒しに見えない。
+    /// 中心ピボットへ変え、見た目の位置はできるだけ保つ。
+    /// </summary>
+    private static void EnsureCenterPivotForRestTilt(RectTransform rt)
+    {
+        Vector2 center = new Vector2(0.5f, 0.5f);
+        if ((rt.pivot - center).sqrMagnitude < 0.0001f)
+        {
+            return;
+        }
+
+        Vector2 size = rt.rect.size;
+        if (size.x < 0.01f || size.y < 0.01f)
+        {
+            // レイアウト前などサイズ未確定時はピボットだけ先に合わせる
+            rt.pivot = center;
+            return;
+        }
+
+        Vector2 deltaPivot = center - rt.pivot;
+        Vector2 delta = new Vector2(deltaPivot.x * size.x, deltaPivot.y * size.y);
+        delta = rt.localRotation * delta;
+        rt.pivot = center;
+        rt.anchoredPosition += delta;
     }
     public void OnPointerClick(PointerEventData eventData)
     {

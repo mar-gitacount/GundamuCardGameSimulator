@@ -4051,7 +4051,13 @@ public partial class BattleGameMain : MonoBehaviour
 
     private static bool TryApplyRestToUnit(CardController unit)
     {
-        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+        if (unit == null || unit.Data == null || unit.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        // ユニットに加え、ベース（Axis 等の OnMain コスト）も REST 可。
+        if (!unit.Data.IsUnitLike() && unit.Data.type != Type.Base)
         {
             return false;
         }
@@ -10482,6 +10488,21 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.ArmOwnerEffectDestroyFlag)
+        {
+            if (sourceCard != null)
+            {
+                sourceCard.ArmOwnerEffectDestroyWatch();
+                Debug.Log(
+                    $"[Effect] ArmOwnerEffectDestroyFlag on {sourceCard.Data?.cardName}(id:{sourceCard.Data?.id})");
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.MarkObservedUnit)
         {
             Debug.LogWarning(
@@ -14326,6 +14347,17 @@ public partial class BattleGameMain : MonoBehaviour
             () => TryExecuteOnMainEffectChain(
                 side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone)))
         {
+            return;
+        }
+
+        if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+        {
+            ApplyDeployUnitEffect(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
             return;
         }
 
