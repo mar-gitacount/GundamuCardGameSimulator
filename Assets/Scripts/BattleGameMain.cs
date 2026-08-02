@@ -889,6 +889,7 @@ public partial class BattleGameMain : MonoBehaviour
         Debug.Log("バトルゲームのメインシーン");
         CardFeatureRegistry.EnsureLoaded();
         NamedEffectSetRegistry.EnsureLoaded();
+        ClearOwnEffectDestroyOfOwnUnitHistory();
         InitializeBattleOpponent();
         ResetOnlineBattleInstanceIds();
         isFirstPlayer = DecideTurnOrder();

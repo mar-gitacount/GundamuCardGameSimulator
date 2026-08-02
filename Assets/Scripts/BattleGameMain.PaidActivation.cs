@@ -308,6 +308,9 @@ public partial class BattleGameMain
             return false;
         }
 
+        // 配備前破壊の履歴があれば、判定直前にアーム（ResetRuntime 後でも復旧）
+        TryArmCardFromOwnEffectDestroyHistory(source, side);
+
         if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(side, source, blockIndex))
         {
             return false;

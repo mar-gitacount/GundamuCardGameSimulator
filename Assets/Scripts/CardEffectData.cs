@@ -457,6 +457,7 @@ public enum EffectActivationCheckKind
     SourceUnitIsRest,
     /// <summary>
     /// ソースカードに「自分のユニットが自分の効果で破壊された」監視フラグが立っている。
+    /// Axis 等: 配備前の同種破壊も対戦履歴経由でアームされ、この条件を満たす。
     /// </summary>
     SourceHasOwnerEffectDestroyArmed,
     /// <summary>ソース（ユニットまたは Base）が ACTIVE（非 REST）。</summary>

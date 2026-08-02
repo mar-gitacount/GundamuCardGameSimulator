@@ -8,6 +8,8 @@ using UnityEngine;
 /// 破壊されたユニットは監視カードの持ち主のものに限る（相手が相手自身のユニットを破壊しても発動しない）。
 /// Alpha Azieru 等: ターン1回・強制ドロー。戦闘（攻撃）ダメージによる破壊は対象外。
 /// Axis 等: 配備ベースも監視対象。DestroyingOwnerIsAlly 条件で自分の効果破壊時のみフラグを立てる。
+/// さらに「自分の効果で自分ユニットを破壊した」履歴は対戦中永続し、Axis 配備前の破壊でも
+/// 配備後にメイン起動条件を満たせる（履歴→アーム）。
 /// </summary>
 public partial class BattleGameMain
 {
@@ -34,9 +36,109 @@ public partial class BattleGameMain
     private readonly HashSet<PaidActivationUseKey> _ownerEffectDestroyWatchUsesThisTurn =
         new HashSet<PaidActivationUseKey>();
 
+    /// <summary>プレイヤーが自分の効果で自分のユニットを破壊したことがある（対戦中永続）。</summary>
+    private bool _playerDestroyedOwnUnitByOwnEffect;
+
+    /// <summary>敵が自分の効果で自分のユニットを破壊したことがある（対戦中永続）。</summary>
+    private bool _enemyDestroyedOwnUnitByOwnEffect;
+
     private void ClearOwnerEffectDestroyWatchUsesThisTurn()
     {
         _ownerEffectDestroyWatchUsesThisTurn.Clear();
+    }
+
+    private void ClearOwnEffectDestroyOfOwnUnitHistory()
+    {
+        _playerDestroyedOwnUnitByOwnEffect = false;
+        _enemyDestroyedOwnUnitByOwnEffect = false;
+    }
+
+    private bool HasOwnEffectDestroyOfOwnUnitHistory(PlayerType owner)
+    {
+        return owner == PlayerType.Player
+            ? _playerDestroyedOwnUnitByOwnEffect
+            : _enemyDestroyedOwnUnitByOwnEffect;
+    }
+
+    /// <summary>
+    /// 自分の効果で自分ユニットを破壊した事実を対戦中履歴に残し、
+    /// 既に場にいる Axis 等へアームを伝播する。
+    /// </summary>
+    private void RecordOwnEffectDestroyOfOwnUnit(PlayerType owner)
+    {
+        if (owner == PlayerType.Player)
+        {
+            _playerDestroyedOwnUnitByOwnEffect = true;
+        }
+        else
+        {
+            _enemyDestroyedOwnUnitByOwnEffect = true;
+        }
+
+        Debug.Log($"[OwnEffectDestroyHistory] recorded owner:{owner}");
+        TryArmDeployedBaseFromOwnEffectDestroyHistory(owner);
+    }
+
+    /// <summary>
+    /// 配備ベースが「効果破壊アーム」ゲート付きメインを持つとき、履歴があればアームする。
+    /// Axis 配備前の破壊でも、配備直後／メイン判定時に起動可能にする。
+    /// </summary>
+    private void TryArmDeployedBaseFromOwnEffectDestroyHistory(PlayerType owner)
+    {
+        CardController baseCard = GetDeployedBaseForRuleSide(ToRuleSide(owner));
+        TryArmCardFromOwnEffectDestroyHistory(baseCard, owner);
+    }
+
+    private void TryArmCardFromOwnEffectDestroyHistory(CardController card, PlayerType owner)
+    {
+        if (card == null || card.Data == null || !HasOwnEffectDestroyOfOwnUnitHistory(owner))
+        {
+            return;
+        }
+
+        if (!CardUsesOwnerEffectDestroyArmedMainGate(card.Data))
+        {
+            return;
+        }
+
+        if (card.HasOwnerEffectDestroyArmed)
+        {
+            return;
+        }
+
+        card.ArmOwnerEffectDestroyWatch();
+        Debug.Log(
+            $"[OwnEffectDestroyHistory] armed {card.Data.cardName}(id:{card.Data.id}) owner:{owner}");
+    }
+
+    /// <summary>OnMain 等が SourceHasOwnerEffectDestroyArmed でゲートされているカードか。</summary>
+    private static bool CardUsesOwnerEffectDestroyArmedMainGate(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed?.activationConditions == null)
+            {
+                continue;
+            }
+
+            for (int c = 0; c < timed.activationConditions.Count; c++)
+            {
+                EffectActivationCondition cond = timed.activationConditions[c];
+                if (cond != null
+                    && cond.checkKind == EffectActivationCheckKind.SourceHasOwnerEffectDestroyArmed)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -130,6 +232,13 @@ public partial class BattleGameMain
             + $"destroyedOwner:{destroyedUnitOwner} "
             + $"source:{(effectSource?.Data != null ? effectSource.Data.cardName : "?")} "
             + $"watchers:{watcherCount} online:{IsOnlineBattle()}");
+
+        // Axis 等: 監視カードがまだ場にいなくても、自分効果による自ユニット破壊は対戦中履歴に残す
+        if (effectOwner == destroyedUnitOwner)
+        {
+            RecordOwnEffectDestroyOfOwnUnit(effectOwner);
+        }
+
         if (watcherCount == 0)
         {
             return;
