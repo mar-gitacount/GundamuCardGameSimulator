@@ -205,6 +205,21 @@ public static class EffectActivationEvaluator
             return EvaluateSourceUnitDamaged(ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceUnitIsLinked)
+        {
+            return EvaluateSourceUnitLinked(ctx, expectLinked: true);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.SourceUnitIsNotLinked)
+        {
+            return EvaluateSourceUnitLinked(ctx, expectLinked: false);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.SourceUnitIsRest)
+        {
+            return EvaluateSourceUnitIsRest(ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
         {
             return ctx.PriorChainDealtDamage;
@@ -571,6 +586,57 @@ public static class EffectActivationEvaluator
         }
 
         return unit.CurrentHp < unit.GetRepairHpCap();
+    }
+
+    /// <summary>リンク判定用ユニット（MountHost → ユニット本体 → パイロットの搭乗先）。</summary>
+    private static CardController ResolveLinkConditionUnit(EffectActivationContext ctx)
+    {
+        if (ctx == null)
+        {
+            return null;
+        }
+
+        if (ctx.MountHostUnit != null
+            && ctx.MountHostUnit.Data != null
+            && ctx.MountHostUnit.Data.IsUnitLike())
+        {
+            return ctx.MountHostUnit;
+        }
+
+        if (ctx.SourceCard == null || ctx.SourceCard.Data == null)
+        {
+            return null;
+        }
+
+        if (ctx.SourceCard.Data.IsUnitLike())
+        {
+            return ctx.SourceCard;
+        }
+
+        if (ctx.SourceCard.Data.type == Type.Pilot && ctx.SourceCard.MountedUnit != null)
+        {
+            return ctx.SourceCard.MountedUnit;
+        }
+
+        return null;
+    }
+
+    private static bool EvaluateSourceUnitLinked(EffectActivationContext ctx, bool expectLinked)
+    {
+        CardController unit = ResolveLinkConditionUnit(ctx);
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return !expectLinked;
+        }
+
+        bool linked = UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot);
+        return linked == expectLinked;
+    }
+
+    private static bool EvaluateSourceUnitIsRest(EffectActivationContext ctx)
+    {
+        CardController unit = ResolveLinkConditionUnit(ctx);
+        return unit != null && unit.Data != null && unit.Data.IsUnitLike() && unit.IsRestState;
     }
 
     private static bool EvaluateUnitStatOnField(IReadOnlyList<CardController> zone, EffectActivationCondition c)

@@ -139,7 +139,14 @@ public enum EffectType
     /// 同一チェーン中に山札からトラッシュへ送ったカード一覧から、条件に合うカードを選んで手札へ加える。
     /// 直前の MillTopToTrash と組み合わせて使う。対象は「その効果で送ったカード」のみ。
     /// </summary>
-    AddObservedToHandFromTrash
+    AddObservedToHandFromTrash,
+    /// <summary>
+    /// 敵ユニットが攻撃するとき、可能ならこのユニットを攻撃対象に強制する（挑発）。
+    /// Permanent。搭乗パイロット定義ならホストへ適用。
+    /// timed.activationConditions でホスト側条件（例: リンク中・REST）、
+    /// effectActivationConditions で攻撃者側条件（例: 非リンクユニット）を指定する。
+    /// </summary>
+    ForceEnemyAttackTarget
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -424,7 +431,19 @@ public enum EffectActivationCheckKind
     /// 破壊元ユニットに搭乗パイロットがいる場合、パイロット側の Feature でも可。
     /// destroyedByOwnerRelation で味方のみ / 敵のみ / 両方を指定可能。
     /// </summary>
-    DestroyedByHasFeature
+    DestroyedByHasFeature,
+    /// <summary>
+    /// ソースユニットがリンク中（搭乗パイロットが Link 条件を満たす）。
+    /// SourceCard がパイロットなら MountedUnit / MountHostUnit を参照。
+    /// </summary>
+    SourceUnitIsLinked,
+    /// <summary>
+    /// ソースユニットがリンクしていない（搭乗なし、または Link 条件を満たさない）。
+    /// 攻撃者フィルタ（例: 「リンクユニット以外」）に再利用する。
+    /// </summary>
+    SourceUnitIsNotLinked,
+    /// <summary>ソースユニットが REST 状態。</summary>
+    SourceUnitIsRest
 }
 
 public enum EffectTurnCheckKind

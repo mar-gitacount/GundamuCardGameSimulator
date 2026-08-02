@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 100Hobby Hizack
+  m_EditorClassIdentifier: 
+  id: 100
+  cardName: Hobby Hizack
+  cost: 1
+  level: 2
+  power: 2
+  hp: 2
+  imageName: {fileID: 3084928524200672671, guid: 8844baf7b6ad3f243b55938de71e589d, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 2
+  filterType: 0
+  color: 6
+  type: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 11
+    activationConditions:
+    - boardSide: 0
+      checkKind: 0
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+      featureId: 6
+      features: []
+      featureIds: 
+      minimumCount: 2
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+    requireChainObservationContext: 0
+    effectsName: 
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 1
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0

@@ -344,6 +344,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.EffectBattle
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit
+                || eff.type == EffectType.ForceEnemyAttackTarget
                 || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.AddSelfToHand || eff.type == EffectType.DeployShieldFromHand
                 || eff.type == EffectType.DeployBase
                 || eff.type == EffectType.DeployUnit

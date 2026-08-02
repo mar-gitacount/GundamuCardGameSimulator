@@ -76,12 +76,17 @@ MonoBehaviour:
       trashRelaxFilterMinCopies: 0
       requireExactExileCount: 0
       optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: 0
   features:
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
-  link: []
+  link:
+  - pilotCardId: 0
+    pilotFeatures:
+    - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+    pilotFeatureIds: 66000000
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
