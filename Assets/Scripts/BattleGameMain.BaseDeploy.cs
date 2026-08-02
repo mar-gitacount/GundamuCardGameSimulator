@@ -338,6 +338,8 @@ public partial class BattleGameMain
         cardController.RevealShieldFace();
         ownerRule.AttachDeployedBaseCard(cardController);
         cardController.ResetRuntimeStatsFromData();
+        // Axis: 配備前に自分効果で自ユニットを破壊していれば、ここでアームしてメイン起動可能にする
+        TryArmCardFromOwnEffectDestroyHistory(cardController, ownerType);
         RefreshDeployedBaseHpOverlay(cardController);
 
         if (triggerOnPlayed)
