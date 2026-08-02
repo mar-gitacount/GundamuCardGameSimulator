@@ -950,7 +950,7 @@
         },
         {
             "effectSetName": "OnDestroyed_BuffAllyNeoZeon_IncomingDamageReduction2_UntilEOT",
-            "displayName": "破壊時：味方ネオジオン1体を選びこのターンダメージ2軽減",
+            "displayName": "破壊時：味方ネオジオン1体を選びこのターン受けるダメージを2軽減",
             "effects": [
                 {
                     "type": 2,
