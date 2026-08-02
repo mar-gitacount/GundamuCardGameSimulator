@@ -152,7 +152,12 @@ public enum EffectType
     /// </summary>
     ForceEnemyAttackTarget,
     /// <summary>OnBurst 時は破壊公開されたカード自身をオーナーのシールドゾーンへ配備する。</summary>
-    DeploySelfToShield
+    DeploySelfToShield,
+    /// <summary>
+    /// 効果破壊監視フラグをソースカードに立てる（Axis 等）。
+    /// OnUnitDestroyedByOwnerEffect と組み合わせ、以降の OnMain 条件に使う。
+    /// </summary>
+    ArmOwnerEffectDestroyFlag
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -449,7 +454,18 @@ public enum EffectActivationCheckKind
     /// </summary>
     SourceUnitIsNotLinked,
     /// <summary>ソースユニットが REST 状態。</summary>
-    SourceUnitIsRest
+    SourceUnitIsRest,
+    /// <summary>
+    /// ソースカードに「自分のユニットが自分の効果で破壊された」監視フラグが立っている。
+    /// </summary>
+    SourceHasOwnerEffectDestroyArmed,
+    /// <summary>ソース（ユニットまたは Base）が ACTIVE（非 REST）。</summary>
+    SourceUnitIsNotRest,
+    /// <summary>
+    /// 破壊した効果のオーナーがソース（監視カード）と同じ陣営（自分の効果で破壊）。
+    /// EffectActivationContext.DestroyingCardOwner を参照。
+    /// </summary>
+    DestroyingOwnerIsAlly
 }
 
 public enum EffectTurnCheckKind

@@ -49,10 +49,32 @@ public partial class BattleGameMain
                 continue;
             }
 
+            // LV 等の実効ステータス条件（手札コントローラ基準）
+            if (effect.HasTargetUnitFilter() && !effect.MatchesTargetUnitFilter(cc, null))
+            {
+                continue;
+            }
+
             result.Add(cc);
         }
 
         return result;
+    }
+
+    private static string FormatDeployUnitFromHandSelectionTitle(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return "手札から配備するユニットを選択";
+        }
+
+        string detail = effect.FormatTargetUnitFilterDescription();
+        if (!string.IsNullOrEmpty(detail))
+        {
+            return $"手札から配備（{detail}）";
+        }
+
+        return "手札から配備するユニットを選択";
     }
 
     private List<TrashExileCandidate> CollectTrashDeployCandidates(CardGameRule trashRule, EffectData effect)
@@ -506,7 +528,7 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("DeployHandTitle", UIAnchor.TopCenter, 760, 48);
-        title.text = "手札から配備するユニットを選択";
+        title.text = FormatDeployUnitFromHandSelectionTitle(effect);
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
