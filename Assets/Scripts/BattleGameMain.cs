@@ -9656,6 +9656,19 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.DeployBase && effect.RequiresDeployBaseFromTrashSelection())
+        {
+            int baseMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyDeployBaseEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                baseMagnitude > 0 ? baseMagnitude : 1,
+                allowBurstSource: false,
+                onComplete: () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
         {
             ApplyDeployUnitEffect(
@@ -10426,6 +10439,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.DeployBase && effect.RequiresDeployBaseFromTrashSelection())
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped sync apply for DeployBase from trash (cardId:{sourceCard?.Data?.id}). Use effect chain async path.");
+            return;
+        }
+
         if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
         {
             Debug.LogWarning(
@@ -10437,6 +10457,16 @@ public partial class BattleGameMain : MonoBehaviour
         {
             int addCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
             ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, addCount > 0 ? addCount : 1);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.DeploySelfToShield)
+        {
+            int deployCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyDeploySelfToShieldEffect(sourceCard, ownerType, effect, deployCount > 0 ? deployCount : 1);
             BeginOnlineEffectSyncBatch(ownerType);
             FlushOnlineEffectSyncBatch();
             SyncAllResourceViewsFromRule();
@@ -10486,6 +10516,7 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.type != EffectType.DeployUnit
             && effect.type != EffectType.GrantAttackFlag
             && effect.type != EffectType.AddSelfToHand
+            && effect.type != EffectType.DeploySelfToShield
             && effect.type != EffectType.MarkObservedUnit)
         {
             return;
@@ -10552,6 +10583,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.AddSelfToHand:
                 ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.DeploySelfToShield:
+                ApplyDeploySelfToShieldEffect(sourceCard, ownerType, effect, magnitude);
                 break;
 
             case EffectType.DeployShieldFromHand:
@@ -11747,7 +11782,8 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ExileFromTrash
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AttackActiveEnemyUnit
-            || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand || effect.type == EffectType.DeployShieldFromHand
+            || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand
+            || effect.type == EffectType.DeploySelfToShield || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
             || effect.type == EffectType.Suppress
             || effect.type == EffectType.Breach
@@ -12454,6 +12490,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.AddSelfToHand:
                     notes.Append("[AddSelfToHand] ");
                     continue;
+                case EffectType.DeploySelfToShield:
+                    notes.Append("[DeploySelfToShield] ");
+                    continue;
                 case EffectType.DeployShieldFromHand:
                     notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");
                     continue;
@@ -12604,6 +12643,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.AddSelfToHand:
                     notes.Append("[AddSelfToHand] ");
+                    continue;
+                case EffectType.DeploySelfToShield:
+                    notes.Append("[DeploySelfToShield] ");
                     continue;
                 case EffectType.DeployShieldFromHand:
                     notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");

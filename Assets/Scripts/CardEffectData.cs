@@ -51,7 +51,11 @@ public enum EffectType
     AddShieldToHand,
     /// <summary>手札のシールドをシールドゾーンへ配備（value=枚数）。</summary>
     DeployShieldFromHand,
-    /// <summary>ベースゾーンへ配備（value=枚数）。OnBurst 時は破壊された Base カード自身を配備。</summary>
+    /// <summary>
+    /// ベースゾーンへ配備（value=枚数）。
+    /// OnBurst 時は破壊された Base カード自身を配備。
+    /// deployUnitSource=Trash のときはトラッシュから Base を選んで配備（targetFeature / filterByTargetCardType で絞り込み可）。
+    /// </summary>
     DeployBase,
     /// <summary>バトルゾーンのユニットを手札に戻す（バウンス）。value=適用体数上限（0 で対象リスト全員）。</summary>
     Bounce,
@@ -146,7 +150,9 @@ public enum EffectType
     /// timed.activationConditions でホスト側条件（例: リンク中・REST）、
     /// effectActivationConditions で攻撃者側条件（例: 非リンクユニット）を指定する。
     /// </summary>
-    ForceEnemyAttackTarget
+    ForceEnemyAttackTarget,
+    /// <summary>OnBurst 時は破壊公開されたカード自身をオーナーのシールドゾーンへ配備する。</summary>
+    DeploySelfToShield
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -707,7 +713,7 @@ public class EffectData
     [Tooltip("filterByTargetCardType: 対象とするカード種類（例: Pilot / UnitToken）。")]
     public Type targetCardType = Type.Pilot;
 
-    [Tooltip("DeployUnit: 配備するユニットの出所（Token=トークン生成 / Hand / Trash）。")]
+    [Tooltip("DeployUnit / DeployBase: 配備するカードの出所（Token=トークン生成 / Hand / Trash）。DeployBase は Trash 時にトラッシュから Base を配備。")]
     public DeployUnitSource deployUnitSource = DeployUnitSource.Token;
 
     [Tooltip("DeployUnit + Token: 配備するカード ID。Hand/Trash で特定 ID に限定する場合も使用。")]
@@ -1425,6 +1431,32 @@ public static class EffectDataExtensions
         return true;
     }
 
+    /// <summary>トラッシュからの Base 配備候補が種類・Feature・ID フィルタを満たすか。</summary>
+    public static bool MatchesDeployBaseCandidateFilter(this EffectData effect, CardData card)
+    {
+        if (effect == null || card == null || card.type != Type.Base)
+        {
+            return false;
+        }
+
+        if (effect.filterByDeployCardId && effect.deployCardId > 0 && card.id != effect.deployCardId)
+        {
+            return false;
+        }
+
+        if (effect.filterByTargetCardType && card.type != effect.targetCardType)
+        {
+            return false;
+        }
+
+        if (!effect.MatchesTargetFeatureFilter(card))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     /// <summary>DeployUnit が手札／トラッシュからの選択 UI を要するか。</summary>
     public static bool RequiresDeployUnitZoneSelection(this EffectData effect)
     {
@@ -1439,6 +1471,14 @@ public static class EffectDataExtensions
         }
 
         return effect.deployUnitSource == DeployUnitSource.Trash;
+    }
+
+    /// <summary>DeployBase がトラッシュからの選択 UI を要するか。</summary>
+    public static bool RequiresDeployBaseFromTrashSelection(this EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.DeployBase
+            && effect.deployUnitSource == DeployUnitSource.Trash;
     }
 }
 

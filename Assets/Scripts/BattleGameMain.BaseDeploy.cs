@@ -1,3 +1,6 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -313,7 +316,8 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (IsCardInBaseSlot(cardController))
+        // 既に正式登録済みのときだけスキップ（枠の子になっているだけでは未配備扱い）
+        if (ownerRule.DeployedBase == cardController && IsCardInBaseSlot(cardController))
         {
             return true;
         }
@@ -355,18 +359,377 @@ public partial class BattleGameMain
         return true;
     }
 
+    private List<TrashExileCandidate> CollectTrashDeployBaseCandidates(CardGameRule trashRule, EffectData effect)
+    {
+        List<TrashExileCandidate> result = new List<TrashExileCandidate>();
+        if (trashRule == null || effect == null)
+        {
+            return result;
+        }
+
+        IReadOnlyList<int> trashIds = trashRule.GetTrashCardIds();
+        for (int i = 0; i < trashIds.Count; i++)
+        {
+            int cardId = trashIds[i];
+            CardData data = DeckSettinObject.Instance.GetCardDataById(cardId);
+            if (!effect.MatchesDeployBaseCandidateFilter(data))
+            {
+                continue;
+            }
+
+            result.Add(new TrashExileCandidate(i, cardId, data));
+        }
+
+        return result;
+    }
+
+    private bool TryDeployBaseFromTrashIndex(
+        CardGameRule trashRule,
+        PlayerType recipient,
+        int trashIndex,
+        CardData data,
+        bool triggerOnPlayed)
+    {
+        if (trashRule == null)
+        {
+            return false;
+        }
+
+        int removedId = -1;
+        WithZoneSyncSuppressed(() =>
+        {
+            if (!trashRule.TryRemoveCardFromTrashAt(trashIndex, out removedId))
+            {
+                removedId = -1;
+            }
+        });
+
+        if (removedId < 0)
+        {
+            return false;
+        }
+
+        CardData resolved = data ?? DeckSettinObject.Instance.GetCardDataById(removedId);
+        if (resolved == null || resolved.type != Type.Base)
+        {
+            trashRule.AddCardToTrash(removedId);
+            return false;
+        }
+
+        CardGameRule deployRule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (deployRule == null || CardImagePrefab == null)
+        {
+            trashRule.AddCardToTrash(removedId);
+            return false;
+        }
+
+        // ベース枠の子として生成すると DeployCardToBaseZone が「既に枠内」と誤判定するため、親なしで生成する
+        GameObject go = Instantiate(CardImagePrefab);
+        CardController spawned = go.GetComponent<CardController>();
+        if (spawned == null)
+        {
+            Destroy(go);
+            trashRule.AddCardToTrash(removedId);
+            return false;
+        }
+
+        spawned.SetUp(resolved, OnCardClicked);
+        if (!DeployCardToBaseZone(spawned, recipient, deployRule, triggerOnPlayed))
+        {
+            Destroy(go);
+            trashRule.AddCardToTrash(removedId);
+            return false;
+        }
+
+        // 手札へ誤配置されていないことを保証する
+        if (deployRule.HandScrollContent != null
+            && spawned.transform.IsChildOf(deployRule.HandScrollContent))
+        {
+            Debug.LogWarning(
+                $"[DeployBase] trash deploy landed in hand — re-attaching to base zone. card:{resolved.cardName}");
+            RemoveCardFromHandLists(spawned, recipient);
+            if (!DeployCardToBaseZone(spawned, recipient, deployRule, triggerOnPlayed: false))
+            {
+                trashRule.AddCardToTrash(removedId);
+                Destroy(go);
+                return false;
+            }
+        }
+
+        Debug.Log(
+            $"[DeployBase] from trash {resolved.cardName}(id:{resolved.id}) → {recipient} base zone "
+            + $"(registered:{deployRule.DeployedBase == spawned})");
+        return true;
+    }
+
+    private void ApplyDeployBaseFromTrashAuto(
+        CardGameRule trashRule,
+        PlayerType recipient,
+        List<TrashExileCandidate> candidates,
+        int pickCount,
+        bool triggerOnPlayed)
+    {
+        List<TrashExileCandidate> ordered = new List<TrashExileCandidate>(candidates);
+        ordered.Sort((a, b) => b.TrashIndex.CompareTo(a.TrashIndex));
+        int deployed = 0;
+        for (int i = 0; i < ordered.Count && deployed < pickCount; i++)
+        {
+            TrashExileCandidate candidate = ordered[i];
+            if (TryDeployBaseFromTrashIndex(
+                trashRule,
+                recipient,
+                candidate.TrashIndex,
+                candidate.Data,
+                triggerOnPlayed))
+            {
+                deployed++;
+            }
+        }
+    }
+
+    private void ApplyDeployBaseFromTrashEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        int magnitude,
+        Action onComplete)
+    {
+        CardGameRule trashRule = ResolveTrashRuleForEffect(ownerType, effect);
+        if (trashRule == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        PlayerType recipient = ResolveEffectOwnerPlayerType(ownerType, effect.target);
+        List<TrashExileCandidate> candidates = CollectTrashDeployBaseCandidates(trashRule, effect);
+        if (candidates.Count == 0)
+        {
+            Debug.Log(
+                $"[DeployBase] trash candidates empty (Neo Zeon Base etc.) by cardId:{sourceCard?.Data?.id ?? -1}");
+            onComplete?.Invoke();
+            return;
+        }
+
+        int pickCount = Mathf.Max(1, magnitude);
+        pickCount = Mathf.Min(pickCount, candidates.Count);
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            ApplyDeployBaseFromTrashAuto(
+                trashRule,
+                recipient,
+                candidates,
+                pickCount,
+                effect.deployUnitTriggerOnPlayed);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (candidates.Count == 1 && pickCount == 1)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            TryDeployBaseFromTrashIndex(
+                trashRule,
+                recipient,
+                candidates[0].TrashIndex,
+                candidates[0].Data,
+                effect.deployUnitTriggerOnPlayed);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            onComplete?.Invoke();
+            return;
+        }
+
+        StartCoroutine(ShowDeployBaseFromTrashSelectionCoroutine(
+            trashRule,
+            ownerType,
+            recipient,
+            effect,
+            candidates,
+            pickCount,
+            onComplete));
+    }
+
+    private IEnumerator ShowDeployBaseFromTrashSelectionCoroutine(
+        CardGameRule trashRule,
+        PlayerType ownerType,
+        PlayerType recipient,
+        EffectData effect,
+        List<TrashExileCandidate> candidates,
+        int pickCount,
+        Action onComplete)
+    {
+        if (trashRule == null || candidates == null || candidates.Count == 0 || CardImagePrefab == null)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        int remaining = pickCount;
+        HashSet<int> usedTrashIndices = new HashSet<int>();
+
+        while (remaining > 0)
+        {
+            List<TrashExileCandidate> available = new List<TrashExileCandidate>();
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                TrashExileCandidate c = candidates[i];
+                if (!usedTrashIndices.Contains(c.TrashIndex))
+                {
+                    available.Add(c);
+                }
+            }
+
+            if (available.Count == 0)
+            {
+                break;
+            }
+
+            if (available.Count == 1)
+            {
+                TrashExileCandidate only = available[0];
+                BeginOnlineEffectSyncBatch(ownerType);
+                TryDeployBaseFromTrashIndex(
+                    trashRule,
+                    recipient,
+                    only.TrashIndex,
+                    only.Data,
+                    effect != null && effect.deployUnitTriggerOnPlayed);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                usedTrashIndices.Add(only.TrashIndex);
+                remaining--;
+                continue;
+            }
+
+            bool pickedThisRound = false;
+            DestroyActiveOnActionPopupIfAny();
+            GameObject root = new GameObject(
+                "DeployBaseFromTrashSelect",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image));
+            activeOnActionPopupRoot = root;
+            isOnActionPopupOpen = true;
+            root.transform.SetParent(canvas.transform, false);
+            root.transform.SetAsLastSibling();
+            root.SetFullSize();
+            Image dim = root.GetComponent<Image>();
+            dim.color = new Color(0f, 0f, 0f, 0.62f);
+            dim.raycastTarget = true;
+
+            TextMeshProUGUI title = root.CreateChildTextCustom("DeployBaseTrashTitle", UIAnchor.TopCenter, 760, 48);
+            title.text = remaining > 1
+                ? $"トラッシュからベースを配備 ({remaining}枚)"
+                : "トラッシュからベースを配備";
+            title.fontSize = 26;
+            title.fontStyle = FontStyles.Bold;
+            title.color = Color.white;
+            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
+
+            GameObject scrollGo = root.CreateGridScrollView(560, 360, UIAnchor.TopCenter);
+            RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+            scrollRt.anchoredPosition = new Vector2(0f, -72f);
+            scrollGo.ConfigureGridCellFromViewportHeight(0.75f, 56f);
+            ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+            RectTransform content = sr != null ? sr.content : null;
+
+            if (content != null)
+            {
+                for (int i = 0; i < available.Count; i++)
+                {
+                    TrashExileCandidate candidate = available[i];
+                    CardData data = candidate.Data ?? DeckSettinObject.Instance.GetCardDataById(candidate.CardId);
+                    if (data == null)
+                    {
+                        continue;
+                    }
+
+                    GameObject go = Instantiate(CardImagePrefab, content);
+                    CardController display = go.GetComponent<CardController>();
+                    if (display != null)
+                    {
+                        display.SetUp(data, _ => { });
+                        go.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
+                    }
+
+                    Button pickBtn = go.GetComponent<Button>();
+                    if (pickBtn == null)
+                    {
+                        pickBtn = go.AddComponent<Button>();
+                    }
+
+                    int trashIndex = candidate.TrashIndex;
+                    CardData pickData = data;
+                    pickBtn.onClick.AddListener(() =>
+                    {
+                        if (pickedThisRound)
+                        {
+                            return;
+                        }
+
+                        pickedThisRound = true;
+                        BeginOnlineEffectSyncBatch(ownerType);
+                        TryDeployBaseFromTrashIndex(
+                            trashRule,
+                            recipient,
+                            trashIndex,
+                            pickData,
+                            effect != null && effect.deployUnitTriggerOnPlayed);
+                        FlushOnlineEffectSyncBatch();
+                        SyncAllResourceViewsFromRule();
+                        usedTrashIndices.Add(trashIndex);
+                        remaining--;
+                        DestroyActiveOnActionPopupIfAny();
+                    });
+                }
+            }
+
+            while (!pickedThisRound && isOnActionPopupOpen && root != null)
+            {
+                yield return null;
+            }
+
+            if (!pickedThisRound)
+            {
+                break;
+            }
+        }
+
+        onComplete?.Invoke();
+    }
+
     private void ApplyDeployBaseEffect(
         CardController sourceCard,
         PlayerType sourceOwner,
         EffectData effect,
         int magnitude,
-        bool allowBurstSource = false)
+        bool allowBurstSource = false,
+        Action onComplete = null)
     {
-        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect.target);
+        if (effect != null && effect.deployUnitSource == DeployUnitSource.Trash)
+        {
+            ApplyDeployBaseFromTrashEffect(sourceCard, sourceOwner, effect, magnitude, onComplete);
+            return;
+        }
+
+        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect != null ? effect.target : TargetType.SelfPlayer);
         CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
 
         int applied = 0;
-        for (int i = 0; i < magnitude; i++)
+        int want = Mathf.Max(1, magnitude);
+        for (int i = 0; i < want; i++)
         {
             if (allowBurstSource
                 && sourceCard != null
@@ -389,8 +752,9 @@ public partial class BattleGameMain
         }
 
         Debug.Log(
-            $"[Effect] DeployBase x{applied}/{magnitude} target:{effect.target} "
+            $"[Effect] DeployBase x{applied}/{want} target:{(effect != null ? effect.target.ToString() : "?")} "
             + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+        onComplete?.Invoke();
     }
 
     private void RemoveCardFromHandLists(CardController cardController, PlayerType ownerType)

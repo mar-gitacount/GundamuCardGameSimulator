@@ -10,37 +10,42 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 91Sazabi
+  m_Name: 104Axis
   m_EditorClassIdentifier: 
-  id: 91
-  cardName: Sazabi
-  cost: 7
-  level: 7
-  power: 5
-  hp: 5
-  imageName: {fileID: 3062162295493056740, guid: eb8a5631ac52802419c33c053f7114ad, type: 3}
+  id: 104
+  cardName: Axis
+  cost: 1
+  level: 4
+  power: 0
+  hp: 6
+  imageName: {fileID: -567694013841348282, guid: 94366088d8817fc4bb0940891913cb1c, type: 3}
   image: {fileID: 0}
   version: 5
-  sourceType: 1
+  sourceType: 2
   filterType: 0
-  color: 0
-  type: 0
+  color: 6
+  type: 3
   attackFlg: 0
   timedEffects:
-  - timing: 3
+  - timing: 5
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: OnAttack_DestroyAllyThenOpponentChoosesDestroy
+    effectsName: DeployBase1_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 6
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddShield1_OnBaseDeployed
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
-  link:
-  - pilotCardId: 103
-    pilotFeatures: []
-    pilotFeatureIds:
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

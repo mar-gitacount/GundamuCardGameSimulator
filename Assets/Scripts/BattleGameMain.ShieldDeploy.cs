@@ -359,6 +359,53 @@ public partial class BattleGameMain
             $"[AddSelfToHand] OnBurst / OnDestroyed 以外では未対応です (cardId:{sourceCard?.Data?.id ?? -1})。");
     }
 
+    private void ApplyDeploySelfToShieldEffect(
+        CardController sourceCard,
+        PlayerType sourceOwner,
+        EffectData effect,
+        int magnitude)
+    {
+        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect != null ? effect.target : TargetType.SelfPlayer);
+        CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+
+        if (!IsResolvingBurstEffect)
+        {
+            Debug.LogWarning(
+                $"[DeploySelfToShield] OnBurst 以外では未対応です (cardId:{sourceCard?.Data?.id ?? -1})。");
+            return;
+        }
+
+        if (sourceCard == null || recipient != sourceOwner || rule == null)
+        {
+            Debug.LogWarning(
+                $"[DeploySelfToShield] バースト元カードをシールドへ配備できません (cardId:{sourceCard?.Data?.id ?? -1})。");
+            return;
+        }
+
+        int count = magnitude > 0 ? magnitude : 1;
+        int applied = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (!TryMoveBurstSourceCardToShieldZone(sourceCard, recipient, rule))
+            {
+                if (applied == 0)
+                {
+                    Debug.LogWarning(
+                        $"[DeploySelfToShield] burst source shield deploy failed side:{recipient} cardId:{sourceCard.Data?.id}");
+                }
+
+                break;
+            }
+
+            applied++;
+            break;
+        }
+
+        Debug.Log(
+            $"[Effect] DeploySelfToShield x{applied}/{count} target:{(effect != null ? effect.target.ToString() : "?")} "
+            + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+    }
+
     /// <summary>
     /// 破壊時効果用。いったんトラッシュへ積み、直後に取り出して手札へ戻す。
     /// GameObject は Destroy せずバウンス同様に手札へ移す（パイプラインの再トラッシュは pending 解除で抑止）。
@@ -454,6 +501,34 @@ public partial class BattleGameMain
         SyncResourceViewsFromRule(ToRuleSide(ownerType));
         Debug.Log(
             $"[AddSelfToHand] {card.Data.cardName}(id:{card.Data.id}) shield break → {ownerType} hand");
+        return true;
+    }
+
+    private bool TryMoveBurstSourceCardToShieldZone(CardController card, PlayerType ownerType, CardGameRule rule)
+    {
+        if (card == null || card.Data == null || rule == null)
+        {
+            return false;
+        }
+
+        if (card.Data.type == Type.Base)
+        {
+            return false;
+        }
+
+        if (rule.ShieldCardsContent != null && card.transform.IsChildOf(rule.ShieldCardsContent))
+        {
+            return true;
+        }
+
+        // 破壊公開中はシールド解除済みのため、手札経由の可否チェックなしで再配備する。
+        if (!TryDeployCardToShieldZone(card, ownerType, rule, requireEligibleFromHand: false))
+        {
+            return false;
+        }
+
+        Debug.Log(
+            $"[DeploySelfToShield] {card.Data.cardName}(id:{card.Data.id}) shield break → {ownerType} shield zone");
         return true;
     }
 
@@ -879,6 +954,14 @@ public partial class BattleGameMain
             && taken.Data.type == Type.Pilot
             && HasAddSelfToHandOnBurst(taken.Data)
             && TryMoveBurstSourceCardToHand(taken.Controller, ownerType, rule))
+        {
+            keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
+        }
+
+        if (!keepCard
+            && taken.Data != null
+            && HasDeploySelfToShieldOnBurst(taken.Data)
+            && TryMoveBurstSourceCardToShieldZone(taken.Controller, ownerType, rule))
         {
             keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
         }
