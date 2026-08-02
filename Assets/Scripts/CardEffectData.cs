@@ -466,7 +466,12 @@ public enum EffectActivationCheckKind
     /// 破壊した効果のオーナーがソース（監視カード）と同じ陣営（自分の効果で破壊）。
     /// EffectActivationContext.DestroyingCardOwner を参照。
     /// </summary>
-    DestroyingOwnerIsAlly
+    DestroyingOwnerIsAlly,
+    /// <summary>
+    /// ソースカード（ユニット等）が features / featureIds のいずれか（OR）を持つ。
+    /// パイロットの「このユニットが〔特徴〕の間」条件（搭乗ホストを Source にして評価）に使用。
+    /// </summary>
+    SourceHasFeature
 }
 
 public enum EffectTurnCheckKind

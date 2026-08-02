@@ -235,6 +235,11 @@ public static class EffectActivationEvaluator
             return EvaluateDestroyingOwnerIsAlly(ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceHasFeature)
+        {
+            return EvaluateSourceHasFeature(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
         {
             return ctx.PriorChainDealtDamage;
@@ -670,6 +675,22 @@ public static class EffectActivationEvaluator
         return ctx != null
             && ctx.HasDestroyingCardOwner
             && ctx.DestroyingCardOwner == ctx.OwnerType;
+    }
+
+    private static bool EvaluateSourceHasFeature(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx?.SourceCard?.Data == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+        if (required == null || required.Count == 0)
+        {
+            return false;
+        }
+
+        return ctx.SourceCard.Data.HasAnyFeature(required);
     }
 
     /// <summary>REST 判定用。リンク条件のユニット解決に加え、Base 自身も対象にする。</summary>

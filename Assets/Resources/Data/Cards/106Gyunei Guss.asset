@@ -10,33 +10,41 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 101Gyunei's Jagd Doga
+  m_Name: 106Gyunei Guss
   m_EditorClassIdentifier: 
-  id: 101
-  cardName: Gyunei's Jagd Doga
-  cost: 2
-  level: 3
-  power: 3
-  hp: 2
-  imageName: {fileID: 3824258934102218233, guid: 56c56151c02e5d84e89ded1f77407c48, type: 3}
+  id: 106
+  cardName: Gyunei Guss
+  cost: 1
+  level: 4
+  power: 2
+  hp: 1
+  imageName: {fileID: 1031619203555432693, guid: 31e7f532f05f7a442a4585c9734293c6, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 2
   filterType: 0
   color: 6
-  type: 0
+  type: 1
   attackFlg: 0
   timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   - timing: 11
     activationConditions:
-    - boardSide: 0
-      checkKind: 0
+    - boardSide: -1
+      checkKind: 23
       turnCheck: -1
       feature: {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
       featureId: 6
       features: []
       featureIds: 
-      minimumCount: 2
+      minimumCount: 1
       levelAggregate: 0
       compareOp: 0
       compareValue: 0
@@ -56,11 +64,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
-  link:
-  - pilotCardId: 106
-    pilotFeatures:
-    - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
-    pilotFeatureIds: 
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 1

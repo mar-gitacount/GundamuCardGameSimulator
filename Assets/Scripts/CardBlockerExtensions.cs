@@ -12,6 +12,32 @@ public static class CardBlockerExtensions
     }
 
     /// <summary>
+    /// パイロットが搭乗ホストへ《ブロッカー》を付与する定義か（パイロットの isBlocker）。
+    /// </summary>
+    public static bool IsBlockerGrantingPilot(this CardData pilot)
+    {
+        return pilot != null && pilot.type == Type.Pilot && pilot.isBlocker;
+    }
+
+    /// <summary>
+    /// ユニット本体または搭乗パイロット由来でブロック可能か（REST は含まない）。
+    /// </summary>
+    public static bool IsBlockerEligible(this CardController unit, EffectActivationContext ctx)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return false;
+        }
+
+        if (unit.Data.IsBlockerEligible(ctx))
+        {
+            return true;
+        }
+
+        return IsPilotGrantedBlockerEligible(unit.MountedPilot != null ? unit.MountedPilot.Data : null, ctx);
+    }
+
+    /// <summary>
     /// 敵攻撃時にブロック可能か（ブロッカーデータ＋OnEnemyAttack の発動条件。REST は含まない）。
     /// </summary>
     public static bool IsBlockerEligible(this CardData card, EffectActivationContext ctx)
@@ -30,11 +56,36 @@ public static class CardBlockerExtensions
     }
 
     /// <summary>
+    /// 搭乗パイロットの isBlocker＋OnEnemyAttack 条件で、ホストがブロッカーを得られるか。
+    /// ctx.SourceCard はホストユニットを想定（「このユニットが〔特徴〕」はホスト側で判定）。
+    /// </summary>
+    public static bool IsPilotGrantedBlockerEligible(CardData pilot, EffectActivationContext hostCtx)
+    {
+        if (!pilot.IsBlockerGrantingPilot())
+        {
+            return false;
+        }
+
+        return MeetsBlockerActivationConditionsForGrant(pilot, hostCtx);
+    }
+
+    /// <summary>
     /// ブロッカーカードの OnEnemyAttack に発動条件がある場合のみ AND 判定。条件ブロックが無ければ常に true。
     /// </summary>
     public static bool MeetsBlockerActivationConditions(CardData card, EffectActivationContext ctx)
     {
         if (card == null || !card.IsBlockerUnit())
+        {
+            return false;
+        }
+
+        return MeetsBlockerActivationConditionsForGrant(card, ctx);
+    }
+
+    /// <summary>ユニット／パイロット共通の OnEnemyAttack 条件ゲート。</summary>
+    private static bool MeetsBlockerActivationConditionsForGrant(CardData card, EffectActivationContext ctx)
+    {
+        if (card == null)
         {
             return false;
         }
