@@ -57,7 +57,7 @@ public partial class BattleGameMain
 
         // ユニット・パイロット・ベースはバトル用。誤ってシールドに載せない。
         if (card.Data.IsUnitLike()
-            || card.Data.type == Type.Pilot
+            || card.Data.IsPilot()
             || card.Data.type == Type.Base)
         {
             return false;
@@ -951,7 +951,7 @@ public partial class BattleGameMain
         bool keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
         if (!keepCard
             && taken.Data != null
-            && taken.Data.type == Type.Pilot
+            && taken.Data.IsPilot()
             && HasAddSelfToHandOnBurst(taken.Data)
             && TryMoveBurstSourceCardToHand(taken.Controller, ownerType, rule))
         {

@@ -1548,24 +1548,66 @@ public partial class BattleGameMain : MonoBehaviour
             closeBtnRect.anchoredPosition = new Vector2(0, handActionY - 70f);
         }
 
-        if (cardController.Data.type == Type.Pilot)
+        if (cardController.Data.IsPilot())
         {
+            // CommandPilot: OnMain（コマンド）と搭乗（パイロット）を両立させる。
+            // ShowPilotMountTargetButtons は他ボタンを無効化するため、兼用時は「搭乗する」経由で開く。
+            bool isCommandPilot = cardController.Data.IsCommand();
             List<CardController> mountTargets = GetMountableUnits(ownerType);
+
             if (mountTargets.Count == 0)
             {
-                Debug.Log("パイロットを乗せるユニットがバトルゾーンにいません。");
+                if (!isCommandPilot)
+                {
+                    Debug.Log("パイロットを乗せるユニットがバトルゾーンにいません。");
+                }
+
+                // 兼用カードは OnMain のみ残して終了（ユニット配備へ落とさない）
                 return;
             }
 
             int requiredExForPilot = Mathf.Max(0, cost - currentResource);
-            if (requiredExForPilot > 0)
+            if (requiredExForPilot > 0 && ownerState.exResource < requiredExForPilot)
             {
-                if (ownerState.exResource < requiredExForPilot)
+                if (!isCommandPilot)
                 {
                     Debug.Log("リソース不足のためパイロットを配備できません。");
-                    return;
                 }
 
+                return;
+            }
+
+            if (isCommandPilot)
+            {
+                Button mountBtn = FilterPanel.CreateChildButton("搭乗する（パイロット）");
+                RectTransform mountRt = mountBtn.GetComponent<RectTransform>();
+                mountRt.sizeDelta = new Vector2(280f, 50f);
+                mountRt.anchoredPosition = new Vector2(0f, handActionY);
+                closeBtnRect.anchoredPosition = new Vector2(0, handActionY - 70f);
+
+                int exForMount = requiredExForPilot;
+                mountBtn.onClick.AddListener(() =>
+                {
+                    if (exForMount > 0)
+                    {
+                        ShowPilotMountExConfirmThenTargets(
+                            FilterPanel,
+                            cardController,
+                            ownerType,
+                            ownerSide,
+                            cost,
+                            exForMount);
+                    }
+                    else
+                    {
+                        ShowPilotMountTargetButtons(FilterPanel, cardController, ownerType, ownerSide, cost, 0);
+                    }
+                });
+                return;
+            }
+
+            if (requiredExForPilot > 0)
+            {
                 var exUseLabel = FilterPanel.CreateChildTextCustom("UseExPromptPilot", UIAnchor.TopCenter, 420, 60);
                 exUseLabel.text = $"Resource が {requiredExForPilot} 足りません。EXリソースを利用しますか？";
                 exUseLabel.fontSize = 20;
@@ -2515,7 +2557,7 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < hand.childCount; i++)
         {
             CardController cc = hand.GetChild(i).GetComponent<CardController>();
-            if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+            if (cc == null || cc.Data == null || !cc.Data.IsCommand())
             {
                 continue;
             }
@@ -4182,6 +4224,56 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
         return result;
+    }
+
+    private void ShowPilotMountExConfirmThenTargets(
+        GameObject filterPanel,
+        CardController pilotCard,
+        PlayerType ownerType,
+        Gundam2024RuleScript.PlayerSide ownerSide,
+        int cost,
+        int requiredEx)
+    {
+        if (filterPanel == null || pilotCard == null)
+        {
+            return;
+        }
+
+        foreach (Transform child in filterPanel.transform)
+        {
+            Button btn = child.GetComponent<Button>();
+            if (btn != null)
+            {
+                TextMeshProUGUI label = btn.GetComponentInChildren<TextMeshProUGUI>();
+                bool isClose = label != null && string.Equals(label.text, "close", System.StringComparison.OrdinalIgnoreCase);
+                if (!isClose)
+                {
+                    btn.interactable = false;
+                }
+            }
+        }
+
+        var exUseLabel = filterPanel.CreateChildTextCustom("UseExPromptPilot", UIAnchor.TopCenter, 420, 60);
+        exUseLabel.text = $"Resource が {requiredEx} 足りません。EXリソースを利用しますか？";
+        exUseLabel.fontSize = 20;
+        exUseLabel.alignment = TextAlignmentOptions.Center;
+        exUseLabel.color = Color.black;
+        exUseLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -160f);
+
+        var yesBtn = filterPanel.CreateChildButton($"Yes (Use EX:{requiredEx})");
+        RectTransform yesRt = yesBtn.GetComponent<RectTransform>();
+        yesRt.sizeDelta = new Vector2(220f, 50f);
+        yesRt.anchoredPosition = new Vector2(-125f, -230f);
+        yesBtn.onClick.AddListener(() =>
+        {
+            ShowPilotMountTargetButtons(filterPanel, pilotCard, ownerType, ownerSide, cost, requiredEx);
+        });
+
+        var noBtn = filterPanel.CreateChildButton("No");
+        RectTransform noRt = noBtn.GetComponent<RectTransform>();
+        noRt.sizeDelta = new Vector2(220f, 50f);
+        noRt.anchoredPosition = new Vector2(125f, -230f);
+        noBtn.onClick.AddListener(() => Destroy(filterPanel));
     }
 
     private void ShowPilotMountTargetButtons(
@@ -11284,7 +11376,7 @@ public partial class BattleGameMain : MonoBehaviour
             return sourceCard;
         }
 
-        if (sourceCard.Data.type == Type.Pilot && sourceCard.MountedUnit != null)
+        if (sourceCard.Data.IsPilot() && sourceCard.MountedUnit != null)
         {
             return sourceCard.MountedUnit;
         }
@@ -11355,7 +11447,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < hand.childCount; i++)
             {
                 CardController cc = hand.GetChild(i).GetComponent<CardController>();
-                if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+                if (cc == null || cc.Data == null || !cc.Data.IsCommand())
                 {
                     continue;
                 }
@@ -11388,7 +11480,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int vi = 0; vi < hand.childCount; vi++)
             {
                 CardController cc = hand.GetChild(vi).GetComponent<CardController>();
-                if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+                if (cc == null || cc.Data == null || !cc.Data.IsCommand())
                 {
                     continue;
                 }
@@ -13570,7 +13662,7 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < hand.childCount; i++)
             {
                 CardController cc = hand.GetChild(i).GetComponent<CardController>();
-                if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+                if (cc == null || cc.Data == null || !cc.Data.IsCommand())
                 {
                     continue;
                 }
@@ -13659,7 +13751,7 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                string typeLabel = command.Data.type == Type.Command ? "Command" : "Unit";
+                string typeLabel = CardTypeExtensions.GetDisplayName(command.Data.type);
                 bool alreadyUsedInActionStep = useAlternatingActionStepUi
                     && IsActionStepCardUsedForSide(side, command);
                 AppendSelectableCommandCardToGrid(
@@ -14815,7 +14907,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (source.Data.type == Type.Command)
+        if (source.Data.IsCommand())
         {
             if (side == PlayerType.Player)
             {

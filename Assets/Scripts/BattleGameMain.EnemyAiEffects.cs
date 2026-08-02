@@ -1007,7 +1007,7 @@ public partial class BattleGameMain
         for (int i = 0; i < hand.childCount; i++)
         {
             CardController cc = hand.GetChild(i).GetComponent<CardController>();
-            if (cc == null || cc.Data == null || cc.Data.type != Type.Command)
+            if (cc == null || cc.Data == null || !cc.Data.IsCommand())
             {
                 continue;
             }

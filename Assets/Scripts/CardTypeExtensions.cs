@@ -30,20 +30,57 @@ public static class CardTypeExtensions
         return card != null && IsUnitToken(card.type);
     }
 
+    /// <summary>パイロットとして搭乗できる種類（Pilot / CommandPilot）。</summary>
     public static bool IsPilot(Type cardType)
     {
-        return cardType == Type.Pilot;
+        return cardType == Type.Pilot || cardType == Type.CommandPilot;
     }
 
     public static bool IsPilot(this CardData card)
     {
         return card != null && IsPilot(card.type);
     }
-   
 
-    public static string CardFeature(this CardFeatureData cardFeature){
+    /// <summary>コマンドとしてアクション／メインで使える種類（Command / CommandPilot）。</summary>
+    public static bool IsCommand(Type cardType)
+    {
+        return cardType == Type.Command || cardType == Type.CommandPilot;
+    }
+
+    public static bool IsCommand(this CardData card)
+    {
+        return card != null && IsCommand(card.type);
+    }
+
+    /// <summary>
+    /// 効果の targetCardType 絞り込み。
+    /// Pilot / Command 指定時は兼用の CommandPilot も含める。
+    /// </summary>
+    public static bool MatchesTypeFilter(Type required, Type actual)
+    {
+        if (required == actual)
+        {
+            return true;
+        }
+
+        if (required == Type.Pilot)
+        {
+            return IsPilot(actual);
+        }
+
+        if (required == Type.Command)
+        {
+            return IsCommand(actual);
+        }
+
+        return false;
+    }
+
+    public static string CardFeature(this CardFeatureData cardFeature)
+    {
         return cardFeature?.displayName;
     }
+
     /// <summary>Inspector / UI 向けの日本語ラベル。</summary>
     public static string GetDisplayName(Type cardType)
     {
@@ -61,6 +98,8 @@ public static class CardTypeExtensions
                 return "EXリソース";
             case Type.UnitToken:
                 return "ユニットトークン";
+            case Type.CommandPilot:
+                return "コマンドパイロット";
             default:
                 return cardType.ToString();
         }

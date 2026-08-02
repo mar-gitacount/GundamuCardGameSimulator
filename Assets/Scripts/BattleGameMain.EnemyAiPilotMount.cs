@@ -85,7 +85,7 @@ public partial class BattleGameMain
         for (int i = 0; i < hand.Count; i++)
         {
             CardController cc = hand[i];
-            if (cc == null || cc.Data == null || cc.Data.type != Type.Pilot)
+            if (cc == null || cc.Data == null || !cc.Data.IsPilot())
             {
                 continue;
             }

@@ -922,7 +922,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     public bool TryAttachPilot(CardController pilot)
     {
-        if (!CanMountPilot() || pilot == null || pilot.Data == null || pilot.Data.type != Type.Pilot)
+        if (!CanMountPilot() || pilot == null || pilot.Data == null || !pilot.Data.IsPilot())
         {
             return false;
         }

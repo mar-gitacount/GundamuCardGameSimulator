@@ -907,7 +907,7 @@ public static class EffectDataExtensions
             return true;
         }
 
-        return card != null && card.type == effect.targetCardType;
+        return card != null && CardTypeExtensions.MatchesTypeFilter(effect.targetCardType, card.type);
     }
 
     public static string FormatTargetFeaturesLabel(this EffectData effect, string separator = "・")
@@ -1406,7 +1406,7 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.filterByTargetCardType && unit.Data.type != effect.targetCardType)
+        if (effect.filterByTargetCardType && !effect.MatchesTargetCardTypeFilter(unit.Data))
         {
             return false;
         }
@@ -1445,7 +1445,7 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.filterByTargetCardType && card.type != effect.targetCardType)
+        if (effect.filterByTargetCardType && !effect.MatchesTargetCardTypeFilter(card))
         {
             return false;
         }
@@ -1466,7 +1466,7 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.filterByTargetCardType && card.type != effect.targetCardType)
+        if (effect.filterByTargetCardType && !effect.MatchesTargetCardTypeFilter(card))
         {
             return false;
         }

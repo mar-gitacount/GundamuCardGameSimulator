@@ -82,7 +82,7 @@ public static class UnitLinkExtensions
     /// <summary>搭乗パイロットが Link 条件（いずれかスロット）に一致するか。搭乗可否には使わない。</summary>
     public static bool MatchesLinkPilot(CardData unitData, CardData pilotData)
     {
-        if (!HasLinkRequirements(unitData) || pilotData == null || pilotData.type != Type.Pilot)
+        if (!HasLinkRequirements(unitData) || pilotData == null || !pilotData.IsPilot())
         {
             return false;
         }

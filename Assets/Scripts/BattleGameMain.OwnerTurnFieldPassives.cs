@@ -240,13 +240,13 @@ public partial class BattleGameMain
                 }
 
                 if (timed.timing == EffectTiming.OnPilotMounted
-                    && unit.Data.type == Type.Pilot
+                    && unit.Data.IsPilot()
                     && unit.MountedUnit == null)
                 {
                     continue;
                 }
 
-                EffectActivationContext ctx = unit.Data.type == Type.Pilot && unit.MountedUnit != null
+                EffectActivationContext ctx = unit.Data.IsPilot() && unit.MountedUnit != null
                     ? BuildPilotMountActivationContext(side, unit, unit.MountedUnit, unit)
                     : BuildActivationContext(side, unit);
                 if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))

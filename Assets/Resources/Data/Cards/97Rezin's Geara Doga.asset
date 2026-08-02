@@ -30,9 +30,8 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
   link:
-  - pilotCardId: 0
-    pilotFeatures:
-    - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  - pilotCardId: 107
+    pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0

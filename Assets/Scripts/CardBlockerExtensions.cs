@@ -16,7 +16,7 @@ public static class CardBlockerExtensions
     /// </summary>
     public static bool IsBlockerGrantingPilot(this CardData pilot)
     {
-        return pilot != null && pilot.type == Type.Pilot && pilot.isBlocker;
+        return pilot != null && pilot.IsPilot() && pilot.isBlocker;
     }
 
     /// <summary>
