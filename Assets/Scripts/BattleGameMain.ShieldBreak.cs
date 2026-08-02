@@ -82,6 +82,25 @@ public partial class BattleGameMain
         return false;
     }
 
+    private static bool HasDeploySelfToShieldOnBurst(CardData data)
+    {
+        if (data == null)
+        {
+            return false;
+        }
+
+        List<EffectData> effects = TimedEffectResolver.CollectEffectsByTiming(data, EffectTiming.OnBurst);
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (effects[i] != null && effects[i].type == EffectType.DeploySelfToShield)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool IsBaseCardWithDeployBaseBurst(CardData data)
     {
         return data != null && data.type == Type.Base && HasDeployBaseOnBurst(data);
@@ -122,7 +141,7 @@ public partial class BattleGameMain
         return list != null && list.Contains(zoneIndex);
     }
 
-    /// <summary>バースト後に場に残すのは手札・ベース枠のみ（シールドゾーンに残したままにしない）。</summary>
+    /// <summary>バースト後に場に残すのは手札・ベース枠・シールドゾーン再配備。</summary>
     private static bool IsBurstCardRetained(CardController card, CardGameRule rule)
     {
         if (card == null || rule == null)
@@ -135,7 +154,12 @@ public partial class BattleGameMain
             return true;
         }
 
-        return rule.BaseSlotContent != null && card.transform.IsChildOf(rule.BaseSlotContent);
+        if (rule.BaseSlotContent != null && card.transform.IsChildOf(rule.BaseSlotContent))
+        {
+            return true;
+        }
+
+        return rule.ShieldCardsContent != null && card.transform.IsChildOf(rule.ShieldCardsContent);
     }
 
     private IEnumerator WaitForShieldBreakFlowCompleteCoroutine()

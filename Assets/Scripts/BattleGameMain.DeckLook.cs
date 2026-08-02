@@ -237,6 +237,20 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.DeployBase
+            && effect.RequiresDeployBaseFromTrashSelection())
+        {
+            int baseMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyDeployBaseEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                baseMagnitude > 0 ? baseMagnitude : 1,
+                allowBurstSource: false,
+                onComplete: onChainContinue);
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.DeployUnit)
         {
             ApplyDeployUnitEffect(sourceCard, ownerType, effect, onChainContinue);
