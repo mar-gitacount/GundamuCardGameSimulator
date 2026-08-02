@@ -46,7 +46,11 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
-  link: []
+  link:
+  - pilotCardId: 0
+    pilotFeatures:
+    - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+    pilotFeatureIds: 58000000
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

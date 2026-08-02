@@ -53,7 +53,11 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
-  link: []
+  link:
+  - pilotCardId: 0
+    pilotFeatures:
+    - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+    pilotFeatureIds: 58000000
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

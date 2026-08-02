@@ -1405,7 +1405,9 @@ public partial class BattleGameMain : MonoBehaviour
                     ownerType == PlayerType.Player
                         ? Gundam2024RuleScript.PlayerSide.Enemy
                         : Gundam2024RuleScript.PlayerSide.Player);
-                bool allowShieldOrDirectAttack = !cardController.CannotDirectAttackPlayerOrShield()
+                bool forcedUnitAttack = HasForcedEnemyAttackTarget(ownerType, cardController);
+                bool allowShieldOrDirectAttack = !forcedUnitAttack
+                    && !cardController.CannotDirectAttackPlayerOrShield()
                     && (showShieldAttack || showDirectAttack);
 
                 if (allowShieldOrDirectAttack)
@@ -1431,9 +1433,11 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 var unitAttackBtn = FilterPanel.CreateChildButton(
-                    cardController.HasAttackActiveEnemyAbility()
-                        ? "Attack Unit (tap enemy unit)"
-                        : "Attack Unit (tap enemy REST unit)");
+                    HasForcedEnemyAttackTarget(ownerType, cardController)
+                        ? "Attack Unit (forced target)"
+                        : cardController.HasAttackActiveEnemyAbility()
+                            ? "Attack Unit (tap enemy unit)"
+                            : "Attack Unit (tap enemy REST unit)");
                 RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
                 unitAtkRect.sizeDelta = new Vector2(320, 50);
                 unitAtkRect.anchoredPosition = new Vector2(0, -70);
@@ -2076,7 +2080,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             bool canAttackShield = gundamRule.CanShowUnitShieldAttackOption(gundamRule.Player, unit.CurrentPower);
             bool canDirectAttack = !gundamRule.HasShieldZoneProtection(Gundam2024RuleScript.PlayerSide.Player);
-            bool canShieldOrDirectAttack = !unit.CannotDirectAttackPlayerOrShield() && (canAttackShield || canDirectAttack);
+            bool forcedUnitAttack = HasForcedEnemyAttackTarget(PlayerType.Enemy, unit);
+            bool canShieldOrDirectAttack = !forcedUnitAttack
+                && !unit.CannotDirectAttackPlayerOrShield()
+                && (canAttackShield || canDirectAttack);
             List<CardController> restTargets = GetEnemyUnitAttackTargets(PlayerType.Enemy, unit);
             bool canAttackUnit = restTargets.Count > 0;
             if (!canShieldOrDirectAttack && !canAttackUnit)
@@ -2226,31 +2233,140 @@ public partial class BattleGameMain : MonoBehaviour
         return rest;
     }
 
-    /// <summary>攻撃者がユニット戦で選べる敵ユニット一覧（通常は REST のみ。アクティブ攻撃効果で ACTIVE も可）。</summary>
+    /// <summary>攻撃者がユニット戦で選べる敵ユニット一覧（通常は REST のみ。アクティブ攻撃効果で ACTIVE も可）。強制攻撃対象がある場合はそのみ。</summary>
     private List<CardController> GetEnemyUnitAttackTargets(PlayerType attackerOwner, CardController attacker)
     {
         List<CardController> enemies = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> legal = new List<CardController>(enemies.Count);
         if (attacker == null || !attacker.HasAttackActiveEnemyAbility())
         {
-            return GetAliveRestEnemyUnitsForOwner(attackerOwner);
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                CardController enemy = enemies[i];
+                if (enemy != null && enemy.IsRestState)
+                {
+                    legal.Add(enemy);
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                CardController enemy = enemies[i];
+                if (enemy == null)
+                {
+                    continue;
+                }
+
+                if (enemy.IsRestState || attacker.CanAttackerTargetActiveEnemy(enemy))
+                {
+                    legal.Add(enemy);
+                }
+            }
         }
 
-        List<CardController> result = new List<CardController>(enemies.Count);
+        return FilterEnemyUnitAttackTargetsByForce(attackerOwner, attacker, legal);
+    }
+
+    /// <summary>
+    /// 攻撃者に対し、敵側の ForceEnemyAttackTarget が有効な強制攻撃対象一覧。
+    /// 「可能なら」＝通常のユニット攻撃対象として合法な場合のみ。
+    /// </summary>
+    private List<CardController> CollectForcedEnemyAttackTargets(PlayerType attackerOwner, CardController attacker)
+    {
+        var forced = new List<CardController>(2);
+        if (attacker == null)
+        {
+            return forced;
+        }
+
+        List<CardController> enemies = GetAliveEnemyUnits(attackerOwner);
+        EffectActivationContext attackerCtx = BuildOnAttackActivationContext(attackerOwner, attacker);
         for (int i = 0; i < enemies.Count; i++)
         {
-            CardController enemy = enemies[i];
-            if (enemy == null)
+            CardController host = enemies[i];
+            if (host == null || !CanAttackerTargetEnemyUnitForCombat(attacker, host))
             {
                 continue;
             }
 
-            if (enemy.IsRestState || attacker.CanAttackerTargetActiveEnemy(enemy))
+            if (DoesUnitForceEnemyAttackTarget(host, attacker, attackerOwner, attackerCtx))
             {
-                result.Add(enemy);
+                forced.Add(host);
             }
         }
 
-        return result;
+        return forced;
+    }
+
+    /// <summary>強制攻撃対象が1体以上あるか（シールド／直接攻撃を封じる判定用）。</summary>
+    private bool HasForcedEnemyAttackTarget(PlayerType attackerOwner, CardController attacker)
+    {
+        return CollectForcedEnemyAttackTargets(attackerOwner, attacker).Count > 0;
+    }
+
+    /// <summary>合法候補を、有効な強制攻撃対象があるときそれのみに絞り込む。</summary>
+    private List<CardController> FilterEnemyUnitAttackTargetsByForce(
+        PlayerType attackerOwner,
+        CardController attacker,
+        List<CardController> legalTargets)
+    {
+        List<CardController> forced = CollectForcedEnemyAttackTargets(attackerOwner, attacker);
+        if (forced.Count == 0)
+        {
+            return legalTargets;
+        }
+
+        return forced;
+    }
+
+    /// <summary>ホスト（本体＋搭乗パイロット）の ForceEnemyAttackTarget が、この攻撃者に対して有効か。</summary>
+    private bool DoesUnitForceEnemyAttackTarget(
+        CardController host,
+        CardController attacker,
+        PlayerType attackerOwner,
+        EffectActivationContext attackerCtx)
+    {
+        if (host == null || attacker == null)
+        {
+            return false;
+        }
+
+        var abilities = new List<CardForceEnemyAttackExtensions.ForceEnemyAttackAbility>(2);
+        CardForceEnemyAttackExtensions.CollectForceEnemyAttackAbilities(host, abilities);
+        if (abilities.Count == 0)
+        {
+            return false;
+        }
+
+        PlayerType hostOwner = ResolveCardOwner(host.transform);
+        EffectActivationContext hostCtx = BuildOnAttackActivationContext(hostOwner, host);
+
+        for (int i = 0; i < abilities.Count; i++)
+        {
+            CardForceEnemyAttackExtensions.ForceEnemyAttackAbility ability = abilities[i];
+            if (ability.Effect == null)
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreAllConditionsMet(ability.HostConditions, hostCtx))
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreAllConditionsMet(
+                    ability.Effect.effectActivationConditions,
+                    attackerCtx ?? BuildOnAttackActivationContext(attackerOwner, attacker)))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private static bool CanAttackerTargetEnemyUnitForCombat(CardController attacker, CardController target)
@@ -4858,7 +4974,18 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        return IsUnitAliveOnAnyDeployField(target);
+        if (!IsUnitAliveOnAnyDeployField(target))
+        {
+            return false;
+        }
+
+        List<CardController> forced = CollectForcedEnemyAttackTargets(attackerOwner, attacker);
+        if (forced.Count > 0)
+        {
+            return forced.Contains(target);
+        }
+
+        return true;
     }
 
     /// <summary>「相手ユニットを攻撃」後のターゲット解決。true のときは以降のフィルター処理を行わない。</summary>
@@ -4936,9 +5063,11 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> enemyUnits = GetEnemyUnitAttackTargets(attackerOwner, attacker);
         if (enemyUnits.Count == 0)
         {
-            Debug.Log(attacker.HasAttackActiveEnemyAbility()
-                ? "No enemy units to attack."
-                : "No REST enemy units to attack.");
+            Debug.Log(HasForcedEnemyAttackTarget(attackerOwner, attacker)
+                ? "Forced attack target is not attackable."
+                : attacker.HasAttackActiveEnemyAbility()
+                    ? "No enemy units to attack."
+                    : "No REST enemy units to attack.");
             return;
         }
 
@@ -4951,9 +5080,11 @@ public partial class BattleGameMain : MonoBehaviour
         bg.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("AttackEnemyTitle", UIAnchor.TopCenter, 620, 48);
-        title.text = attacker.HasAttackActiveEnemyAbility()
-            ? "Select enemy unit to attack (REST or ACTIVE)"
-            : "Select REST enemy unit to attack";
+        title.text = HasForcedEnemyAttackTarget(attackerOwner, attacker)
+            ? "Select forced attack target"
+            : attacker.HasAttackActiveEnemyAbility()
+                ? "Select enemy unit to attack (REST or ACTIVE)"
+                : "Select REST enemy unit to attack";
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -6099,6 +6230,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.AttackActiveEnemyUnit:
                     // AttackActiveEnemyUnit は攻撃対象判定で解釈するため、ここでは何もしない。
                     break;
+                case EffectType.ForceEnemyAttackTarget:
+                    // ForceEnemyAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
+                    break;
                 case EffectType.Bounce:
                     break;
                 case EffectType.Rest:
@@ -6239,12 +6373,19 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        PlayerType shieldAttackOwnerEarly = ResolveCardOwner(attacker.transform);
+        if (HasForcedEnemyAttackTarget(shieldAttackOwnerEarly, attacker))
+        {
+            Debug.Log("This unit must attack a forced enemy unit target (cannot attack shield/player).");
+            return;
+        }
+
         if (currentPhase != BattlePhase.MainPhase)
         {
             return;
         }
 
-        PlayerType attackerOwner = ResolveCardOwner(attacker.transform);
+        PlayerType attackerOwner = shieldAttackOwnerEarly;
         if (attackerOwner != currentPlayerType)
         {
             return;
@@ -6968,6 +7109,12 @@ public partial class BattleGameMain : MonoBehaviour
         if (!attacker.Data.IsUnitLike() || !defender.Data.IsUnitLike())
         {
             Debug.Log("Only units can attack each other.");
+            return;
+        }
+
+        if (!IsValidEnemyUnitAttackTarget(attacker, defender, attackerOwner))
+        {
+            Debug.Log("Invalid unit attack target (forced attack or illegal combat target).");
             return;
         }
 
@@ -10527,6 +10674,11 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[Effect] AttackActiveEnemyUnit marker by cardId:{sourceCard.Data.id}");
                 break;
 
+            case EffectType.ForceEnemyAttackTarget:
+                // ForceEnemyAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
+                Debug.Log($"[Effect] ForceEnemyAttackTarget marker by cardId:{sourceCard.Data.id}");
+                break;
+
             case EffectType.Suppress:
                 // 制圧は TryResolveShieldAttackStrikeDamage でのみ解決する。
                 break;
@@ -12290,6 +12442,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.AttackActiveEnemyUnit:
                     notes.Append("[AttackActiveEnemyUnit] ");
                     continue;
+                case EffectType.ForceEnemyAttackTarget:
+                    notes.Append("[ForceEnemyAttackTarget] ");
+                    continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
                     continue;
@@ -12437,6 +12592,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.AttackActiveEnemyUnit:
                     notes.Append("[AttackActiveEnemyUnit] ");
+                    continue;
+                case EffectType.ForceEnemyAttackTarget:
+                    notes.Append("[ForceEnemyAttackTarget] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
