@@ -740,6 +740,72 @@ public class CardGameRule
 
     public bool HasShieldCardInZone => GetShieldZoneCardCount() > 0;
 
+    /// <summary>シールドゾーンの登録リストに載っているか（親 Transform だけ残っているゾンビは false）。</summary>
+    public bool IsRegisteredInShieldZone(CardController cc)
+    {
+        return cc != null && shieldControllersInDrawOrder.Contains(cc);
+    }
+
+    /// <summary>
+    /// 破壊切り離し後も UI 親がシールドゾーンのままのカードを、ゾーン登録に戻す
+    /// （DeploySelfToShield バースト用）。
+    /// </summary>
+    public bool TryReregisterDetachedShieldCard(CardController cc)
+    {
+        if (cc == null || cc.Data == null || shieldCardsContent == null)
+        {
+            return false;
+        }
+
+        if (IsRegisteredInShieldZone(cc))
+        {
+            return true;
+        }
+
+        if (!cc.transform.IsChildOf(shieldCardsContent))
+        {
+            return false;
+        }
+
+        shieldCardIds.Add(cc.Data.id);
+        shieldControllersInDrawOrder.Add(cc);
+        cc.SetShieldFaceHidden(true);
+        cc.SetEligibleForShieldZoneDeploy(false);
+        RectTransform cardRect = cc.GetComponent<RectTransform>();
+        if (cardRect != null && shieldGrid != null)
+        {
+            cardRect.localScale = Vector3.one;
+            cardRect.sizeDelta = shieldGrid.cellSize;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 登録リストに無いのにシールドゾーン配下に残っているカード UI を破棄する。
+    /// 破壊時にリストだけ外れて GameObject が残る不整合の掃除。
+    /// </summary>
+    public void DestroyUnregisteredShieldZoneVisuals()
+    {
+        if (shieldCardsContent == null)
+        {
+            return;
+        }
+
+        PruneStaleShieldZoneEntries();
+        HashSet<CardController> registered = new HashSet<CardController>(shieldControllersInDrawOrder);
+        for (int i = shieldCardsContent.childCount - 1; i >= 0; i--)
+        {
+            CardController cc = shieldCardsContent.GetChild(i).GetComponent<CardController>();
+            if (cc == null || registered.Contains(cc))
+            {
+                continue;
+            }
+
+            UnityEngine.Object.Destroy(cc.gameObject);
+        }
+    }
+
     /// <summary>シールドゾーン登録から外す（ベース配備などでゾーンを離れるとき）。</summary>
     public bool TryUnregisterShieldZoneCard(CardController cc)
     {

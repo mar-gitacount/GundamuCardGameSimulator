@@ -3384,6 +3384,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        rule.DestroyUnregisteredShieldZoneVisuals();
         gundamRule.SyncShieldCountFromZone(side, rule.GetShieldZoneCardCount());
     }
 

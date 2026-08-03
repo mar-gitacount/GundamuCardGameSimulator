@@ -516,8 +516,18 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (rule.ShieldCardsContent != null && card.transform.IsChildOf(rule.ShieldCardsContent))
+        if (rule.IsRegisteredInShieldZone(card))
         {
+            return true;
+        }
+
+        // 破壊切り離し後は親だけシールドゾーンに残るため、再登録してから成功扱い。
+        if (rule.TryReregisterDetachedShieldCard(card))
+        {
+            Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+            gundamRule.AddShieldCount(ruleSide, 1);
+            TriggerShieldDeployedEffects(card, ownerType);
+            SyncResourceViewsFromRule(ruleSide);
             return true;
         }
 
