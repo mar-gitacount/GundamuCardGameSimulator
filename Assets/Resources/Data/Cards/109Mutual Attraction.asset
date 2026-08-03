@@ -1,0 +1,47 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 109Mutual Attraction
+  m_EditorClassIdentifier: 
+  id: 109
+  cardName: 'Mutual Attraction '
+  cost: 3
+  level: 3
+  power: 0
+  hp: 0
+  imageName: {fileID: 1715126928373760792, guid: 52fd8dfe9e0fa7d4eb543732ab5452eb, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 1
+  filterType: 0
+  color: 1
+  type: 2
+  attackFlg: 0
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnMain_Choose_RestResource1_Or_TrashPilotLv5ToHand
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0

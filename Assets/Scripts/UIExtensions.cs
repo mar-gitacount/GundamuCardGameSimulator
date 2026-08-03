@@ -16,6 +16,114 @@ using TMPro;
     }
 public static class UIExtensions
 {
+    private const string JapaneseFontResourcePath = "SourceHanSansJP-Regular SDF";
+    private static TMP_FontAsset _japaneseFont;
+    private static bool _japaneseFontLoadAttempted;
+
+    /// <summary>動的生成 TMP に日本語フォントを適用する（未設定だと漢字・かなが出ない）。</summary>
+    public static void ApplyJapaneseFont(this TMP_Text tmp)
+    {
+        if (tmp == null)
+        {
+            return;
+        }
+
+        TMP_FontAsset font = GetJapaneseFontAsset();
+        if (font != null)
+        {
+            tmp.font = font;
+            if (font.material != null)
+            {
+                tmp.fontSharedMaterial = font.material;
+            }
+        }
+    }
+
+    /// <summary>文言設定後にもう一度フォントを当て、動的アトラスへ字形を取り込む。</summary>
+    public static void SetTextWithJapaneseFont(this TMP_Text tmp, string text)
+    {
+        if (tmp == null)
+        {
+            return;
+        }
+
+        tmp.ApplyJapaneseFont();
+        tmp.text = text ?? string.Empty;
+        tmp.ForceMeshUpdate(true);
+    }
+
+    private static TMP_FontAsset GetJapaneseFontAsset()
+    {
+        if (_japaneseFont != null)
+        {
+            return _japaneseFont;
+        }
+
+        if (_japaneseFontLoadAttempted)
+        {
+            return null;
+        }
+
+        _japaneseFontLoadAttempted = true;
+
+        // まず OS 日本語フォント（字形欠けが起きにくい）
+        _japaneseFont = TryCreateOsJapaneseFontAsset();
+        if (_japaneseFont == null)
+        {
+            _japaneseFont = Resources.Load<TMP_FontAsset>(JapaneseFontResourcePath);
+        }
+
+        if (_japaneseFont == null)
+        {
+            _japaneseFont = Resources.Load<TMP_FontAsset>("Fonts/" + JapaneseFontResourcePath);
+        }
+
+        if (_japaneseFont == null)
+        {
+            Debug.LogWarning(
+                $"[UIExtensions] 日本語フォントを読めませんでした ({JapaneseFontResourcePath})。");
+        }
+
+        return _japaneseFont;
+    }
+
+    private static TMP_FontAsset TryCreateOsJapaneseFontAsset()
+    {
+        string[] candidates =
+        {
+            "Yu Gothic UI",
+            "Yu Gothic",
+            "Meiryo UI",
+            "Meiryo",
+            "MS Gothic",
+            "Noto Sans CJK JP",
+            "Hiragino Sans"
+        };
+
+        try
+        {
+            Font osFont = Font.CreateDynamicFontFromOSFont(candidates, 40);
+            if (osFont == null)
+            {
+                return null;
+            }
+
+            TMP_FontAsset asset = TMP_FontAsset.CreateFontAsset(osFont);
+            if (asset != null)
+            {
+                asset.name = "RuntimeOsJapaneseFont";
+                Debug.Log("[UIExtensions] OS 日本語フォントを使用: " + osFont.name);
+            }
+
+            return asset;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning("[UIExtensions] OS 日本語フォント生成に失敗: " + ex.Message);
+            return null;
+        }
+    }
+
     /// <summary>
     /// UIを親要素いっぱいに広げる（Stretch設定）
     /// </summary>
@@ -211,6 +319,7 @@ public static class UIExtensions
 
         // 2. TextMeshProUGUI コンポーネントの取得と初期設定
         var tmp = textObj.GetComponent<TextMeshProUGUI>();
+        tmp.ApplyJapaneseFont();
         tmp.text = "New Text";
         tmp.fontSize = 24;
         tmp.color = Color.white;
@@ -302,7 +411,7 @@ public static GameObject CreateChildImageFrom(this GameObject parent, GameObject
 
         // 3. テキストの設定
         var tmp = textObj.GetComponent<TextMeshProUGUI>();
-        tmp.text = labelText;
+        tmp.SetTextWithJapaneseFont(labelText);
         tmp.fontSize = 24;
         tmp.color = Color.black;
         tmp.alignment = TextAlignmentOptions.Center;

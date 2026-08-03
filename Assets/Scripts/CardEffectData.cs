@@ -157,7 +157,97 @@ public enum EffectType
     /// 効果破壊監視フラグをソースカードに立てる（Axis 等）。
     /// OnUnitDestroyedByOwnerEffect と組み合わせ、以降の OnMain 条件に使う。
     /// </summary>
-    ArmOwnerEffectDestroyFlag
+    ArmOwnerEffectDestroyFlag,
+    /// <summary>
+    /// 複数の効果枝から1つを選んで発動する（XOR）。
+    /// choiceBranches に日本語／英語ラベルと各枝の effects / effectsName を定義する。
+    /// </summary>
+    ChooseOne,
+    /// <summary>
+    /// リソースを value 個「レストで置く」（Place rested Resource）。
+    /// level を増やし、追加分はレストのため当ターンの利用可能 resource には加えない。
+    /// 次ターン開始のリフレッシュで resource = level となる。0 以下は 1 扱い。
+    /// </summary>
+    RestResource,
+    /// <summary>
+    /// トラッシュから value 枚を手札へ加える。
+    /// filterByTargetCardType / targetFeature / targetUnitFilterStat（CardData 基準）で候補を絞る。
+    /// </summary>
+    AddFromTrashToHand
+}
+
+/// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
+[Serializable]
+public class EffectChoiceBranch
+{
+    [Tooltip("選択肢の日本語文言（UI 表示）。")]
+    public string labelJa;
+
+    [Tooltip("選択肢の英語文言（UI 表示）。")]
+    public string labelEn;
+
+    [Tooltip("設定時は named_effect_master.json のプリセット。空なら effects を使用。")]
+    public string effectsName;
+
+    [Tooltip("effectsName が空のときのインライン効果。")]
+    public EffectData[] effects = Array.Empty<EffectData>();
+}
+
+/// <summary><see cref="EffectChoiceBranch"/> の解決ヘルパー。</summary>
+public static class EffectChoiceBranchExtensions
+{
+    public static IReadOnlyList<EffectData> GetResolvedEffects(this EffectChoiceBranch branch)
+    {
+        if (branch == null)
+        {
+            return Array.Empty<EffectData>();
+        }
+
+        if (!string.IsNullOrWhiteSpace(branch.effectsName))
+        {
+            IReadOnlyList<EffectData> named = NamedEffectSetRegistry.GetEffects(branch.effectsName.Trim());
+            if (named != null && named.Count > 0)
+            {
+                return named;
+            }
+        }
+
+        if (branch.effects == null || branch.effects.Length == 0)
+        {
+            return Array.Empty<EffectData>();
+        }
+
+        List<EffectData> list = new List<EffectData>(branch.effects.Length);
+        for (int i = 0; i < branch.effects.Length; i++)
+        {
+            if (branch.effects[i] != null)
+            {
+                list.Add(branch.effects[i]);
+            }
+        }
+
+        return list;
+    }
+
+    public static string GetDisplayLabelJa(this EffectChoiceBranch branch)
+    {
+        if (branch == null)
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(branch.labelJa) ? branch.labelEn : branch.labelJa;
+    }
+
+    public static string GetDisplayLabelEn(this EffectChoiceBranch branch)
+    {
+        if (branch == null)
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(branch.labelEn) ? branch.labelJa : branch.labelEn;
+    }
 }
 
 /// <summary><see cref="EffectType.DeployUnit"/> の配備元ゾーン。</summary>
@@ -799,6 +889,15 @@ public class EffectData
         "Destroy 等の手動ユニット選択: true のとき効果オーナーではなく相手プレイヤーが対象を選ぶ。"
         + "例: 攻撃側が Destroy(EnemyUnit) を解決し、相手が自分のユニット1体を選んで破壊する。")]
     public bool opponentChoosesTarget;
+
+    [Tooltip("ChooseOne: 選択肢一覧。各枝から1つだけ発動する。")]
+    public EffectChoiceBranch[] choiceBranches = Array.Empty<EffectChoiceBranch>();
+
+    [Tooltip("ChooseOne: UI タイトル直下の日本語プロンプト。")]
+    public string choicePromptJa;
+
+    [Tooltip("ChooseOne: UI タイトル直下の英語プロンプト。")]
+    public string choicePromptEn;
 }
 
 /// <summary><see cref="EffectData"/> のチェーン条件ヘルパー。</summary>
@@ -908,6 +1007,63 @@ public static class EffectDataExtensions
         }
 
         return card != null && CardTypeExtensions.MatchesTypeFilter(effect.targetCardType, card.type);
+    }
+
+    /// <summary>
+    /// トラッシュ等・カード実体がない候補向け。targetUnitFilterStat を CardData の印刷値で判定する。
+    /// </summary>
+    public static bool MatchesCardDataStatFilter(this EffectData effect, CardData card)
+    {
+        if (effect == null || !effect.HasTargetUnitStatFilter())
+        {
+            return true;
+        }
+
+        if (card == null)
+        {
+            return false;
+        }
+
+        EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+        if (statFilter == EffectTargetUnitFilterStat.Unset)
+        {
+            return true;
+        }
+
+        return EffectCompareHelper.Compare(
+            GetCardDataFilterStatValue(card, statFilter),
+            effect.targetUnitStatCompareValue,
+            effect.targetUnitStatCompareOp);
+    }
+
+    public static int GetCardDataFilterStatValue(CardData card, EffectTargetUnitFilterStat stat)
+    {
+        if (card == null)
+        {
+            return 0;
+        }
+
+        switch (stat)
+        {
+            case EffectTargetUnitFilterStat.AP:
+                return card.power;
+            case EffectTargetUnitFilterStat.HP:
+                return card.hp;
+            case EffectTargetUnitFilterStat.Cost:
+                return card.cost;
+            case EffectTargetUnitFilterStat.Level:
+                return card.IsUnitToken() ? 0 : card.level;
+            default:
+                return 0;
+        }
+    }
+
+    public static bool IsChooseOneEffect(this EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.ChooseOne
+            && effect.choiceBranches != null
+            && effect.choiceBranches.Length > 0;
     }
 
     public static string FormatTargetFeaturesLabel(this EffectData effect, string separator = "・")

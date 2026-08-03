@@ -319,6 +319,42 @@ public class Gundam2024RuleScript
         return GetCurrentTurnUsageLogs(side);
     }
 
+    /// <summary>
+    /// 今ターンに cardId で最後に消費したリソース／EX を戻す（効果キャンセル用）。
+    /// </summary>
+    public bool TryRefundLastResourceUsageForCard(PlayerSide side, int cardId)
+    {
+        List<ResourceUsageLog> logs = GetCurrentTurnUsageLogs(side);
+        for (int i = logs.Count - 1; i >= 0; i--)
+        {
+            ResourceUsageLog log = logs[i];
+            if (log.cardId != cardId)
+            {
+                continue;
+            }
+
+            PlayerState state = GetState(side);
+            if (log.resourceUsed > 0)
+            {
+                state.resource += log.resourceUsed;
+            }
+
+            if (log.exUsed > 0)
+            {
+                state.exResource += log.exUsed;
+            }
+
+            state.resource = Mathf.Min(state.resource, state.TotalLevel);
+            logs.RemoveAt(i);
+            Debug.Log(
+                $"[ResourceRefund] side:{side} cardId:{cardId} "
+                + $"resource:{log.resourceUsed} ex:{log.exUsed}");
+            return true;
+        }
+
+        return false;
+    }
+
     public void AddExResource(PlayerSide side, int amount)
     {
         if (amount == 0)
@@ -329,6 +365,29 @@ public class Gundam2024RuleScript
         PlayerState state = GetState(side);
         state.exResource = Mathf.Max(0, state.exResource + amount);
         state.resource = Mathf.Min(state.resource, state.TotalLevel);
+    }
+
+    /// <summary>
+    /// リソースを amount 個レストで置く（Place rested Resource）。
+    /// level を増やし、追加分はレストのため当ターンの resource（利用可能数）には加えない。
+    /// maxLevel を超えても level は増える（Mutual Attraction 等）。
+    /// </summary>
+    public bool TryPlaceRestedResource(PlayerSide side, int amount)
+    {
+        PlayerState state = GetState(side);
+        int placeCount = Mathf.Max(1, amount);
+        state.level += placeCount;
+        // レスト配置のため resource は増やさない（次ターン GainLevelAndRefreshResource で同期）
+        Debug.Log(
+            $"[Resource] PlaceRestedResource x{placeCount} side:{side} "
+            + $"level:{state.level} activeResource:{state.resource}");
+        return true;
+    }
+
+    /// <summary>旧名互換。挙動は <see cref="TryPlaceRestedResource"/> と同じ。</summary>
+    public bool TryRestResource(PlayerSide side, int amount)
+    {
+        return TryPlaceRestedResource(side, amount);
     }
 
     /// <summary>
@@ -582,7 +641,13 @@ public class Gundam2024RuleScript
 
     private void GainLevelAndRefreshResource(PlayerState state)
     {
-        state.level = Mathf.Min(Config.maxLevel, state.level + Config.levelGainPerTurn);
+        // 通常は maxLevel までしか上がらない。
+        // 効果で maxLevel を超えた level は下げず、そのターンはレベル増加のみスキップしてリソース同期する。
+        if (state.level < Config.maxLevel)
+        {
+            state.level = Mathf.Min(Config.maxLevel, state.level + Config.levelGainPerTurn);
+        }
+
         // EXは自動でResourceに加算しない。必要時にボタン等で変換して使う。
         state.resource = state.level;
     }

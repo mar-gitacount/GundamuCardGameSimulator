@@ -3509,6 +3509,7 @@ public partial class BattleGameMain : MonoBehaviour
             || HasPendingRemoteOnDestroyedResolution
             || _pendingOnlineOpponentUnitPickRequestId > 0
             || _unitPilotEffectOrderUiOpen
+            || _effectChoiceUiOpen
             || _activeLookDeckPopupRoot != null
             || _activeHandDiscardRevealRoot != null
             || _activeOnActionCommandRevealRoot != null;
@@ -6242,6 +6243,18 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.RestResource)
+        {
+            ApplyRestResourceEffect(sourceCard, ownerType, effect);
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         List<CardController> pendingEffectDamageTrash = effect.type == EffectType.Damage
             ? new List<CardController>()
             : null;
@@ -6406,6 +6419,10 @@ public partial class BattleGameMain : MonoBehaviour
         else if (effect.type == EffectType.AddExResource)
         {
             ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+        }
+        else if (effect.type == EffectType.RestResource)
+        {
+            ApplyRestResourceEffect(sourceCard, ownerType, effect);
         }
 
         // Activate は ApplyActivateEffect 内で、実際に REST→ACTIVE になった対象だけを保存する。
@@ -10608,6 +10625,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.RestResource)
+        {
+            ApplyRestResourceEffect(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.ArmOwnerEffectDestroyFlag)
         {
             if (sourceCard != null)
@@ -10893,6 +10919,20 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.AddExResource:
                 ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.RestResource:
+                ApplyRestResourceEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ChooseOne:
+                Debug.LogWarning(
+                    $"[Effect] ChooseOne は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.AddFromTrashToHand:
+                Debug.LogWarning(
+                    $"[Effect] AddFromTrashToHand は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
                 break;
         }
 
@@ -11929,7 +11969,11 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.Suppress
             || effect.type == EffectType.Breach
             || effect.type == EffectType.EffectBattle
-            || effect.type == EffectType.RecoverHp)
+            || effect.type == EffectType.RecoverHp
+            || effect.type == EffectType.ChooseOne
+            || effect.type == EffectType.RestResource
+            || effect.type == EffectType.AddFromTrashToHand
+            || effect.type == EffectType.AddObservedToHandFromTrash)
         {
             return;
         }
@@ -14397,6 +14441,8 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         bool trashHandCardAfter = IsOnMainActivatedFromHand(source, side);
+        bool costWasPaid = !deferPayment;
+        _chooseOneCancelled = false;
         BeginEffectChainObservationScope();
         EffectActivationContext chainActivationContext = BuildOnMainChainActivationContext(side, source);
         TryExecuteOnMainEffectChain(
@@ -14409,7 +14455,31 @@ public partial class BattleGameMain : MonoBehaviour
             () =>
             {
                 EndEffectChainObservationScope();
+                bool cancelled = _chooseOneCancelled;
+                _chooseOneCancelled = false;
                 ClearOnMainPaidBlock();
+
+                if (cancelled)
+                {
+                    if (costWasPaid && source?.Data != null && gundamRule != null)
+                    {
+                        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
+                        if (gundamRule.TryRefundLastResourceUsageForCard(ruleSide, source.Data.id))
+                        {
+                            SyncResourceViewsFromRule(ruleSide);
+                        }
+                    }
+
+                    if (timed != null && timed.oncePerTurn)
+                    {
+                        ClearPaidActivationUseThisTurn(side, source, entry.BlockIndex);
+                    }
+
+                    Debug.Log($"[OnMain] ChooseOne cancelled — card kept in hand (cardId:{source?.Data?.id})");
+                    onDone?.Invoke();
+                    return;
+                }
+
                 if (trashHandCardAfter)
                 {
                     FinalizeOnMainSourceCard(source, side);
@@ -15055,6 +15125,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         _unitPilotEffectOrderUiOpen = false;
+        _effectChoiceUiOpen = false;
         isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
     }
 
