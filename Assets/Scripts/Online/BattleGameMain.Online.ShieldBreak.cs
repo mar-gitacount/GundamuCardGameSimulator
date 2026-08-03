@@ -165,6 +165,7 @@ public partial class BattleGameMain
             enemyCardGameRule.CommitShieldCardToTrash(takenCards[i]);
         }
 
+        enemyCardGameRule.DestroyUnregisteredShieldZoneVisuals();
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Enemy, force: true);
         SyncAllResourceViewsFromRule();
         Debug.Log(

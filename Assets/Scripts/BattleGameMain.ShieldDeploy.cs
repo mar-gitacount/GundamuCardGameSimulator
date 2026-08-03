@@ -78,8 +78,21 @@ public partial class BattleGameMain
             return false;
         }
 
+        // ゾーン実カードを正とする（カウント二重減算などで state.shield だけ 0 になる不整合を補正）
+        int zoneCount = rule.GetShieldZoneCardCount();
+        if (zoneCount <= 0)
+        {
+            return false;
+        }
+
         Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
-        return state.shield > 0 && rule.HasShieldCardInZone;
+        if (state.shield <= 0 || state.shield != zoneCount)
+        {
+            gundamRule.SyncShieldCountFromZone(ruleSide, zoneCount);
+            state = GetRuleState(ruleSide);
+        }
+
+        return state.shield > 0;
     }
 
     private void RegisterShieldCardInHandLists(CardController card, PlayerType ownerType)
@@ -111,7 +124,18 @@ public partial class BattleGameMain
 
         if (!gundamRule.TryReduceShieldCountForHandMove(ruleSide, 1))
         {
-            return false;
+            // ゾーンにカードがあるのに減算できない場合は実体に合わせて再試行
+            int zoneCount = targetRule.GetShieldZoneCardCount();
+            if (zoneCount <= 0)
+            {
+                return false;
+            }
+
+            gundamRule.SyncShieldCountFromZone(ruleSide, zoneCount);
+            if (!gundamRule.TryReduceShieldCountForHandMove(ruleSide, 1))
+            {
+                return false;
+            }
         }
 
         if (!targetRule.TryMoveTopShieldCardToHand(targetRule.HandScrollContent, out CardController shieldCard))
@@ -120,9 +144,12 @@ public partial class BattleGameMain
             return false;
         }
 
+        shieldCard.gameObject.SetActive(true);
         shieldCard.SetEligibleForShieldZoneDeploy(true);
+        targetRule.ApplyHandZoneLayoutToCard(shieldCard);
         RegisterShieldCardInHandLists(shieldCard, targetType);
         TriggerOnHandAutoEffects(shieldCard, targetType, skipHandZoneCheck: true);
+        targetRule.RefreshHandCountDisplay();
         SyncResourceViewsFromRule(ruleSide);
         Debug.Log(
             $"[AddShieldToHand] {shieldCard.Data.cardName}(id:{shieldCard.Data.id}) shield zone → {targetType} hand (shield -1)");
@@ -265,19 +292,28 @@ public partial class BattleGameMain
         EffectData effect,
         int magnitude)
     {
-        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect.target);
+        // AddShieldToHand は常に効果オーナー側のシールドゾーンを参照（旧 JSON の target=EnemyAllUnits 互換）
+        PlayerType recipient = sourceOwner;
+        if (effect != null && effect.target == TargetType.EnemyPlayer)
+        {
+            recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect.target);
+        }
+
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(recipient);
         CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        int want = Mathf.Max(1, magnitude);
 
         int applied = 0;
-        for (int i = 0; i < magnitude; i++)
+        for (int i = 0; i < want; i++)
         {
             if (!TryMoveShieldFromZoneToHand(rule, recipient, ruleSide))
             {
                 if (applied == 0)
                 {
                     Debug.LogWarning(
-                        $"[AddShieldToHand] No shield available side:{recipient} (shield count or zone card missing).");
+                        $"[AddShieldToHand] No shield available side:{recipient} "
+                        + $"(stateShield:{(gundamRule != null ? GetRuleState(ruleSide).shield : -1)} "
+                        + $"zone:{rule?.GetShieldZoneCardCount() ?? -1})");
                 }
 
                 break;
@@ -287,7 +323,7 @@ public partial class BattleGameMain
         }
 
         Debug.Log(
-            $"[Effect] AddShieldToHand x{applied}/{magnitude} target:{effect.target} "
+            $"[Effect] AddShieldToHand x{applied}/{want} target:{(effect != null ? effect.target.ToString() : "?")} "
             + $"by cardId:{sourceCard?.Data?.id ?? -1}");
     }
 
@@ -485,6 +521,7 @@ public partial class BattleGameMain
         }
 
         rule.TryUnregisterShieldZoneCard(card);
+        card.gameObject.SetActive(true);
         card.RevealShieldFace();
         card.ResetRuntimeStatsFromData();
         card.CleanupUnitBattleMountVisuals();
@@ -532,6 +569,7 @@ public partial class BattleGameMain
         }
 
         // 破壊公開中はシールド解除済みのため、手札経由の可否チェックなしで再配備する。
+        card.gameObject.SetActive(true);
         if (!TryDeployCardToShieldZone(card, ownerType, rule, requireEligibleFromHand: false))
         {
             return false;
@@ -563,7 +601,7 @@ public partial class BattleGameMain
             return;
         }
 
-        List<EffectData> pendingEffects = new List<EffectData>();
+        List<EffectData> pendingManualEffects = new List<EffectData>();
         EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
@@ -601,13 +639,27 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                pendingEffects.Add(effect);
+                // 手動選択以外は即時解決（バースト配備→AddShieldToHand がコミット前に終わるようにする）
+                if (!EffectRequiresManualUnitSelection(effect))
+                {
+                    ApplyEffect(sourceCard, ownerType, effect);
+                }
+                else
+                {
+                    pendingManualEffects.Add(effect);
+                }
             }
         }
 
-        if (pendingEffects.Count > 0)
+        if (pendingManualEffects.Count > 0)
         {
-            StartCoroutine(ResolveTimedEffectsForCardCoroutine(sourceCard, ownerType, timing, pendingEffects));
+            StartCoroutine(ResolveTimedEffectsForCardCoroutine(sourceCard, ownerType, timing, pendingManualEffects));
+        }
+        else if (timing == EffectTiming.OnBaseDeployed
+            || timing == EffectTiming.OnShieldDeployed
+            || timing == EffectTiming.OnRest)
+        {
+            SyncAllResourceViewsFromRule();
         }
     }
 

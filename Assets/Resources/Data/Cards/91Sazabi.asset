@@ -35,6 +35,14 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 4
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Suppress2_OnShieldAttack
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
   link:

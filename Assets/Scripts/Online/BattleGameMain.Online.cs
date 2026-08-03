@@ -1555,6 +1555,8 @@ public partial class BattleGameMain
         }
         finally
         {
+            CardGameRule cleanupRule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
+            cleanupRule?.DestroyUnregisteredShieldZoneVisuals();
             ReconcileShieldStateWithZone(side, force: true);
             SyncAllResourceViewsFromRule();
             if (!shieldBreakQueueRunning && pendingShieldBreakBatches.Count == 0)

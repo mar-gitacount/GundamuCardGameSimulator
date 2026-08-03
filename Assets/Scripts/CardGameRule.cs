@@ -63,6 +63,8 @@ public class CardGameRule
     private CardController deployedBase;
     private readonly List<int> shieldCardIds = new List<int>();
     private readonly List<CardController> shieldControllersInDrawOrder = new List<CardController>();
+    /// <summary>シールド破壊で切り離したカードの一時退避（ゾーン UI に残さない）。</summary>
+    private Transform shieldBreakLimbo;
     /// <summary>
     /// デッキデータを元に、シャッフルされた山札を作成する
     /// </summary>
@@ -604,6 +606,26 @@ public class CardGameRule
         }
     }
 
+    private void EnsureShieldBreakLimbo()
+    {
+        if (shieldBreakLimbo != null)
+        {
+            return;
+        }
+
+        Transform limboParent = shieldPanelRoot != null
+            ? shieldPanelRoot.transform
+            : (fieldPanel != null ? fieldPanel.transform : null);
+        GameObject limbo = new GameObject("ShieldBreakLimbo");
+        if (limboParent != null)
+        {
+            limbo.transform.SetParent(limboParent, false);
+        }
+
+        limbo.SetActive(false);
+        shieldBreakLimbo = limbo.transform;
+    }
+
     /// <summary>破壊される先頭シールド1枚をリストから切り離し、表面を公開する。</summary>
     public bool TryTakeTopShieldCardForBreak(out ShieldBreakTaken taken)
     {
@@ -614,7 +636,50 @@ public class CardGameRule
     public int GetShieldZoneCardCount()
     {
         PruneStaleShieldZoneEntries();
+        RebuildShieldZoneListFromContentIfDesynced();
         return Mathf.Min(shieldControllersInDrawOrder.Count, shieldCardIds.Count);
+    }
+
+    /// <summary>
+    /// 子 Transform にカードがあるのに登録リストが空、などの不整合を子から再構築する。
+    /// </summary>
+    private void RebuildShieldZoneListFromContentIfDesynced()
+    {
+        if (shieldCardsContent == null)
+        {
+            return;
+        }
+
+        int childCardCount = 0;
+        for (int i = 0; i < shieldCardsContent.childCount; i++)
+        {
+            if (shieldCardsContent.GetChild(i).GetComponent<CardController>() != null)
+            {
+                childCardCount++;
+            }
+        }
+
+        if (childCardCount <= 0 || shieldControllersInDrawOrder.Count == childCardCount)
+        {
+            return;
+        }
+
+        shieldControllersInDrawOrder.Clear();
+        shieldCardIds.Clear();
+        for (int i = 0; i < shieldCardsContent.childCount; i++)
+        {
+            CardController cc = shieldCardsContent.GetChild(i).GetComponent<CardController>();
+            if (cc == null || cc.Data == null)
+            {
+                continue;
+            }
+
+            shieldControllersInDrawOrder.Add(cc);
+            shieldCardIds.Add(cc.Data.id);
+        }
+
+        Debug.Log(
+            $"[ShieldZone] Rebuilt registry from content children count:{shieldControllersInDrawOrder.Count}");
     }
 
     /// <summary>破棄・ベース昇格などでゾーンを離れたが一覧に残っているエントリを除去する。</summary>
@@ -680,9 +745,17 @@ public class CardGameRule
         shieldControllersInDrawOrder.RemoveAt(zoneIndex);
         shieldCardIds.RemoveAt(zoneIndex);
 
-        if (revealFace && cc != null)
+        if (cc != null)
         {
-            cc.RevealShieldFace();
+            if (revealFace)
+            {
+                cc.RevealShieldFace();
+            }
+
+            // ゾーン UI から外し、コミット／バースト配備まで一時退避（残像バグ防止）
+            EnsureShieldBreakLimbo();
+            cc.transform.SetParent(shieldBreakLimbo, false);
+            cc.gameObject.SetActive(false);
         }
 
         taken = new ShieldBreakTaken
@@ -725,6 +798,7 @@ public class CardGameRule
 
         shieldCardIds.Add(cc.Data.id);
         shieldControllersInDrawOrder.Add(cc);
+        cc.gameObject.SetActive(true);
         cc.transform.SetParent(shieldCardsContent, false);
         RectTransform cardRect = cc.GetComponent<RectTransform>();
         if (cardRect != null && shieldGrid != null)
@@ -762,13 +836,17 @@ public class CardGameRule
             return true;
         }
 
-        if (!cc.transform.IsChildOf(shieldCardsContent))
+        bool underShield = shieldCardsContent != null && cc.transform.IsChildOf(shieldCardsContent);
+        bool underLimbo = shieldBreakLimbo != null && cc.transform.IsChildOf(shieldBreakLimbo);
+        if (!underShield && !underLimbo)
         {
             return false;
         }
 
         shieldCardIds.Add(cc.Data.id);
         shieldControllersInDrawOrder.Add(cc);
+        cc.gameObject.SetActive(true);
+        cc.transform.SetParent(shieldCardsContent, false);
         cc.SetShieldFaceHidden(true);
         cc.SetEligibleForShieldZoneDeploy(false);
         RectTransform cardRect = cc.GetComponent<RectTransform>();
@@ -862,6 +940,7 @@ public class CardGameRule
         }
 
         cc.RevealShieldFace();
+        cc.gameObject.SetActive(true);
         cc.transform.SetParent(handContent, false);
         RectTransform cardRect = cc.GetComponent<RectTransform>();
         if (cardRect != null)
@@ -965,6 +1044,7 @@ public class CardGameRule
             return;
         }
 
+        baseCard.gameObject.SetActive(true);
         baseCard.transform.SetParent(baseSlotContent, false);
         RectTransform rt = baseCard.GetComponent<RectTransform>();
         if (rt != null)

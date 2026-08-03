@@ -81,7 +81,7 @@
                 {
                     "type": 6,
                     "value": 1,
-                    "target": 4,
+                    "target": 5,
                     "selectionMode": 0,
                     "statTarget": 0,
                     "duration": 0,
@@ -101,7 +101,7 @@
                 {
                     "type": 8,
                     "value": 1,
-                    "target": 4,
+                    "target": 5,
                     "selectionMode": 0,
                     "statTarget": 0,
                     "duration": 0,
