@@ -1,0 +1,174 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 108Ra Cailum
+  m_EditorClassIdentifier: 
+  id: 108
+  cardName: Ra Cailum
+  cost: 0
+  level: 3
+  power: 0
+  hp: 5
+  imageName: {fileID: -45498459166169073, guid: c4cf2b02c1092de4a9e37968b04c7a78, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 2
+  filterType: 0
+  color: 1
+  type: 3
+  attackFlg: 0
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployBase1_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 6
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddShield1_OnBaseDeployed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 12
+    activationConditions:
+    - boardSide: -1
+      checkKind: 21
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 0
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+    requireChainObservationContext: 0
+    effectsName: RestSelf_BuffAllyLondoBell_IncomingDamageReduction1_UntilEOT_OnMain
+    effects:
+    - type: 10
+      value: 1
+      target: 0
+      selectionMode: -1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 0
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 0
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+    - type: 2
+      value: 1
+      target: 1
+      selectionMode: 1
+      statTarget: 7
+      duration: 1
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+      targetFeatureId: 10
+      targetFeatures:
+      - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 0
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      grantAttackFlagOnlyIfOff: 0
+      revealDiscardedToOpponent: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+    activationCost: 0
+    oncePerTurn: 1
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
