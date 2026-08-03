@@ -601,6 +601,17 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (effect.type == EffectType.AddFromTrashToHand)
+            {
+                // 対象選択必須のため、候補が無いときはメイン発動不可（NT研究所所長等）
+                if (CollectAddFromTrashToHandCandidates(side, effect).Count > 0)
+                {
+                    hasAny = true;
+                }
+
+                continue;
+            }
+
             hasAny = true;
         }
 
