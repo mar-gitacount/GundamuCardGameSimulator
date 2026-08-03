@@ -1654,6 +1654,46 @@
                     ]
                 }
             ]
+        },
+        {
+            "effectSetName": "DestroyAllUnits_Lv4OrLess_OnMain",
+            "displayName": "メイン：Lv.4以下のユニットすべてを破壊（自他）",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 0,
+                    "target": 3,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                },
+                {
+                    "type": 18,
+                    "value": 0,
+                    "target": 4,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
         }
     ]
 }

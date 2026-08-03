@@ -10447,6 +10447,13 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        // 全体対象は自動適用（Widespread Annihilation の Lv4以下すべて破壊など）
+        if (effect.target == TargetType.AllyAllUnits
+            || effect.target == TargetType.EnemyAllUnits)
+        {
+            return false;
+        }
+
         if (effect.type.RequiresManualUnitSelection())
         {
             return true;
