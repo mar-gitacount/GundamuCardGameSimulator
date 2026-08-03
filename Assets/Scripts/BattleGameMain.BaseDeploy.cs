@@ -275,7 +275,7 @@ public partial class BattleGameMain
         }
     }
 
-    /// <summary>ベース配備前にシールドゾーン登録を外し、ゾーン／バースト昇格ならシールド枚数を1減らす。</summary>
+    /// <summary>ベース配備前にシールドゾーン登録を外し、ゾーンからの昇格ならシールド枚数を1減らす。</summary>
     private void PrepareCardForBaseZoneDeploy(
         CardController cardController,
         PlayerType ownerType,
@@ -294,7 +294,14 @@ public partial class BattleGameMain
             && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
         bool wasTrackedInShieldZone = ownerRule.TryUnregisterShieldZoneCard(cardController);
 
-        if (!wasInHand && (inShieldZone || wasTrackedInShieldZone || burstDeployBasePreferSourceCard))
+        // シールド破壊バースト経由は DamageShield で既に枚数減算済み。再減算すると OnBaseDeployed の
+        // AddShieldToHand が盾0扱いになり失敗する。
+        if (burstDeployBasePreferSourceCard)
+        {
+            return;
+        }
+
+        if (!wasInHand && (wasTrackedInShieldZone || inShieldZone))
         {
             if (!gundamRule.TryReduceShieldCountForHandMove(ruleSide, 1))
             {
@@ -347,7 +354,20 @@ public partial class BattleGameMain
             TriggerOnPlayedEffects(cardController, ownerType, RefreshAllHandsConditionalOnHandAuto);
         }
 
+        int shieldZoneBeforeDeployEffects = ownerRule.GetShieldZoneCardCount();
         TriggerBaseDeployedEffects(cardController, ownerType, replacingBaseLayer);
+
+        // バースト配備→【配備時】シールド手札：OnBaseDeployed が何らかの理由で取れなかった場合のフォールバック
+        if (burstDeployBasePreferSourceCard
+            && shieldZoneBeforeDeployEffects > 0
+            && ownerRule.GetShieldZoneCardCount() == shieldZoneBeforeDeployEffects)
+        {
+            Debug.LogWarning(
+                $"[BaseDeploy] OnBaseDeployed AddShield が未適用のため再試行 "
+                + $"(card:{cardController.Data.cardName} zone:{shieldZoneBeforeDeployEffects})");
+            TryMoveShieldFromZoneToHand(ownerRule, ownerType, ruleSide);
+        }
+
         SyncResourceViewsFromRule(ruleSide);
         SyncBaseZoneHeaderDisplay(ruleSide);
 
@@ -726,7 +746,10 @@ public partial class BattleGameMain
             return;
         }
 
-        PlayerType recipient = ResolveEffectOwnerPlayerType(sourceOwner, effect != null ? effect.target : TargetType.SelfPlayer);
+        // バースト配備は常に破壊されたカードのオーナー側へ（旧 JSON の target=EnemyAllUnits でも自陣）
+        PlayerType recipient = allowBurstSource
+            ? sourceOwner
+            : ResolveEffectOwnerPlayerType(sourceOwner, effect != null ? effect.target : TargetType.SelfPlayer);
         CardGameRule rule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
 
         int applied = 0;

@@ -141,12 +141,17 @@ public partial class BattleGameMain
         return list != null && list.Contains(zoneIndex);
     }
 
-    /// <summary>バースト後に場に残すのは手札・ベース枠・シールドゾーンへの再登録。</summary>
+    /// <summary>バースト後に場に残すのは手札・配備済みベース・シールドゾーンへの再登録。</summary>
     private static bool IsBurstCardRetained(CardController card, CardGameRule rule)
     {
         if (card == null || rule == null)
         {
             return false;
+        }
+
+        if (rule.DeployedBase == card)
+        {
+            return true;
         }
 
         if (rule.HandScrollContent != null && card.transform.IsChildOf(rule.HandScrollContent))
@@ -295,6 +300,8 @@ public partial class BattleGameMain
         }
         finally
         {
+            // コミット後に、リスト外のままゾーンに残ったカード UI だけ掃除
+            rule.DestroyUnregisteredShieldZoneVisuals();
             ReconcileShieldStateWithZone(side, force: true);
             SyncAllResourceViewsFromRule();
         }

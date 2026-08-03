@@ -3384,7 +3384,8 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        rule.DestroyUnregisteredShieldZoneVisuals();
+        // 未登録 UI の破棄はシールド破壊コミット後専用。通常 Sync では枚数合わせのみ行う
+        // （破壊処理中のカードやバースト配備元を誤って消さない）。
         gundamRule.SyncShieldCountFromZone(side, rule.GetShieldZoneCardCount());
     }
 
@@ -10557,6 +10558,31 @@ public partial class BattleGameMain : MonoBehaviour
         {
             int addCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
             ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, addCount > 0 ? addCount : 1);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.AddShieldToHand)
+        {
+            int shieldToHandCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyAddShieldToHandEffect(sourceCard, ownerType, effect, shieldToHandCount > 0 ? shieldToHandCount : 1);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.DeployBase && burstDeployBasePreferSourceCard)
+        {
+            int deployMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyDeployBaseEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                deployMagnitude > 0 ? deployMagnitude : 1,
+                allowBurstSource: true);
             BeginOnlineEffectSyncBatch(ownerType);
             FlushOnlineEffectSyncBatch();
             SyncAllResourceViewsFromRule();
