@@ -220,6 +220,12 @@ public partial class BattleGameMain
             {
                 continue;
             }
+
+            if (!EffectDataExtensions.MatchesCardDataStatFilter(effect, data))
+            {
+                continue;
+            }
+
             // 除外するカード一覧に追加
             candidates.Add(new TrashExileCandidate(i, cardId, data));
         }
@@ -966,6 +972,11 @@ public partial class BattleGameMain
             }
 
             if (!EffectDataExtensions.MatchesTargetCardTypeFilter(effect, candidate.Data))
+            {
+                continue;
+            }
+
+            if (!EffectDataExtensions.MatchesCardDataStatFilter(effect, candidate.Data))
             {
                 continue;
             }

@@ -186,6 +186,17 @@ public partial class BattleGameMain
             new PaidActivationUseKey(side, card.GetEntityId(), blockIndex));
     }
 
+    private void ClearPaidActivationUseThisTurn(PlayerType side, CardController card, int blockIndex)
+    {
+        if (card == null)
+        {
+            return;
+        }
+
+        _paidActivationUsesThisTurn.Remove(
+            new PaidActivationUseKey(side, card.GetEntityId(), blockIndex));
+    }
+
     private static bool IsOnMainActivatedFromHand(CardController card, PlayerType ownerType, BattleGameMain host)
     {
         if (card?.Data == null || host == null)
@@ -336,6 +347,11 @@ public partial class BattleGameMain
         }
 
         if (!HasOnMainHandDeployCandidatesIfRequired(side, timed))
+        {
+            return false;
+        }
+
+        if (!HasMeaningfulOnMainEffectsIncludingChooseOne(side, source, timed))
         {
             return false;
         }

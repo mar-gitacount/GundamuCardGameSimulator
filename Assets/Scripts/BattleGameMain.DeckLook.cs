@@ -237,6 +237,18 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.ChooseOne)
+        {
+            ApplyChooseOneEffect(sourceCard, ownerType, effect, onChainContinue);
+            return;
+        }
+
+        if (effect != null && effect.type == EffectType.AddFromTrashToHand)
+        {
+            ApplyAddFromTrashToHandEffect(sourceCard, ownerType, effect, onChainContinue);
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.DeployBase
             && effect.RequiresDeployBaseFromTrashSelection())
         {

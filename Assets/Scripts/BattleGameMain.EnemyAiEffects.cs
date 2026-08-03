@@ -356,7 +356,10 @@ public partial class BattleGameMain
                 || eff.type == EffectType.Suppress
                 || eff.type == EffectType.Breach
                 || eff.type == EffectType.RecoverHp
-                || eff.type == EffectType.AddExResource)
+                || eff.type == EffectType.AddExResource
+                || eff.type == EffectType.ChooseOne
+                || eff.type == EffectType.RestResource
+                || eff.type == EffectType.AddFromTrashToHand)
             {
                 continue;
             }
