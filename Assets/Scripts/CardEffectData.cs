@@ -830,6 +830,15 @@ public class EffectData
     [Tooltip("true のとき targetUnitFilterStat（未指定時は AP）を発動元カードの実効値と比較する（例: 敵AP ≤ 自AP）。")]
     public bool compareTargetStatToSource;
 
+    [Tooltip(
+        "true のとき targetUnitFilterStat をチェーン直前に選択したユニットの実効値と比較する。"
+        + "compareTargetStatToSource より優先。prior が空なら対象なし。")]
+    public bool compareTargetStatToPriorChainPicked;
+
+    [Tooltip(
+        "true のとき、この効果を Cancel／候補0 でスキップしたら同一チェーンの後続効果を打ち切る（「そうしたなら」）。")]
+    public bool abortRemainingChainOnSkip;
+
     [Tooltip("true のとき effectActivationConditions はチェーン観測カードを参照。観測が空ならこの効果をスキップ。")]
     public bool requireChainObservationContext;
 
@@ -1160,7 +1169,8 @@ public static class EffectDataExtensions
         return effect != null
             && (effect.HasTargetFeatureFilter()
                 || effect.HasTargetUnitStatFilter()
-                || effect.compareTargetStatToSource);
+                || effect.compareTargetStatToSource
+                || effect.compareTargetStatToPriorChainPicked);
     }
 
     /// <summary>
@@ -1279,12 +1289,16 @@ public static class EffectDataExtensions
         return TrashCardQuery.HasAtLeast(ownerTrashCardIds, cardId, need);
     }
 
-    /// <summary>バトルゾーンのユニットが対象フィルタ（Feature / ステータス）を満たすか。</summary>
+    /// <summary>
+    /// バトルゾーンのユニットが対象フィルタ（Feature / ステータス）を満たすか。
+    /// compareTargetStatToPriorChainPicked 時は priorChainStatCompareValue 必須（未指定なら不一致）。
+    /// </summary>
     public static bool MatchesTargetUnitFilter(
         this EffectData effect,
         CardController unit,
         CardController sourceCard = null,
-        IReadOnlyList<int> ownerTrashCardIds = null)
+        IReadOnlyList<int> ownerTrashCardIds = null,
+        int? priorChainStatCompareValue = null)
     {
         if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
@@ -1297,7 +1311,8 @@ public static class EffectDataExtensions
         }
 
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
-        if (statFilter == EffectTargetUnitFilterStat.Unset && effect.compareTargetStatToSource)
+        if (statFilter == EffectTargetUnitFilterStat.Unset
+            && (effect.compareTargetStatToSource || effect.compareTargetStatToPriorChainPicked))
         {
             statFilter = EffectTargetUnitFilterStat.AP;
         }
@@ -1310,7 +1325,16 @@ public static class EffectDataExtensions
             }
 
             int compareValue = effect.targetUnitStatCompareValue;
-            if (effect.compareTargetStatToSource)
+            if (effect.compareTargetStatToPriorChainPicked)
+            {
+                if (!priorChainStatCompareValue.HasValue)
+                {
+                    return false;
+                }
+
+                compareValue = priorChainStatCompareValue.Value;
+            }
+            else if (effect.compareTargetStatToSource)
             {
                 if (sourceCard == null)
                 {
@@ -1364,7 +1388,8 @@ public static class EffectDataExtensions
         }
 
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
-        if (statFilter == EffectTargetUnitFilterStat.Unset && effect.compareTargetStatToSource)
+        if (statFilter == EffectTargetUnitFilterStat.Unset
+            && (effect.compareTargetStatToSource || effect.compareTargetStatToPriorChainPicked))
         {
             statFilter = EffectTargetUnitFilterStat.AP;
         }
@@ -1377,7 +1402,13 @@ public static class EffectDataExtensions
             }
 
             sb.Append(FormatTargetUnitFilterStatLabel(statFilter));
-            if (effect.compareTargetStatToSource)
+            if (effect.compareTargetStatToPriorChainPicked)
+            {
+                sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                    .Append("直前選択")
+                    .Append(FormatTargetUnitFilterStatLabel(statFilter));
+            }
+            else if (effect.compareTargetStatToSource)
             {
                 sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
                     .Append("自")

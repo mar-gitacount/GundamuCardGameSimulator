@@ -10014,9 +10014,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // 「してもよい」系（abortRemainingChainOnSkip）は候補1体でも UI＋キャンセルを出す
         bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag
             || effect.type == EffectType.EffectBattle
-            || effect.IsAttackActiveEnemyAllyGrant();
+            || effect.IsAttackActiveEnemyAllyGrant()
+            || effect.abortRemainingChainOnSkip;
         if (!forceSelectionUi && candidates.Count == 1)
         {
             ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, candidates);
@@ -10046,6 +10048,11 @@ public partial class BattleGameMain : MonoBehaviour
 
     private static bool ShouldAbortRemainingOnPlayedEffectsWhenSkipped(CardController sourceCard, EffectData effect)
     {
+        if (effect != null && effect.abortRemainingChainOnSkip)
+        {
+            return true;
+        }
+
         return sourceCard != null
             && sourceCard.Data != null
             && sourceCard.Data.id == 95
@@ -10531,9 +10538,28 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        int? priorChainStatCompareValue = null;
+        if (effect.compareTargetStatToPriorChainPicked)
+        {
+            EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+            if (statFilter == EffectTargetUnitFilterStat.Unset)
+            {
+                statFilter = EffectTargetUnitFilterStat.AP;
+            }
+
+            List<CardController> prior = GetAliveEffectChainLastPickedTargets();
+            if (prior.Count == 0)
+            {
+                targets.Clear();
+                return;
+            }
+
+            priorChainStatCompareValue = EffectDataExtensions.GetTargetUnitFilterStatValue(prior[0], statFilter);
+        }
+
         for (int i = targets.Count - 1; i >= 0; i--)
         {
-            if (!effect.MatchesTargetUnitFilter(targets[i], sourceCard, ownerTrashIds))
+            if (!effect.MatchesTargetUnitFilter(targets[i], sourceCard, ownerTrashIds, priorChainStatCompareValue))
             {
                 targets.RemoveAt(i);
             }

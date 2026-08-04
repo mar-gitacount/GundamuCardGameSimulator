@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 112Master Gundam
+  m_Name: 116Haow Gundam
   m_EditorClassIdentifier: 
-  id: 112
-  cardName: Master Gundam
-  cost: 5
-  level: 7
-  power: 5
-  hp: 5
-  imageName: {fileID: -3768563775242045933, guid: ce16a6a9924c1d74092107e064833298, type: 3}
+  id: 116
+  cardName: Haow Gundam
+  cost: 4
+  level: 6
+  power: 4
+  hp: 4
+  imageName: {fileID: 7434950526670777746, guid: d2316d13a812d914fa774b11b801783a, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
@@ -27,17 +27,16 @@ MonoBehaviour:
   type: 0
   attackFlg: 0
   timedEffects:
-  - timing: 3
+  - timing: 15
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: Exile2_SpecialMoveCommand_ThenDamage5_EnemyShield_OnAttack
+    effectsName: OnPilotMounted_OptionalRestOtherAllyMF_ThenDamage2_EnemyLvLE
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
-  - {fileID: 11400000, guid: a7c3e91f2b840d5e6f1a2b3c4d5e6f70, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
