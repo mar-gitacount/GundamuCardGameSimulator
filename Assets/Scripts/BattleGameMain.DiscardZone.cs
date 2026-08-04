@@ -366,7 +366,8 @@ public partial class BattleGameMain
         CardController sourceCard,
         PlayerType ownerType,
         EffectData effect,
-        Action onComplete = null)
+        Action onComplete = null,
+        Action onSkipped = null)
     {
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude <= 0)
@@ -378,7 +379,7 @@ public partial class BattleGameMain
         CardGameRule trashRule = ResolveTrashRuleForEffect(ownerType, effect);
         if (trashRule == null)
         {
-            onComplete?.Invoke();
+            (onSkipped ?? onComplete)?.Invoke();
             return;
         }
 
@@ -389,7 +390,9 @@ public partial class BattleGameMain
         List<TrashExileCandidate> candidates = CollectTrashExileCandidates(trashRule, effect);
         if (candidates.Count == 0)
         {
-            onComplete?.Invoke();
+            Debug.Log(
+                $"[Effect] ExileFromTrash skipped — no candidates by cardId:{sourceCard?.Data?.id}");
+            (onSkipped ?? onComplete)?.Invoke();
             return;
         }
 
@@ -398,7 +401,7 @@ public partial class BattleGameMain
             Debug.Log(
                 $"[Effect] ExileFromTrash skipped — need exact {magnitude} but candidates:{candidates.Count} "
                 + $"by cardId:{sourceCard?.Data?.id}");
-            onComplete?.Invoke();
+            (onSkipped ?? onComplete)?.Invoke();
             return;
         }
 
@@ -418,7 +421,8 @@ public partial class BattleGameMain
             trashOwner,
             candidates,
             pickCount,
-            onComplete));
+            onComplete,
+            onSkipped));
     }
 
     private IEnumerator ShowExileFromTrashSelectionCoroutine(
@@ -429,18 +433,19 @@ public partial class BattleGameMain
         PlayerType trashOwner,
         List<TrashExileCandidate> candidates,
         int pickCount,
-        Action onComplete)
+        Action onComplete,
+        Action onSkipped = null)
     {
         if (trashRule == null || candidates == null || candidates.Count == 0 || CardImagePrefab == null)
         {
-            onComplete?.Invoke();
+            (onSkipped ?? onComplete)?.Invoke();
             yield break;
         }
 
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
         {
-            onComplete?.Invoke();
+            (onSkipped ?? onComplete)?.Invoke();
             yield break;
         }
 
@@ -610,7 +615,7 @@ public partial class BattleGameMain
         {
             if (!TryCommitOnMainPaidBlockBeforeExile())
             {
-                onComplete?.Invoke();
+                (onSkipped ?? onComplete)?.Invoke();
                 yield break;
             }
 
@@ -644,9 +649,18 @@ public partial class BattleGameMain
                     trashOwner);
                 exiled++;
             }
+
+            if (exiled <= 0)
+            {
+                (onSkipped ?? onComplete)?.Invoke();
+                yield break;
+            }
+
+            onComplete?.Invoke();
+            yield break;
         }
 
-        onComplete?.Invoke();
+        (onSkipped ?? onComplete)?.Invoke();
     }
 
     private void ApplyAddObservedToHandFromTrashEffect(

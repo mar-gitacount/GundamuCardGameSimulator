@@ -670,6 +670,42 @@ public partial class BattleGameMain
             + $"by cardId:{sourceCard?.Data?.id}");
     }
 
+    private void ApplyActivateResourceEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null || gundamRule == null)
+        {
+            return;
+        }
+
+        int amount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+        if (amount <= 0)
+        {
+            amount = 1;
+        }
+
+        PlayerType targetPlayer = ResolveAddExResourceTargetPlayer(ownerType, effect.target);
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(targetPlayer);
+        if (!gundamRule.TryActivateRestedResource(side, amount))
+        {
+            Debug.Log(
+                $"[Effect] ActivateResource failed x{amount} target:{targetPlayer} "
+                + $"by cardId:{sourceCard?.Data?.id}");
+            return;
+        }
+
+        SyncResourceViewsFromRule(side);
+        Gundam2024RuleScript.PlayerState after = targetPlayer == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        Debug.Log(
+            $"[Effect] ActivateResource x{amount} target:{targetPlayer} "
+            + $"level:{after.level} resource:{after.resource} TotalLevel:{after.TotalLevel} "
+            + $"by cardId:{sourceCard?.Data?.id}");
+    }
+
     private List<TrashExileCandidate> CollectAddFromTrashToHandCandidates(
         PlayerType ownerType,
         EffectData effect)
