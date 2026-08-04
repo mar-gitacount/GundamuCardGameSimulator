@@ -9898,6 +9898,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.ActivateSelfOnMain)
+        {
+            ApplyActivateSelfOnMain(
+                sourceCard,
+                ownerType,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
@@ -12130,7 +12139,8 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.AddObservedToHandFromTrash
             || effect.type == EffectType.MountSelfFromTrashAsPilot
             || effect.type == EffectType.ActivateMountedCardOnMain
-            || effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+            || effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
+            || effect.type == EffectType.ActivateSelfOnMain)
         {
             return;
         }

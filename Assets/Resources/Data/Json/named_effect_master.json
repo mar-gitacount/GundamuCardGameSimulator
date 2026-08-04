@@ -2161,6 +2161,80 @@
             ]
         },
         {
+            "effectSetName": "ActivateSelfOnMain_OnBurst",
+            "displayName": "バースト：このカードの【メイン】を発動する",
+            "effects": [
+                {
+                    "type": 46,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyUnit_Select_ThenDraw1_IfAllyNameContainsMasterGundam",
+            "displayName": "敵1体に2ダメージ。味方にマスターガンダム名ユニットがいれば1ドロー",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": 0,
+                            "checkKind": 26,
+                            "turnCheck": -1,
+                            "featureId": 0,
+                            "minimumCount": 1,
+                            "levelAggregate": 0,
+                            "compareOp": 0,
+                            "compareValue": 0,
+                            "unitCountCompareOp": 2,
+                            "unitCountThreshold": 0,
+                            "pilotCardId": 0,
+                            "trashCardId": 0,
+                            "pilotLevelThreshold": 0,
+                            "activationStatTarget": -1,
+                            "observedCardType": 0,
+                            "cardNameContains": "Master Gundam"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "effectSetName": "OnPilotMounted_Draw1_Discard1_MayActivateDiscardedSpecialMoveMain",
             "displayName": "【セット時】1枚ドロー→手札1枚捨て→捨てた〔必殺技〕コマンドの【メイン】を発動してもよい",
             "effects": [

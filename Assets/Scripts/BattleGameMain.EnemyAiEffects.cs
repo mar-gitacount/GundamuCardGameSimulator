@@ -362,7 +362,8 @@ public partial class BattleGameMain
                 || eff.type == EffectType.AddFromTrashToHand
                 || eff.type == EffectType.MountSelfFromTrashAsPilot
                 || eff.type == EffectType.ActivateMountedCardOnMain
-                || eff.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+                || eff.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
+                || eff.type == EffectType.ActivateSelfOnMain)
             {
                 continue;
             }

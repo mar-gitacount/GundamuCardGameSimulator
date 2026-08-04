@@ -959,7 +959,8 @@ public partial class BattleGameMain
                             }
 
                             if (effect.type == EffectType.ChooseOne
-                                || effect.type == EffectType.DeploySelfAsBattleUnit)
+                                || effect.type == EffectType.DeploySelfAsBattleUnit
+                                || effect.type == EffectType.ActivateSelfOnMain)
                             {
                                 waitBurstAsync = true;
                                 bool done = false;

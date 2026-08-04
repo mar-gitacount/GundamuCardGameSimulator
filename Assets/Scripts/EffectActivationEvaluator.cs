@@ -262,6 +262,11 @@ public static class EffectActivationEvaluator
             return ctx.OwnerActivatedSpecialMoveCommandThisTurn;
         }
 
+        if (c.checkKind == EffectActivationCheckKind.OwnerBattleUnitNameContains)
+        {
+            return EvaluateOwnerBattleUnitNameContains(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
         {
             return ctx.PriorChainDealtDamage;
@@ -535,6 +540,72 @@ public static class EffectActivationEvaluator
         return pilot != null
             && pilot.Data != null
             && CardMatchesAnyActivationFeature(pilot.Data, required);
+    }
+
+    private static bool EvaluateOwnerBattleUnitNameContains(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null || string.IsNullOrWhiteSpace(c.cardNameContains))
+        {
+            return false;
+        }
+
+        string needle = c.cardNameContains.Trim();
+        int need = Mathf.Max(1, c.minimumCount);
+        IReadOnlyList<CardController> zone = ctx.OwnerType == BattleGameMain.PlayerType.Player
+            ? ctx.PlayerBattleZone
+            : ctx.EnemyBattleZone;
+        if (zone == null || zone.Count == 0)
+        {
+            return false;
+        }
+
+        int matched = 0;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!UnitCardNameContains(unit.Data.cardName, needle))
+            {
+                continue;
+            }
+
+            matched++;
+            if (matched >= need)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>カード名部分一致。Master Gundam / マスターガンダム を相互に許容。</summary>
+    private static bool UnitCardNameContains(string unitName, string needle)
+    {
+        if (string.IsNullOrEmpty(unitName) || string.IsNullOrWhiteSpace(needle))
+        {
+            return false;
+        }
+
+        if (unitName.IndexOf(needle, System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        bool needleIsMasterGundam =
+            needle.IndexOf("Master Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("マスターガンダム", System.StringComparison.Ordinal) >= 0;
+        if (!needleIsMasterGundam)
+        {
+            return false;
+        }
+
+        return unitName.IndexOf("Master Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || unitName.IndexOf("マスターガンダム", System.StringComparison.Ordinal) >= 0;
     }
 
     private static bool CardMatchesAnyActivationFeature(
