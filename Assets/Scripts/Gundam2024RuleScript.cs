@@ -391,6 +391,30 @@ public class Gundam2024RuleScript
     }
 
     /// <summary>
+    /// レストのリソースを amount 個アクティブにする（利用可能 resource を増やす）。
+    /// TotalLevel - resource がレスト相当枚数。
+    /// </summary>
+    public bool TryActivateRestedResource(PlayerSide side, int amount)
+    {
+        PlayerState state = GetState(side);
+        int need = Mathf.Max(1, amount);
+        int rested = Mathf.Max(0, state.TotalLevel - state.resource);
+        if (rested < need)
+        {
+            Debug.Log(
+                $"[Resource] ActivateRestedResource failed need:{need} rested:{rested} side:{side} "
+                + $"level:{state.level} resource:{state.resource} TotalLevel:{state.TotalLevel}");
+            return false;
+        }
+
+        state.resource += need;
+        Debug.Log(
+            $"[Resource] ActivateRestedResource x{need} side:{side} "
+            + $"level:{state.level} resource:{state.resource} TotalLevel:{state.TotalLevel}");
+        return true;
+    }
+
+    /// <summary>
     /// EXを消費して通常リソースへ変換する（任意起動用）。
     /// EXが減るため、同時に TotalLevel も下がる。
     /// </summary>

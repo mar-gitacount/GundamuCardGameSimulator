@@ -6264,6 +6264,18 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.ActivateResource)
+        {
+            ApplyActivateResourceEffect(sourceCard, ownerType, effect);
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         List<CardController> pendingEffectDamageTrash = effect.type == EffectType.Damage
             ? new List<CardController>()
             : null;
@@ -6432,6 +6444,10 @@ public partial class BattleGameMain : MonoBehaviour
         else if (effect.type == EffectType.RestResource)
         {
             ApplyRestResourceEffect(sourceCard, ownerType, effect);
+        }
+        else if (effect.type == EffectType.ActivateResource)
+        {
+            ApplyActivateResourceEffect(sourceCard, ownerType, effect);
         }
 
         // Activate は ApplyActivateEffect 内で、実際に REST→ACTIVE になった対象だけを保存する。
@@ -9829,6 +9845,28 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.ExileFromTrash)
+        {
+            bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
+            ApplyExileFromTrashEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                onComplete: () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone),
+                onSkipped: () =>
+                {
+                    if (abortRemainingOnSkip)
+                    {
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                    }
+                });
+            return;
+        }
+
         if (EffectRequiresManualHandSelection(effect))
         {
             TryExecuteManualHandSelectionEffect(
@@ -10699,6 +10737,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.ActivateResource)
+        {
+            ApplyActivateResourceEffect(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.ArmOwnerEffectDestroyFlag)
         {
             if (sourceCard != null)
@@ -10989,6 +11036,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.RestResource:
                 ApplyRestResourceEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ActivateResource:
+                ApplyActivateResourceEffect(sourceCard, ownerType, effect);
                 break;
 
             case EffectType.ChooseOne:
@@ -12038,6 +12089,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.RecoverHp
             || effect.type == EffectType.ChooseOne
             || effect.type == EffectType.RestResource
+            || effect.type == EffectType.ActivateResource
             || effect.type == EffectType.AddFromTrashToHand
             || effect.type == EffectType.AddObservedToHandFromTrash
             || effect.type == EffectType.MountSelfFromTrashAsPilot

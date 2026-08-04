@@ -189,7 +189,12 @@ public enum EffectType
     /// コスト支払いなし・セット維持のまま発動する。【リンク中】【アタック時】等で使用。
     /// MountSelfFromTrashAsPilot はスキップする。
     /// </summary>
-    ActivateMountedCardOnMain
+    ActivateMountedCardOnMain,
+    /// <summary>
+    /// レスト状態の自分のリソースを value 個アクティブにする（利用可能 resource を増やす）。
+    /// 0 以下は 1 扱い。アクティブ化可能な枚数（TotalLevel - resource）が足りなければ何もしない。
+    /// </summary>
+    ActivateResource
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

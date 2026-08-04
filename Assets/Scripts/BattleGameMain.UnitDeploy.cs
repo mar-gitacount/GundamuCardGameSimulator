@@ -805,6 +805,7 @@ public partial class BattleGameMain
             || effect.type == EffectType.ExileFromDeck
             || effect.type == EffectType.Look
             || effect.type == EffectType.ActivateMountedCardOnMain
+            || effect.type == EffectType.ActivateResource
             || ((effect.type == EffectType.Damage)
                 && (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)))
         {
@@ -888,6 +889,11 @@ public partial class BattleGameMain
             }
 
             if (!TimedBlockNeedsOnAttackPreCombatResolution(timed))
+            {
+                continue;
+            }
+
+            if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(attackerOwner, source, i))
             {
                 continue;
             }
@@ -1048,12 +1054,39 @@ public partial class BattleGameMain
             return;
         }
 
+        if (block.oncePerTurn)
+        {
+            int timedIndex = IndexOfTimedEffectOnCard(source, block);
+            if (timedIndex >= 0)
+            {
+                MarkPaidActivationUsedThisTurn(attackerOwner, source, timedIndex);
+            }
+        }
+
         TryExecuteOnAttackPreCombatEffectChain(
             source,
             attackerOwner,
             block.GetResolvedEffects(),
             0,
             () => RunOnAttackPreCombatTimedBlocks(attacker, attackerOwner, blocks, blockIndex + 1, onComplete));
+    }
+
+    private static int IndexOfTimedEffectOnCard(CardController source, TimedEffectData block)
+    {
+        if (source?.Data?.timedEffects == null || block == null)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < source.Data.timedEffects.Count; i++)
+        {
+            if (ReferenceEquals(source.Data.timedEffects[i], block))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private CardController ResolveOnAttackBlockSource(
