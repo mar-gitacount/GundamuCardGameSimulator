@@ -243,6 +243,13 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.DeploySelfAsBattleUnit)
+        {
+            TryApplyDeploySelfAsBattleUnit(sourceCard, ownerType, effect);
+            onChainContinue?.Invoke();
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.AddFromTrashToHand)
         {
             ApplyAddFromTrashToHandEffect(sourceCard, ownerType, effect, onChainContinue);

@@ -70,7 +70,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateAttack(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "Attack",
             payload = payload ?? string.Empty
@@ -115,7 +115,8 @@ public class EosOnlineBattleMessage
 
     public static string CreateOnActionBegin(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        // seed/lobbyId 等を載せない最小ラッパ（ネスト JSON のエスケープ膨張を抑える）
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "OnActionBegin",
             payload = payload ?? string.Empty
@@ -124,7 +125,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateOnActionEnd(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "OnActionEnd",
             payload = payload ?? string.Empty
@@ -153,7 +154,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateShieldBreakComplete(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "ShieldBreakComplete",
             payload = payload ?? string.Empty
@@ -263,4 +264,12 @@ public class EosOnlineBattleMessage
             return false;
         }
     }
+}
+
+/// <summary>type + payload のみ。送信用に seed/lobbyId を載せずバイト数を抑える。</summary>
+[Serializable]
+public class EosOnlineLeanEnvelope
+{
+    public string type;
+    public string payload;
 }

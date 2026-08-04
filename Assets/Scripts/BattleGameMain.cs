@@ -3344,6 +3344,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
         ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
         ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
+        ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
         ClearObservedUnitWatches();
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
         NotifyLocalPlayerEndedTurn();
@@ -3902,6 +3903,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         playerBattleZoneCards.Remove(unit);
         enemyBattleZoneCards.Remove(unit);
+        // バースト一時ユニットは手札へ戻す前に印刷タイプ（パイロット等）へ復帰
+        unit.TryRestoreFromTemporaryBurstBattleUnit();
         unit.ResetRuntimeStatsFromData();
         unit.CleanupUnitBattleMountVisuals();
         unit.SetAttackFlg(AttackFlg.False);
@@ -8850,7 +8853,8 @@ public partial class BattleGameMain : MonoBehaviour
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
-            priorChainDealtDamage: GetEffectChainDealtDamage());
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType));
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -8871,7 +8875,8 @@ public partial class BattleGameMain : MonoBehaviour
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
-            priorChainDealtDamage: GetEffectChainDealtDamage());
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType));
     }
 
     private EffectActivationContext BuildPilotMountActivationContext(
@@ -10690,6 +10695,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.DeploySelfAsBattleUnit)
+        {
+            TryApplyDeploySelfAsBattleUnit(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.AddShieldToHand)
         {
             int shieldToHandCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
@@ -10801,6 +10815,7 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.type != EffectType.DeployUnit
             && effect.type != EffectType.GrantAttackFlag
             && effect.type != EffectType.AddSelfToHand
+            && effect.type != EffectType.DeploySelfAsBattleUnit
             && effect.type != EffectType.DeploySelfToShield
             && effect.type != EffectType.MarkObservedUnit)
         {
@@ -10868,6 +10883,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.AddSelfToHand:
                 ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.DeploySelfAsBattleUnit:
+                TryApplyDeploySelfAsBattleUnit(sourceCard, ownerType, effect);
                 break;
 
             case EffectType.DeploySelfToShield:
@@ -12089,6 +12108,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand
             || effect.type == EffectType.DeploySelfToShield || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
+            || effect.type == EffectType.DeploySelfAsBattleUnit
             || effect.type == EffectType.Suppress
             || effect.type == EffectType.Breach
             || effect.type == EffectType.EffectBattle

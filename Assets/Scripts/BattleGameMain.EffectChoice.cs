@@ -48,6 +48,13 @@ public partial class BattleGameMain
         {
             if (chosenIndex < 0)
             {
+                // バースト中は Cancel でも第一候補（通常は手札へ）を解決し、トラッシュ落ちを防ぐ
+                if (IsResolvingBurstEffect && availableIndices.Count > 0)
+                {
+                    ResolveChooseOneBranch(sourceCard, ownerType, effect, availableIndices[0], onComplete);
+                    return;
+                }
+
                 _chooseOneCancelled = true;
                 Debug.Log($"[ChooseOne] cancelled by player (cardId:{sourceCard?.Data?.id})");
                 onComplete?.Invoke();
@@ -533,9 +540,46 @@ public partial class BattleGameMain
                     return false;
                 }
             }
+            else if (effect.type == EffectType.DeploySelfAsBattleUnit)
+            {
+                EffectActivationContext ctx = BuildActivationContext(ownerType, sourceCard);
+                if (!ShouldApplyChainedEffect(effect, ctx, "ChooseOneBranch"))
+                {
+                    int mfInTrash = CountOwnerTrashFeatureMatches(ownerType, 12);
+                    Debug.Log(
+                        $"[ChooseOne] DeploySelfAsBattleUnit 不可: 条件未達 "
+                        + $"(cardId:{sourceCard?.Data?.id} trashMF(id12)={mfInTrash} need>=3)");
+                    return false;
+                }
+            }
         }
 
         return true;
+    }
+
+    /// <summary>オーナーのトラッシュに指定 featureId を持つカードが何枚あるか（ChooseOne 診断用）。</summary>
+    private int CountOwnerTrashFeatureMatches(PlayerType ownerType, int featureId)
+    {
+        if (featureId <= 0 || DeckSettinObject.Instance == null)
+        {
+            return 0;
+        }
+
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        IReadOnlyList<int> trashIds = rule != null ? rule.GetTrashCardIds() : null;
+        if (trashIds == null || trashIds.Count == 0)
+        {
+            return 0;
+        }
+
+        CardFeatureRegistry.EnsureLoaded();
+        CardFeatureData feature = CardFeatureRegistry.GetById(featureId);
+        if (feature == null)
+        {
+            return 0;
+        }
+
+        return TrashCardQuery.CountByAnyFeature(trashIds, new[] { feature });
     }
 
     private int PickEnemyAiChoiceBranchIndex(

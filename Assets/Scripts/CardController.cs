@@ -125,6 +125,54 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     }
 
     /// <summary>
+    /// バースト等で一時的にバトルゾーン用ユニット化した状態。
+    /// 場を離れたら印刷タイプ（パイロット等）へ戻す。
+    /// </summary>
+    private bool _isTemporaryBurstBattleUnit;
+    private Type _printedTypeBeforeBurstBattleUnit;
+    private int _printedPowerBeforeBurstBattleUnit;
+    private int _printedHpBeforeBurstBattleUnit;
+
+    public bool IsTemporaryBurstBattleUnit => _isTemporaryBurstBattleUnit;
+
+    public Type TemporaryBurstBattleUnitPrintedType => _printedTypeBeforeBurstBattleUnit;
+
+    public int TemporaryBurstBattleUnitPrintedPower => _printedPowerBeforeBurstBattleUnit;
+
+    public int TemporaryBurstBattleUnitPrintedHp => _printedHpBeforeBurstBattleUnit;
+
+    public void MarkTemporaryBurstBattleUnit(Type printedType, int printedPower, int printedHp)
+    {
+        _isTemporaryBurstBattleUnit = true;
+        _printedTypeBeforeBurstBattleUnit = printedType;
+        _printedPowerBeforeBurstBattleUnit = printedPower;
+        _printedHpBeforeBurstBattleUnit = printedHp;
+    }
+
+    /// <summary>
+    /// 一時ユニット形態を印刷定義へ戻す。戻り値が true なら復元した。
+    /// </summary>
+    public bool TryRestoreFromTemporaryBurstBattleUnit()
+    {
+        if (!_isTemporaryBurstBattleUnit || Data == null)
+        {
+            return false;
+        }
+
+        Data.type = _printedTypeBeforeBurstBattleUnit;
+        Data.power = _printedPowerBeforeBurstBattleUnit;
+        Data.hp = _printedHpBeforeBurstBattleUnit;
+        if (!string.IsNullOrEmpty(Data.name) && Data.name.EndsWith(" (BattleUnit)", StringComparison.Ordinal))
+        {
+            Data.name = Data.name.Substring(0, Data.name.Length - " (BattleUnit)".Length);
+        }
+
+        _isTemporaryBurstBattleUnit = false;
+        ResetRuntimeStatsFromData();
+        return true;
+    }
+
+    /// <summary>
     /// 盤面条件を含めて現在《ブロッカー》が有効か。
     /// CardData は共有アセットなので変更せず、カードインスタンスごとに保持する。
     /// </summary>
@@ -261,6 +309,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _attackFlg = AttackFlg.False;
         eligibleForShieldZoneDeploy = false;
         BattleInstanceId = 0;
+        _isTemporaryBurstBattleUnit = false;
         ResetRuntimeStatsFromData();
         SetBattleStatOverlayVisible(false);
     }

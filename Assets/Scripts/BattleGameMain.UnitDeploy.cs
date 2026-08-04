@@ -171,9 +171,13 @@ public partial class BattleGameMain
             TriggerOnPlayedEffects(unit, recipient, RefreshAllHandsConditionalOnHandAuto);
         }
 
-        if (IsOnlineBattle() && currentPlayerType == PlayerType.Player && !_applyingRemoteBattleAction)
+        if (IsOnlineBattle() && !_applyingRemoteBattleAction)
         {
-            NotifyLocalPlayCardDeployed(unit, recipient);
+            bool allowOffTurn = IsResolvingBurstEffect || unit.IsTemporaryBurstBattleUnit;
+            if (allowOffTurn || currentPlayerType == PlayerType.Player)
+            {
+                NotifyLocalPlayCardDeployed(unit, recipient, allowOffTurnDeploy: allowOffTurn);
+            }
         }
 
         Debug.Log(
