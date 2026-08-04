@@ -40,6 +40,10 @@ public enum EffectTiming
     /// このユニットがダメージで相手のシールドエリアのカード（配備ベース／実シールド／EXベース撃破）を破壊した時。
     /// </summary>
     OnOpponentShieldAreaCardDestroyed = 21,
+    /// <summary>
+    /// 自分の〔必殺技〕コマンドの【メイン】／【アクション】を発動したとき（場のユニットが監視）。
+    /// </summary>
+    OnOwnerSpecialMoveCommandActivated = 22,
 }
 
 public enum EffectType
@@ -1941,6 +1945,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnOpponentShieldAreaCardDestroyed
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>自分の必殺技コマンド発動時（OnOwnerSpecialMoveCommandActivated）に解決するブロック。</summary>
+    public static bool IsOnOwnerSpecialMoveCommandActivatedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnOwnerSpecialMoveCommandActivated
             || !timed.HasResolvedEffects())
         {
             return false;

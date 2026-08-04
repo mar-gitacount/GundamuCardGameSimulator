@@ -45,6 +45,7 @@ public partial class BattleGameMain
             + $"コストなしで発動 (effects:{effects.Count}) host:{host.Data.cardName}");
 
         EffectActivationContext chainContext = BuildOnAttackActivationContext(ownerType, host);
+        CardData mountedData = pilot.Data;
         TryExecuteOnMainEffectChain(
             ownerType,
             pilot,
@@ -52,7 +53,7 @@ public partial class BattleGameMain
             0,
             activationCostAlreadyPaid: true,
             chainContext,
-            onComplete);
+            () => NotifyOwnerSpecialMoveCommandActivated(ownerType, mountedData, onComplete));
     }
 
     private static List<EffectData> CollectMountedCardOnMainEffectsForFreeActivation(CardData pilotData)

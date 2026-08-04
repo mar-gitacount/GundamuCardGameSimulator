@@ -185,6 +185,27 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     public bool HasFirstStrikeUntilEndOfTurnGrant => _firstStrikeUntilEndOfTurnDepth > 0;
 
+    /// <summary>制圧（UntilEndOfTurn）の破壊枚数。0 は未付与。</summary>
+    private int _suppressUntilEndOfTurnBreakCount;
+
+    public bool HasSuppressUntilEndOfTurnGrant => _suppressUntilEndOfTurnBreakCount > 0;
+
+    public int SuppressUntilEndOfTurnBreakCount => _suppressUntilEndOfTurnBreakCount;
+
+    public void AddSuppressUntilEndOfTurnGrant(int breakCount)
+    {
+        int next = breakCount > 0 ? breakCount : 2;
+        if (next > _suppressUntilEndOfTurnBreakCount)
+        {
+            _suppressUntilEndOfTurnBreakCount = next;
+        }
+    }
+
+    public void ClearSuppressUntilEndOfTurnGrants()
+    {
+        _suppressUntilEndOfTurnBreakCount = 0;
+    }
+
     public void AddFirstStrikeUntilEndOfTurnGrant()
     {
         _firstStrikeUntilEndOfTurnDepth++;
