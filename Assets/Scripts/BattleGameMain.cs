@@ -3343,6 +3343,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
         ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
         ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
+        ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
         ClearObservedUnitWatches();
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
         NotifyLocalPlayerEndedTurn();
@@ -7002,6 +7003,11 @@ public partial class BattleGameMain : MonoBehaviour
         if (pilot != null && pilot.Data != null)
         {
             maxBreaks = Mathf.Max(maxBreaks, GetMaxSuppressBreakCountFromCardData(pilot.Data));
+        }
+
+        if (unit.HasSuppressUntilEndOfTurnGrant)
+        {
+            maxBreaks = Mathf.Max(maxBreaks, unit.SuppressUntilEndOfTurnBreakCount);
         }
 
         return maxBreaks;
@@ -10995,7 +11001,7 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
 
             case EffectType.Suppress:
-                // 制圧は TryResolveShieldAttackStrikeDamage でのみ解決する。
+                ApplyTimedSuppressGrant(sourceCard, ownerType, effect, targets);
                 break;
 
             case EffectType.Breach:
@@ -15149,12 +15155,15 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (source.Data.IsCommand())
         {
+            CardData commandData = source.Data;
             if (side == PlayerType.Player)
             {
-                string playKind = HasEffectTiming(source.Data, EffectTiming.OnMain) ? "CommandOnMain" : "CommandOnAction";
+                string playKind = HasEffectTiming(commandData, EffectTiming.OnMain) ? "CommandOnMain" : "CommandOnAction";
                 RecordEnemyAiObservedPlayerCardPlay(source, playKind);
             }
 
+            // トラッシュ前に通知（カード実体は破棄される）
+            NotifyOwnerSpecialMoveCommandActivated(side, commandData);
             SendUsedCommandToTrash(source, side);
         }
     }
