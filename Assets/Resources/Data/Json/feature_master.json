@@ -89,6 +89,12 @@
             "featureKey": "Shuffle_Alliance",
             "displayName": "シャッフル同盟",
             "description": ""
+        },
+        {
+            "id": 15,
+            "featureKey": "DG_Cells",
+            "displayName": "DG Cells",
+            "description": ""
         }
     ]
 }
