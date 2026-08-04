@@ -36,6 +36,10 @@ public enum EffectTiming
     /// 戦闘（攻撃）ダメージ破壊は含まない。盤面にいるこの効果持ちが監視する（破壊された自身も含む）。
     /// </summary>
     OnUnitDestroyedByOwnerEffect = 20,
+    /// <summary>
+    /// このユニットがダメージで相手のシールドエリアのカード（配備ベース／実シールド／EXベース撃破）を破壊した時。
+    /// </summary>
+    OnOpponentShieldAreaCardDestroyed = 21,
 }
 
 public enum EffectType
@@ -1888,6 +1892,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnUnitDestroyedByOwnerEffect
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>相手シールドエリアのカードをダメージ破壊したとき（OnOpponentShieldAreaCardDestroyed）に解決するブロック。</summary>
+    public static bool IsOnOpponentShieldAreaCardDestroyedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnOpponentShieldAreaCardDestroyed
             || !timed.HasResolvedEffects())
         {
             return false;
