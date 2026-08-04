@@ -268,6 +268,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.ActivateSelfOnMain)
+        {
+            ApplyActivateSelfOnMain(sourceCard, ownerType, onChainContinue);
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.DeployBase
             && effect.RequiresDeployBaseFromTrashSelection())
         {

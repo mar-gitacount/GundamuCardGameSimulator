@@ -210,7 +210,12 @@ public enum EffectType
     /// 【メイン】をコストなしで発動してよい（optionalPlayerConfirm）。
     /// カードはトラッシュに残したまま解決する。
     /// </summary>
-    ActivateObservedSpecialMoveCommandOnMain
+    ActivateObservedSpecialMoveCommandOnMain,
+    /// <summary>
+    /// 発動元カード自身の【メイン】をコストなしで発動する（バースト「このカードの【メイン】を発動する」等）。
+    /// 手札からのコスト支払い・トラッシュ送付は行わない。
+    /// </summary>
+    ActivateSelfOnMain
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -607,7 +612,12 @@ public enum EffectActivationCheckKind
     /// <summary>
     /// このターン中に、自分が〔必殺技〕コマンドの【メイン】／【アクション】を発動済み。
     /// </summary>
-    OwnerActivatedSpecialMoveCommandThisTurn
+    OwnerActivatedSpecialMoveCommandThisTurn,
+    /// <summary>
+    /// オーナーのバトルゾーンに、cardNameContains（部分一致・大小無視）をカード名に含む
+    /// 生存ユニットが minimumCount 体以上いる。
+    /// </summary>
+    OwnerBattleUnitNameContains
 }
 
 public enum EffectTurnCheckKind
@@ -733,6 +743,9 @@ public class EffectActivationCondition
         + "Enemy=敵のカードに破壊されたときのみ / "
         + "Either=どちらでも可。")]
     public EffectDestroyedByOwnerRelation destroyedByOwnerRelation = EffectDestroyedByOwnerRelation.Either;
+
+    [Tooltip("OwnerBattleUnitNameContains: カード名に含む文字列（部分一致・大小無視）。")]
+    public string cardNameContains;
 }
 
 /// <summary><see cref="EffectActivationCondition"/> の Feature 解決（複数は OR）。</summary>
