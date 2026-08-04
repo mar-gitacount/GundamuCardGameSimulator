@@ -262,6 +262,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+        {
+            ApplyActivateObservedSpecialMoveCommandOnMain(sourceCard, ownerType, effect, onChainContinue);
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.DeployBase
             && effect.RequiresDeployBaseFromTrashSelection())
         {

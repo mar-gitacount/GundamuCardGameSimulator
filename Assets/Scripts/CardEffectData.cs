@@ -204,7 +204,13 @@ public enum EffectType
     /// deployUnitOverrideAp / deployUnitOverrideHp が 1 以上ならその値でランタイム複製する（印刷値がパイロット用のまま残る）。
     /// 複製後 type=Unit。パイロットとしては扱わない。
     /// </summary>
-    DeploySelfAsBattleUnit
+    DeploySelfAsBattleUnit,
+    /// <summary>
+    /// 同一チェーンで観測した（直前の DiscardFromHand 等で捨てた）〔必殺技〕コマンドの
+    /// 【メイン】をコストなしで発動してよい（optionalPlayerConfirm）。
+    /// カードはトラッシュに残したまま解決する。
+    /// </summary>
+    ActivateObservedSpecialMoveCommandOnMain
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

@@ -221,6 +221,7 @@ public partial class BattleGameMain
 
         CardGameRule rule = ResolveHandRule(handOwner);
         rule?.AddCardToTrash(handCard.Data.id);
+        ObserveCardInEffectChain(handCard.Data);
         RemoveCardFromHandLists(handCard, handOwner);
         Destroy(handCard.gameObject);
         Debug.Log(
