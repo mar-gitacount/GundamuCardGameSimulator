@@ -18,7 +18,7 @@ MonoBehaviour:
   level: 4
   power: 2
   hp: 1
-  imageName: {fileID: 0}
+  imageName: {fileID: -6741561644241054926, guid: 7902b547487d0d04faff12ff17b94d6a, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
@@ -26,8 +26,26 @@ MonoBehaviour:
   color: 5
   type: 1
   attackFlg: 0
-  timedEffects: []
-  features: []
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 15
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnPilotMounted_Draw1_Discard1_MayActivateDiscardedSpecialMoveMain
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: e0f1a2b3c4d5e6f708192a3b4c5d6e7f, type: 2}
+  - {fileID: 11400000, guid: f1a2b3c4d5e6f708192a3b4c5d6e7f80, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0

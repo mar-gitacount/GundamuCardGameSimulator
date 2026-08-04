@@ -64,7 +64,9 @@ public partial class BattleGameMain
             ? "Start Effect Battle?"
             : effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot
                 ? "Set this Pilot from Trash?"
-                : "Activate this effect?";
+                : effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
+                    ? "捨てた〔必殺技〕の【メイン】を発動しますか？"
+                    : "Activate this effect?";
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
@@ -75,7 +77,9 @@ public partial class BattleGameMain
             ? "No Rest / no attack cost. Deal battle damage with a chosen enemy Unit."
             : effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot
                 ? "Choose an ally [MF] Unit with no Pilot."
-                : string.Empty;
+                : effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
+                    ? "コストなし。辞退もできます。"
+                    : string.Empty;
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -170f);

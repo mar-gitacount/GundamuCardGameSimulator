@@ -9888,6 +9888,16 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+        {
+            ApplyActivateObservedSpecialMoveCommandOnMain(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
@@ -12119,7 +12129,8 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.AddFromTrashToHand
             || effect.type == EffectType.AddObservedToHandFromTrash
             || effect.type == EffectType.MountSelfFromTrashAsPilot
-            || effect.type == EffectType.ActivateMountedCardOnMain)
+            || effect.type == EffectType.ActivateMountedCardOnMain
+            || effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
         {
             return;
         }
@@ -14732,6 +14743,17 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             TryExecuteManualHandSelectionEffect(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+        {
+            ApplyActivateObservedSpecialMoveCommandOnMain(
                 source,
                 side,
                 effect,
