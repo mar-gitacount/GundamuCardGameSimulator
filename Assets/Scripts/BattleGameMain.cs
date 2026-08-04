@@ -6928,6 +6928,11 @@ public partial class BattleGameMain : MonoBehaviour
                 ObservedUnitTriggerKind.ExBaseDestroyed);
         }
 
+        if (triggerShieldDestroyedWatch || triggerBaseDestroyedWatch || triggerExBaseDestroyedWatch)
+        {
+            yield return WaitOnOpponentShieldAreaCardDestroyedCoroutine(attacker, attackerOwner);
+        }
+
         try
         {
             CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
@@ -10862,7 +10867,8 @@ public partial class BattleGameMain : MonoBehaviour
                     Gundam2024RuleScript.PlayerSide targetSide = effect.target == TargetType.EnemyPlayer
                         ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
                         : ToRuleSide(ownerType);
-                    ApplyEffectDamageToPlayerArea(targetSide, magnitude);
+                    CardController areaDamageSource = ResolveUnitSourceForShieldAreaDamage(sourceCard);
+                    ApplyEffectDamageToPlayerArea(targetSide, magnitude, areaDamageSource);
                 }
 
                 Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");

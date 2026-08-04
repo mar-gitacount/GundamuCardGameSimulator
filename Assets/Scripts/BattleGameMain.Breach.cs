@@ -40,6 +40,6 @@ public partial class BattleGameMain
         Debug.Log(
             $"[Breach] {killer.Data.cardName}(id:{killer.Data.id}) amount:{breachAmount} → side:{targetSide}");
         // 配備ベース → EXベース → シールド。オンライン同期も効果ダメージ経路と共通。
-        ApplyEffectDamageToPlayerArea(targetSide, breachAmount);
+        ApplyEffectDamageToPlayerArea(targetSide, breachAmount, killer);
     }
 }

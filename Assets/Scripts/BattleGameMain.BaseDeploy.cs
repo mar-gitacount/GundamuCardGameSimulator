@@ -810,9 +810,14 @@ public partial class BattleGameMain
         SendCardToTrash(baseCard, ownerType);
     }
 
-    private bool TryApplyEffectDamageToDeployedBase(Gundam2024RuleScript.PlayerSide targetSide, int baseMagnitude, out string logMessage)
+    private bool TryApplyEffectDamageToDeployedBase(
+        Gundam2024RuleScript.PlayerSide targetSide,
+        int baseMagnitude,
+        out string logMessage,
+        out bool destroyed)
     {
         logMessage = null;
+        destroyed = false;
         if (baseMagnitude <= 0)
         {
             return false;
@@ -856,6 +861,7 @@ public partial class BattleGameMain
             SendDeployedBaseToTrash(defenderBase, defenderOwner, defenderRule);
             SyncResourceViewsFromRule(targetSide);
             logMessage += " (destroyed)";
+            destroyed = true;
         }
 
         return true;
@@ -865,8 +871,12 @@ public partial class BattleGameMain
     /// 効果ダメージによるプレイヤー領域へのダメージ。
     /// 配備ベース → EXベース（いずれも value 分）→ シールド1枚のみの順。戦闘交換ダメージとは別経路。
     /// baseMagnitude は生の効果量。配備ベースは自身の修飾のみ適用、EX/シールドは修飾なし。
+    /// sourceUnit があるとき、シールドエリアのカード破壊で OnOpponentShieldAreaCardDestroyed を発火する。
     /// </summary>
-    private void ApplyEffectDamageToPlayerArea(Gundam2024RuleScript.PlayerSide targetSide, int baseMagnitude)
+    private void ApplyEffectDamageToPlayerArea(
+        Gundam2024RuleScript.PlayerSide targetSide,
+        int baseMagnitude,
+        CardController sourceUnit = null)
     {
         if (baseMagnitude <= 0 || gundamRule == null)
         {
@@ -878,12 +888,15 @@ public partial class BattleGameMain
             : gundamRule.Enemy;
         int shieldBefore = target != null ? target.shield : 0;
         int exBaseBefore = target != null ? target.exBase : 0;
+        bool destroyedShieldAreaCard = false;
 
-        if (TryApplyEffectDamageToDeployedBase(targetSide, baseMagnitude, out string baseLog))
+        if (TryApplyEffectDamageToDeployedBase(targetSide, baseMagnitude, out string baseLog, out bool baseDestroyed))
         {
             Debug.Log(baseLog);
+            destroyedShieldAreaCard = baseDestroyed;
             SyncResourceViewsFromRule(targetSide);
             TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
+            TryNotifyOpponentShieldAreaCardDestroyedFromEffectDamage(sourceUnit, destroyedShieldAreaCard);
             return;
         }
 
@@ -892,9 +905,11 @@ public partial class BattleGameMain
         {
             gundamRule.DamageExBaseOnly(targetSide, exDamage);
             Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {target.exBase}).");
+            destroyedShieldAreaCard = exBaseBefore > 0 && target.exBase <= 0;
             SyncResourceViewsFromRule(targetSide);
             SyncBaseZoneHeaderDisplay(targetSide);
             TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
+            TryNotifyOpponentShieldAreaCardDestroyedFromEffectDamage(sourceUnit, destroyedShieldAreaCard);
             return;
         }
 
@@ -910,9 +925,45 @@ public partial class BattleGameMain
         {
             gundamRule.DamageShield(targetSide, 1, simultaneousReveal: false);
             Debug.Log($"[EffectDamage] Broke 1 shield (effect value:{baseMagnitude} does not multiply shield breaks).");
+            destroyedShieldAreaCard = true;
             SyncResourceViewsFromRule(targetSide);
             TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
+            TryNotifyOpponentShieldAreaCardDestroyedFromEffectDamage(sourceUnit, destroyedShieldAreaCard);
         }
+    }
+
+    private void TryNotifyOpponentShieldAreaCardDestroyedFromEffectDamage(
+        CardController sourceUnit,
+        bool destroyedShieldAreaCard)
+    {
+        if (!destroyedShieldAreaCard || sourceUnit == null || sourceUnit.Data == null || !sourceUnit.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        PlayerType ownerType = ResolveCardOwner(sourceUnit.transform);
+        StartCoroutine(WaitOnOpponentShieldAreaCardDestroyedCoroutine(sourceUnit, ownerType));
+    }
+
+    private static CardController ResolveUnitSourceForShieldAreaDamage(CardController sourceCard)
+    {
+        if (sourceCard == null || sourceCard.Data == null)
+        {
+            return null;
+        }
+
+        if (sourceCard.Data.IsUnitLike())
+        {
+            return sourceCard;
+        }
+
+        if (sourceCard.MountedUnit != null && sourceCard.MountedUnit.Data != null
+            && sourceCard.MountedUnit.Data.IsUnitLike())
+        {
+            return sourceCard.MountedUnit;
+        }
+
+        return null;
     }
 
     private void TryNotifyOnlineDefenderAreaStateAfterEffectDamage(
