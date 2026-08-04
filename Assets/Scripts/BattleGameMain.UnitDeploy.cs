@@ -803,7 +803,10 @@ public partial class BattleGameMain
             || effect.type == EffectType.Draw
             || effect.type == EffectType.MillTopToTrash
             || effect.type == EffectType.ExileFromDeck
-            || effect.type == EffectType.Look)
+            || effect.type == EffectType.Look
+            || effect.type == EffectType.ActivateMountedCardOnMain
+            || ((effect.type == EffectType.Damage)
+                && (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)))
         {
             return true;
         }
@@ -1113,6 +1116,15 @@ public partial class BattleGameMain
                 sourceCard,
                 ownerType,
                 effect,
+                () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ActivateMountedCardOnMain)
+        {
+            ApplyActivateMountedCardOnMain(
+                sourceCard,
+                ownerType,
                 () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
             return;
         }

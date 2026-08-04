@@ -249,6 +249,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.ActivateMountedCardOnMain)
+        {
+            ApplyActivateMountedCardOnMain(sourceCard, ownerType, onChainContinue);
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.DeployBase
             && effect.RequiresDeployBaseFromTrashSelection())
         {

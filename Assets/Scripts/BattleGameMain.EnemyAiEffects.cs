@@ -359,7 +359,9 @@ public partial class BattleGameMain
                 || eff.type == EffectType.AddExResource
                 || eff.type == EffectType.ChooseOne
                 || eff.type == EffectType.RestResource
-                || eff.type == EffectType.AddFromTrashToHand)
+                || eff.type == EffectType.AddFromTrashToHand
+                || eff.type == EffectType.MountSelfFromTrashAsPilot
+                || eff.type == EffectType.ActivateMountedCardOnMain)
             {
                 continue;
             }

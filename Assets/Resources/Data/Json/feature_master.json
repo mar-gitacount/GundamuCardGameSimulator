@@ -65,6 +65,30 @@
             "featureKey": "Londo Bell",
             "displayName": "ロンド・ベル",
             "description": ""
+        },
+        {
+            "id": 11,
+            "featureKey": "Special_Move",
+            "displayName": "必殺技",
+            "description": ""
+        },
+        {
+            "id": 12,
+            "featureKey": "MF",
+            "displayName": "MF",
+            "description": ""
+        },
+        {
+            "id": 13,
+            "featureKey": "Gundam_Fighter",
+            "displayName": "ガンダムファイター",
+            "description": ""
+        },
+        {
+            "id": 14,
+            "featureKey": "Shuffle_Alliance",
+            "displayName": "シャッフル同盟",
+            "description": ""
         }
     ]
 }

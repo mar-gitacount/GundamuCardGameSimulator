@@ -173,7 +173,19 @@ public enum EffectType
     /// トラッシュから value 枚を手札へ加える。
     /// filterByTargetCardType / targetFeature / targetUnitFilterStat（CardData 基準）で候補を絞る。
     /// </summary>
-    AddFromTrashToHand
+    AddFromTrashToHand,
+    /// <summary>
+    /// 【メイン】解決後専用。トラッシュに置かれた発動元カード自身を、
+    /// targetFeature 等で絞った味方ユニットへパイロットとしてセットしてもよい（optionalPlayerConfirm）。
+    /// OnMain チェーン中はスキップし、コマンドがトラッシュへ送られたあとに解決する。
+    /// </summary>
+    MountSelfFromTrashAsPilot,
+    /// <summary>
+    /// 搭乗中のカード（パイロット／コマンドパイロット）の【メイン】(OnMain) を、
+    /// コスト支払いなし・セット維持のまま発動する。【リンク中】【アタック時】等で使用。
+    /// MountSelfFromTrashAsPilot はスキップする。
+    /// </summary>
+    ActivateMountedCardOnMain
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -561,7 +573,12 @@ public enum EffectActivationCheckKind
     /// ソースカード（ユニット等）が features / featureIds のいずれか（OR）を持つ。
     /// パイロットの「このユニットが〔特徴〕の間」条件（搭乗ホストを Source にして評価）に使用。
     /// </summary>
-    SourceHasFeature
+    SourceHasFeature,
+    /// <summary>
+    /// ユニット戦闘ダメージ（ユニット対ユニット／ブロック戦闘）で破壊したときのみ。
+    /// EffectActivationContext.DestroyedByBattleDamage を参照。
+    /// </summary>
+    DestroyedByBattleDamage
 }
 
 public enum EffectTurnCheckKind
