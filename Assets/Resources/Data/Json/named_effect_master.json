@@ -972,6 +972,102 @@
             ]
         },
         {
+            "effectSetName": "DeploySelfAsUnitAp3Hp3_OnBurst",
+            "displayName": "バースト：自身をAP3/HP3ユニットとして配備",
+            "effects": [
+                {
+                    "type": 44,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitOverrideAp": 3,
+                    "deployUnitOverrideHp": 3,
+                    "deployUnitTriggerOnPlayed": 0,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": 4,
+                            "checkKind": 15,
+                            "turnCheck": -1,
+                            "featureId": 12,
+                            "minimumCount": 3,
+                            "levelAggregate": 0,
+                            "compareOp": 0,
+                            "compareValue": 0,
+                            "unitCountCompareOp": 2,
+                            "unitCountThreshold": 0,
+                            "pilotCardId": 0,
+                            "trashCardId": 0,
+                            "pilotLevelThreshold": 0,
+                            "activationStatTarget": -1,
+                            "observedCardType": 0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnBurst_Choose_AddSelfToHand_Or_DeploySelfAsUnitAp3Hp3_IfTrashMF3",
+            "displayName": "バースト：手札へ／トラッシュ〔MF〕3枚以上ならAP3HP3ユニット配備",
+            "effects": [
+                {
+                    "type": 38,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "choicePromptJa": "効果を1つ選び OK。Cancel 時は手札へ加えます。",
+                    "choicePromptEn": "Choose 1 effect, then OK. Cancel adds this card to your hand.",
+                    "choiceBranches": [
+                        {
+                            "labelJa": "■このカードを手札に加える。",
+                            "labelEn": "■Add this card to your hand.",
+                            "effectsName": "AddSelfToHand_OnBurst"
+                        },
+                        {
+                            "labelJa": "■かわりにこれを(AP3・HP3)のユニットとして配備する。（トラッシュに〔MF〕3枚以上）",
+                            "labelEn": "■Instead, deploy this as a Unit with AP3/HP3 (if 3+ [MF] in trash).",
+                            "effectsName": "DeploySelfAsUnitAp3Hp3_OnBurst"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyUnit_SelectSingle_Linked_IfSpecialMoveActivatedThisTurn",
+            "displayName": "【リンク中】【アタック時】必殺技発動済みなら敵1体に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
             "effectSetName": "OnDestroyed_AddSelfToHand_IfDestroyedByNeoZeon",
             "displayName": "破壊時：味方ネオジオンに破壊されたらトラッシュ経由で自身を手札へ",
             "effects": [

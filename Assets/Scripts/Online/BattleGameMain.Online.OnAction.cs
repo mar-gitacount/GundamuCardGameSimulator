@@ -300,7 +300,7 @@ public partial class BattleGameMain
 
 
 
-        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionEnd(
+        bool sent = SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionEnd(
 
             OnlineBattleActionPayload.CreateOnActionEnd(
 
@@ -322,6 +322,20 @@ public partial class BattleGameMain
 
 
 
+        if (!sent)
+
+        {
+
+            Debug.LogError(
+
+                $"[OnlineBattle] OnActionEnd send FAILED requestId={requestId}. "
+
+                + "Opponent may remain on Waiting for opponent action step.");
+
+        }
+
+
+
         CloseAllOnlineActionStepUi();
 
 
@@ -330,7 +344,7 @@ public partial class BattleGameMain
 
             $"[OnlineBattle] OnAction end sent. requestId={requestId} pass:{passKind} zone:{actingZoneSide} "
 
-            + $"ended(player:{playerEnded} enemy:{enemyEnded})");
+            + $"ended(player:{playerEnded} enemy:{enemyEnded}) sent:{sent}");
 
     }
 
@@ -600,7 +614,7 @@ public partial class BattleGameMain
 
         int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
 
-        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionBegin(
+        bool sent = SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionBegin(
 
             OnlineBattleActionPayload.CreateOnActionBegin(
 
@@ -613,6 +627,44 @@ public partial class BattleGameMain
                 attackerInstanceId,
 
                 GetActiveActionStepSessionIdForSend())));
+
+
+
+        if (!sent)
+
+        {
+
+            Debug.LogError(
+
+                $"[OnlineBattle] OnActionBegin send FAILED requestId={requestId} zone={actingZoneSideOnAttackerClient}. "
+
+                + "Skip wait to avoid deadlock.");
+
+            _pendingOnlineOnActionRequestId = 0;
+
+            _pendingOnlineOnActionCallback = null;
+
+            if (IsActionStepSessionActive)
+
+            {
+
+                AdvanceActionStepSession(actingZoneSideOnAttackerClient, ActionStepPassKind.ActionEnd);
+
+            }
+
+            else
+
+            {
+
+                onComplete?.Invoke();
+
+            }
+
+
+
+            return true;
+
+        }
 
 
 
@@ -736,7 +788,13 @@ public partial class BattleGameMain
 
 
 
-        if (!TryOpenOnActionCommandSelection(
+        bool opened;
+
+        try
+
+        {
+
+            opened = TryOpenOnActionCommandSelection(
 
                 PlayerType.Player,
 
@@ -744,7 +802,23 @@ public partial class BattleGameMain
 
                 completeAndNotify,
 
-                attackingUnit))
+                attackingUnit);
+
+        }
+
+        catch (System.Exception ex)
+
+        {
+
+            Debug.LogError($"[OnlineBattle] OnActionBegin UI open threw: {ex}");
+
+            opened = false;
+
+        }
+
+
+
+        if (!opened)
 
         {
 
@@ -757,7 +831,6 @@ public partial class BattleGameMain
         }
 
     }
-
 
 
     private void HandleRemoteOnActionEnd(string payload)

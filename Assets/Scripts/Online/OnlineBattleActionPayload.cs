@@ -61,6 +61,14 @@ public class OnlineBattleActionPayload
     public int actionStepSessionId;
     /// <summary>DeployUnit 同期：送信側視点の配備先バトルゾーン（0=Player, 1=Enemy）。未指定時は Player。</summary>
     public int deployTargetZoneOwnerSide;
+    /// <summary>
+    /// DeployUnit 専用の拡張（null なら JsonUtility が省略 → EOS ~1170B 超過を防ぐ）。
+    /// </summary>
+    public OnlineDeployUnitExtras deployUnitExtras;
+    /// <summary>
+    /// ShieldBreakComplete 専用。バーストで配備したユニット（null なら省略）。
+    /// </summary>
+    public OnlineBurstDeployedUnitsSnapshot burstDeployedUnits;
 
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
@@ -100,14 +108,40 @@ public class OnlineBattleActionPayload
         });
     }
 
-    public static string CreateDeployUnit(int cardId, int instanceId, int deployTargetZoneOwnerSide = 0)
+    public static string CreateDeployUnit(
+        int cardId,
+        int instanceId,
+        int deployTargetZoneOwnerSide = 0,
+        bool allowOffTurnDeploy = false,
+        int deployOverrideAp = 0,
+        int deployOverrideHp = 0,
+        bool deployForceUnitType = false,
+        int deployPrintedType = -1)
     {
+        OnlineDeployUnitExtras extras = null;
+        if (allowOffTurnDeploy
+            || deployOverrideAp > 0
+            || deployOverrideHp > 0
+            || deployForceUnitType
+            || deployPrintedType >= 0)
+        {
+            extras = new OnlineDeployUnitExtras
+            {
+                allowOffTurnDeploy = allowOffTurnDeploy,
+                deployOverrideAp = deployOverrideAp,
+                deployOverrideHp = deployOverrideHp,
+                deployForceUnitType = deployForceUnitType,
+                deployPrintedType = deployPrintedType
+            };
+        }
+
         return JsonUtility.ToJson(new OnlineBattleActionPayload
         {
             action = DeployUnit,
             cardId = cardId,
             instanceId = instanceId,
-            deployTargetZoneOwnerSide = deployTargetZoneOwnerSide
+            deployTargetZoneOwnerSide = deployTargetZoneOwnerSide,
+            deployUnitExtras = extras
         });
     }
 
@@ -183,7 +217,8 @@ public class OnlineBattleActionPayload
         bool areaSync = includeDefenderAreaSnapshot
             || attackerInstanceId <= 0
             || defenderDeployedBaseHpAfter >= 0;
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        // lean DTO（OnlineBattleActionPayload 全体だと EOS ~1170B 超過し得る）
+        return JsonUtility.ToJson(new OnlineShieldAttackDto
         {
             action = ShieldAttack,
             attackerInstanceId = attackerInstanceId,
@@ -205,9 +240,27 @@ public class OnlineBattleActionPayload
         int defenderDeployedBaseHpAfter = -1,
         int deployedBaseCardId = 0,
         int[] shieldZoneCardIds = null,
-        int[] brokenShieldCardIds = null)
+        int[] brokenShieldCardIds = null,
+        int[] burstDeployedUnitCardIds = null,
+        int[] burstDeployedUnitInstanceIds = null,
+        int[] burstDeployedUnitAp = null,
+        int[] burstDeployedUnitHp = null,
+        int[] burstDeployedUnitPrintedType = null)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        OnlineBurstDeployedUnitsSnapshot burstUnits = null;
+        if (burstDeployedUnitCardIds != null && burstDeployedUnitCardIds.Length > 0)
+        {
+            burstUnits = new OnlineBurstDeployedUnitsSnapshot
+            {
+                cardIds = burstDeployedUnitCardIds,
+                instanceIds = burstDeployedUnitInstanceIds,
+                ap = burstDeployedUnitAp,
+                hp = burstDeployedUnitHp,
+                printedType = burstDeployedUnitPrintedType
+            };
+        }
+
+        return JsonUtility.ToJson(new OnlineShieldBreakCompleteDto
         {
             action = ShieldBreakComplete,
             requestId = requestId,
@@ -215,8 +268,9 @@ public class OnlineBattleActionPayload
             defenderExBaseAfter = defenderExBaseAfter,
             defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter,
             cardId = deployedBaseCardId,
-            shieldZoneCardIds = shieldZoneCardIds ?? System.Array.Empty<int>(),
-            brokenShieldCardIds = brokenShieldCardIds
+            shieldZoneCardIds = shieldZoneCardIds,
+            brokenShieldCardIds = brokenShieldCardIds,
+            burstDeployedUnits = burstUnits
         });
     }
 
@@ -265,7 +319,8 @@ public class OnlineBattleActionPayload
         int attackerInstanceId,
         int actionStepSessionId = 0)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        // OnlineBattleActionPayload 全体を載せると EOS ~1170B を超え得るため lean DTO のみ送る
+        return JsonUtility.ToJson(new OnlineOnActionBeginDto
         {
             action = OnActionBegin,
             requestId = requestId,
@@ -286,7 +341,7 @@ public class OnlineBattleActionPayload
         int exResourceAfter,
         int levelAfter)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineOnActionEndDto
         {
             action = OnActionEnd,
             requestId = requestId,
@@ -393,4 +448,84 @@ public class OnlineBattleActionPayload
             return false;
         }
     }
+}
+
+/// <summary>DeployUnit 専用。親 payload が null のときは省略されメッセージ肥大化を防ぐ。</summary>
+[Serializable]
+public class OnlineDeployUnitExtras
+{
+    public bool allowOffTurnDeploy;
+    public int deployOverrideAp;
+    public int deployOverrideHp;
+    public bool deployForceUnitType;
+    public int deployPrintedType = -1;
+}
+
+/// <summary>ShieldBreakComplete 用バースト配備ユニット列。</summary>
+[Serializable]
+public class OnlineBurstDeployedUnitsSnapshot
+{
+    public int[] cardIds;
+    public int[] instanceIds;
+    public int[] ap;
+    public int[] hp;
+    public int[] printedType;
+}
+
+/// <summary>OnActionBegin 専用 lean payload（EOS ~1170B 対策）。</summary>
+[Serializable]
+public class OnlineOnActionBeginDto
+{
+    public string action;
+    public int requestId;
+    public int actingZoneSide;
+    public string onActionContext;
+    public int attackerInstanceId;
+    public int actionStepSessionId;
+}
+
+/// <summary>OnActionEnd 専用 lean payload（EOS ~1170B 対策）。</summary>
+[Serializable]
+public class OnlineOnActionEndDto
+{
+    public string action;
+    public int requestId;
+    public int actingZoneSide;
+    public int actionStepPassKind;
+    public int sessionPlayerActionEnded;
+    public int sessionEnemyActionEnded;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
+}
+
+/// <summary>ShieldAttack 専用 lean payload。</summary>
+[Serializable]
+public class OnlineShieldAttackDto
+{
+    public string action;
+    public int attackerInstanceId;
+    public int defenderShieldAfter;
+    public int defenderExBaseAfter;
+    public bool directAttackWin;
+    public int[] brokenShieldCardIds;
+    public int requestId;
+    public bool shieldBreakSimultaneousReveal;
+    public int defenderDeployedBaseHpAfter;
+    public bool includeDefenderAreaSnapshot;
+}
+
+/// <summary>ShieldBreakComplete 専用 lean payload。</summary>
+[Serializable]
+public class OnlineShieldBreakCompleteDto
+{
+    public string action;
+    public int requestId;
+    public int defenderShieldAfter;
+    public int defenderExBaseAfter;
+    public int defenderDeployedBaseHpAfter;
+    public int cardId;
+    public int[] shieldZoneCardIds;
+    public int[] brokenShieldCardIds;
+    public OnlineBurstDeployedUnitsSnapshot burstDeployedUnits;
 }

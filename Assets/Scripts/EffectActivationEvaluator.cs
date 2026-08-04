@@ -49,6 +49,9 @@ public sealed class EffectActivationContext
     /// <summary>ユニット戦闘ダメージで破壊されたか（OnEnemyUnitDestroyed のバトル破壊限定条件用）。</summary>
     public bool DestroyedByBattleDamage { get; }
 
+    /// <summary>このターン中にオーナーが〔必殺技〕コマンドのメイン／アクションを発動済みか。</summary>
+    public bool OwnerActivatedSpecialMoveCommandThisTurn { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -67,7 +70,8 @@ public sealed class EffectActivationContext
         CardController destroyingCard = null,
         bool hasDestroyingCardOwner = false,
         BattleGameMain.PlayerType destroyingCardOwner = default,
-        bool destroyedByBattleDamage = false)
+        bool destroyedByBattleDamage = false,
+        bool ownerActivatedSpecialMoveCommandThisTurn = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -87,6 +91,7 @@ public sealed class EffectActivationContext
         HasDestroyingCardOwner = hasDestroyingCardOwner;
         DestroyingCardOwner = destroyingCardOwner;
         DestroyedByBattleDamage = destroyedByBattleDamage;
+        OwnerActivatedSpecialMoveCommandThisTurn = ownerActivatedSpecialMoveCommandThisTurn;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -114,7 +119,8 @@ public sealed class EffectActivationContext
             DestroyingCard,
             HasDestroyingCardOwner,
             DestroyingCardOwner,
-            DestroyedByBattleDamage);
+            DestroyedByBattleDamage,
+            OwnerActivatedSpecialMoveCommandThisTurn);
     }
 }
 
@@ -249,6 +255,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.DestroyedByBattleDamage)
         {
             return ctx.DestroyedByBattleDamage;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerActivatedSpecialMoveCommandThisTurn)
+        {
+            return ctx.OwnerActivatedSpecialMoveCommandThisTurn;
         }
 
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)

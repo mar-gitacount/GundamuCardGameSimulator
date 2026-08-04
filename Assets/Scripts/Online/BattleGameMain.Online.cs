@@ -824,9 +824,18 @@ public partial class BattleGameMain
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurn());
     }
 
-    private void NotifyLocalPlayCardDeployed(CardController cardController, PlayerType deployTargetZoneOwner = PlayerType.Player)
+    private void NotifyLocalPlayCardDeployed(
+        CardController cardController,
+        PlayerType deployTargetZoneOwner = PlayerType.Player,
+        bool allowOffTurnDeploy = false)
     {
-        if (!IsOnlineBattle() || currentPlayerType != PlayerType.Player || cardController == null || cardController.Data == null)
+        if (!IsOnlineBattle() || cardController == null || cardController.Data == null)
+        {
+            return;
+        }
+
+        // 通常配備は自分のターンのみ。バースト配備などは allowOffTurnDeploy で許可。
+        if (!allowOffTurnDeploy && currentPlayerType != PlayerType.Player)
         {
             return;
         }
@@ -843,11 +852,29 @@ public partial class BattleGameMain
             return;
         }
 
+        int overrideAp = 0;
+        int overrideHp = 0;
+        bool forceUnit = false;
+        int printedType = -1;
+        if (cardController.IsTemporaryBurstBattleUnit)
+        {
+            forceUnit = true;
+            allowOffTurnDeploy = true;
+            overrideAp = cardController.Data.power;
+            overrideHp = cardController.Data.hp;
+            printedType = (int)cardController.TemporaryBurstBattleUnitPrintedType;
+        }
+
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
             OnlineBattleActionPayload.CreateDeployUnit(
                 cardController.Data.id,
                 cardController.BattleInstanceId,
-                (int)deployTargetZoneOwner)));
+                (int)deployTargetZoneOwner,
+                allowOffTurnDeploy,
+                overrideAp,
+                overrideHp,
+                forceUnit,
+                printedType)));
     }
 
     /// <summary>EXリソース増減を相手へスナップショット同期する（AddExResource 等）。</summary>
@@ -955,6 +982,23 @@ public partial class BattleGameMain
         }
 
         if (!EosOnlineBattleMessage.TryParse(payload, out EosOnlineBattleMessage message))
+        {
+            return;
+        }
+
+        try
+        {
+            DispatchOnlineBattleMessage(message);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[OnlineBattle] Dispatch threw type={message.type}: {ex}");
+        }
+    }
+
+    private void DispatchOnlineBattleMessage(EosOnlineBattleMessage message)
+    {
+        if (message == null)
         {
             return;
         }
@@ -1298,7 +1342,10 @@ public partial class BattleGameMain
             return;
         }
 
-        if (currentPlayerType != PlayerType.Enemy)
+        if (currentPlayerType != PlayerType.Enemy
+            && !(action.action == OnlineBattleActionPayload.DeployUnit
+                 && action.deployUnitExtras != null
+                 && action.deployUnitExtras.allowOffTurnDeploy))
         {
             Debug.Log("[OnlineBattle] Ignored remote PlayCard because it is not opponent turn locally.");
             return;
@@ -1339,16 +1386,55 @@ public partial class BattleGameMain
         CardGameRule rule = localZoneOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         List<CardController> zone = localZoneOwner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
 
-        CardData cardData = DeckSettinObject.Instance.GetCardDataById(cardId);
-        if (cardData == null || rule?.PlayerDeployPanel == null)
+        if (instanceId > 0 && FindUnitByInstanceIdEitherZone(instanceId) != null)
+        {
+            Debug.Log($"[OnlineBattle] Remote deploy skipped (duplicate inst:{instanceId})");
+            return;
+        }
+
+        CardData printed = DeckSettinObject.Instance.GetCardDataById(cardId);
+        if (printed == null || rule?.PlayerDeployPanel == null)
         {
             Debug.LogWarning($"[OnlineBattle] Unknown card id for remote deploy: {cardId}");
             return;
         }
 
+        OnlineDeployUnitExtras extras = action.deployUnitExtras;
+        CardData cardData = printed;
+        bool temporaryBurstUnit = extras != null && extras.deployForceUnitType;
+        int overrideAp = extras != null ? extras.deployOverrideAp : 0;
+        int overrideHp = extras != null ? extras.deployOverrideHp : 0;
+        if (temporaryBurstUnit || overrideAp > 0 || overrideHp > 0)
+        {
+            cardData = Instantiate(printed);
+            cardData.name = printed.cardName + (temporaryBurstUnit ? " (BattleUnit)" : " (Runtime)");
+            if (temporaryBurstUnit)
+            {
+                cardData.type = Type.Unit;
+                cardData.link = new List<UnitLinkPilotSlot>();
+            }
+
+            if (overrideAp > 0)
+            {
+                cardData.power = overrideAp;
+            }
+
+            if (overrideHp > 0)
+            {
+                cardData.hp = overrideHp;
+            }
+        }
+
         GameObject cardObject = Instantiate(CardImagePrefab, rule.PlayerDeployPanel);
         CardController controller = cardObject.GetComponent<CardController>();
         controller.SetUp(cardData, OnCardClicked);
+        if (temporaryBurstUnit)
+        {
+            Type printedType = extras != null && extras.deployPrintedType >= 0
+                ? (Type)extras.deployPrintedType
+                : Type.Pilot;
+            controller.MarkTemporaryBurstBattleUnit(printedType, printed.power, printed.hp);
+        }
 
         if (zone != null && !zone.Contains(controller))
         {
@@ -1372,7 +1458,8 @@ public partial class BattleGameMain
         RefreshAllFieldOwnerTurnPassives();
         Debug.Log(
             $"[OnlineBattle] Remote unit deployed zone:{localZoneOwner} senderZone:{senderZoneOwner} "
-            + $"{cardData.cardName} ({cardId}) inst:{controller.BattleInstanceId}");
+            + $"{cardData.cardName} ({cardId}) inst:{controller.BattleInstanceId} "
+            + $"forceUnit:{temporaryBurstUnit} AP:{cardData.power} HP:{cardData.hp}");
     }
 
     private void NotifyLocalShieldAttackResolved(
@@ -1445,10 +1532,21 @@ public partial class BattleGameMain
             return;
         }
 
-        if (currentPlayerType != PlayerType.Enemy)
+        // シールド破壊ハンドシェイク（requestId>0）は防御側が必ず解決する必要がある。
+        // ターン同期のズレで無視すると攻撃側が待ち続ける。
+        bool isShieldBreakHandshake = action.action == OnlineBattleActionPayload.ShieldAttack
+            && action.requestId > 0;
+        if (currentPlayerType != PlayerType.Enemy && !isShieldBreakHandshake)
         {
             Debug.Log("[OnlineBattle] Ignored remote Attack because it is not opponent turn locally.");
             return;
+        }
+
+        if (currentPlayerType != PlayerType.Enemy && isShieldBreakHandshake)
+        {
+            Debug.LogWarning(
+                $"[OnlineBattle] Accepting ShieldAttack handshake requestId={action.requestId} "
+                + $"despite currentPlayerType={currentPlayerType}");
         }
 
         _applyingRemoteBattleAction = true;
@@ -1503,6 +1601,13 @@ public partial class BattleGameMain
                 action.shieldBreakSimultaneousReveal,
                 action.brokenShieldCardIds,
                 action.requestId));
+        }
+        else if (action.requestId > 0)
+        {
+            // 破壊枚数0でも handshake requestId があるなら完了を返さないと攻撃側が UI 待ちで固まる
+            Debug.LogWarning(
+                $"[OnlineBattle] ShieldAttack requestId={action.requestId} but brokenCount=0 — send Complete immediately.");
+            SendOnlineShieldBreakComplete(action.requestId, Gundam2024RuleScript.PlayerSide.Player);
         }
 
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);

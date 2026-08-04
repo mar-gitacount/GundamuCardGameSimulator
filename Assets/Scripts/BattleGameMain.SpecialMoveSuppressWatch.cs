@@ -108,6 +108,8 @@ public partial class BattleGameMain
             return;
         }
 
+        MarkOwnerSpecialMoveCommandActivatedThisTurn(ownerType);
+
         List<CardController> watchers = CollectOwnerBattleUnitsWithSpecialMoveWatch(ownerType);
         if (watchers.Count == 0)
         {

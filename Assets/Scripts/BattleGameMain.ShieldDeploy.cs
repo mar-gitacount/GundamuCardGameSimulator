@@ -949,6 +949,7 @@ public partial class BattleGameMain
                         }
 
                         IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+                        bool waitBurstAsync = false;
                         for (int e = 0; e < resolved.Count; e++)
                         {
                             EffectData effect = resolved[e];
@@ -957,7 +958,27 @@ public partial class BattleGameMain
                                 continue;
                             }
 
+                            if (effect.type == EffectType.ChooseOne
+                                || effect.type == EffectType.DeploySelfAsBattleUnit)
+                            {
+                                waitBurstAsync = true;
+                                bool done = false;
+                                ApplyEffectRespectingLookAsync(
+                                    source,
+                                    shieldOwner,
+                                    effect,
+                                    () => done = true);
+                                yield return new WaitUntil(() => done);
+                                continue;
+                            }
+
                             ApplyEffect(source, shieldOwner, effect);
+                        }
+
+                        // ChooseOne 解決後は同一 OnBurst ブロックの手動ステップへ
+                        if (waitBurstAsync)
+                        {
+                            // no-op: フラグはログ用
                         }
                     }
                 }

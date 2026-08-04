@@ -198,7 +198,13 @@ public enum EffectType
     /// レスト状態の自分のリソースを value 個アクティブにする（利用可能 resource を増やす）。
     /// 0 以下は 1 扱い。アクティブ化可能な枚数（TotalLevel - resource）が足りなければ何もしない。
     /// </summary>
-    ActivateResource
+    ActivateResource,
+    /// <summary>
+    /// バースト元カード自身をバトルゾーンへユニットとして配備する。
+    /// deployUnitOverrideAp / deployUnitOverrideHp が 1 以上ならその値でランタイム複製する（印刷値がパイロット用のまま残る）。
+    /// 複製後 type=Unit。パイロットとしては扱わない。
+    /// </summary>
+    DeploySelfAsBattleUnit
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -591,7 +597,11 @@ public enum EffectActivationCheckKind
     /// ユニット戦闘ダメージ（ユニット対ユニット／ブロック戦闘）で破壊したときのみ。
     /// EffectActivationContext.DestroyedByBattleDamage を参照。
     /// </summary>
-    DestroyedByBattleDamage
+    DestroyedByBattleDamage,
+    /// <summary>
+    /// このターン中に、自分が〔必殺技〕コマンドの【メイン】／【アクション】を発動済み。
+    /// </summary>
+    OwnerActivatedSpecialMoveCommandThisTurn
 }
 
 public enum EffectTurnCheckKind
@@ -851,8 +861,10 @@ public class EffectData
     [Tooltip("true のとき effectActivationConditions はチェーン観測カードを参照。観測が空ならこの効果をスキップ。")]
     public bool requireChainObservationContext;
 
-    [Tooltip("この効果のみの発動条件（空なら常に実行）。ObservedCardHasFeature はチェーン観測を参照。")]
-    public List<EffectActivationCondition> effectActivationConditions = new List<EffectActivationCondition>();
+    [Tooltip(
+        "この効果のみの発動条件（空なら常に実行）。ObservedCardHasFeature はチェーン観測を参照。"
+        + " named_effect_master.json は JsonUtility のため配列のみ読める（List 不可）。")]
+    public EffectActivationCondition[] effectActivationConditions = Array.Empty<EffectActivationCondition>();
 
     [HideInInspector]
     [Tooltip("旧フィールド。targetUnitFilterStat が Unset のとき Level 条件として読み替え。")]
@@ -878,6 +890,12 @@ public class EffectData
 
     [Tooltip("DeployUnit: 配備したユニットの OnPlayed を発動するか（トークンは通常 false）。")]
     public bool deployUnitTriggerOnPlayed;
+
+    [Tooltip("DeploySelfAsBattleUnit: 1以上ならランタイム複製時の AP。0 なら印刷値。")]
+    public int deployUnitOverrideAp;
+
+    [Tooltip("DeploySelfAsBattleUnit: 1以上ならランタイム複製時の HP。0 なら印刷値。")]
+    public int deployUnitOverrideHp;
 
     [Tooltip("GrantAttackFlag: true のとき AttackFlg=False のユニットのみ候補・UI 表示（既に ON のユニットは選べない）。")]
     public bool grantAttackFlagOnlyIfOff = true;
@@ -946,7 +964,7 @@ public static class EffectDataChainExtensions
     {
         return effect != null
             && effect.effectActivationConditions != null
-            && effect.effectActivationConditions.Count > 0;
+            && effect.effectActivationConditions.Length > 0;
     }
 
     public static bool ShouldDeferEffectActivationToRunTime(this EffectData effect)

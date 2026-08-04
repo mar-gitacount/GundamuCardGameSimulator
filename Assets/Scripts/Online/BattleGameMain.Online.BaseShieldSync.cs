@@ -294,6 +294,8 @@ public partial class BattleGameMain
 
             ApplyRemoteMirrorDeployedBaseFromSnapshot(action, rule, mirrorSide);
 
+            ApplyRemoteBurstDeployedUnitsFromShieldBreakSnapshot(action, rule);
+
             if (action.defenderShieldAfter < 0 && action.shieldZoneCardIds != null)
             {
                 gundamRule.SyncShieldCountFromZone(mirrorSide, rule.GetShieldZoneCardCount());
@@ -302,14 +304,123 @@ public partial class BattleGameMain
             SyncResourceViewsFromRule(mirrorSide);
             ReconcileShieldStateWithZone(mirrorSide, force: true);
             SyncBaseZoneHeaderDisplay(mirrorSide);
+            int burstUnitCount = action.burstDeployedUnits?.cardIds != null
+                ? action.burstDeployedUnits.cardIds.Length
+                : 0;
             Debug.Log(
                 $"[OnlineBattle] Remote burst aftermath applied. shield={enemyState.shield} exBase={enemyState.exBase} "
-                + $"baseId={action.cardId} baseHp={action.defenderDeployedBaseHpAfter} zone={action.shieldZoneCardIds?.Length ?? 0}");
+                + $"baseId={action.cardId} baseHp={action.defenderDeployedBaseHpAfter} zone={action.shieldZoneCardIds?.Length ?? 0} "
+                + $"burstUnits={burstUnitCount}");
         }
         finally
         {
             _applyingRemoteBattleAction = false;
         }
+    }
+
+    /// <summary>
+    /// ShieldBreakComplete に含まれるバースト配備ユニットを相手ミラーのバトルゾーンへ反映する。
+    /// </summary>
+    private void ApplyRemoteBurstDeployedUnitsFromShieldBreakSnapshot(
+        OnlineBattleActionPayload action,
+        CardGameRule rule)
+    {
+        OnlineBurstDeployedUnitsSnapshot snap = action?.burstDeployedUnits;
+        if (snap?.cardIds == null
+            || snap.cardIds.Length == 0
+            || rule?.PlayerDeployPanel == null
+            || DeckSettinObject.Instance == null
+            || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        int count = snap.cardIds.Length;
+        for (int i = 0; i < count; i++)
+        {
+            int cardId = snap.cardIds[i];
+            if (cardId <= 0)
+            {
+                continue;
+            }
+
+            int instanceId = snap.instanceIds != null && i < snap.instanceIds.Length
+                ? snap.instanceIds[i]
+                : 0;
+            int overrideAp = snap.ap != null && i < snap.ap.Length ? snap.ap[i] : 0;
+            int overrideHp = snap.hp != null && i < snap.hp.Length ? snap.hp[i] : 0;
+            int printedTypeInt = snap.printedType != null && i < snap.printedType.Length
+                ? snap.printedType[i]
+                : (int)Type.Pilot;
+
+            if (instanceId > 0 && FindUnitByInstanceIdEitherZone(instanceId) != null)
+            {
+                Debug.Log(
+                    $"[OnlineBattle] Burst deploy unit already present inst:{instanceId} — skip");
+                continue;
+            }
+
+            CardData printed = DeckSettinObject.Instance.GetCardDataById(cardId);
+            if (printed == null)
+            {
+                Debug.LogWarning($"[OnlineBattle] Unknown burst deploy card id:{cardId}");
+                continue;
+            }
+
+            CardData unitData = Instantiate(printed);
+            unitData.name = printed.cardName + " (BattleUnit)";
+            unitData.type = Type.Unit;
+            unitData.link = new List<UnitLinkPilotSlot>();
+            if (overrideAp > 0)
+            {
+                unitData.power = overrideAp;
+            }
+
+            if (overrideHp > 0)
+            {
+                unitData.hp = overrideHp;
+            }
+
+            GameObject cardObject = Instantiate(CardImagePrefab, rule.PlayerDeployPanel);
+            CardController controller = cardObject.GetComponent<CardController>();
+            if (controller == null)
+            {
+                Destroy(cardObject);
+                Destroy(unitData);
+                continue;
+            }
+
+            controller.SetUp(unitData, OnCardClicked);
+            Type printedType = printedTypeInt >= 0 ? (Type)printedTypeInt : Type.Pilot;
+            controller.MarkTemporaryBurstBattleUnit(
+                printedType,
+                printed.power,
+                printed.hp);
+
+            if (!enemyBattleZoneCards.Contains(controller))
+            {
+                enemyBattleZoneCards.Add(controller);
+            }
+
+            controller.SetEligibleForShieldZoneDeploy(false);
+            controller.ResetRuntimeStatsFromData();
+            ApplyUnitDeployFieldAttackState(controller);
+            if (instanceId > 0)
+            {
+                AssignBattleInstanceIdFromNetwork(controller, instanceId);
+            }
+            else
+            {
+                AssignBattleInstanceIdIfNeeded(controller);
+            }
+
+            ApplyPilotMountFieldAurasToDeployedUnit(controller, PlayerType.Enemy);
+            Debug.Log(
+                $"[OnlineBattle] Burst deploy unit mirrored: {unitData.cardName}(id:{cardId}) "
+                + $"inst:{controller.BattleInstanceId} AP:{unitData.power} HP:{unitData.hp}");
+        }
+
+        RefreshAllFieldOwnerTurnPassives();
     }
 
     private void ApplyRemoteMirrorDeployedBaseFromSnapshot(
