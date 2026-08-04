@@ -62,7 +62,9 @@ public partial class BattleGameMain
         TextMeshProUGUI title = root.CreateChildTextCustom("OptionalEffectTitle", UIAnchor.TopCenter, 760, 48);
         title.text = effect != null && effect.type == EffectType.EffectBattle
             ? "Start Effect Battle?"
-            : "Activate this effect?";
+            : effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot
+                ? "Set this Pilot from Trash?"
+                : "Activate this effect?";
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
@@ -71,7 +73,9 @@ public partial class BattleGameMain
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("OptionalEffectSubtitle", UIAnchor.TopCenter, 760, 40);
         subtitle.text = effect != null && effect.type == EffectType.EffectBattle
             ? "No Rest / no attack cost. Deal battle damage with a chosen enemy Unit."
-            : string.Empty;
+            : effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot
+                ? "Choose an ally [MF] Unit with no Pilot."
+                : string.Empty;
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -170f);

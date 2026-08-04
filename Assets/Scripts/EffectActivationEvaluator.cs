@@ -46,6 +46,9 @@ public sealed class EffectActivationContext
     /// <summary>破壊者オーナーが解決済みか。</summary>
     public bool HasDestroyingCardOwner { get; }
 
+    /// <summary>ユニット戦闘ダメージで破壊されたか（OnEnemyUnitDestroyed のバトル破壊限定条件用）。</summary>
+    public bool DestroyedByBattleDamage { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -63,7 +66,8 @@ public sealed class EffectActivationContext
         bool priorChainDealtDamage = false,
         CardController destroyingCard = null,
         bool hasDestroyingCardOwner = false,
-        BattleGameMain.PlayerType destroyingCardOwner = default)
+        BattleGameMain.PlayerType destroyingCardOwner = default,
+        bool destroyedByBattleDamage = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -82,6 +86,7 @@ public sealed class EffectActivationContext
         DestroyingCard = destroyingCard;
         HasDestroyingCardOwner = hasDestroyingCardOwner;
         DestroyingCardOwner = destroyingCardOwner;
+        DestroyedByBattleDamage = destroyedByBattleDamage;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -108,7 +113,8 @@ public sealed class EffectActivationContext
             PriorChainDealtDamage,
             DestroyingCard,
             HasDestroyingCardOwner,
-            DestroyingCardOwner);
+            DestroyingCardOwner,
+            DestroyedByBattleDamage);
     }
 }
 
@@ -238,6 +244,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.SourceHasFeature)
         {
             return EvaluateSourceHasFeature(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.DestroyedByBattleDamage)
+        {
+            return ctx.DestroyedByBattleDamage;
         }
 
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)

@@ -3673,7 +3673,11 @@ public partial class BattleGameMain : MonoBehaviour
             () => RunOrderedOnDestroyedEntries(ownerType, ordered, index + 1, onComplete));
     }
 
-    private void SendCardToTrash(CardController cardController, PlayerType ownerType, CardController destroyedBy = null)
+    private void SendCardToTrash(
+        CardController cardController,
+        PlayerType ownerType,
+        CardController destroyedBy = null,
+        bool destroyedByBattleDamage = false)
     {
         if (cardController == null || cardController.Data == null)
         {
@@ -3729,7 +3733,12 @@ public partial class BattleGameMain : MonoBehaviour
                 detachedPilot = null;
             }
 
-            TriggerOnEnemyUnitDestroyedEffects(cardController, ownerType, destroyedBy, () =>
+            TriggerOnEnemyUnitDestroyedEffects(
+                cardController,
+                ownerType,
+                destroyedBy,
+                destroyedByBattleDamage,
+                () =>
             {
                 if (TryResolveEnemyUnitKillContext(
                         cardController,
@@ -5012,7 +5021,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (defender.CurrentHp <= 0)
         {
-            SendCardToTrash(defender, defenderOwner, attacker);
+            SendCardToTrash(defender, defenderOwner, attacker, destroyedByBattleDamage: true);
         }
 
         if (attacker.CurrentHp <= 0)
@@ -7754,7 +7763,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (blocker.CurrentHp <= 0)
         {
-            SendCardToTrash(blocker, blockerOwner, attacker);
+            SendCardToTrash(blocker, blockerOwner, attacker, destroyedByBattleDamage: true);
         }
 
         if (attacker.CurrentHp <= 0)
@@ -9522,6 +9531,7 @@ public partial class BattleGameMain : MonoBehaviour
         CardController destroyedUnit,
         PlayerType destroyedOwner,
         CardController destroyedBy,
+        bool destroyedByBattleDamage,
         System.Action onComplete)
     {
         if (!TryResolveEnemyUnitKillContext(destroyedUnit, destroyedOwner, destroyedBy, out CardController killer, out PlayerType killerOwner))
@@ -9530,7 +9540,24 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(killerOwner, killer);
+        EffectActivationContext activationContext = new EffectActivationContext(
+            killerOwner,
+            killer,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: killerOwner == currentPlayerType,
+            mountHostUnit: killer,
+            mountedPilot: killer.MountedPilot,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            destroyingCard: destroyedBy,
+            hasDestroyingCardOwner: true,
+            destroyingCardOwner: killerOwner,
+            destroyedByBattleDamage: destroyedByBattleDamage);
         List<TimedEffectData> unitBlocks = new List<TimedEffectData>();
         List<TimedEffectData> pilotBlocks = new List<TimedEffectData>();
         AppendOnEnemyUnitDestroyedBlocks(killer.Data, activationContext, unitBlocks);
@@ -11980,7 +12007,9 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ChooseOne
             || effect.type == EffectType.RestResource
             || effect.type == EffectType.AddFromTrashToHand
-            || effect.type == EffectType.AddObservedToHandFromTrash)
+            || effect.type == EffectType.AddObservedToHandFromTrash
+            || effect.type == EffectType.MountSelfFromTrashAsPilot
+            || effect.type == EffectType.ActivateMountedCardOnMain)
         {
             return;
         }
@@ -14489,7 +14518,22 @@ public partial class BattleGameMain : MonoBehaviour
 
                 if (trashHandCardAfter)
                 {
+                    int sourceCardId = source != null && source.Data != null ? source.Data.id : 0;
+                    CardData sourceData = source != null ? source.Data : null;
+                    List<EffectData> deferredMountEffects = CollectMountSelfFromTrashAsPilotEffects(
+                        timed != null ? timed.GetResolvedEffects() : null);
                     FinalizeOnMainSourceCard(source, side);
+                    if (deferredMountEffects.Count > 0 && sourceCardId > 0)
+                    {
+                        TryExecuteDeferredMountSelfFromTrashChain(
+                            side,
+                            sourceCardId,
+                            sourceData,
+                            deferredMountEffects,
+                            0,
+                            () => TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone));
+                        return;
+                    }
                 }
 
                 TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
@@ -14531,6 +14575,14 @@ public partial class BattleGameMain : MonoBehaviour
 
         EffectActivationContext activationContext = chainActivationContext ?? BuildActivationContext(side, source);
         if (!ShouldApplyChainedEffect(effect, activationContext, "OnMain"))
+        {
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+            return;
+        }
+
+        // トラッシュ送付後に解決（コマンド自身が搭乗元になるため）。
+        if (effect.type == EffectType.MountSelfFromTrashAsPilot)
         {
             TryExecuteOnMainEffectChain(
                 side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);

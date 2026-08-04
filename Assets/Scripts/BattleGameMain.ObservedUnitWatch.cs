@@ -445,6 +445,10 @@ public partial class BattleGameMain
             baseContext.OwnerTrashCardIds,
             baseContext.OpponentTrashCardIds,
             baseContext.FrozenOwnerBattleAliveUnitCount,
-            baseContext.PriorChainDealtDamage);
+            baseContext.PriorChainDealtDamage,
+            baseContext.DestroyingCard,
+            baseContext.HasDestroyingCardOwner,
+            baseContext.DestroyingCardOwner,
+            baseContext.DestroyedByBattleDamage);
     }
 }
