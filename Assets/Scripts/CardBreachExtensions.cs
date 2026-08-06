@@ -54,6 +54,11 @@ public static class CardBreachExtensions
             total += unit.MountedPilot.Data.GetBreachAmount();
         }
 
+        if (unit.HasBreachUntilEndOfTurnGrant)
+        {
+            total += unit.BreachUntilEndOfTurnAmount;
+        }
+
         return total;
     }
 }

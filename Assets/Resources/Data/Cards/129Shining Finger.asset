@@ -10,57 +10,51 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 125Bolt Gundam
+  m_Name: 129Shining Finger
   m_EditorClassIdentifier: 
-  id: 125
-  cardName: Bolt Gundam
-  cost: 2
+  id: 129
+  cardName: Shining Finger
+  cost: 1
   level: 4
-  power: 4
-  hp: 3
-  imageName: {fileID: 5011296131664921791, guid: 74eb3288dc17adb419b61331691c1313, type: 3}
+  power: 0
+  hp: 0
+  imageName: {fileID: -8199325592238663969, guid: 01d2973de3b33bc4c9b07fc2284b8c46, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
   filterType: 0
   color: 5
-  type: 0
+  type: 2
   attackFlg: 0
   timedEffects:
-  - timing: 3
-    activationConditions:
-    - boardSide: -1
-      checkKind: 17
-      turnCheck: -1
-      feature: {fileID: 0}
-      featureId: 0
-      features: []
-      featureIds: 
-      minimumCount: 0
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 2
-      unitCountThreshold: 0
-      pilotCardId: 0
-      trashCardId: 0
-      pilotLevelThreshold: 0
-      activationStatTarget: -1
-      observedCardType: 0
-      destroyedByOwnerRelation: 0
+  - timing: 5
+    activationConditions: []
     requireChainObservationContext: 0
-    effectsName: ActivateMountedCardOnMain_OnAttack
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: RestEnemyHp4OrLess_ThenOptionalFirstStrike_ShiningGundamName_UntilEOT
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 8
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: RestEnemyHp4OrLess_ThenOptionalFirstStrike_ShiningGundamName_UntilEOT
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
-  - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
   - {fileID: 11400000, guid: f1a2b3c4d5e6f708192a3b4c5d6e7f80, type: 2}
-  link:
-  - pilotCardId: 131
-    pilotFeatures: []
-    pilotFeatureIds: 
+  - {fileID: 11400000, guid: a7e4c91b2d8f4e6a9b0c1d2e3f4a5b6c, type: 2}
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

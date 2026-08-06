@@ -353,6 +353,8 @@ public partial class BattleGameMain
                 || eff.type == EffectType.DiscardFromHand
                 || eff.type == EffectType.Activate
                 || eff.type == EffectType.NotDirectAttack
+                || eff.type == EffectType.FirstStrike
+                || eff.type == EffectType.GrantBreach
                 || eff.type == EffectType.Suppress
                 || eff.type == EffectType.Breach
                 || eff.type == EffectType.RecoverHp

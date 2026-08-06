@@ -3343,6 +3343,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
         ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
         ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
+        ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
         ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
         ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
         ClearObservedUnitWatches();
@@ -6196,6 +6197,24 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (TryApplyNotDirectAttackMarker(effect, targets))
+        {
+            SetEffectChainLastPickedTargets(targets);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (TryApplyFirstStrikeMarker(effect, targets))
+        {
+            SetEffectChainLastPickedTargets(targets);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (TryApplyGrantBreachMarker(effect, targets))
         {
             SetEffectChainLastPickedTargets(targets);
             BeginOnlineEffectSyncBatch(ownerType);
@@ -10130,11 +10149,12 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // 「してもよい」系（abortRemainingChainOnSkip）は候補1体でも UI＋キャンセルを出す
+        // 「してもよい」系（abortRemainingChainOnSkip / optionalPlayerConfirm）は候補1体でも UI＋キャンセルを出す
         bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag
             || effect.type == EffectType.EffectBattle
             || effect.IsAttackActiveEnemyAllyGrant()
-            || effect.abortRemainingChainOnSkip;
+            || effect.abortRemainingChainOnSkip
+            || effect.optionalPlayerConfirm;
         if (!forceSelectionUi && candidates.Count == 1)
         {
             ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, candidates);
@@ -10868,6 +10888,40 @@ public partial class BattleGameMain : MonoBehaviour
             if (TryApplyNotDirectAttackMarker(effect, notDirectTargets))
             {
                 SetEffectChainLastPickedTargets(notDirectTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.FirstStrike)
+        {
+            int firstStrikeMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (firstStrikeMagnitude == 0 && !effect.type.UsesTargetCountValue())
+            {
+                return;
+            }
+
+            List<CardController> firstStrikeTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyFirstStrikeMarker(effect, firstStrikeTargets))
+            {
+                SetEffectChainLastPickedTargets(firstStrikeTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.GrantBreach)
+        {
+            List<CardController> breachTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyGrantBreachMarker(effect, breachTargets))
+            {
+                SetEffectChainLastPickedTargets(breachTargets);
             }
 
             BeginOnlineEffectSyncBatch(ownerType);
@@ -15001,6 +15055,21 @@ public partial class BattleGameMain : MonoBehaviour
             return isAttackContext
                 ? $"Effect Battle — Choose an enemy Unit ({attackingUnitInAttackFlow.Data.cardName})"
                 : "Effect Battle — Choose an enemy Unit (No Rest)";
+        }
+
+        if (effect.type == EffectType.FirstStrike)
+        {
+            string nameHint = string.IsNullOrWhiteSpace(effect.targetCardNameContains)
+                ? string.Empty
+                : $"（名前に「{effect.targetCardNameContains.Trim()}」）";
+            return $"《先制攻撃》付与 — 味方ユニットを選択{nameHint}";
+        }
+
+        if (effect.type == EffectType.GrantBreach)
+        {
+            int amount = effect.value > 0 ? effect.value : 0;
+            string lackHint = effect.requireTargetLacksBreach ? "（《突破》持ち不可）" : string.Empty;
+            return $"《突破{amount}》付与 — 味方ユニットを選択{lackHint}";
         }
 
         if (effect.type == EffectType.GrantAttackFlag)
