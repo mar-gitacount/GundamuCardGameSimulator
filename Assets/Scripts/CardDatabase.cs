@@ -99,6 +99,7 @@ public class CardDatabase : MonoBehaviour
         isShieldToken = card.isShieldToken,
         isRepair = card.isRepair,
         repairAmount = card.repairAmount,
+        notUsedOnline = card.notUsedOnline,
     };
 }
 CardData ConvertToCardData(CardJson json)
@@ -136,6 +137,7 @@ CardData ConvertToCardData(CardJson json)
     card.isShieldToken = json.isShieldToken;
     card.isRepair = json.isRepair;
     card.repairAmount = json.repairAmount;
+    card.notUsedOnline = json.notUsedOnline;
     card.SetFeaturesFromIds(json.featureIds);
 
     return card;

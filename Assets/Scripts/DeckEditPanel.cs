@@ -52,6 +52,7 @@ public class DeckEditPanel : MonoBehaviour
             Image img = cardObj.GetComponent<Image>();
             img.sprite = carddata.imageName;
             DeckSettinObject.Instance.EnsureCardCountBadge(cardObj, count);
+            Card.EnsureNotUsedOnlineLabel(cardObj, carddata);
             Debug.Log($"生成するカードID: {carddata.id}, 枚数: {count}");
         }
 

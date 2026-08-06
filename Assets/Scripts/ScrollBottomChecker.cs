@@ -235,6 +235,8 @@ public class ScrollBottomChecker : MonoBehaviour
             if (img != null)
                 img.sprite = carddata.imageName;
 
+            Card.EnsureNotUsedOnlineLabel(obj, carddata);
+
             Button button = obj.GetComponent<Button>();
             if (button != null)
                 button.onClick.AddListener(cardclicked);
