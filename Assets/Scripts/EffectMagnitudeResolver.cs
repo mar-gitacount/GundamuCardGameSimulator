@@ -46,7 +46,11 @@ public static class EffectMagnitudeResolver
         switch (effect.valueCountKind)
         {
             case EffectValueCountKind.CardsWithFeature:
-                return CountCardsWithFeature(zone, effect.valueCountFeature, effect, sourceCard);
+                return CountCardsWithFeature(
+                    zone,
+                    ResolveValueCountFeature(effect),
+                    effect,
+                    sourceCard);
             case EffectValueCountKind.UnitsWithLevelAtLeast:
                 return CountAliveUnitsWithLevelAtLeast(zone, effect.valueCountMinUnitLevel, effect, sourceCard);
             case EffectValueCountKind.AliveUnits:
@@ -117,6 +121,27 @@ public static class EffectMagnitudeResolver
         return n;
     }
 
+    private static CardFeatureData ResolveValueCountFeature(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return null;
+        }
+
+        if (effect.valueCountFeature != null)
+        {
+            return effect.valueCountFeature;
+        }
+
+        if (effect.valueCountFeatureId > 0)
+        {
+            CardFeatureRegistry.EnsureLoaded();
+            return CardFeatureRegistry.GetById(effect.valueCountFeatureId);
+        }
+
+        return null;
+    }
+
     private static int CountCardsWithFeature(
         IReadOnlyList<CardController> cards,
         CardFeatureData feature,
@@ -132,12 +157,13 @@ public static class EffectMagnitudeResolver
         for (int i = 0; i < cards.Count; i++)
         {
             CardController c = cards[i];
-            if (c == null || c.Data == null || ShouldExcludeSource(c, effect, sourceCard))
+            // バトルゾーン想定: 〔特徴〕を持つ生存ユニットのみ（パイロットカード等は含めない）
+            if (!IsAliveUnit(c) || c.Data == null || ShouldExcludeSource(c, effect, sourceCard))
             {
                 continue;
             }
 
-            if (c.Data.HasFeature(feature))
+            if (c.Data.HasFeature(feature) || c.Data.HasFeatureId(feature.id))
             {
                 n++;
             }

@@ -3926,6 +3926,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         RegisterCardInHandLists(unit, ownerType);
         TriggerOnHandAutoEffects(unit, ownerType, skipHandZoneCheck: true);
+        RefreshAllHandsConditionalOnHandAuto();
         RefreshAllFieldOwnerTurnPassives();
         Debug.Log($"[Bounce] {unit.Data.cardName}(id:{unit.Data.id}) → {ownerType} hand");
         return true;

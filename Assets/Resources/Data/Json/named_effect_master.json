@@ -2531,6 +2531,42 @@
                     "valueCountExcludeSource": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "ScaleSelfCostLevelByOwnerOrbUnits",
+            "displayName": "手札：味方〔オーブ〕ユニット数×コスト・Lv-1（Self）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": 0,
+                    "statTarget": 2,
+                    "duration": 0,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 1,
+                    "valueCountFeatureId": 18,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": 0,
+                    "statTarget": 3,
+                    "duration": 0,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 1,
+                    "valueCountFeatureId": 18,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
         }
     ]
 }

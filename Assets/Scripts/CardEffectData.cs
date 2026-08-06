@@ -892,6 +892,9 @@ public class EffectData
     [Tooltip("CardsWithFeature のとき参照する Feature。")]
     public CardFeatureData valueCountFeature;
 
+    [Tooltip("JSON 用。valueCountFeature 未設定時に ID で解決（0=未指定）。")]
+    public int valueCountFeatureId;
+
     [Tooltip("UnitsWithLevelAtLeast のときの最低 Lv（Data.level）。")]
     public int valueCountMinUnitLevel;
 

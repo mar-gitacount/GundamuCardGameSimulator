@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 136Strike Rouge (Ootori)
+  m_EditorClassIdentifier: 
+  id: 136
+  cardName: Strike Rouge (Ootori)
+  cost: 3
+  level: 4
+  power: 3
+  hp: 4
+  imageName: {fileID: 1523286009040131988, guid: 527baf1b2f0147649bda95729b8761e6, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 2
+  filterType: 0
+  color: 2
+  type: 0
+  attackFlg: 0
+  timedEffects: []
+  features:
+  - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+  link:
+  - pilotCardId: 0
+    pilotFeatures:
+    - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 1
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
