@@ -973,6 +973,9 @@ public class EffectData
     [Tooltip("DeployUnit: 配備したユニットの OnPlayed を発動するか（トークンは通常 false）。")]
     public bool deployUnitTriggerOnPlayed;
 
+    [Tooltip("DeployUnit: true のとき配備直後に REST 状態にする（ジオング破壊時ヘッド等）。")]
+    public bool deployUnitAsRested;
+
     [Tooltip("DeploySelfAsBattleUnit: 1以上ならランタイム複製時の AP。0 なら印刷値。")]
     public int deployUnitOverrideAp;
 

@@ -1,0 +1,82 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 139Zeong
+  m_EditorClassIdentifier: 
+  id: 139
+  cardName: Zeong
+  cost: 5
+  level: 6
+  power: 4
+  hp: 3
+  imageName: {fileID: -8554828380788714283, guid: f406483bdd2ac2c46a9c8766b1862403, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 2
+  filterType: 0
+  color: 1
+  type: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 15
+    activationConditions:
+    - boardSide: -1
+      checkKind: 4
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: f708192a3b4c5d6e7f8012a3b4c5d6e7, type: 2}
+      featureId: 19
+      features:
+      - {fileID: 11400000, guid: f708192a3b4c5d6e7f8012a3b4c5d6e7, type: 2}
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: DeployWireGuidedArmToken2_OnPilotMounted
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 9
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployZeongHeadToken1_Rested_OnDestroyed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+  link:
+  - pilotCardId: 103
+    pilotFeatures: []
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0

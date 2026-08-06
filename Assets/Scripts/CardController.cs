@@ -1008,7 +1008,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     public bool CanMountPilot()
     {
-        return Data != null && Data.IsUnitLike() && MountedPilot == null;
+        return Data != null
+            && Data.IsUnitLike()
+            && !Data.cannotMountPilot
+            && MountedPilot == null;
     }
 
     public bool TryAttachPilot(CardController pilot)

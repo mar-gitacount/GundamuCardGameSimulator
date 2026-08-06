@@ -61,7 +61,8 @@ public class EosOnlineBattleMessage
 
     public static string CreatePlayCard(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        // seed/lobbyId を載せない（DeployUnit 等が EOS ~1170B を超えやすい）
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "PlayCard",
             payload = payload ?? string.Empty
@@ -79,7 +80,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateAttackDeclare(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "AttackDeclare",
             payload = payload ?? string.Empty
@@ -88,7 +89,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateBlockResponse(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "BlockResponse",
             payload = payload ?? string.Empty
@@ -97,7 +98,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateEffectSync(string effectPayloadJson)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "EffectSync",
             payload = effectPayloadJson ?? string.Empty
@@ -106,7 +107,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateMountPilot(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "MountPilot",
             payload = payload ?? string.Empty
@@ -136,7 +137,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateOnActionCommandUsed(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = OnActionCommandUsed,
             payload = payload ?? string.Empty
@@ -145,7 +146,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateMulliganSync(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "MulliganSync",
             payload = payload ?? string.Empty
@@ -166,7 +167,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateHandDiscardReveal(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = HandDiscardReveal,
             payload = payload ?? string.Empty
@@ -175,7 +176,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateHandDiscardRevealComplete(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = HandDiscardRevealComplete,
             payload = payload ?? string.Empty
@@ -184,7 +185,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateZoneSync(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = "ZoneSync",
             payload = payload ?? string.Empty
@@ -195,7 +196,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateResourceState(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = ResourceState,
             payload = payload ?? string.Empty
@@ -206,7 +207,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateOnDestroyedComplete(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = OnDestroyedComplete,
             payload = payload ?? string.Empty
@@ -218,7 +219,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateEffectThinkWait(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = EffectThinkWait,
             payload = payload ?? string.Empty
@@ -230,7 +231,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateOpponentUnitPickRequest(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = OpponentUnitPickRequest,
             payload = payload ?? string.Empty
@@ -239,7 +240,7 @@ public class EosOnlineBattleMessage
 
     public static string CreateOpponentUnitPickResponse(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = OpponentUnitPickResponse,
             payload = payload ?? string.Empty

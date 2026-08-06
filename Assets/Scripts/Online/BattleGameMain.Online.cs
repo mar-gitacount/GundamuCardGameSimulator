@@ -827,7 +827,8 @@ public partial class BattleGameMain
     private void NotifyLocalPlayCardDeployed(
         CardController cardController,
         PlayerType deployTargetZoneOwner = PlayerType.Player,
-        bool allowOffTurnDeploy = false)
+        bool allowOffTurnDeploy = false,
+        bool deployAsRested = false)
     {
         if (!IsOnlineBattle() || cardController == null || cardController.Data == null)
         {
@@ -874,7 +875,8 @@ public partial class BattleGameMain
                 overrideAp,
                 overrideHp,
                 forceUnit,
-                printedType)));
+                printedType,
+                deployAsRested)));
     }
 
     /// <summary>EXリソース増減を相手へスナップショット同期する（AddExResource 等）。</summary>
@@ -1453,13 +1455,19 @@ public partial class BattleGameMain
             {
                 AssignBattleInstanceIdIfNeeded(controller);
             }
+
+            if (extras != null && extras.deployAsRested)
+            {
+                ApplyDeployedUnitRestedState(controller);
+            }
         }
 
         RefreshAllFieldOwnerTurnPassives();
         Debug.Log(
             $"[OnlineBattle] Remote unit deployed zone:{localZoneOwner} senderZone:{senderZoneOwner} "
             + $"{cardData.cardName} ({cardId}) inst:{controller.BattleInstanceId} "
-            + $"forceUnit:{temporaryBurstUnit} AP:{cardData.power} HP:{cardData.hp}");
+            + $"forceUnit:{temporaryBurstUnit} AP:{cardData.power} HP:{cardData.hp} "
+            + $"rested:{(extras != null && extras.deployAsRested)}");
     }
 
     private void NotifyLocalShieldAttackResolved(
@@ -1510,6 +1518,13 @@ public partial class BattleGameMain
             return;
         }
 
+        // 防御側撃破時の OnDestroyed は所有者クライアントで解決し、攻撃側は effectthink で待つ
+        int defenderOnDestroyedRequestId = 0;
+        if (defenderHpAfter <= 0)
+        {
+            defenderOnDestroyedRequestId = PrepareOnlineOnDestroyedWait(defender);
+        }
+
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateAttack(
             OnlineBattleActionPayload.CreateUnitAttack(
                 attacker.BattleInstanceId,
@@ -1521,7 +1536,8 @@ public partial class BattleGameMain
                 includeDefenderAreaSnapshot,
                 defenderShieldAfter,
                 defenderExBaseAfter,
-                defenderDeployedBaseHpAfter)));
+                defenderDeployedBaseHpAfter,
+                defenderOnDestroyedRequestId)));
     }
 
     private void HandleRemoteAttack(string payload)
@@ -1564,6 +1580,7 @@ public partial class BattleGameMain
         finally
         {
             _applyingRemoteBattleAction = false;
+            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
         }
     }
 
@@ -1697,11 +1714,27 @@ public partial class BattleGameMain
 
         if (defender.CurrentHp <= 0)
         {
-            ApplyRemoteUnitRemovedFromField(defender);
+            // オンライン戦闘撃破: 所有者側で OnDestroyed を解決（ヘッドトークン配備など）
+            // UnitAttack.requestId = 防御側 OnDestroyed 待機 ID（専用フィールドはパケット肥大化のため使わない）
+            int defenderOnDestroyedRequestId = action.requestId;
+            if (defenderOnDestroyedRequestId > 0
+                || HasOnDestroyedResolution(defender)
+                || (defender.MountedPilot != null && HasOnDestroyedResolution(defender.MountedPilot)))
+            {
+                ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
+                    defender,
+                    defenderOnDestroyedRequestId,
+                    attacker);
+            }
+            else
+            {
+                ApplyRemoteUnitRemovedFromField(defender);
+            }
         }
 
         if (attacker.CurrentHp <= 0)
         {
+            // 攻撃側ユニットの OnDestroyed は攻撃側クライアントで解決済み／解決中
             ApplyRemoteUnitRemovedFromField(attacker);
         }
 
@@ -1777,6 +1810,7 @@ public partial class BattleGameMain
         finally
         {
             _applyingRemoteBattleAction = false;
+            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
         }
     }
     // リモート効果同期でのユニット変更を適用

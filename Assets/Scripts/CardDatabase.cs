@@ -100,6 +100,7 @@ public class CardDatabase : MonoBehaviour
         isRepair = card.isRepair,
         repairAmount = card.repairAmount,
         notUsedOnline = card.notUsedOnline,
+        cannotMountPilot = card.cannotMountPilot,
     };
 }
 CardData ConvertToCardData(CardJson json)
@@ -138,6 +139,7 @@ CardData ConvertToCardData(CardJson json)
     card.isRepair = json.isRepair;
     card.repairAmount = json.repairAmount;
     card.notUsedOnline = json.notUsedOnline;
+    card.cannotMountPilot = json.cannotMountPilot;
     card.SetFeaturesFromIds(json.featureIds);
 
     return card;

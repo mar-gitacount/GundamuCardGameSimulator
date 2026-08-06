@@ -124,7 +124,8 @@ public partial class BattleGameMain
         PlayerType recipient,
         CardGameRule rule,
         bool triggerOnPlayed,
-        bool fromHand)
+        bool fromHand,
+        bool deployAsRested = false)
     {
         if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || rule == null)
         {
@@ -173,17 +174,42 @@ public partial class BattleGameMain
 
         if (IsOnlineBattle() && !_applyingRemoteBattleAction)
         {
-            bool allowOffTurn = IsResolvingBurstEffect || unit.IsTemporaryBurstBattleUnit;
+            // 破壊時トークン配備などは相手ターン中でも PlayCard 同期する
+            bool allowOffTurn = IsResolvingBurstEffect
+                || unit.IsTemporaryBurstBattleUnit
+                || IsResolvingLocalOwnerOnDestroyedEffects();
             if (allowOffTurn || currentPlayerType == PlayerType.Player)
             {
-                NotifyLocalPlayCardDeployed(unit, recipient, allowOffTurnDeploy: allowOffTurn);
+                // REST は PlayCard.extras.deployAsRested で同期（EffectSync Rest の到着順レースを避ける）
+                NotifyLocalPlayCardDeployed(
+                    unit,
+                    recipient,
+                    allowOffTurnDeploy: allowOffTurn,
+                    deployAsRested: deployAsRested);
             }
+        }
+
+        if (deployAsRested)
+        {
+            ApplyDeployedUnitRestedState(unit);
         }
 
         Debug.Log(
             $"[DeployUnit] {unit.Data.cardName}(id:{unit.Data.id}) → {recipient} battle zone "
-            + $"(triggerOnPlayed:{triggerOnPlayed})");
+            + $"(triggerOnPlayed:{triggerOnPlayed} rested:{deployAsRested})");
         return true;
+    }
+
+    /// <summary>配備直後に REST（アタック不可）にする。</summary>
+    private static void ApplyDeployedUnitRestedState(CardController unit)
+    {
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        unit.SetUnitRestVisual(true);
+        unit.SetAttackFlg(AttackFlg.False);
     }
 
     private bool TryDeployTokenUnit(
@@ -234,7 +260,13 @@ public partial class BattleGameMain
                 break;
             }
 
-            if (DeployUnitToBattleZone(spawned, recipient, rule, effect.deployUnitTriggerOnPlayed, fromHand: false))
+            if (DeployUnitToBattleZone(
+                    spawned,
+                    recipient,
+                    rule,
+                    effect.deployUnitTriggerOnPlayed,
+                    fromHand: false,
+                    deployAsRested: effect.deployUnitAsRested))
             {
                 applied++;
             }

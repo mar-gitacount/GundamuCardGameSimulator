@@ -91,7 +91,7 @@ public class OnlineBattleActionPayload
 
     public static string CreateHandDiscardReveal(int cardId, int requestId)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineHandDiscardRevealDto
         {
             action = HandDiscardReveal,
             cardId = cardId,
@@ -101,7 +101,7 @@ public class OnlineBattleActionPayload
 
     public static string CreateHandDiscardRevealComplete(int requestId)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineHandDiscardRevealCompleteDto
         {
             action = HandDiscardRevealComplete,
             requestId = requestId
@@ -116,14 +116,17 @@ public class OnlineBattleActionPayload
         int deployOverrideAp = 0,
         int deployOverrideHp = 0,
         bool deployForceUnitType = false,
-        int deployPrintedType = -1)
+        int deployPrintedType = -1,
+        bool deployAsRested = false)
     {
+        // extras は必要なときだけ付ける（通常配備のパケット肥大化を防ぐ）
         OnlineDeployUnitExtras extras = null;
         if (allowOffTurnDeploy
             || deployOverrideAp > 0
             || deployOverrideHp > 0
             || deployForceUnitType
-            || deployPrintedType >= 0)
+            || deployPrintedType >= 0
+            || deployAsRested)
         {
             extras = new OnlineDeployUnitExtras
             {
@@ -131,11 +134,14 @@ public class OnlineBattleActionPayload
                 deployOverrideAp = deployOverrideAp,
                 deployOverrideHp = deployOverrideHp,
                 deployForceUnitType = deployForceUnitType,
-                deployPrintedType = deployPrintedType
+                deployPrintedType = deployPrintedType,
+                deployAsRested = deployAsRested
             };
         }
 
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        // OnlineBattleActionPayload 全文はフィールド過多で EOS ~1170B を超えやすいため lean DTO のみ送る。
+        // 受信側は JsonUtility.FromJson<OnlineBattleActionPayload> で不足フィールドが default になり解釈できる。
+        return JsonUtility.ToJson(new OnlineDeployUnitDto
         {
             action = DeployUnit,
             cardId = cardId,
@@ -152,7 +158,7 @@ public class OnlineBattleActionPayload
         int shieldCountAfter,
         int[] shieldZoneCardIds)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineDeployBaseDto
         {
             action = DeployBase,
             cardId = cardId,
@@ -168,7 +174,7 @@ public class OnlineBattleActionPayload
         int shieldCountAfter,
         int[] shieldZoneCardIds)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineDeployShieldDto
         {
             action = DeployShield,
             cardId = cardId,
@@ -183,7 +189,7 @@ public class OnlineBattleActionPayload
         int attackerInstanceId,
         int defenderInstanceId)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineAttackDeclareDto
         {
             action = AttackDeclare,
             requestId = requestId,
@@ -195,7 +201,7 @@ public class OnlineBattleActionPayload
 
     public static string CreateBlockResponse(int requestId, int blockerInstanceId)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineBlockResponseDto
         {
             action = BlockResponse,
             requestId = requestId,
@@ -276,7 +282,8 @@ public class OnlineBattleActionPayload
 
     public static string CreateMountPilot(int hostInstanceId, int pilotCardId)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        // OnlineBattleActionPayload 全文は EOS ~1170B を超えやすいため lean DTO のみ送る
+        return JsonUtility.ToJson(new OnlineMountPilotDto
         {
             action = MountPilot,
             instanceId = hostInstanceId,
@@ -294,9 +301,11 @@ public class OnlineBattleActionPayload
         bool includeDefenderAreaSnapshot = false,
         int defenderShieldAfter = -1,
         int defenderExBaseAfter = -1,
-        int defenderDeployedBaseHpAfter = -1)
+        int defenderDeployedBaseHpAfter = -1,
+        int defenderOnDestroyedRequestId = 0)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        // requestId を防御側 OnDestroyed 待機 ID に流用
+        return JsonUtility.ToJson(new OnlineUnitAttackDto
         {
             action = UnitAttack,
             attackerInstanceId = attackerInstanceId,
@@ -308,7 +317,8 @@ public class OnlineBattleActionPayload
             includeDefenderAreaSnapshot = includeDefenderAreaSnapshot,
             defenderShieldAfter = defenderShieldAfter,
             defenderExBaseAfter = defenderExBaseAfter,
-            defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter
+            defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter,
+            requestId = defenderOnDestroyedRequestId
         });
     }
 
@@ -363,7 +373,7 @@ public class OnlineBattleActionPayload
         int cardLevel,
         int targetCardId = -1)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineOnActionCommandUsedDto
         {
             action = OnActionCommandUsed,
             cardId = cardId,
@@ -382,7 +392,7 @@ public class OnlineBattleActionPayload
         int exResourceAfter,
         int levelAfter)
     {
-        return JsonUtility.ToJson(new OnlineBattleActionPayload
+        return JsonUtility.ToJson(new OnlineResourceStateDto
         {
             action = ResourceState,
             actingZoneSide = actingZoneSide,
@@ -459,6 +469,130 @@ public class OnlineDeployUnitExtras
     public int deployOverrideHp;
     public bool deployForceUnitType;
     public int deployPrintedType = -1;
+    /// <summary>true なら受信側も配備直後に REST（ジオングヘッド等）。</summary>
+    public bool deployAsRested;
+}
+
+/// <summary>DeployUnit 送信用 lean DTO（EOS ~1170B 対策）。</summary>
+[Serializable]
+public class OnlineDeployUnitDto
+{
+    public string action;
+    public int cardId;
+    public int instanceId;
+    public int deployTargetZoneOwnerSide;
+    public OnlineDeployUnitExtras deployUnitExtras;
+}
+
+/// <summary>MountPilot 送信用 lean DTO（EOS ~1170B 対策）。</summary>
+[Serializable]
+public class OnlineMountPilotDto
+{
+    public string action;
+    public int instanceId;
+    public int cardId;
+}
+
+/// <summary>UnitAttack 送信用 lean DTO（EOS ~1170B 対策）。</summary>
+[Serializable]
+public class OnlineUnitAttackDto
+{
+    public string action;
+    public int attackerInstanceId;
+    public int defenderInstanceId;
+    public int attackerHp;
+    public int defenderHp;
+    public bool blockCombat;
+    public bool skipAttackDeclarationRest;
+    public bool includeDefenderAreaSnapshot;
+    public int defenderShieldAfter;
+    public int defenderExBaseAfter;
+    public int defenderDeployedBaseHpAfter;
+    /// <summary>防御側 OnDestroyed 待機 requestId（0=なし）。</summary>
+    public int requestId;
+}
+
+/// <summary>DeployBase 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineDeployBaseDto
+{
+    public string action;
+    public int cardId;
+    public int baseHpAfter;
+    public int defenderExBaseAfter;
+    public int defenderShieldAfter;
+    public int[] shieldZoneCardIds;
+}
+
+/// <summary>DeployShield 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineDeployShieldDto
+{
+    public string action;
+    public int cardId;
+    public int defenderShieldAfter;
+    public int[] shieldZoneCardIds;
+}
+
+/// <summary>AttackDeclare 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineAttackDeclareDto
+{
+    public string action;
+    public int requestId;
+    public string attackKind;
+    public int attackerInstanceId;
+    public int defenderInstanceId;
+}
+
+/// <summary>BlockResponse 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineBlockResponseDto
+{
+    public string action;
+    public int requestId;
+    public int blockerInstanceId;
+}
+
+/// <summary>OnActionCommandUsed 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineOnActionCommandUsedDto
+{
+    public string action;
+    public int cardId;
+    public int actingZoneSide;
+    public string onActionContext;
+    public int cardCost;
+    public int cardLevel;
+    public int targetCardId = -1;
+}
+
+/// <summary>ResourceState 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineResourceStateDto
+{
+    public string action;
+    public int actingZoneSide;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
+}
+
+/// <summary>HandDiscardReveal 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineHandDiscardRevealDto
+{
+    public string action;
+    public int cardId;
+    public int requestId;
+}
+
+/// <summary>HandDiscardRevealComplete 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineHandDiscardRevealCompleteDto
+{
+    public string action;
+    public int requestId;
 }
 
 /// <summary>ShieldBreakComplete 用バースト配備ユニット列。</summary>
