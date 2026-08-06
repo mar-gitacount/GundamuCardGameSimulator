@@ -894,6 +894,12 @@ public static class EffectActivationEvaluator
         {
             IReadOnlyList<CardController> zone = ResolveZone(ctx, c.boardSide);
             int matched = CountUnitsWithMatchingMountedPilot(zone, c);
+            // 破壊時に Detach 済みの搭乗パイロットはゾーン走査に出ないため、コンテキスト分を加算する。
+            if (ShouldCountContextMountedPilotForZone(c, ctx, zone))
+            {
+                matched++;
+            }
+
             return matched >= need;
         }
 
@@ -931,6 +937,36 @@ public static class EffectActivationEvaluator
         }
 
         return n;
+    }
+
+    /// <summary>
+    /// ゾーン走査に含まれないコンテキスト搭乗パイロット（破壊直前に Detach された等）を数えるか。
+    /// </summary>
+    private static bool ShouldCountContextMountedPilotForZone(
+        EffectActivationCondition c,
+        EffectActivationContext ctx,
+        IReadOnlyList<CardController> zone)
+    {
+        if (ctx?.MountedPilot == null || !PilotMeetsMountedPilotCondition(ctx.MountedPilot, c))
+        {
+            return false;
+        }
+
+        if (zone == null)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit != null && unit.MountedPilot == ctx.MountedPilot)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool PilotMeetsMountedPilotCondition(CardController pilot, EffectActivationCondition c)
