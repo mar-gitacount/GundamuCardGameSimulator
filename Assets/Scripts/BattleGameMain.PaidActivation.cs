@@ -85,6 +85,7 @@ public partial class BattleGameMain
         }
 
         return IsDeferredOnMainDestroyCost(timed)
+            || IsDeferredOnMainRestAllyCost(timed)
             || (side != PlayerType.Enemy && effects[0].type == EffectType.ExileFromTrash);
     }
 
@@ -105,6 +106,30 @@ public partial class BattleGameMain
             && first.type == EffectType.Destroy
             && first.target == TargetType.AllyOtherUnit
             && first.selectionMode.RequiresManualUnitPick();
+    }
+
+    /// <summary>
+    /// 起動・メインの先頭にある「味方ユニットを選んで REST」を発動コストとして扱う（V2 等）。
+    /// 選択確定前にターン1回を消費しない。
+    /// </summary>
+    private static bool IsDeferredOnMainRestAllyCost(TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> effects = timed?.GetResolvedEffects();
+        if (effects == null || effects.Count == 0)
+        {
+            return false;
+        }
+
+        EffectData first = effects[0];
+        if (first == null
+            || first.type != EffectType.Rest
+            || !first.selectionMode.RequiresManualUnitPick())
+        {
+            return false;
+        }
+
+        return first.target == TargetType.AllyOtherUnit
+            || first.target == TargetType.AllyUnit;
     }
 
     private bool TryFinalizeOnMainPaidActivation(PaidActivationBlockContext context)
@@ -336,6 +361,16 @@ public partial class BattleGameMain
         {
             EffectData destroyCost = timed.GetResolvedEffects()[0];
             if (ResolveSelectableEffectTargets(source, side, destroyCost).Count == 0)
+            {
+                return false;
+            }
+        }
+
+        if (IsDeferredOnMainRestAllyCost(timed))
+        {
+            EffectData restCost = timed.GetResolvedEffects()[0];
+            int need = restCost != null ? restCost.GetSelectMinCount() : 1;
+            if (ResolveSelectableEffectTargets(source, side, restCost).Count < need)
             {
                 return false;
             }

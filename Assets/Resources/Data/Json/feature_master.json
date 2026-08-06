@@ -95,6 +95,18 @@
             "featureKey": "DG_Cells",
             "displayName": "DG Cells",
             "description": ""
+        },
+        {
+            "id": 16,
+            "featureKey": "League_Militaire",
+            "displayName": "League Militaire",
+            "description": ""
+        },
+        {
+            "id": 17,
+            "featureKey": "Victory_Type",
+            "displayName": "Victory Type",
+            "description": ""
         }
     ]
 }
