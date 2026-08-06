@@ -14877,12 +14877,14 @@ public partial class BattleGameMain : MonoBehaviour
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect);
-            if (candidates.Count == 0)
+            int selectMin = effect.GetSelectMinCount();
+            if (candidates.Count < selectMin)
             {
-                Debug.Log($"OnMain: 選択可能な対象がありません (target:{effect.target})。");
+                Debug.Log(
+                    $"OnMain: 選択可能な対象が足りません (target:{effect.target} need:{selectMin} have:{candidates.Count})。");
                 if (!activationCostAlreadyPaid)
                 {
-                    // 「選んで破壊する」が発動条件。対象が無ければ「そうしたなら」以降は解決しない。
+                    // 「選んで REST／破壊する」が発動条件。対象が無ければ以降は解決しない。
                     onDone?.Invoke();
                     return;
                 }
@@ -14895,6 +14897,34 @@ public partial class BattleGameMain : MonoBehaviour
             if (side == PlayerType.Enemy)
             {
                 EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(side, source, null, null);
+                if (effect.selectionMode.IsMultipleUnitPickMode())
+                {
+                    List<CardController> aiPicks = PickEnemyAiEffectTargets(effect, pickCtx, candidates);
+                    if (aiPicks != null && aiPicks.Count >= selectMin)
+                    {
+                        if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                        {
+                            onDone?.Invoke();
+                            return;
+                        }
+
+                        ApplyEffectToSpecificTargets(source, side, effect, aiPicks);
+                        TryExecuteOnMainEffectChain(
+                            side, source, effects, index + 1, true, chainActivationContext, onDone);
+                        return;
+                    }
+
+                    if (!activationCostAlreadyPaid)
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnMainEffectChain(
+                        side, source, effects, index + 1, true, chainActivationContext, onDone);
+                    return;
+                }
+
                 CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
                 if (picked != null)
                 {
@@ -14914,6 +14944,42 @@ public partial class BattleGameMain : MonoBehaviour
 
                 TryExecuteOnMainEffectChain(
                     side, source, effects, index + 1, true, chainActivationContext, onDone);
+                return;
+            }
+
+            if (effect.selectionMode.IsMultipleUnitPickMode())
+            {
+                OpenManualMultiUnitTargetSelectionUI(
+                    source,
+                    side,
+                    effect,
+                    candidates,
+                    null,
+                    selected =>
+                    {
+                        if (selected == null || selected.Count < selectMin)
+                        {
+                            onDone?.Invoke();
+                            return;
+                        }
+
+                        if (!activationCostAlreadyPaid
+                            && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                        {
+                            onDone?.Invoke();
+                            return;
+                        }
+
+                        ApplyEffectToSpecificTargets(source, side, effect, selected);
+                        TryExecuteOnMainEffectChain(
+                            side,
+                            source,
+                            effects,
+                            index + 1,
+                            true,
+                            chainActivationContext,
+                            onDone);
+                    });
                 return;
             }
 
