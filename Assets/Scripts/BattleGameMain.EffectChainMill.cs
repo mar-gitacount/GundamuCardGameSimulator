@@ -20,8 +20,20 @@ public partial class BattleGameMain
 
     private bool HasEffectChainObservation => _effectChainObservation != null && _effectChainObservation.HasCards;
 
-    private void BeginEffectChainObservationScope()
+    private void BeginEffectChainObservationScope(bool forceNewRoot = false)
     {
+        if (forceNewRoot && _effectChainObservationDepth > 0)
+        {
+            Debug.LogWarning(
+                $"[EffectChain] 観測スコープを強制リセット depth:{_effectChainObservationDepth} "
+                + $"cards:{_effectChainObservation?.Cards?.Count ?? 0}");
+            _effectChainObservationDepth = 0;
+            _effectChainObservation?.Clear();
+            _effectChainObservation = null;
+            _effectChainLastMilledTrashCandidates = null;
+            ClearEffectChainLastPickedTargets();
+        }
+
         if (_effectChainObservationDepth++ == 0)
         {
             _effectChainObservation = new EffectChainObservation();
@@ -44,6 +56,24 @@ public partial class BattleGameMain
             _effectChainObservation = null;
             _effectChainLastMilledTrashCandidates = null;
         }
+    }
+
+    /// <summary>ターン終了時など、漏れ残ったチェーン観測を破棄する。</summary>
+    private void ForceClearEffectChainObservationScope()
+    {
+        if (_effectChainObservationDepth > 0 || _effectChainObservation != null)
+        {
+            Debug.Log(
+                $"[EffectChain] ForceClear depth:{_effectChainObservationDepth} "
+                + $"cards:{_effectChainObservation?.Cards?.Count ?? 0}");
+        }
+
+        _effectChainObservationDepth = 0;
+        _effectChainObservation?.Clear();
+        _effectChainObservation = null;
+        _effectChainDealtDamage = false;
+        _effectChainLastMilledTrashCandidates = null;
+        ClearEffectChainLastPickedTargets();
     }
 
     private IReadOnlyList<CardData> GetActiveObservedCardsForActivation()

@@ -888,7 +888,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         Debug.Log("バトルゲームのメインシーン");
         CardFeatureRegistry.EnsureLoaded();
-        NamedEffectSetRegistry.EnsureLoaded();
+        NamedEffectSetRegistry.Reload();
         ClearOwnEffectDestroyOfOwnUnitHistory();
         InitializeBattleOpponent();
         ResetOnlineBattleInstanceIds();
@@ -3346,6 +3346,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
         ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
         ClearObservedUnitWatches();
+        ForceClearEffectChainObservationScope();
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
         NotifyLocalPlayerEndedTurn();
 
@@ -6571,7 +6572,12 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 pendingOnAttackEffectResolvedAttacker = attacker;
                 _onAttackPreCombatCompletedAttacker = attacker;
-                TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true, skipAttackedSidePanelPause);
+                // OnAttack 効果のシールド破壊 UI がブロックパネル等を Destroy して攻撃が止まるのを防ぐ。
+                // シールド破壊（バースト含む）完了後にブロック→アクション→本体打撃へ進む。
+                StartCoroutine(ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine(
+                    attacker,
+                    skipOnActionPause,
+                    skipAttackedSidePanelPause));
             }
 
             if (TryOpenOnAttackEffectSelectionBeforeCombat(attacker, attackerOwner, null, ProceedShieldAttack))
@@ -7014,6 +7020,43 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return maxBreaks;
+    }
+
+    /// <summary>
+    /// OnAttack プレコンバット（除外→効果ダメージ等）完了後、シールド破壊フローが済んでから本体攻撃へ。
+    /// </summary>
+    private IEnumerator ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine(
+        CardController attacker,
+        bool skipOnActionPause,
+        bool skipAttackedSidePanelPause)
+    {
+        yield return WaitForShieldBreakFlowCompleteCoroutine();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null || !attacker.Data.IsUnitLike())
+        {
+            yield break;
+        }
+
+        // OnAttack 効果でベース/EX が消えた場合、溢れ防止フラグを落とす（残りシールド／ダイレクトへ通す）。
+        Gundam2024RuleScript.PlayerSide targetSide = ResolveCardOwner(attacker.transform) == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        bool layerRemains = defender != null
+            && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
+        if (!layerRemains)
+        {
+            blockShieldFlowDuringShieldAttack = false;
+        }
+
+        TryUnitShieldAttackFromUnit(
+            attacker,
+            skipOnActionPause,
+            skipOnAttackSelection: true,
+            skipAttackedSidePanelPause);
     }
 
     /// <summary>
@@ -9043,9 +9086,14 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (timing == EffectTiming.OnAttack
-                    && IsOnAttackNonCombatEffect(effect)
-                    && HasOnAttackPreCombatEffectsBeenApplied(sourceCard))
+                // 非戦闘 OnAttack（除外→シールドダメージ等）はプレコンバットチェーン専任。
+                // ここでの再適用は観測リークにより「除外なしダメージ」が他ユニット／翌ターンへ残る。
+                if (timing == EffectTiming.OnAttack && IsOnAttackNonCombatEffect(effect))
+                {
+                    continue;
+                }
+
+                if (effect.requireChainObservationContext && !HasEffectChainObservation)
                 {
                     continue;
                 }
@@ -15324,6 +15372,13 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (activeOnActionPopupRoot != null)
         {
+            // シールド破壊パネル構築時など、攻撃フロー（ブロック）パネルが巻き込まれたとき残フラグを落とす。
+            if (activeOnActionPopupRoot == activeAttackFlowDebugPanelRoot)
+            {
+                activeAttackFlowDebugPanelRoot = null;
+                isAttackedSidePanelOpen = false;
+            }
+
             Destroy(activeOnActionPopupRoot);
             activeOnActionPopupRoot = null;
         }
