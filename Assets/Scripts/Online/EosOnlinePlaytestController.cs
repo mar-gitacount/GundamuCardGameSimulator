@@ -367,6 +367,12 @@ public class EosOnlinePlaytestController : MonoBehaviour
             return;
         }
 
+        if (DeckSettinObject.Instance.SelectedDeckContainsNotUsedOnlineCards())
+        {
+            AppendLog("Start failed: Not used card online.");
+            return;
+        }
+
         string remotePeerId = _remoteIdField.text?.Trim();
         if (string.IsNullOrWhiteSpace(remotePeerId))
         {

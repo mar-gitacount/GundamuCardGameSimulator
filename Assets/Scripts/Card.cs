@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class Card : MonoBehaviour
 {
@@ -157,6 +158,71 @@ public class Card : MonoBehaviour
 
         CardData data = CardDatabase.Instance.FindById(cardId);
         return data != null && data.IsUnitToken();
+    }
+
+    private const string NotUsedOnlineLabelName = "NotUsedOnlineLabel";
+
+    /// <summary>カード一覧／サムネ上部に Not Used Online ラベルを付ける（対象カードのみ）。</summary>
+    public static void EnsureNotUsedOnlineLabel(GameObject cardObject, CardData data)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        Transform existing = cardObject.transform.Find(NotUsedOnlineLabelName);
+        if (data == null || !data.notUsedOnline)
+        {
+            if (existing != null)
+            {
+                existing.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        TextMeshProUGUI label;
+        if (existing != null)
+        {
+            label = existing.GetComponent<TextMeshProUGUI>();
+            if (label == null)
+            {
+                existing.gameObject.SetActive(true);
+                return;
+            }
+        }
+        else
+        {
+            GameObject labelGo = new GameObject(
+                NotUsedOnlineLabelName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI));
+            labelGo.transform.SetParent(cardObject.transform, false);
+            label = labelGo.GetComponent<TextMeshProUGUI>();
+        }
+
+        label.gameObject.SetActive(true);
+        label.text = "Not Used Online";
+        label.fontSize = 14f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color32(255, 90, 90, 255);
+        label.enableWordWrapping = true;
+        label.raycastTarget = false;
+
+        if (TMP_Settings.defaultFontAsset != null)
+        {
+            label.font = TMP_Settings.defaultFontAsset;
+        }
+
+        RectTransform rt = label.rectTransform;
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.anchoredPosition = new Vector2(0f, -4f);
+        rt.sizeDelta = new Vector2(0f, 28f);
+        label.transform.SetAsLastSibling();
     }
 
     private void OnDestroy()

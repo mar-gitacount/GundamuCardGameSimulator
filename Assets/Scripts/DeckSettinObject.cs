@@ -146,6 +146,39 @@ public class DeckSettinObject : MonoBehaviour
         return cardData != null && cardData.Count > 0;
     }
 
+    /// <summary>選択中デッキ内のオンライン不可（notUsedOnline）カード一覧。</summary>
+    public List<CardData> CollectNotUsedOnlineCardsInSelectedDeck()
+    {
+        List<CardData> banned = new List<CardData>();
+        if (cardData == null || cardData.Count == 0 || CardDatabase.Instance == null)
+        {
+            return banned;
+        }
+
+        HashSet<int> seen = new HashSet<int>();
+        foreach (KeyValuePair<int, int> entry in cardData)
+        {
+            if (entry.Value <= 0 || !seen.Add(entry.Key))
+            {
+                continue;
+            }
+
+            CardData data = CardDatabase.Instance.FindById(entry.Key);
+            if (data != null && data.notUsedOnline)
+            {
+                banned.Add(data);
+            }
+        }
+
+        banned.Sort((a, b) => a.id.CompareTo(b.id));
+        return banned;
+    }
+
+    public bool SelectedDeckContainsNotUsedOnlineCards()
+    {
+        return CollectNotUsedOnlineCardsInSelectedDeck().Count > 0;
+    }
+
     public string GetSelectedDeckDisplayName()
     {
         if (DeckTitleInputField != null && !string.IsNullOrWhiteSpace(DeckTitleInputField.text))
@@ -767,6 +800,10 @@ public void cardObj(int cardId, GameObject preferredTemplate = null)
         }
 
         EnsureCardCountBadge(existing, count);
+        CardData existingData = CardDatabase.Instance != null
+            ? CardDatabase.Instance.FindById(cardId)
+            : null;
+        Card.EnsureNotUsedOnlineLabel(existing, existingData);
         RefreshDeckEditCountDisplays();
         return;
     }
@@ -804,6 +841,7 @@ public void cardObj(int cardId, GameObject preferredTemplate = null)
     }
 
     EnsureCardCountBadge(copy, count);
+    Card.EnsureNotUsedOnlineLabel(copy, cardDataAsset);
     Debug.Log($"サムネid{cardId}");
     RectTransform rect = copy.GetComponent<RectTransform>();
     rect.anchoredPosition = Vector2.zero;

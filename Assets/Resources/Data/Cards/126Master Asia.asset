@@ -56,6 +56,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     - boardSide: -1
       checkKind: 25
       turnCheck: -1
@@ -75,6 +76,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: Damage2_EnemyUnit_SelectSingle_Linked_IfSpecialMoveActivatedThisTurn
     effects: []
@@ -92,3 +94,4 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 1

@@ -53,6 +53,9 @@ public class CardData : ScriptableObject
 
     [Tooltip("isRepair 時のターン終了回復量（Inspector で設定）。")]
     public int repairAmount;
+
+    [Tooltip("true のときオンライン対戦では使用不可（デッキへの追加は可能）。デフォルト false＝オンライン可。")]
+    public bool notUsedOnline;
 }
 
 
@@ -77,6 +80,7 @@ public class CardJson
     public bool isShieldToken;
     public bool isRepair;
     public int repairAmount;
+    public bool notUsedOnline;
 }
 
 [Serializable]

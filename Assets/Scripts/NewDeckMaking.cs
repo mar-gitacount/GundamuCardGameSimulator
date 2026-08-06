@@ -74,8 +74,122 @@ public class NewDeckMaking : MonoBehaviour
             return;
         }
 
+        List<CardData> bannedCards = deckSettings.CollectNotUsedOnlineCardsInSelectedDeck();
+        if (bannedCards != null && bannedCards.Count > 0)
+        {
+            ShowNotUsedOnlineAlert(bannedCards);
+            return;
+        }
+
         deckSettings.ClearBattleStartFlag();
         EosOnlinePlaytestController.OpenPanel();
+    }
+
+    private GameObject _notUsedOnlineAlertRoot;
+
+    private void ShowNotUsedOnlineAlert(List<CardData> bannedCards)
+    {
+        CloseNotUsedOnlineAlert();
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null)
+        {
+            canvas = FindObjectOfType<Canvas>();
+        }
+
+        if (canvas == null)
+        {
+            Debug.LogWarning("[Online] Canvas not found for Not Used Online alert.");
+            return;
+        }
+
+        _notUsedOnlineAlertRoot = new GameObject(
+            "NotUsedOnlineAlert",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        _notUsedOnlineAlertRoot.transform.SetParent(canvas.transform, false);
+        _notUsedOnlineAlertRoot.transform.SetAsLastSibling();
+        _notUsedOnlineAlertRoot.SetFullSize();
+
+        Image dim = _notUsedOnlineAlertRoot.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.65f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = _notUsedOnlineAlertRoot.CreateChildTextCustom(
+            "NotUsedOnlineTitle",
+            UIAnchor.TopCenter,
+            720,
+            48);
+        title.text = "Not used card online";
+        title.fontSize = 30;
+        title.fontStyle = FontStyles.Bold;
+        title.alignment = TextAlignmentOptions.Center;
+        title.color = Color.white;
+        RectTransform titleRt = title.GetComponent<RectTransform>();
+        titleRt.anchoredPosition = new Vector2(0f, -36f);
+
+        TextMeshProUGUI subtitle = _notUsedOnlineAlertRoot.CreateChildTextCustom(
+            "NotUsedOnlineSubtitle",
+            UIAnchor.TopCenter,
+            720,
+            36);
+        subtitle.text = "These cards cannot be used in Online Battle.";
+        subtitle.fontSize = 18;
+        subtitle.alignment = TextAlignmentOptions.Center;
+        subtitle.color = new Color(0.9f, 0.9f, 0.9f);
+        RectTransform subtitleRt = subtitle.GetComponent<RectTransform>();
+        subtitleRt.anchoredPosition = new Vector2(0f, -78f);
+
+        GameObject scrollGo = _notUsedOnlineAlertRoot.CreateGridScrollView(680, 360, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -300f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        for (int i = 0; i < bannedCards.Count; i++)
+        {
+            CardData data = bannedCards[i];
+            if (data == null || content == null)
+            {
+                continue;
+            }
+
+            GameObject cardGo = new GameObject(
+                $"BannedCard_{data.id}",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(LayoutElement));
+            cardGo.transform.SetParent(content, false);
+            Image img = cardGo.GetComponent<Image>();
+            img.sprite = data.imageName != null ? data.imageName : data.image;
+            img.preserveAspect = true;
+            LayoutElement layout = cardGo.GetComponent<LayoutElement>();
+            layout.preferredWidth = 100f;
+            layout.preferredHeight = 140f;
+
+            Card.EnsureNotUsedOnlineLabel(cardGo, data);
+        }
+
+        Button okBtn = _notUsedOnlineAlertRoot.CreateChildButton("OK");
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(160f, 48f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = new Vector2(0f, 36f);
+        okBtn.onClick.AddListener(CloseNotUsedOnlineAlert);
+    }
+
+    private void CloseNotUsedOnlineAlert()
+    {
+        if (_notUsedOnlineAlertRoot != null)
+        {
+            Destroy(_notUsedOnlineAlertRoot);
+            _notUsedOnlineAlertRoot = null;
+        }
     }
 
     private void EnsureOnlineBattleButton()
