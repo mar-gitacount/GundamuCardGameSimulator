@@ -990,6 +990,11 @@ public class EffectData
         + "（オンラインは OK まで進行停止）。")]
     public bool revealDiscardedToOpponent;
 
+    [Tooltip(
+        "DiscardFromHand: true のとき手札選択 UI のキャンセル（Skip）を出さない。"
+        + "手札がある限り必ず1枚選んで捨てる。JsonUtility 既定 false のため未指定カードは従来どおり Skip 可。")]
+    public bool forbidSkipHandDiscard;
+
     [Tooltip("Draw: true のとき引いたカードをプレイヤーに公開してから次の効果へ進む。")]
     public bool revealDrawnToPlayer;
 
