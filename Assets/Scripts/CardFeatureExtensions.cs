@@ -14,7 +14,14 @@ public static class CardFeatureExtensions
 
         for (int i = 0; i < card.features.Count; i++)
         {
-            if (card.features[i] == feature)
+            CardFeatureData owned = card.features[i];
+            if (owned == null)
+            {
+                continue;
+            }
+
+            // 同一アセット参照、または同一 id（ロード経路でインスタンスが分かれる場合）
+            if (owned == feature || owned.id == feature.id)
             {
                 return true;
             }
