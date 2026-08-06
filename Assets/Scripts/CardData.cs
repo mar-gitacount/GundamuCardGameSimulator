@@ -56,6 +56,9 @@ public class CardData : ScriptableObject
 
     [Tooltip("true のときオンライン対戦では使用不可（デッキへの追加は可能）。デフォルト false＝オンライン可。")]
     public bool notUsedOnline;
+
+    [Tooltip("true のときパイロットをセットできない（有線式アーム等）。")]
+    public bool cannotMountPilot;
 }
 
 
@@ -81,6 +84,7 @@ public class CardJson
     public bool isRepair;
     public int repairAmount;
     public bool notUsedOnline;
+    public bool cannotMountPilot;
 }
 
 [Serializable]

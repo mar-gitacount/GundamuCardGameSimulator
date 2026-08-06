@@ -113,6 +113,12 @@
             "featureKey": "Orb",
             "displayName": "オーブ",
             "description": ""
+        },
+        {
+            "id": 19,
+            "featureKey": "Newtype",
+            "displayName": "ニュータイプ",
+            "description": ""
         }
     ]
 }

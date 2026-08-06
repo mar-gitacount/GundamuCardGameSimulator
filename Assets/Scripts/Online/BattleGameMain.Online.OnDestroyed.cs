@@ -22,6 +22,8 @@ public partial class BattleGameMain
     private int _activeLocalOnDestroyedRemoteThinkRequestId;
     /// <summary>直近の OnDestroyed で手札へ戻したカード ID（オンライン完了通知用）。</summary>
     private int _pendingOnDestroyedReturnedToHandCardId = -1;
+    /// <summary>EffectSync 等のリモート適用中に積んだ破壊時解決を、適用フラグ解除後に開始する。</summary>
+    private bool _resumeRemoteDestroyedAfterRemoteApply;
 
     private sealed class RemoteDestroyedResolution
     {
@@ -137,6 +139,14 @@ public partial class BattleGameMain
         return requestId;
     }
 
+    /// <summary>自軍カードの破壊時効果を所有者側で解決中か（配備同期のオフターン許可に使う）。</summary>
+    private bool IsResolvingLocalOwnerOnDestroyedEffects()
+    {
+        return _remoteDestroyedResolutionRunning
+            || _activeResolvingOnDestroyedRequestId > 0
+            || _activeLocalOnDestroyedRemoteThinkRequestId > 0;
+    }
+
     /// <summary>
     /// 自軍破壊時効果の解決完了を相手へ通知し、相手の effectthink を閉じる。
     /// </summary>
@@ -202,6 +212,30 @@ public partial class BattleGameMain
             RequestId = requestId,
             DestroyedBy = destroyedBy
         });
+
+        // リモート適用中（_applyingRemoteBattleAction）は配備 PlayCard / Rest 同期が抑止されるため、
+        // 所有者側の破壊時効果はそのフラグ解除後に開始する。
+        if (_applyingRemoteBattleAction)
+        {
+            _resumeRemoteDestroyedAfterRemoteApply = true;
+            Debug.Log(
+                $"[OnDestroyed][Online] defer owner resolve until remote apply ends "
+                + $"request:{requestId} queued:{_remoteDestroyedResolutionQueue.Count}");
+            return;
+        }
+
+        TryRunNextRemoteDestroyedResolution();
+    }
+
+    /// <summary>リモート適用終了後に保留していた所有者破壊時解決を開始する。</summary>
+    private void ResumeDeferredRemoteDestroyedResolutionsIfNeeded()
+    {
+        if (!_resumeRemoteDestroyedAfterRemoteApply)
+        {
+            return;
+        }
+
+        _resumeRemoteDestroyedAfterRemoteApply = false;
         TryRunNextRemoteDestroyedResolution();
     }
 
@@ -470,6 +504,7 @@ public partial class BattleGameMain
         _pendingRemoteOnDestroyedRequestIds.Clear();
         _remoteDestroyedResolutionQueue.Clear();
         _remoteDestroyedResolutionRunning = false;
+        _resumeRemoteDestroyedAfterRemoteApply = false;
         _activeResolvingOnDestroyedRequestId = 0;
         _activeResolvingOnDestroyedCompleteSent = false;
         _activeLocalOnDestroyedRemoteThinkRequestId = 0;
