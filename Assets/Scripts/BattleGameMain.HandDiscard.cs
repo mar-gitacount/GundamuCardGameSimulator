@@ -326,23 +326,27 @@ public partial class BattleGameMain
             });
         }
 
-        Button cancel = root.CreateChildButton("CancelSkipDiscard");
-        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
-        cancelRt.sizeDelta = new Vector2(200f, 46f);
-        cancelRt.anchoredPosition = new Vector2(0f, 48f);
-        cancel.onClick.AddListener(() =>
+        // forbidSkipHandDiscard: Skip 不可（手札がある限り必ず選択）
+        if (effect == null || !effect.forbidSkipHandDiscard)
         {
-            if (resolved)
+            Button cancel = root.CreateChildButton("CancelSkipDiscard");
+            RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+            cancelRt.sizeDelta = new Vector2(200f, 46f);
+            cancelRt.anchoredPosition = new Vector2(0f, 48f);
+            cancel.onClick.AddListener(() =>
             {
-                return;
-            }
+                if (resolved)
+                {
+                    return;
+                }
 
-            resolved = true;
-            Destroy(root);
-            activeOnActionPopupRoot = null;
-            isOnActionPopupOpen = false;
-            onPicked?.Invoke(null);
-        });
+                resolved = true;
+                Destroy(root);
+                activeOnActionPopupRoot = null;
+                isOnActionPopupOpen = false;
+                onPicked?.Invoke(null);
+            });
+        }
     }
 
     private static string FormatHandDiscardSelectionTitle(EffectData effect, CardController source)

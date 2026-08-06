@@ -14863,6 +14863,13 @@ public partial class BattleGameMain : MonoBehaviour
             if (handCandidates.Count == 0)
             {
                 Debug.Log("OnMain: 捨てる手札がありません (DiscardFromHand)。");
+                // 「そうしたなら」：捨てられなかったら後続（ドロー等）は打ち切り
+                if (effect.abortRemainingChainOnSkip)
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
                 TryExecuteOnMainEffectChain(
                     side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
                 return;
@@ -14872,8 +14879,20 @@ public partial class BattleGameMain : MonoBehaviour
                 source,
                 side,
                 effect,
-                () => TryExecuteOnMainEffectChain(
-                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
+                succeeded =>
+                {
+                    if (!succeeded && effect.abortRemainingChainOnSkip)
+                    {
+                        Debug.Log(
+                            "OnMain: DiscardFromHand 未完了（Skip または枚数不足）。"
+                            + " abortRemainingChainOnSkip のため後続効果を打ち切り。");
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnMainEffectChain(
+                        side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+                });
             return;
         }
 
