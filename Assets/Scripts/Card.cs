@@ -77,7 +77,8 @@ public class Card : MonoBehaviour
         FilterPanel.offsetMax = Vector2.zero;
 
         // デッキに枚数を追加するパネルを追加する。
-        if (DeckSettinObject.Instance.isDeckEditing)
+        // ユニットトークンはデッキに入れられないため、+/- カウンターを出さない。
+        if (DeckSettinObject.Instance.isDeckEditing && !IsUnitTokenCard(CardId))
         {
             // RectTransform DeckEditPanel = Instantiate(DeckEditPrefab,canvas.transform);
             DeckEditPanel = Instantiate(DeckEditPrefab,canvas.transform);
@@ -144,6 +145,18 @@ public class Card : MonoBehaviour
     public void ClearDeckEditSession()
     {
         DeckEditPanel = null;
+    }
+
+    /// <summary>ユニットトークンはデッキ構築対象外。</summary>
+    private static bool IsUnitTokenCard(int cardId)
+    {
+        if (cardId <= 0 || CardDatabase.Instance == null)
+        {
+            return false;
+        }
+
+        CardData data = CardDatabase.Instance.FindById(cardId);
+        return data != null && data.IsUnitToken();
     }
 
     private void OnDestroy()
