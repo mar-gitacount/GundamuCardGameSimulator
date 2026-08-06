@@ -11116,18 +11116,8 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             case EffectType.Buff:
-                Debug.Log("ターンプレイヤー:" + ownerType);
-                Debug.Log("エフェクト:" + effect.type);
-                Debug.Log("エフェクトのステータス:" + effect.statTarget);
-                Debug.Log("エフェクトのダメージ:" + magnitude);
-                Debug.Log("エフェクトのターゲット:" + effect.target);
-                Debug.Log("エフェクトのソースカード:" + sourceCard.Data.id);
-                Debug.Log("エフェクトのソースカードの名前:" + sourceCard.Data.cardName);
-                Debug.Log("エフェクトのソースカードのID:" + sourceCard.Data.id);
-                break;
             case EffectType.Debuff:
             {
-               
                 int sign = effect.type == EffectType.Buff ? 1 : -1;
                 int signedValue = sign * magnitude;
                 string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
@@ -11136,8 +11126,11 @@ public partial class BattleGameMain : MonoBehaviour
                     ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
                     QueueOnlineUnitStat(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
                 }
+
                 TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);
-                Debug.Log($"[Effect] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} by cardId:{sourceCard.Data.id}");
+                Debug.Log(
+                    $"[Effect] {effect.type} {magnitude} target:{effect.target} "
+                    + $"stat:{effect.statTarget} by cardId:{sourceCard.Data.id} targets:{targets.Count}");
                 break;
             }
 

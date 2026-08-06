@@ -81,6 +81,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     private GameObject shieldFaceCoverRoot;
     private int pilotPowerBonus;
     private readonly List<StatModifier> powerModifiers = new List<StatModifier>();
+    private readonly List<StatModifier> hpModifiers = new List<StatModifier>();
     private readonly List<StatModifier> costModifiers = new List<StatModifier>();
     private readonly List<StatModifier> levelModifiers = new List<StatModifier>();
     private readonly List<StatModifier> effectDamageModifiers = new List<StatModifier>();
@@ -492,7 +493,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             return CurrentHp;
         }
 
-        int cap = Data.hp;
+        int cap = Data.hp + SumModifierValues(hpModifiers);
         if (MountedPilot?.Data != null)
         {
             cap += MountedPilot.Data.hp;
@@ -532,6 +533,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         CurrentHp = Mathf.Max(0, Data.hp);
         pilotPowerBonus = 0;
         powerModifiers.Clear();
+        hpModifiers.Clear();
         costModifiers.Clear();
         levelModifiers.Clear();
         effectDamageModifiers.Clear();
@@ -720,6 +722,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
         if (hpDelta != 0)
         {
+            // AP と同様に sourceKey 付きで残し、解除時に現在 HP も戻せるようにする
+            hpModifiers.Add(new StatModifier { value = hpDelta, duration = duration, sourceKey = key });
             CurrentHp = Mathf.Max(0, CurrentHp + hpDelta);
         }
 
@@ -826,6 +830,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         {
             case EffectStatTarget.AP:
                 return powerModifiers;
+            case EffectStatTarget.HP:
+                return hpModifiers;
             case EffectStatTarget.Cost:
                 return costModifiers;
             case EffectStatTarget.Level:
@@ -857,6 +863,13 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         }
 
         AppendRemovalIfNonZero(removed, EffectStatTarget.AP, RemoveKeyedModifiers(powerModifiers, sourceKey));
+        int removedHp = RemoveKeyedModifiers(hpModifiers, sourceKey);
+        if (removedHp != 0)
+        {
+            CurrentHp = Mathf.Max(0, CurrentHp - removedHp);
+            AppendRemovalIfNonZero(removed, EffectStatTarget.HP, removedHp);
+        }
+
         AppendRemovalIfNonZero(removed, EffectStatTarget.Cost, RemoveKeyedModifiers(costModifiers, sourceKey));
         AppendRemovalIfNonZero(removed, EffectStatTarget.Level, RemoveKeyedModifiers(levelModifiers, sourceKey));
         AppendRemovalIfNonZero(removed, EffectStatTarget.EffectDamage, RemoveKeyedModifiers(effectDamageModifiers, sourceKey));
@@ -884,6 +897,13 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
         string ownerTurnPrefix = $"OwnerTurnField:{grantingBattleInstanceId}:";
         AppendRemovalIfNonZero(removed, EffectStatTarget.AP, RemoveKeyedModifiersByPrefix(powerModifiers, ownerTurnPrefix));
+        int removedOwnerTurnHp = RemoveKeyedModifiersByPrefix(hpModifiers, ownerTurnPrefix);
+        if (removedOwnerTurnHp != 0)
+        {
+            CurrentHp = Mathf.Max(0, CurrentHp - removedOwnerTurnHp);
+            AppendRemovalIfNonZero(removed, EffectStatTarget.HP, removedOwnerTurnHp);
+        }
+
         AppendRemovalIfNonZero(removed, EffectStatTarget.Cost, RemoveKeyedModifiersByPrefix(costModifiers, ownerTurnPrefix));
         AppendRemovalIfNonZero(removed, EffectStatTarget.Level, RemoveKeyedModifiersByPrefix(levelModifiers, ownerTurnPrefix));
         AppendRemovalIfNonZero(
@@ -972,6 +992,12 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public void ClearTimedStatModifiersByDuration(EffectDuration duration)
     {
         ClearModifierListByDuration(powerModifiers, duration);
+        int clearedHp = ClearModifierListByDurationReturningSum(hpModifiers, duration);
+        if (clearedHp != 0)
+        {
+            CurrentHp = Mathf.Max(0, CurrentHp - clearedHp);
+        }
+
         ClearModifierListByDuration(costModifiers, duration);
         ClearModifierListByDuration(levelModifiers, duration);
         ClearModifierListByDuration(effectDamageModifiers, duration);
@@ -1004,6 +1030,21 @@ public class CardController : MonoBehaviour,IPointerClickHandler
                 modifiers.RemoveAt(i);
             }
         }
+    }
+
+    private static int ClearModifierListByDurationReturningSum(List<StatModifier> modifiers, EffectDuration duration)
+    {
+        int sum = 0;
+        for (int i = modifiers.Count - 1; i >= 0; i--)
+        {
+            if (modifiers[i].duration == duration)
+            {
+                sum += modifiers[i].value;
+                modifiers.RemoveAt(i);
+            }
+        }
+
+        return sum;
     }
 
     public bool CanMountPilot()
@@ -1083,6 +1124,12 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         CurrentHp = Mathf.Max(0, CurrentHp - Mathf.Max(0, pilot.Data.hp));
         MountedPilot = null;
         pilot.MountedUnit = null;
+
+        // 【リンク中】自身バフ等（UnitGranted:自身）を搭乗解除で落とす
+        if (BattleInstanceId > 0)
+        {
+            RemoveStatModifiersBySourceDetailed(MakeUnitGrantedSourceKey(BattleInstanceId));
+        }
 
         RectTransform pilotRt = pilot.transform as RectTransform;
         if (pilotRt != null)
