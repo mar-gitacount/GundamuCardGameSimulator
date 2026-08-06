@@ -3618,7 +3618,11 @@ public partial class BattleGameMain : MonoBehaviour
         System.Action onComplete,
         CardController destroyedBy = null)
     {
-        List<TimedEffectData> unitBlocks = CollectOnDestroyedTimedBlocks(unit, ownerType, destroyedBy);
+        List<TimedEffectData> unitBlocks = CollectOnDestroyedTimedBlocks(
+            unit,
+            ownerType,
+            destroyedBy,
+            detachedPilot);
         List<TimedEffectData> pilotBlocks = CollectOnDestroyedTimedBlocks(detachedPilot, ownerType, destroyedBy);
 
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
@@ -9464,7 +9468,8 @@ public partial class BattleGameMain : MonoBehaviour
     private List<TimedEffectData> CollectOnDestroyedTimedBlocks(
         CardController sourceCard,
         PlayerType ownerType,
-        CardController destroyedBy = null)
+        CardController destroyedBy = null,
+        CardController detachedMountedPilot = null)
     {
         List<TimedEffectData> blocks = new List<TimedEffectData>();
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
@@ -9475,7 +9480,8 @@ public partial class BattleGameMain : MonoBehaviour
         EffectActivationContext activationContext = BuildOnDestroyedActivationContext(
             ownerType,
             sourceCard,
-            destroyedBy);
+            destroyedBy,
+            detachedMountedPilot);
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
@@ -9500,7 +9506,8 @@ public partial class BattleGameMain : MonoBehaviour
     private EffectActivationContext BuildOnDestroyedActivationContext(
         PlayerType ownerType,
         CardController sourceCard,
-        CardController destroyedBy)
+        CardController destroyedBy,
+        CardController detachedMountedPilot = null)
     {
         bool hasDestroyerOwner = false;
         PlayerType destroyerOwner = default;
@@ -9508,6 +9515,17 @@ public partial class BattleGameMain : MonoBehaviour
         {
             destroyerOwner = ResolveCardOwner(destroyedBy.transform);
             hasDestroyerOwner = true;
+        }
+
+        CardController mountHost = null;
+        CardController mountedPilot = detachedMountedPilot;
+        if (sourceCard != null && sourceCard.Data != null && sourceCard.Data.IsUnitLike())
+        {
+            mountHost = sourceCard;
+            if (mountedPilot == null)
+            {
+                mountedPilot = sourceCard.MountedPilot;
+            }
         }
 
         return new EffectActivationContext(
@@ -9518,6 +9536,8 @@ public partial class BattleGameMain : MonoBehaviour
             CollectHandControllers(cardGameRule),
             CollectHandControllers(enemyCardGameRule),
             isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: mountHost,
+            mountedPilot: mountedPilot,
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),

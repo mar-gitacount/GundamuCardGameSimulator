@@ -107,6 +107,12 @@
             "featureKey": "Victory_Type",
             "displayName": "Victory Type",
             "description": ""
+        },
+        {
+            "id": 18,
+            "featureKey": "Orb",
+            "displayName": "オーブ",
+            "description": ""
         }
     ]
 }
