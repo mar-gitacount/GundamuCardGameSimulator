@@ -962,7 +962,8 @@ public partial class BattleGameMain
             + $"pilot:{pilot?.Data?.cardName ?? "none"}");
 
         _pendingOnAttackPreCombatResolvedAttacker = attacker;
-        BeginEffectChainObservationScope();
+        // 前攻撃の観測リークで「除外しなくてもダメージ」が他ユニット／翌ターンへ残らないようルートを毎回新規にする。
+        BeginEffectChainObservationScope(forceNewRoot: true);
 
         void FinishPreCombat()
         {
@@ -1166,6 +1167,42 @@ public partial class BattleGameMain
             return;
         }
 
+        // 「してもよい。そうしたなら…」除外：Cancel／候補不足は後続ダメージを打ち切る
+        if (effect.type == EffectType.ExileFromTrash)
+        {
+            bool abortRemainingOnSkip = effect.abortRemainingChainOnSkip;
+            ApplyExileFromTrashEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                onComplete: () => TryExecuteOnAttackPreCombatEffectChain(
+                    sourceCard,
+                    ownerType,
+                    effects,
+                    index + 1,
+                    onDone),
+                onSkipped: () =>
+                {
+                    if (abortRemainingOnSkip)
+                    {
+                        Debug.Log(
+                            "[OnAttackPreCombat] ExileFromTrash skipped — abort remaining chain "
+                            + $"(cardId:{sourceCard?.Data?.id})");
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        TryExecuteOnAttackPreCombatEffectChain(
+                            sourceCard,
+                            ownerType,
+                            effects,
+                            index + 1,
+                            onDone);
+                    }
+                });
+            return;
+        }
+
         if (EffectRequiresManualHandSelection(effect))
         {
             PlayerType handOwner = ResolveHandDiscardOwner(ownerType, effect);
@@ -1269,7 +1306,7 @@ public partial class BattleGameMain
         }
 
         EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
-        BeginEffectChainObservationScope();
+        BeginEffectChainObservationScope(forceNewRoot: true);
         try
         {
             for (int bi = 0; bi < blocks.Count; bi++)
@@ -1297,6 +1334,25 @@ public partial class BattleGameMain
 
                     if (EffectRequiresManualUnitSelection(effect))
                     {
+                        continue;
+                    }
+
+                    // プレイヤー向け同期経路でも「除外スキップ後のダメージ」を落とす
+                    if (effect.type == EffectType.ExileFromTrash && effect.abortRemainingChainOnSkip)
+                    {
+                        bool exileCompleted = false;
+                        ApplyExileFromTrashEffect(
+                            source,
+                            attackerOwner,
+                            effect,
+                            onComplete: () => exileCompleted = true,
+                            onSkipped: () => exileCompleted = false);
+                        // 同期 UI 無し（Enemy）なら onComplete 即時。プレイヤー UI は非同期のためここでは完了想定外。
+                        if (!exileCompleted)
+                        {
+                            break;
+                        }
+
                         continue;
                     }
 

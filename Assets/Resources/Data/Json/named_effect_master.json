@@ -1901,7 +1901,8 @@
                     "targetFeatureId": 11,
                     "filterByTargetCardType": true,
                     "targetCardType": 2,
-                    "requireExactExileCount": true
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
                 },
                 {
                     "type": 0,

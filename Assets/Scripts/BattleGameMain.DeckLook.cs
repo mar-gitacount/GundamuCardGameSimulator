@@ -227,6 +227,21 @@ public partial class BattleGameMain
 
         if (effect != null && effect.type == EffectType.ExileFromTrash)
         {
+            if (effect.abortRemainingChainOnSkip)
+            {
+                ApplyExileFromTrashEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    onComplete: onChainContinue,
+                    onSkipped: () =>
+                    {
+                        Debug.Log(
+                            $"[EffectChain] ExileFromTrash skipped — abort remaining (cardId:{sourceCard?.Data?.id})");
+                    });
+                return;
+            }
+
             ApplyExileFromTrashEffect(sourceCard, ownerType, effect, onChainContinue);
             return;
         }
