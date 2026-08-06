@@ -264,6 +264,27 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _firstStrikeUntilEndOfTurnDepth = 0;
     }
 
+    /// <summary>《突破》のターン終了まで付与量。0 は未付与。</summary>
+    private int _breachUntilEndOfTurnAmount;
+
+    public bool HasBreachUntilEndOfTurnGrant => _breachUntilEndOfTurnAmount > 0;
+
+    public int BreachUntilEndOfTurnAmount => _breachUntilEndOfTurnAmount;
+
+    public void AddBreachUntilEndOfTurnGrant(int amount)
+    {
+        int next = amount > 0 ? amount : 0;
+        if (next > _breachUntilEndOfTurnAmount)
+        {
+            _breachUntilEndOfTurnAmount = next;
+        }
+    }
+
+    public void ClearBreachUntilEndOfTurnGrants()
+    {
+        _breachUntilEndOfTurnAmount = 0;
+    }
+
     public void AddNotDirectAttackUntilEndOfTurnGrant()
     {
         _notDirectAttackUntilEndOfTurnDepth++;

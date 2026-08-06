@@ -155,6 +155,109 @@ public partial class BattleGameMain
         return applied > 0;
     }
 
+    private bool TryApplyFirstStrikeMarker(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null || effect.type != EffectType.FirstStrike || targets == null || targets.Count == 0)
+        {
+            return false;
+        }
+
+        if (effect.duration != EffectDuration.UntilEndOfTurn
+            && effect.duration != EffectDuration.UntilEndOfBattle
+            && effect.duration != EffectDuration.Permanent)
+        {
+            return false;
+        }
+
+        int limit = effect.value > 0 ? effect.value : targets.Count;
+        int applied = 0;
+        for (int i = 0; i < targets.Count && applied < limit; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (effect.duration == EffectDuration.UntilEndOfTurn)
+            {
+                unit.AddFirstStrikeUntilEndOfTurnGrant();
+            }
+
+            applied++;
+            Debug.Log(
+                $"[FirstStrike] {effect.duration} 付与: {unit.Data.cardName}(id:{unit.Data.id})");
+        }
+
+        return applied > 0;
+    }
+
+    private bool TryApplyGrantBreachMarker(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null || effect.type != EffectType.GrantBreach || targets == null || targets.Count == 0)
+        {
+            return false;
+        }
+
+        if (effect.duration != EffectDuration.UntilEndOfTurn
+            && effect.duration != EffectDuration.UntilEndOfBattle
+            && effect.duration != EffectDuration.Permanent)
+        {
+            return false;
+        }
+
+        int amount = effect.value > 0 ? effect.value : 0;
+        if (amount <= 0)
+        {
+            return false;
+        }
+
+        int applied = 0;
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (effect.requireTargetLacksBreach && unit.GetBreachAmount() > 0)
+            {
+                continue;
+            }
+
+            if (effect.duration == EffectDuration.UntilEndOfTurn)
+            {
+                unit.AddBreachUntilEndOfTurnGrant(amount);
+            }
+
+            applied++;
+            Debug.Log(
+                $"[GrantBreach] {effect.duration} Breach{amount} 付与: {unit.Data.cardName}(id:{unit.Data.id})");
+        }
+
+        return applied > 0;
+    }
+
+    private void ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits()
+    {
+        ClearBreachUntilEndOfTurnGrantsOnZone(playerBattleZoneCards);
+        ClearBreachUntilEndOfTurnGrantsOnZone(enemyBattleZoneCards);
+    }
+
+    private static void ClearBreachUntilEndOfTurnGrantsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearBreachUntilEndOfTurnGrants();
+        }
+    }
+
     private void ClearNotDirectAttackGrants(EffectDuration duration)
     {
         if (duration != EffectDuration.UntilEndOfTurn && duration != EffectDuration.UntilEndOfBattle)

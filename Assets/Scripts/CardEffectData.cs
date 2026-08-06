@@ -215,7 +215,17 @@ public enum EffectType
     /// 発動元カード自身の【メイン】をコストなしで発動する（バースト「このカードの【メイン】を発動する」等）。
     /// 手札からのコスト支払い・トラッシュ送付は行わない。
     /// </summary>
-    ActivateSelfOnMain
+    ActivateSelfOnMain,
+    /// <summary>
+    /// 対象ユニットに《先制攻撃》を付与する（UntilEndOfTurn 等）。
+    /// 攻撃中はそのユニットが相手より先にダメージを与える。
+    /// </summary>
+    FirstStrike,
+    /// <summary>
+    /// 対象ユニットに《突破》value を付与する（UntilEndOfTurn 等）。
+    /// 既に突破を持つユニットは requireTargetLacksBreach で除外できる。
+    /// </summary>
+    GrantBreach
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -345,7 +355,9 @@ public static class EffectTypeExtensions
             || type == EffectType.Destroy
             || type == EffectType.GrantAttackFlag
             || type == EffectType.MarkObservedUnit
-            || type == EffectType.EffectBattle;
+            || type == EffectType.EffectBattle
+            || type == EffectType.FirstStrike
+            || type == EffectType.GrantBreach;
     }
 
     /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>
@@ -617,7 +629,12 @@ public enum EffectActivationCheckKind
     /// オーナーのバトルゾーンに、cardNameContains（部分一致・大小無視）をカード名に含む
     /// 生存ユニットが minimumCount 体以上いる。
     /// </summary>
-    OwnerBattleUnitNameContains
+    OwnerBattleUnitNameContains,
+    /// <summary>
+    /// オーナーのバトルゾーンに、リンク中かつ features / featureIds のいずれか（OR）を持つ
+    /// 生存ユニットが minimumCount 体以上いる。
+    /// </summary>
+    OwnerHasLinkedUnitWithFeature
 }
 
 public enum EffectTurnCheckKind
@@ -694,8 +711,8 @@ public class EffectActivationCondition
     public EffectTurnCheckKind turnCheck = EffectTurnCheckKind.Unset;
 
     [Tooltip(
-        "HasFeature / ObservedCardHasFeature / TrashHasFeature / DestroyedByHasFeature 時に参照。"
-        + "未設定なら featureId / features で解決。")]
+        "HasFeature / ObservedCardHasFeature / TrashHasFeature / DestroyedByHasFeature / "
+        + "OwnerHasLinkedUnitWithFeature 時に参照。未設定なら featureId / features で解決。")]
     public CardFeatureData feature;
 
     [Tooltip("JSON 用。feature 未設定時に ID で解決（0=未指定）。")]
@@ -707,7 +724,7 @@ public class EffectActivationCondition
     [Tooltip("HasFeature / ObservedCardHasFeature: 複数 Feature のいずれか（OR）。JSON 用 ID 配列。")]
     public int[] featureIds;
 
-    [Tooltip("HasFeature: その Feature を持つカードの最低枚数。UnitCountAtLeast: 生存ユニット最低体数。CountUnitsWithLevelAtLeast: レベル条件を満たすユニットの最低体数。ObservedCardHasFeature: 観測カードのうち条件を満たす最低枚数。")]
+    [Tooltip("HasFeature / OwnerHasLinkedUnitWithFeature: その Feature を持つカードの最低枚数。UnitCountAtLeast: 生存ユニット最低体数。CountUnitsWithLevelAtLeast: レベル条件を満たすユニットの最低体数。ObservedCardHasFeature: 観測カードのうち条件を満たす最低枚数。")]
     public int minimumCount = 1;
 
     public EffectLevelAggregate levelAggregate = EffectLevelAggregate.MaxLevel;
@@ -746,6 +763,49 @@ public class EffectActivationCondition
 
     [Tooltip("OwnerBattleUnitNameContains: カード名に含む文字列（部分一致・大小無視）。")]
     public string cardNameContains;
+}
+
+/// <summary>カード名部分一致（英日別名の相互許容付き）。</summary>
+public static class CardNameContainsMatcher
+{
+    public static bool Matches(string unitName, string needle)
+    {
+        if (string.IsNullOrEmpty(unitName) || string.IsNullOrWhiteSpace(needle))
+        {
+            return false;
+        }
+
+        if (unitName.IndexOf(needle, System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        if (IsMasterGundamNeedle(needle))
+        {
+            return unitName.IndexOf("Master Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || unitName.IndexOf("マスターガンダム", System.StringComparison.Ordinal) >= 0;
+        }
+
+        if (IsShiningGundamNeedle(needle))
+        {
+            return unitName.IndexOf("Shining Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || unitName.IndexOf("シャイニングガンダム", System.StringComparison.Ordinal) >= 0;
+        }
+
+        return false;
+    }
+
+    private static bool IsMasterGundamNeedle(string needle)
+    {
+        return needle.IndexOf("Master Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("マスターガンダム", System.StringComparison.Ordinal) >= 0;
+    }
+
+    private static bool IsShiningGundamNeedle(string needle)
+    {
+        return needle.IndexOf("Shining Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("シャイニングガンダム", System.StringComparison.Ordinal) >= 0;
+    }
 }
 
 /// <summary><see cref="EffectActivationCondition"/> の Feature 解決（複数は OR）。</summary>
@@ -954,6 +1014,14 @@ public class EffectData
         "ExileFromTrash: true のとき候補が value 枚未満なら除外を行わない（部分除外しない）。"
         + "Nu Gundam のロンド・ベル3枚除外などに使用。")]
     public bool requireExactExileCount;
+
+    [Tooltip(
+        "対象ユニットのカード名に含む文字列（部分一致・大小無視）。"
+        + "Shining Gundam / シャイニングガンダム 等は相互許容。空なら名前条件なし。")]
+    public string targetCardNameContains;
+
+    [Tooltip("true のとき《突破》を持たないユニットのみ対象（印刷＋付与の合算が 0）。")]
+    public bool requireTargetLacksBreach;
 
     [Tooltip(
         "true のとき対象選択の前にプレイヤーへ実行可否を確認する。"
@@ -1216,7 +1284,9 @@ public static class EffectDataExtensions
             && (effect.HasTargetFeatureFilter()
                 || effect.HasTargetUnitStatFilter()
                 || effect.compareTargetStatToSource
-                || effect.compareTargetStatToPriorChainPicked);
+                || effect.compareTargetStatToPriorChainPicked
+                || !string.IsNullOrWhiteSpace(effect.targetCardNameContains)
+                || effect.requireTargetLacksBreach);
     }
 
     /// <summary>
@@ -1352,6 +1422,17 @@ public static class EffectDataExtensions
         }
 
         if (effect.HasTargetFeatureFilter() && !effect.MatchesTargetFeatureOnCard(unit.Data))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(effect.targetCardNameContains)
+            && !CardNameContainsMatcher.Matches(unit.Data.cardName, effect.targetCardNameContains.Trim()))
+        {
+            return false;
+        }
+
+        if (effect.requireTargetLacksBreach && unit.GetBreachAmount() > 0)
         {
             return false;
         }

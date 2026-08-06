@@ -10,35 +10,43 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 115Dragon Gundam
+  m_Name: 132Gundam Fight
   m_EditorClassIdentifier: 
-  id: 115
-  cardName: Dragon Gundam
-  cost: 3
-  level: 5
-  power: 4
-  hp: 4
-  imageName: {fileID: -9136035123777294029, guid: 36ec316c3f4645d47bb4ec6c6c524f87, type: 3}
+  id: 132
+  cardName: Gundam Fight
+  cost: 1
+  level: 3
+  power: 0
+  hp: 5
+  imageName: {fileID: -4761371137285418030, guid: 45d71468c25ce7541aa63d93a4c7c699, type: 3}
   image: {fileID: 0}
   version: 5
-  sourceType: 1
+  sourceType: 2
   filterType: 0
   color: 0
-  type: 0
+  type: 3
   attackFlg: 0
   timedEffects:
-  - timing: 21
+  - timing: 5
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: Damage2_EnemyAp3OrLess_SelectSingle
+    effectsName: DeployBase1_OnBurst
     effects: []
     activationCost: 0
-    oncePerTurn: 1
+    oncePerTurn: 0
     observedUnitTriggerKind: -1
-  - timing: 3
+  - timing: 6
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddShield1_OnBaseDeployed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 12
     activationConditions:
     - boardSide: -1
-      checkKind: 17
+      checkKind: 21
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 0
@@ -56,19 +64,36 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - boardSide: -1
+      checkKind: 27
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
+      featureId: 12
+      features:
+      - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
-    effectsName: ActivateMountedCardOnMain_OnAttack
+    effectsName: RestSelf_BuffAllyAp2_UntilEOT_OnMain
     effects: []
     activationCost: 0
-    oncePerTurn: 0
+    oncePerTurn: 1
     observedUnitTriggerKind: -1
-  features:
-  - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
-  - {fileID: 11400000, guid: f1a2b3c4d5e6f708192a3b4c5d6e7f80, type: 2}
-  link:
-  - pilotCardId: 130
-    pilotFeatures: []
-    pilotFeatureIds: 
+  features: []
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

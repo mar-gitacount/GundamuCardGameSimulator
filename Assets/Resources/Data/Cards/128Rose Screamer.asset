@@ -10,57 +10,36 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 119Gundam Rose
+  m_Name: 128Rose Screamer
   m_EditorClassIdentifier: 
-  id: 119
-  cardName: Gundam Rose
-  cost: 2
+  id: 128
+  cardName: Rose Screamer
+  cost: 1
   level: 3
-  power: 3
-  hp: 2
-  imageName: {fileID: -7235640696389954037, guid: 210b2d5d19a1e774b9a89cad9989bfc0, type: 3}
+  power: 1
+  hp: 1
+  imageName: {fileID: 3661224468701220220, guid: 78b9597b7e17b1b459195814a8f91a29, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
   filterType: 0
   color: 0
-  type: 0
+  type: 6
   attackFlg: 0
   timedEffects:
-  - timing: 3
-    activationConditions:
-    - boardSide: -1
-      checkKind: 17
-      turnCheck: -1
-      feature: {fileID: 0}
-      featureId: 0
-      features: []
-      featureIds: 
-      minimumCount: 0
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 2
-      unitCountThreshold: 0
-      pilotCardId: 0
-      trashCardId: 0
-      pilotLevelThreshold: 0
-      activationStatTarget: -1
-      observedCardType: 0
-      destroyedByOwnerRelation: 0
+  - timing: 12
+    activationConditions: []
     requireChainObservationContext: 0
-    effectsName: ActivateMountedCardOnMain_OnAttack
+    effectsName: BuffAllyMfApLe4_Ap2_UntilEOT_ThenOptionalMountSelfOnMF_FromTrash_OnMain
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
-  - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
+  - {fileID: 11400000, guid: e0f1a2b3c4d5e6f708192a3b4c5d6e7f, type: 2}
   - {fileID: 11400000, guid: f1a2b3c4d5e6f708192a3b4c5d6e7f80, type: 2}
-  link:
-  - pilotCardId: 128
-    pilotFeatures: []
-    pilotFeatureIds: 
+  - {fileID: 11400000, guid: a7e4c91b2d8f4e6a9b0c1d2e3f4a5b6c, type: 2}
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
