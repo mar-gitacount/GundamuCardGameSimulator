@@ -303,6 +303,14 @@ public class DeckSettinObject : MonoBehaviour
             return;
         }
 
+        // ユニットトークンはデッキに入れられないため、枚数バッジを出さない。
+        int cardId = ResolveCardIdFromDeckPreviewObject(cardObject);
+        if (IsUnitTokenCardId(cardId))
+        {
+            HideCardCountBadge(cardObject);
+            return;
+        }
+
         TextMeshProUGUI badge = GetOrCreateCardCountBadge(cardObject);
         if (badge == null)
         {
@@ -313,6 +321,42 @@ public class DeckSettinObject : MonoBehaviour
         badge.enabled = true;
         badge.gameObject.SetActive(true);
         ApplyCardCountBadgeLayout(badge, count);
+    }
+
+    private static int ResolveCardIdFromDeckPreviewObject(GameObject cardObject)
+    {
+        if (cardObject == null)
+        {
+            return 0;
+        }
+
+        Card card = cardObject.GetComponent<Card>();
+        return card != null ? card.CardId : 0;
+    }
+
+    private static bool IsUnitTokenCardId(int cardId)
+    {
+        if (cardId <= 0 || CardDatabase.Instance == null)
+        {
+            return false;
+        }
+
+        CardData data = CardDatabase.Instance.FindById(cardId);
+        return data != null && data.IsUnitToken();
+    }
+
+    private void HideCardCountBadge(GameObject cardObject)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        Transform existing = cardObject.transform.Find(DeckCardCountBadgeName);
+        if (existing != null)
+        {
+            existing.gameObject.SetActive(false);
+        }
     }
 
     private void RefreshDeckTotalCountLabel()

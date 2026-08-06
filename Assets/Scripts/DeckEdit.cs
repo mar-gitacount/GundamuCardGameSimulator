@@ -21,9 +21,46 @@ public class DeckEdit : MonoBehaviour
         // if()
         // CardCount.text = DeckSettinObject.Instance.CardCount.ToString();
         Debug.Log($"デッキ編集オブジェクトに渡された{cardId}");
+
+        // ユニットトークンはデッキ構築対象外のため、カウンター UI を出さない。
+        if (IsUnitTokenCard(cardId))
+        {
+            HideCountUi();
+            return;
+        }
+
         int count = DeckSettinObject.Instance.CardCount(cardId);
         CardCount.text = count.ToString();
 
+    }
+
+    private static bool IsUnitTokenCard(int id)
+    {
+        if (id <= 0 || CardDatabase.Instance == null)
+        {
+            return false;
+        }
+
+        CardData data = CardDatabase.Instance.FindById(id);
+        return data != null && data.IsUnitToken();
+    }
+
+    private void HideCountUi()
+    {
+        if (CardCount != null)
+        {
+            CardCount.gameObject.SetActive(false);
+        }
+
+        if (add != null)
+        {
+            add.gameObject.SetActive(false);
+        }
+
+        if (subtranct != null)
+        {
+            subtranct.gameObject.SetActive(false);
+        }
     }
 
     // Update is called once per frame
