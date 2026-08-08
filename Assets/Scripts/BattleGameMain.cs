@@ -5011,6 +5011,9 @@ public partial class BattleGameMain : MonoBehaviour
             out int attackerPowerForCombat,
             out int defenderPowerForCombat);
 
+        // ストライク値は上で確定済み。修飾は交換前に即解除（被攻撃時へ持ち越さない）
+        ClearEndOfBattleCombatModifiers("unit vs unit before exchange");
+
         int defenderHpBeforeExchange = defender.CurrentHp;
         int attackerHpBeforeExchange = attacker.CurrentHp;
 
@@ -5021,6 +5024,7 @@ public partial class BattleGameMain : MonoBehaviour
             defenderOwner,
             attackerPowerForCombat,
             defenderPowerForCombat);
+
         int defenderHpAfterExchange = defender.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
 
@@ -5051,8 +5055,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearEndOfBattleCombatModifiers("unit vs unit attack finish");
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
         LogAttackPostBattleFieldCompact(attacker, attackerOwner);
@@ -6822,22 +6825,29 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            if (attacker.CurrentPower <= 0)
+            // ユニット戦と同様、Self AP バフは盤面に残さず打撃時のみ加算
+            int shieldStrikeAp = Mathf.Max(
+                0,
+                GetUnitStrikeDamagePower(attacker) + ComputeOnAttackSelfApBonus(attacker, attackerOwner));
+
+            if (shieldStrikeAp <= 0)
             {
                 Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or direct attack.");
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
+                ClearEndOfBattleCombatModifiers("shield attack aborted (AP0)");
                 ClearAttackFlowContext();
                 return;
             }
 
             if (!gundamRule.HasShieldZoneProtection(targetSide))
             {
-                Debug.Log($"[DirectAttack] No shield zone protection. Resolving direct attack. attackPower:{attacker.CurrentPower}");
+                Debug.Log($"[DirectAttack] No shield zone protection. Resolving direct attack. attackPower:{shieldStrikeAp}");
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
                 NotifyLocalShieldAttackResolved(attacker, 0, 0, directAttackWin: true);
                 HandleDirectAttackWinLose(attackerOwner);
+                ClearEndOfBattleCombatModifiers("shield direct attack");
                 ClearAttackFlowContext();
                 return;
             }
@@ -6849,13 +6859,17 @@ public partial class BattleGameMain : MonoBehaviour
                     targetSide,
                     defender,
                     hadExBaseLayerAtShieldAttackStart,
+                    shieldStrikeAp,
                     out string shieldStrikeLog,
                     out bool destroyedDeployedBase))
             {
                 Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
+                ClearEndOfBattleCombatModifiers("shield strike failed");
                 ClearAttackFlowContext();
                 return;
             }
+
+            ClearEndOfBattleCombatModifiers("shield attack after strike");
 
             Gundam2024RuleScript.PlayerState defenderAfter = targetSide == Gundam2024RuleScript.PlayerSide.Player
                 ? gundamRule.Player
@@ -6907,8 +6921,7 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearEndOfBattleCombatModifiers("unit shield attack");
         DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
         Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
@@ -7091,6 +7104,7 @@ public partial class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerSide targetSide,
         Gundam2024RuleScript.PlayerState defender,
         bool hadExBaseLayerAtShieldAttackStart,
+        int strikeAp,
         out string logMessage,
         out bool destroyedDeployedBase)
     {
@@ -7115,6 +7129,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (TryApplyShieldAttackDamageToDeployedBase(
                 attacker,
                 targetSide,
+                strikeAp,
                 out logMessage,
                 out destroyedDeployedBase))
         {
@@ -7133,12 +7148,12 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
-        if (attacker.CurrentPower <= 0)
+        if (strikeAp <= 0)
         {
             return false;
         }
 
-        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, attacker.CurrentPower, hadExBaseLayerAtShieldAttackStart))
+        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, strikeAp, hadExBaseLayerAtShieldAttackStart))
         {
             return false;
         }
@@ -7800,6 +7815,13 @@ public partial class BattleGameMain : MonoBehaviour
             out int attackerPowerForCombat,
             out int blockerPowerForCombat,
             applyOnAttackPairEffects: !attackFlowBlockRedirectFromShieldStrike);
+
+        // ストライク確定後すぐ解除（Self AP バフは加算値のみのため盤面修飾がないが、キラデバフ等は落とす）
+        if (!attackFlowBlockRedirectFromShieldStrike)
+        {
+            ClearEndOfBattleCombatModifiers("block redirect before exchange");
+        }
+
         int blockerHpBeforeExchange = blocker.CurrentHp;
         int attackerHpBeforeExchange = attacker.CurrentHp;
 
@@ -7810,6 +7832,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Immediately before block exchange"))
         {
+            ClearEndOfBattleCombatModifiers("block redirect aborted before exchange");
             return;
         }
 
@@ -7817,6 +7840,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             TrashUnitIfDeadOnField(blocker, blockerOwner, attacker);
             TrashUnitIfDeadOnField(attacker, attackerOwner);
+            ClearEndOfBattleCombatModifiers("block redirect cancelled before exchange");
             FinalizeBlockInterruptWithoutExchange();
             return;
         }
@@ -7895,8 +7919,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearEndOfBattleCombatModifiers("block redirect unit combat finish");
         DumpTurnResourceUsageLogs(attackerOwner, "block redirect unit combat");
         SyncAllResourceViewsFromRule();
 
@@ -7977,9 +8000,138 @@ public partial class BattleGameMain : MonoBehaviour
         return Mathf.Max(0, unit.CurrentPower);
     }
 
+    /// <summary>「このバトル中」の時限修飾・付与を解除する。</summary>
+    private void ClearEndOfBattleCombatModifiers(string reason)
+    {
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        // ゾーンリスト漏れ対策: 配備パネル直下も走査
+        ClearTimedStatModifiersOnDeployPanels(EffectDuration.UntilEndOfBattle);
+        if (!string.IsNullOrEmpty(reason))
+        {
+            Debug.Log($"[UntilEndOfBattle] Cleared combat modifiers ({reason})");
+        }
+    }
+
+    private void ClearTimedStatModifiersOnDeployPanels(EffectDuration duration)
+    {
+        ClearTimedStatModifiersOnTransform(cardGameRule != null ? cardGameRule.PlayerDeployPanel : null, duration);
+        ClearTimedStatModifiersOnTransform(enemyCardGameRule != null ? enemyCardGameRule.PlayerDeployPanel : null, duration);
+    }
+
+    private static void ClearTimedStatModifiersOnTransform(Transform root, EffectDuration duration)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            CardController c = root.GetChild(i).GetComponent<CardController>();
+            if (c != null)
+            {
+                c.ClearTimedStatModifiersByDuration(duration);
+            }
+        }
+    }
+
+    /// <summary>
+    /// OnAttack の Self Buff/Debuff（AP）を盤面修飾せず加算値として返す。
+    /// ザクⅡなど「このバトル中」自己AP増はここに載せ、攻撃終了後に残さない。
+    /// </summary>
+    private int ComputeOnAttackSelfApBonus(CardController attacker, PlayerType ownerType)
+    {
+        if (attacker == null || attacker.Data == null)
+        {
+            return 0;
+        }
+
+        int bonus = ComputeOnAttackSelfApBonusFromSource(attacker, ownerType, attacker.Data);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            bonus += ComputeOnAttackSelfApBonusFromSource(attacker, ownerType, attacker.MountedPilot.Data);
+        }
+
+        return bonus;
+    }
+
+    private int ComputeOnAttackSelfApBonusFromSource(
+        CardController attacker,
+        PlayerType ownerType,
+        CardData data)
+    {
+        if (attacker == null || data?.timedEffects == null)
+        {
+            return 0;
+        }
+
+        CardController effectSource = data == attacker.Data ? attacker : attacker.MountedPilot;
+        if (effectSource == null)
+        {
+            return 0;
+        }
+
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(ownerType, attacker);
+        int bonus = 0;
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnAttack.Count; j++)
+            {
+                EffectData effect = resolvedOnAttack[j];
+                if (effect == null
+                    || (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+                    || effect.target != TargetType.Self)
+                {
+                    continue;
+                }
+
+                if (effect.statTarget != EffectStatTarget.AP && effect.statTarget != EffectStatTarget.Both)
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                int magnitude = ResolveEffectMagnitude(effect, ownerType, effectSource);
+                if (magnitude <= 0)
+                {
+                    continue;
+                }
+
+                int signed = effect.type == EffectType.Buff ? magnitude : -magnitude;
+                bonus += signed;
+                Debug.Log(
+                    $"[OnAttack] Strike-only Self AP {effect.type} {signed} (duration:{effect.duration}) "
+                    + $"source:{effectSource.Data?.cardName}");
+            }
+        }
+
+        return bonus;
+    }
+
     /// <summary>
     /// OnAttack 効果を適用したうえで攻防の strike AP を確定する。
     /// OnAction コマンドの AP デバフは既に CurrentPower に載っている前提（戦闘直前に OnAction 済み）。
+    /// Self AP バフ（ザクⅡ等）は盤面に残さず strike 加算のみ。
     /// </summary>
     private void ResolveUnitVsUnitCombatStrikePowers(
         CardController attacker,
@@ -7998,12 +8150,16 @@ public partial class BattleGameMain : MonoBehaviour
             ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
         }
 
-        attackerStrikePower = GetUnitStrikeDamagePower(attacker);
+        int selfApBonus = applyOnAttackPairEffects
+            ? ComputeOnAttackSelfApBonus(attacker, attackerOwner)
+            : 0;
+        attackerStrikePower = Mathf.Max(0, GetUnitStrikeDamagePower(attacker) + selfApBonus);
         defenderStrikePower = GetUnitStrikeDamagePower(defender);
 
         Debug.Log(
-            $"[CombatPower] attackerStrike:{attackerStrikePower} (preOnAttackResolve:{attackerPowerBeforeOnAttackResolve}) "
-            + $"defenderStrike:{defenderStrikePower} (preOnAttackResolve:{defenderPowerBeforeOnAttackResolve})");
+            $"[CombatPower] attackerStrike:{attackerStrikePower} "
+            + $"(base:{attackerPowerBeforeOnAttackResolve} selfBonus:{selfApBonus}) "
+            + $"defenderStrike:{defenderStrikePower} (pre:{defenderPowerBeforeOnAttackResolve})");
     }
 
     private void ApplyOnAttackEffectsForCombatPair(CardController attacker, PlayerType attackerOwner, CardController defender)
@@ -8071,6 +8227,20 @@ public partial class BattleGameMain : MonoBehaviour
                     || effect.type.UsesTargetCountValue()
                     || effect.type.RequiresManualUnitSelection()
                     || effect.opponentChoosesTarget)
+                {
+                    continue;
+                }
+
+                // Self AP Buff/Debuff は ComputeOnAttackSelfApBonus（ストライク加算）専任。盤面修飾しない。
+                if ((effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                    && effect.target == TargetType.Self)
+                {
+                    continue;
+                }
+
+                // それ以外の味方対象時限バフ等も戦闘ペア経路では扱わない
+                if ((effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                    && !effect.target.IsOpponentUnitTarget())
                 {
                     continue;
                 }
@@ -9107,6 +9277,14 @@ public partial class BattleGameMain : MonoBehaviour
                 if (timing == EffectTiming.OnAttack && effect.target.IsOpponentUnitTarget())
                 {
                     // Enemy unit target effects are resolved before attack target decision.
+                    continue;
+                }
+
+                // Self AP バフ（ザクⅡ等）は strike 加算専用。ここで Apply すると盤面に残る。
+                if (timing == EffectTiming.OnAttack
+                    && (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                    && effect.target == TargetType.Self)
+                {
                     continue;
                 }
 

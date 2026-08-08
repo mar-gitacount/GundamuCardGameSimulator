@@ -1003,6 +1003,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         ClearModifierListByDuration(effectDamageModifiers, duration);
         ClearModifierListByDuration(effectDamageImmunityModifiers, duration);
         ClearModifierListByDuration(incomingDamageReductionModifiers, duration);
+        RefreshBattleStatOverlay(force: true);
     }
 
     public void ClearPowerModifiersByDuration(EffectDuration duration)
