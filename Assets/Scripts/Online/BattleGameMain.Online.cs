@@ -1630,6 +1630,7 @@ public partial class BattleGameMain
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
         SyncBaseZoneHeaderDisplay(Gundam2024RuleScript.PlayerSide.Player);
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Player, force: true);
+        ClearEndOfBattleCombatModifiers("remote shield attack");
         Debug.Log(
             $"[OnlineBattle] Remote shield attack applied. shield={oldShield}->{defender.shield} "
             + $"exBase={oldExBase}->{defender.exBase} baseHp:{action.defenderDeployedBaseHpAfter}");
@@ -1745,6 +1746,8 @@ public partial class BattleGameMain
         }
 
         SyncAllResourceViewsFromRule();
+        // リモート側でも「このバトル中」修飾を落とす（EffectSync で付いたキラデバフ／ザクAP+2 など）
+        ClearEndOfBattleCombatModifiers("remote unit attack");
         Debug.Log(
             $"[OnlineBattle] Remote unit attack applied. attackerHp={action.attackerHp} defenderHp={action.defenderHp} "
             + $"areaSnap:{action.includeDefenderAreaSnapshot} baseHp:{action.defenderDeployedBaseHpAfter}");

@@ -834,6 +834,12 @@ public partial class BattleGameMain
             return false;
         }
 
+        // 戦闘中の AP/HP 修飾は「このバトル中」扱いでユニット戦に載せる（プレコンバットでは付与しない）
+        if (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+        {
+            return false;
+        }
+
         if (effect.type == EffectType.DeployUnit
             || effect.type == EffectType.ExileFromTrash
             || effect.type == EffectType.Draw

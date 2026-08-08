@@ -998,6 +998,7 @@ public partial class BattleGameMain
     private bool TryApplyShieldAttackDamageToDeployedBase(
         CardController attacker,
         Gundam2024RuleScript.PlayerSide targetSide,
+        int strikeAp,
         out string logMessage,
         out bool destroyedDeployedBase)
     {
@@ -1009,7 +1010,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        int power = attacker != null ? attacker.CurrentPower : 0;
+        int power = Mathf.Max(0, strikeAp);
         if (power <= 0)
         {
             return false;

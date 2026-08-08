@@ -253,8 +253,7 @@ public partial class BattleGameMain
             + $"{defender.Data.cardName} HP:{defenderHpBefore}->{defender.CurrentHp} "
             + $"areaSnap:{includeAreaSnapshot} baseHp:{areaBaseHpAfter}");
 
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearEndOfBattleCombatModifiers("effect battle");
         SyncAllResourceViewsFromRule();
     }
 
