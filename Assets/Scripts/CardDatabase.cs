@@ -82,6 +82,7 @@ public class CardDatabase : MonoBehaviour
     return new CardJson
     {
         id = card.id,
+        gcgOfficialId = card.gcgOfficialId,
         cardName = card.cardName,
         cost = card.cost,
         level = card.level,
@@ -108,6 +109,7 @@ CardData ConvertToCardData(CardJson json)
     CardData card = ScriptableObject.CreateInstance<CardData>();
 
     card.id = json.id;
+    card.gcgOfficialId = json.gcgOfficialId;
     card.cardName = json.cardName;
     card.cost = json.cost;
     card.level = json.level;
@@ -286,6 +288,64 @@ public CardData FindById(int id)
 
         result.Sort((a, b) => a.id.CompareTo(b.id));
         Debug.Log($"検索結果数: {result.Count} / cardDict:{cardDict.Count}");
+        return result;
+    }
+
+    /// <summary>
+    /// 公式 GCG ID が一致するカードをすべて返す（レア違いの同カードが複数ヒットする想定）。
+    /// </summary>
+    public List<CardData> FindByGcgOfficialId(string gcgOfficialId)
+    {
+        var result = new List<CardData>();
+        if (string.IsNullOrWhiteSpace(gcgOfficialId))
+        {
+            return result;
+        }
+
+        string key = gcgOfficialId.Trim();
+        foreach (CardData card in cardDict.Values)
+        {
+            if (card == null || string.IsNullOrWhiteSpace(card.gcgOfficialId))
+            {
+                continue;
+            }
+
+            if (string.Equals(card.gcgOfficialId.Trim(), key, StringComparison.OrdinalIgnoreCase))
+            {
+                result.Add(card);
+            }
+        }
+
+        result.Sort((a, b) => a.id.CompareTo(b.id));
+        return result;
+    }
+
+    /// <summary>
+    /// 公式 GCG ID の部分一致（含有）検索。
+    /// </summary>
+    public List<CardData> FindByGcgOfficialIdContains(string keyword)
+    {
+        var result = new List<CardData>();
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return result;
+        }
+
+        string key = keyword.Trim();
+        foreach (CardData card in cardDict.Values)
+        {
+            if (card == null || string.IsNullOrWhiteSpace(card.gcgOfficialId))
+            {
+                continue;
+            }
+
+            if (card.gcgOfficialId.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                result.Add(card);
+            }
+        }
+
+        result.Sort((a, b) => a.id.CompareTo(b.id));
         return result;
     }
 

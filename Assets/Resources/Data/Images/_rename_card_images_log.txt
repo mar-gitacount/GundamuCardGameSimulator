@@ -1,0 +1,147 @@
+RENAME id:100 Hobby Hizack <= スクリーンショット 2026-07-31 212745.png => Hobby Hizack.png
+RENAME id:101 Gyunei's Jagd Doga <= スクリーンショット 2026-07-31 213120.png => Gyunei's Jagd Doga.png
+RENAME id:102 Kayra Su <= スクリーンショット 2026-07-31 213551.png => Kayra Su.png
+RENAME id:103 Char Aznable <= スクリーンショット 2026-08-02 213758.png => Char Aznable.png
+RENAME id:104 Axis <= スクリーンショット 2026-08-02 214612.png => Axis.png
+RENAME id:105 Quess Paraya <= スクリーンショット 2026-08-02 235503.png => Quess Paraya.png
+RENAME id:106 Gyunei Guss <= スクリーンショット 2026-08-03 002329.png => Gyunei Guss.png
+RENAME id:107 Veteran's Pride <= スクリーンショット 2026-08-03 004921.png => Veteran's Pride.png
+RENAME id:108 Ra Cailum <= スクリーンショット 2026-08-03 083023.png => Ra Cailum.png
+RENAME id:109 'Mutual Attraction ' <= スクリーンショット 2026-08-03 181002.png => 'Mutual Attraction '.png
+RENAME id:110 Widespread Annihilation <= スクリーンショット 2026-08-03 200025.png => Widespread Annihilation.png
+RENAME id:111 NT Research Institute Director <= スクリーンショット 2026-08-03 204619.png => NT Research Institute Director.png
+RENAME id:112 Master Gundam <= スクリーンショット 2026-08-03 212427.png => Master Gundam.png
+RENAME id:113 Cyclone Punch <= スクリーンショット 2026-08-03 215019.png => Cyclone Punch.png
+RENAME id:114 Gundam Maxter <= スクリーンショット 2026-08-03 220138.png => Gundam Maxter.png
+SKIP already named: Dragon Gundam -> Dragon Gundam.png
+SKIP already named: Haow Gundam -> Haow Gundam.png
+SKIP already named: Shining Gundam -> Shining Gundam.png
+RENAME id:118 Neros Gundam <= スクリーンショット 2026-08-04 134125.png => Neros Gundam_118.png
+SKIP already named: Gundam Rose -> Gundam Rose.png
+SKIP already named: Domon Kasshu -> Domon Kasshu.png
+SKIP already named: Shining Gundam(LR) -> Shining Gundam(LR).png
+SKIP already named: Shining Gundam (Super Mode) -> Shining Gundam (Super Mode).png
+SKIP already named: Rising Gundam -> Rising Gundam.png
+SKIP already named: Royal Gundam -> Royal Gundam.png
+SKIP already named: Bolt Gundam -> Bolt Gundam.png
+SKIP already named: Master Asia -> Master Asia.png
+SKIP already named: Darkness Finger -> Darkness Finger.png
+SKIP already named: Rose Screamer -> Rose Screamer.png
+SKIP already named: Shining Finger -> Shining Finger.png
+SKIP already named: Hoka Kyoten Juzetsujin -> Hoka Kyoten Juzetsujin.png
+SKIP already named: Graviton Hammer -> Graviton Hammer.png
+SKIP already named: Gundam Fight -> Gundam Fight.png
+SKIP already named: V2 Gundam -> V2 Gundam.png
+SKIP already named: Waldfeld's Murasame -> Waldfeld's Murasame.png
+SKIP already named: Akatsuki (Oowashi) -> Akatsuki (Oowashi).png
+SKIP already named: Strike Rouge (Ootori) -> Strike Rouge (Ootori).png
+SKIP already named: Wire-Guided Arm -> Wire-Guided Arm.png
+SKIP already named: Zeong (Head) -> Zeong (Head).png
+SKIP already named: Zeong -> Zeong.png
+RENAME id:140 Zaku II <= Zaku_II.png => Zaku II.png
+SKIP already named: Delta Plus -> Delta Plus.png
+RENAME id:142 Airframe Seizure <= Airframe_Seizure.png => Airframe Seizure.png
+RENAME id:14 シンアスカ <= スクリーンショット 2026-04-04 201710.png => シンアスカ.png
+RENAME id:17 ジャスティスガンダム <= スクリーンショット 2026-04-04 214516.png => ジャスティスガンダム.png
+RENAME id:1000000 EffectTestPilot <= スクリーンショット 2026-06-28 201405.png => EffectTestPilot.png
+RENAME id:10000 EffectTestUnit <= スクリーンショット 2026-06-28 185450.png => EffectTestUnit.png
+RENAME id:25 gim <= スクリーンショット 2026-05-20 224623.png => gim.png
+RENAME id:26 gumtank <= スクリーンショット 2026-05-20 225841.png => gumtank.png
+RENAME id:27 zawort <= スクリーンショット 2026-05-21 174639.png => zawort.png
+RENAME id:28 Close Combat <= スクリーンショット 2026-05-22 222735.png => Close Combat.png
+RENAME id:29 GQuuuuuuX (Omega Psycommu) <= スクリーンショット 2026-05-27 170301.png => GQuuuuuuX (Omega Psycommu).png
+RENAME id:20000 EffectTestUnit2 <= スクリーンショット 2026-06-28 204953.png => EffectTestUnit2.png
+RENAME id:30 30Vesalius <= スクリーンショット 2026-05-30 154418.png => 30Vesalius.png
+RENAME id:31 Mining Asteroid Palau <= スクリーンショット 2026-05-31 104114.png => Mining Asteroid Palau.png
+RENAME id:32 Jachin Due <= スクリーンショット 2026-05-31 103933.png => Jachin Due.png
+RENAME id:33 33Valiant <= スクリーンショット 2026-06-02 162041.png => 33Valiant.png
+RENAME id:34 GuAIZ (Commander Type) <= スクリーンショット 2026-06-02 211539.png => GuAIZ (Commander Type).png
+RENAME id:35 Ginn <= スクリーンショット 2026-06-03 162252.png => Ginn.png
+RENAME id:36 Aegis Gundam <= スクリーンショット 2026-06-03 162553.png => Aegis Gundam.png
+RENAME id:37 Aile Strike Gundam <= スクリーンショット 2026-06-03 170313.png => Aile Strike Gundam.png
+RENAME id:38 Perfect Strike Gundam <= スクリーンショット 2026-06-03 173853.png => Perfect Strike Gundam.png
+RENAME id:39 Amuro Ray <= スクリーンショット 2026-06-06 162129.png => Amuro Ray.png
+RENAME id:40 Silver Bullet <= スクリーンショット 2026-06-07 191629.png => Silver Bullet.png
+RENAME id:41 Argama <= スクリーンショット 2026-06-07 203120.png => Argama.png
+RENAME id:42 RickDom <= スクリーンショット 2026-06-08 175507.png => RickDom.png
+RENAME id:43 Char's Zaku Ⅱ <= スクリーンショット 2026-06-08 201105.png => Char's Zaku Ⅱ.png
+RENAME id:44 KenpFar <= スクリーンショット 2026-06-08 214053.png => KenpFar.png
+RENAME id:45 Zaku 2 FZ <= スクリーンショット 2026-06-08 214204.png => Zaku 2 FZ.png
+RENAME id:46 Shinanju <= スクリーンショット 2026-06-08 214332.png => Shinanju.png
+RENAME id:47 Angelos GeraZulu <= スクリーンショット 2026-06-08 214401.png => Angelos GeraZulu.png
+RENAME id:48 Dopp <= スクリーンショット 2026-06-09 162742.png => Dopp.png
+RENAME id:49 'Giant Killing ' <= スクリーンショット 2026-06-11 140722.png => 'Giant Killing '.png
+RENAME id:50 Rick Dias <= スクリーンショット 2026-06-13 230454.png => Rick Dias.png
+RENAME id:51 Gundam Lfrith <= スクリーンショット 2026-06-13 231015.png => Gundam Lfrith.png
+RENAME id:52 Zoloat (League Militaire) <= スクリーンショット 2026-06-13 232501.png => Zoloat (League Militaire).png
+RENAME id:53 Gundam Barbatos Adapt <= スクリーンショット 2026-06-15 213331.png => Gundam Barbatos Adapt.png
+RENAME id:54 A Show of Resolve <= スクリーンショット 2026-06-22 164825.png => A Show of Resolve.png
+RENAME id:55 G-fred <= スクリーンショット 2026-06-28 210344.png => G-fred.png
+RENAME id:56 Nyaan <= スクリーンショット 2026-06-28 201316.png => Nyaan.png
+RENAME id:57 Fatom <= スクリーンショット 2026-06-29 121911.png => Fatom.png
+RENAME id:58 Athrun Zala <= スクリーンショット 2026-06-29 152757.png => Athrun Zala.png
+RENAME id:59 Launcher Strike Gundam <= スクリーンショット 2026-06-29 163536.png => Launcher Strike Gundam.png
+RENAME id:60 Archangel <= スクリーンショット 2026-06-29 164720.png => Archangel.png
+RENAME id:61 Gundam <= スクリーンショット 2026-06-29 183756.png => Gundam.png
+RENAME id:62 Corsica Base <= スクリーンショット 2026-06-29 193000.png => Corsica Base.png
+RENAME id:63 Tallgeese <= スクリーンショット 2026-06-29 193237.png => Tallgeese.png
+RENAME id:64 Leo <= スクリーンショット 2026-06-29 193301.png => Leo.png
+RENAME id:65 WhiteBase <= スクリーンショット 2026-06-29 200510.png => WhiteBase.png
+RENAME id:66 Gundam <= スクリーンショット 2026-06-29 200608.png => Gundam_66.png
+RENAME id:67 Guncannon <= スクリーンショット 2026-06-29 200638.png => Guncannon.png
+RENAME id:68 Guntank <= スクリーンショット 2026-06-29 200705.png => Guntank.png
+RENAME id:69 Gundam Barbatos 1st Form <= スクリーンショット 2026-06-29 210644.png => Gundam Barbatos 1st Form.png
+RENAME id:6 キラヤマト <= スクリーンショット 2026-04-04 200237.png => キラヤマト.png
+RENAME id:70 Mikazuki Augus <= スクリーンショット 2026-06-29 210558.png => Mikazuki Augus.png
+RENAME id:71 GrazeCustom <= スクリーンショット 2026-06-30 124154.png => GrazeCustom.png
+RENAME id:72 ZakuWarrior <= スクリーンショット 2026-06-30 124314.png => ZakuWarrior.png
+RENAME id:73 00Gundom <= スクリーンショット 2026-06-30 124238.png => 00Gundom.png
+RENAME id:74 Hyzaku <= スクリーンショット 2026-06-30 124354.png => Hyzaku.png
+RENAME id:75 Nemo <= スクリーンショット 2026-06-30 124421.png => Nemo.png
+RENAME id:76 Anksha <= スクリーンショット 2026-06-30 124509.png => Anksha.png
+RENAME id:77 StrikeFreedomgandom <= スクリーンショット 2026-07-01 16.28.26.png => StrikeFreedomgandom.png
+RENAME id:78 キラヤマト <= スクリーンショット 2026-07-01 21.26.26.png => キラヤマト_78.png
+RENAME id:79 Flat (Militia) <= スクリーンショット 2026-07-01 222908.png => Flat (Militia).png
+RENAME id:80 Gundam Deathscythe <= スクリーンショット 2026-07-12 174332.png => Gundam Deathscythe.png
+RENAME id:81 Duo Maxwell <= スクリーンショット 2026-07-12 190626.png => Duo Maxwell.png
+RENAME id:82 Improved Technique <= スクリーンショット 2026-07-22 230224.png => Improved Technique.png
+RENAME id:83 Nu Gundam <= スクリーンショット 2026-07-23 213516.png => Nu Gundam.png
+RENAME id:84 Nu Gundam <= スクリーンショット 2026-07-24 203000.png => Nu Gundam_84.png
+RENAME id:85 Jegan <= スクリーンショット 2026-07-24 203132.png => Jegan.png
+RENAME id:86 Re-GZ BWS <= スクリーンショット 2026-07-24 203031.png => Re-GZ BWS.png
+RENAME id:87 Re-GZ <= スクリーンショット 2026-07-24 202930.png => Re-GZ.png
+RENAME id:88 Amuro Ray <= スクリーンショット 2026-07-24 224608.png => Amuro Ray_88.png
+RENAME id:89 Kayra's Jegan <= スクリーンショット 2026-07-27 215411.png => Kayra's Jegan.png
+RENAME id:90 'Kayra''s Re-GZ ' <= スクリーンショット 2026-07-27 224143.png => 'Kayra''s Re-GZ '.png
+RENAME id:91 Sazabi <= スクリーンショット 2026-07-27 225336.png => Sazabi.png
+RENAME id:93 Quess Paraya <= スクリーンショット 2026-07-28 153547.png => Quess Paraya_93.png
+RENAME id:92 Quess's Jagd Doga <= スクリーンショット 2026-07-27 233717.png => Quess's Jagd Doga.png
+RENAME id:94 Quess Paraya <= Feature_6_Neo_Zeon.asset => Quess Paraya.asset
+RENAME id:95 Sazabi <= スクリーンショット 2026-07-28 162155.png => Sazabi_95.png
+RENAME id:96 Alpha Azieru <= スクリーンショット 2026-07-28 184629.png => Alpha Azieru.png
+RENAME id:97 Rezin's Geara Doga <= スクリーンショット 2026-07-30 162614.png => Rezin's Geara Doga.png
+RENAME id:98 Gyunei's Jagd Doga <= スクリーンショット 2026-07-30 163032.png => Gyunei's Jagd Doga_98.png
+RENAME id:99 Geara Doga <= スクリーンショット 2026-07-30 174539.png => Geara Doga.png
+RENAME id:888 Amuro Ray <= Feature_10_Londo_Bell.asset => Amuro Ray.asset
+RENAME id:21 Gundumrubliss <= スクリーンショット 2026-04-27 184612.png => Gundumrubliss.png
+RENAME id:23 Jegan <= スクリーンショット 2026-05-18 170949.png => Jegan_23.png
+RENAME id:1 バイアランカスタムテスト <= カードリスト  GUNDAM CARD GAME 公式サイト.jpeg.png => バイアランカスタムテスト.png
+RENAME id:10 ソードインパルスガンダム <= スクリーンショット 2026-04-04 201457.png => ソードインパルスガンダム.png
+RENAME id:11 フリーダムガンダム <= スクリーンショット 2026-04-04 201359.png => フリーダムガンダム.png
+RENAME id:12 ジャイアントキリング <= スクリーンショット 2026-04-04 201750.png => ジャイアントキリング.png
+RENAME id:13 ミネルバ <= スクリーンショット 2026-04-04 201833.png => ミネルバ.png
+RENAME id:15 溢れる慈愛 <= スクリーンショット 2026-04-04 201914.png => 溢れる慈愛.png
+RENAME id:16 フリーダムガンダム <= スクリーンショット 2026-04-04 214418.png => フリーダムガンダム_16.png
+RENAME id:18 ストライクルージュ <= スクリーンショット 2026-04-04 214610.png => ストライクルージュ.png
+RENAME id:19 ゲルググ <= スクリーンショット 2026-04-24 170144.png => ゲルググ.png
+RENAME id:2 バンシイ <= スクリーンショット 2025-12-27 18.33.07.jpeg.png => バンシイ.png
+RENAME id:3 ユニコーンガンダム <= スクリーンショット 2025-12-27 18.32.27.jpeg.png => ユニコーンガンダム.png
+COPY  id:5 ガンダム <= ユニコーンガンダム.png => ガンダム.png (guid:67f335d6a5e3413cbedd440a309d6971)
+RENAME id:4 ガンダム <= ファイル_000.png => ガンダム_4.png
+RENAME id:7 インパルスガンダム <= スクリーンショット 2026-04-04 201128.png => インパルスガンダム.png
+RENAME id:8 フォースインパルスガンダム <= スクリーンショット 2026-04-04 201251.png => フォースインパルスガンダム.png
+RENAME id:9 ブラストインパルスガンダム <= スクリーンショット 2026-04-04 201550.png => ブラストインパルスガンダム.png
+RENAME id:0 ユニコーンガンダム(バンシイ) <= カードリスト  GUNDAM CARD GAME 公式サイト (1).jpeg.png => ユニコーンガンダム(バンシイ).png
+RENAME id:20 予期せぬ出来事 <= スクリーンショット 2026-04-24 201801.png => 予期せぬ出来事.png
+RENAME id:22 UnicornGundum <= スクリーンショット 2026-05-17 230400.png => UnicornGundum.png
+RENAME id:24 XI GUNDAM <= スクリーンショット 2026-05-20 153833.png => XI GUNDAM.png
