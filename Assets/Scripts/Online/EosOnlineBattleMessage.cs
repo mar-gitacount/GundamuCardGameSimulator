@@ -51,6 +51,25 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public const string MatchAccept = "MatchAccept";
+    public const string MatchCancel = "MatchCancel";
+
+    public static string CreateMatchAccept()
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = MatchAccept
+        });
+    }
+
+    public static string CreateMatchCancel()
+    {
+        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        {
+            type = MatchCancel
+        });
+    }
+
     public static string CreateEndTurn()
     {
         return JsonUtility.ToJson(new EosOnlineBattleMessage
