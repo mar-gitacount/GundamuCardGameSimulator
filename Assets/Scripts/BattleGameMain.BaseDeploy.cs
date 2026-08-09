@@ -829,11 +829,13 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (defenderBase.HasEffectDamageImmunity)
+        // 先頭の配備ベースが効果ダメージ無効なら、ここでダメージ全体を消費する（EX/シールドへ抜けない）。
+        // 戦闘ダメージ（シールド攻撃）は TryApplyShieldAttackDamageToDeployedBase 側で別途受ける。
+        if (DoesCardIgnoreEffectDamage(defenderBase))
         {
-            Debug.Log(
-                $"[EffectDamage] Blocked base damage — {defenderBase.Data.cardName} has EffectDamageImmunity (fall through to EX/shield).");
-            return false;
+            logMessage =
+                $"[EffectDamage] Ignored by Base {defenderBase.Data.cardName} (EffectDamageImmunity) — no damage to EX/shield.";
+            return true;
         }
 
         int amount = ResolveEffectDamageAmount(baseMagnitude, defenderBase);
@@ -868,8 +870,67 @@ public partial class BattleGameMain
     }
 
     /// <summary>
+    /// ランタイム付与、またはカード定義（自身への EffectDamageImmunity Buff）による効果ダメージ無効。
+    /// </summary>
+    private static bool DoesCardIgnoreEffectDamage(CardController card)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        if (card.HasEffectDamageImmunity)
+        {
+            return true;
+        }
+
+        return CardDataDeclaresSelfEffectDamageImmunity(card.Data);
+    }
+
+    /// <summary>
+    /// Argama 等：OnBaseDeployed の自身 EffectDamageImmunity をカード定義から判定する。
+    /// オンラインミラー配備で Buff 未付与でも同じ挙動にする。
+    /// </summary>
+    private static bool CardDataDeclaresSelfEffectDamageImmunity(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                if (effect.type == EffectType.Buff
+                    && effect.statTarget == EffectStatTarget.EffectDamageImmunity
+                    && effect.target == TargetType.Self)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// 効果ダメージによるプレイヤー領域へのダメージ。
     /// 配備ベース → EXベース（いずれも value 分）→ シールド1枚のみの順。戦闘交換ダメージとは別経路。
+    /// 先頭の配備ベースが効果ダメージ無効ならダメージをそこで消費し、後ろへは抜けない。
     /// baseMagnitude は生の効果量。配備ベースは自身の修飾のみ適用、EX/シールドは修飾なし。
     /// sourceUnit があるとき、シールドエリアのカード破壊で OnOpponentShieldAreaCardDestroyed を発火する。
     /// </summary>
