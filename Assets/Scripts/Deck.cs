@@ -84,7 +84,7 @@ public class Deck : MonoBehaviour
         {
             Debug.Log("ほぼ-100");
              
-            offset.y = -600;
+            offset.y = -700;
             FilterPanelPrefab.offsetMax = offset;
             AllViewButtonText.text="AllView";
 

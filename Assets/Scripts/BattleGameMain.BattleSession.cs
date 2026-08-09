@@ -100,17 +100,28 @@ public partial class BattleGameMain
             return true;
         }
 
-        if (PlayerFieldPanel != null && child == PlayerFieldPanel)
+        // BattleCanvasBoardLayout の盤面ルート（旧名 BattleBiardCanvas 等も含む）
+        if (child.name == BattleCanvasBoardLayout.ContentRootName
+            || child.name == "BattleBiardCanvas"
+            || child.name == "BattleBoardCanvas")
         {
             return true;
         }
 
-        if (EnemyPlayerFieldPanel != null && child == EnemyPlayerFieldPanel)
+        if (PlayerFieldPanel != null &&
+            (child == PlayerFieldPanel || PlayerFieldPanel.transform.IsChildOf(child.transform)))
         {
             return true;
         }
 
-        if (EndTurnButton != null && child == EndTurnButton.gameObject)
+        if (EnemyPlayerFieldPanel != null &&
+            (child == EnemyPlayerFieldPanel || EnemyPlayerFieldPanel.transform.IsChildOf(child.transform)))
+        {
+            return true;
+        }
+
+        if (EndTurnButton != null &&
+            (child == EndTurnButton.gameObject || EndTurnButton.transform.IsChildOf(child.transform)))
         {
             return true;
         }
