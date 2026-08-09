@@ -114,12 +114,26 @@ CardData ConvertToCardData(CardJson json)
     card.power = json.power;
     card.hp = json.hp;
 
-    // Sprite を Resources から復元
-    if (!string.IsNullOrEmpty(json.imageName))
+    // Sprite を Resources から復元（アセット参照がある場合はそれを優先）
+    if (cardDict != null && cardDict.TryGetValue(json.id, out CardData assetCard) && assetCard != null
+        && assetCard.imageName != null)
+    {
+        card.imageName = assetCard.imageName;
+    }
+    else if (!string.IsNullOrEmpty(json.imageName))
     {
         Debug.Log($"画像名が存在するため、カードID {json.id} の画像を読み込もうとしています: {json.imageName}");
-        // card.imageName = json.imageName;
-        card.imageName = Resources.Load<Sprite>($"Data/Cards/{json.imageName}");
+        Sprite sprite = Resources.Load<Sprite>($"Data/Images/{json.imageName}");
+        if (sprite == null)
+        {
+            sprite = Resources.Load<Sprite>($"Data/Cards/{json.imageName}");
+        }
+
+        card.imageName = sprite;
+        if (sprite == null)
+        {
+            Debug.LogWarning($"カードID {json.id} の Sprite が見つかりません: {json.imageName}");
+        }
     }
     else
     {
@@ -252,20 +266,26 @@ public CardData FindById(int id)
     public List<CardData> FindByNameContains(string keyword)
     {
         var result = new List<CardData>();
-        var master = LoadJson();
-        if (master == null) return result;
-
-        foreach (var card in master.cards)
+        // JSONから CreateInstance すると imageName(Sprite) が空になる。
+        // 検索表示は Resources 上の CardData（Sprite 参照付き）を使う。
+        string key = keyword ?? string.Empty;
+        foreach (CardData card in cardDict.Values)
         {
-            if (card.cardName.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+            if (card == null || string.IsNullOrEmpty(card.cardName))
             {
-                CardData convertedCard = ConvertToCardData(card);
-                result.Add(convertedCard);
-                // cardDict[card.id] = convertedCard;
-                Debug.Log($"色: {card.color}, $コンバート後カード検索: ID={card.id}, 名前={card.cardName}, 画像={card.imageName}, version={card.version},sourceType={card.sourceType}");
+                continue;
+            }
+
+            if (card.cardName.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                result.Add(card);
+                Debug.Log(
+                    $"検索ヒット: ID={card.id}, 名前={card.cardName}, 画像={(card.imageName != null ? card.imageName.name : "null")}");
             }
         }
-        Debug.Log($"検索後の全カードデータの数（検索関数内）: {cardDict.Count}");
+
+        result.Sort((a, b) => a.id.CompareTo(b.id));
+        Debug.Log($"検索結果数: {result.Count} / cardDict:{cardDict.Count}");
         return result;
     }
 
@@ -317,20 +337,26 @@ public CardData FindById(int id)
 public List<CardData> IncludedCardsBySet(CardSetData set)
 {
     var result = new List<CardData>();
-    var master = LoadJson();
-    if (master == null) return result;
-
-    foreach (var card in master.cards)
+    if (set == null)
     {
-        // データをCardDataに変換してからセットの条件と比較する
-        CardData convertedCard = ConvertToCardData(card);
-        if (set.version == convertedCard.version && set.sourceType == convertedCard.sourceType)
+        return result;
+    }
+
+    foreach (CardData card in cardDict.Values)
+    {
+        if (card == null)
         {
-           
-            result.Add(convertedCard);
+            continue;
+        }
+
+        if (set.version == card.version && set.sourceType == card.sourceType)
+        {
+            result.Add(card);
             Debug.Log($"カードセット {set.setName} に含まれるカード: ID={card.id}, 名前={card.cardName}");
         }
     }
+
+    result.Sort((a, b) => a.id.CompareTo(b.id));
     return result;
 }
 
