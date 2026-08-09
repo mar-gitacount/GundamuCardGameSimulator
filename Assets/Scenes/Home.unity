@@ -4375,7 +4375,7 @@ GameObject:
   m_Component:
   - component: {fileID: 510092356}
   m_Layer: 0
-  m_Name: BattleBoardCanvas
+  m_Name: CenterBoardCanvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

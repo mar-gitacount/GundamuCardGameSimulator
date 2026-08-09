@@ -144,42 +144,28 @@ public class ScrollBottomChecker : MonoBehaviour
     
     public void SerchButtonClickedToFind()
     {
-        // 検索ボタンがクリックされたときの処理
-        var keyword = SearchInputField.text;
-      
-        var results = CardDatabase.Instance.FindByNameContains(keyword);
-        // results = IncludedCards.Instance.GetSelectedCards(results);
+        string keyword = SearchInputField != null ? SearchInputField.text : string.Empty;
+        List<CardData> results = CardDatabase.Instance.FindByNameContains(keyword);
+        if (IncludedCardsObj != null)
+        {
+            results = IncludedCardsObj.GetSelectedCards(results);
+        }
 
-        // ?トグルで選択されたカードセットの条件で絞り込む
-        results = IncludedCardsObj.GetSelectedCards(results);
-        List<Toggle> onToggles =  IncludedCardsObj.GetOnToggles();
-        Debug.Log($"ONトグル数: {onToggles.Count}");
-        foreach (var toggle in onToggles)
+        Debug.Log($"検索キーワード: {keyword}, 件数: {results.Count}");
+
+        // 旧リスト／表示を捨てて、検索結果だけで描画し直す
+        allCards.Clear();
+        allCards.AddRange(results);
+        if (content != null)
         {
-            Debug.Log($"ONトグル: {toggle.GetComponent<ToggleDatail>().id}");
+            for (int i = content.childCount - 1; i >= 0; i--)
+            {
+                Destroy(content.GetChild(i).gameObject);
+            }
         }
-        // CardDatabase db = CardDatabase.Instance;
-        CardDatabase db = CardDatabase.Instance;
-         // db.LoadAllCards();
-         // CardData testData = db.GetById(0);
-         Debug.Log("検索キーワード: " + keyword);
-         
-         foreach (var card in results)
-        {
-            Debug.Log($"キーワード検索結果: ID={card.id}, 名前={card.cardName}, 画像={card.imageName}, version={card.version}, sourceType={card.sourceType}");
-            // ここでカードデータをallCardsに追加するなどの処理を行うことができます。
-            // ここでカードデータをallCardsに追加するなどの処理を行うことができます。
-            // allCards.Add(db.GetById(card.id));
-            allCards.Add(card);
-        }
-        // db.LoadAllCards();
-        // CardData testData = db.GetById(0);
-        Debug.Log("検索結果の数: " + results.Count);
-        Debug.Log("検索後の検索キーワード: " + SearchInputField.text);
-        // 以下すべてのカードデータを取得する例
-        // allCards = db.GetAllCards();
-        Debug.Log("検索後の全カードデータの数:" + allCards.Count);
-        
+
+        AddImages(Mathf.Min(5, allCards.Count));
+        cardsRemove();
     }
     void AddImages(int count)
     {
