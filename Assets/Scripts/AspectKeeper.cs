@@ -1,40 +1,66 @@
-using System.Collections;
-using System.Collections.Generic;
-// using System.Numerics;
-using System.Runtime.CompilerServices;
 using UnityEngine;
 
+/// <summary>
+/// カメラの Viewport を基準アスペクト比に合わせて中央寄せする（レターボックス／ピラーボックス）。
+/// </summary>
 [ExecuteAlways]
 public class AspectKeeper : MonoBehaviour
 {
-    // 対象カメラ
     [SerializeField] private Camera targetCamera;
 
-    [SerializeField] private Vector2 aspectVec; 
+    [Tooltip("基準解像度（例: 480×800）。")]
+    [SerializeField] private Vector2 aspectVec = new Vector2(480f, 800f);
 
-    // Update is called once per frame
-    void Update()
+    private void Awake()
     {
-        // 画面のアスペクト比を計算
-        var screenAspect = Screen.width / (float)Screen.height;
-        var targetAspect = aspectVec.x / aspectVec.y;
-
-        // 目的のアスペクト倍率
-        var  magRate = screenAspect / targetAspect;
-
-        var viewportRect = new Rect(0, 0, 1, 1);
-        if(magRate < 1)
+        if (targetCamera == null)
         {
+            targetCamera = GetComponent<Camera>();
+        }
+
+        Apply();
+    }
+
+    private void Update()
+    {
+        Apply();
+    }
+
+    private void OnValidate()
+    {
+        if (targetCamera == null)
+        {
+            targetCamera = GetComponent<Camera>();
+        }
+
+        Apply();
+    }
+
+    private void Apply()
+    {
+        if (targetCamera == null || aspectVec.y <= 0.0001f || aspectVec.x <= 0.0001f)
+        {
+            return;
+        }
+
+        float screenAspect = Screen.width / (float)Screen.height;
+        float targetAspect = aspectVec.x / aspectVec.y;
+        float magRate = screenAspect / targetAspect;
+
+        Rect viewportRect = new Rect(0f, 0f, 1f, 1f);
+        if (magRate < 1f)
+        {
+            // 画面のほうが縦長 → 左右に余白
             viewportRect.width = magRate;
             viewportRect.x = 0.5f - viewportRect.width * 0.5f;
-            
         }
-        else
+        else if (magRate > 1f)
         {
-            viewportRect.height = 1 / magRate;
+            // 画面のほうが横長 → 上下に余白
+            viewportRect.height = 1f / magRate;
             viewportRect.y = 0.5f - viewportRect.height * 0.5f;
         }
-        viewportRect.width = magRate;
+
         targetCamera.rect = viewportRect;
     }
 }
