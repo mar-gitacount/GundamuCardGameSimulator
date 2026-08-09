@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c515c583aa780ff4591d3a073bd30f74, type: 3}
   m_Name: Feature_6_Neo_Zeon
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::CardFeatureData
   id: 6
   featureKey: Neo_Zeon
   displayName: "\u30CD\u30AA\u30B8\u30AA\u30F3"

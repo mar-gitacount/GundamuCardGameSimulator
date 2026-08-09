@@ -6,6 +6,10 @@ using System.Collections.Generic; // ← これも必要（List<T>のため）
 public class CardData : ScriptableObject
 {
     public int id;
+
+    [Tooltip("公式 GCG カードID（同一カードのレア違いで共通）。内部の id とは別。空なら未設定。")]
+    public string gcgOfficialId;
+
     public string cardName;
     public int cost;
     public int level;
@@ -66,6 +70,7 @@ public class CardData : ScriptableObject
 public class CardJson
 {
     public int id;
+    public string gcgOfficialId;
     public string cardName;
     public int cost;
     public int level;
