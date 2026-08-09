@@ -225,6 +225,7 @@ public class EosOnlinePlaytestController : MonoBehaviour
         _bucketField = CreateInputField(parent, "Bucket / Room", DefaultBucket);
         _remoteIdField = CreateInputField(parent, "Remote ProductUserId", string.Empty);
 
+        CreateButton(parent, "Random Match", StartRandomMatch);
         CreateButton(parent, "1. Device ID Login", () => _loginService.LoginWithDeviceId(_displayNameField.text));
         CreateButton(parent, "2. Create Lobby", CreateLobby);
         CreateButton(parent, "3. Search + Join First", SearchAndJoinFirstLobby);
@@ -354,6 +355,16 @@ public class EosOnlinePlaytestController : MonoBehaviour
         SendRaw(EosOnlineBattleMessage.CreatePing());
     }
 
+    private void StartRandomMatch()
+    {
+        EosRandomMatchService service = EosRandomMatchService.EnsureExists();
+        string bucket = _bucketField != null ? NormalizeBucket(_bucketField.text) : DefaultBucket;
+        AppendLog("Random Match started. You can close this panel and keep browsing.");
+        service.StartRandomMatch(bucket);
+        // バックグラウンド継続のためパネルは閉じてもよい
+        ClosePanel();
+    }
+
     private void StartOnlineBattleAsHost()
     {
         if (!RequireLoggedIn())
@@ -439,12 +450,30 @@ public class EosOnlinePlaytestController : MonoBehaviour
                 AppendLog("pong received: P2P round-trip OK");
                 break;
             case "MatchStart":
+                // Random Match サービス側で開始する場合は二重遷移を避ける
+                if (EosRandomMatchService.Instance != null
+                    && EosRandomMatchService.Instance.IsMatchmakingActive)
+                {
+                    AppendLog("MatchStart handled by Random Match service.");
+                    break;
+                }
+
+                if (EosOnlineMatchState.HasActiveMatch)
+                {
+                    AppendLog("MatchStart ignored: battle already active.");
+                    break;
+                }
+
                 AppendLog("MatchStart received. Entering online battle.");
                 BeginLocalBattle(
                     isHost: false,
                     localPlayerGoesFirst: !message.hostGoesFirst,
                     seed: message.seed,
                     remotePeerId: peerId);
+                break;
+            case EosOnlineBattleMessage.MatchAccept:
+            case EosOnlineBattleMessage.MatchCancel:
+                // Random Match サービスが処理する
                 break;
             default:
                 AppendLog($"Received type={message.type}");
