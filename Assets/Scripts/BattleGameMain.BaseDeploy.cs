@@ -793,6 +793,7 @@ public partial class BattleGameMain
         if (ownerType == PlayerType.Player)
         {
             playerHandCards.Remove(cardController.Data);
+            NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
         }
         else
         {

@@ -37,6 +37,10 @@ public class OnlineBattleActionPayload
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+    /// <summary>HandDeckState: 手札枚数。</summary>
+    public int handCount = -1;
+    /// <summary>HandDeckState / ZoneSync: 山札残数。</summary>
+    public int deckRemainCount = -1;
     /// <summary>DeployUnit / MountPilot 等: 支払後リソースを同梱したとき true。</summary>
     public bool includeResourceSnapshot;
     /// <summary>DeployBase 同期：配備ベースの現在 HP。</summary>
@@ -90,6 +94,7 @@ public class OnlineBattleActionPayload
     public const string HandDiscardReveal = "HandDiscardReveal";
     public const string HandDiscardRevealComplete = "HandDiscardRevealComplete";
     public const string ResourceState = "ResourceState";
+    public const string HandDeckState = "HandDeckState";
 
     public static string CreateHandDiscardReveal(int cardId, int requestId)
     {
@@ -447,6 +452,21 @@ public class OnlineBattleActionPayload
         });
     }
 
+    /// <summary>手札枚数／山札残数のスナップショット同期（送信側視点のゾーン側）。カード ID は送らない。</summary>
+    public static string CreateHandDeckState(
+        int actingZoneSide,
+        int handCount,
+        int deckRemainCount)
+    {
+        return JsonUtility.ToJson(new OnlineHandDeckStateDto
+        {
+            action = HandDeckState,
+            actingZoneSide = actingZoneSide,
+            handCount = handCount,
+            deckRemainCount = deckRemainCount
+        });
+    }
+
     public static bool TryParse(string raw, out OnlineBattleActionPayload payload)
     {
         payload = null;
@@ -488,6 +508,8 @@ public class OnlineBattleActionPayload
                 case ResourceState:
                     // actingZoneSide=0（Player）も有効。旧判定は意図どおり通るが明示してブレを防ぐ
                     return true;
+                case HandDeckState:
+                    return payload.handCount >= 0 && payload.deckRemainCount >= 0;
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;
                 case DeployBase:
@@ -643,6 +665,16 @@ public class OnlineResourceStateDto
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+}
+
+/// <summary>HandDeckState 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineHandDeckStateDto
+{
+    public string action;
+    public int actingZoneSide;
+    public int handCount;
+    public int deckRemainCount;
 }
 
 /// <summary>HandDiscardReveal 送信用 lean DTO。</summary>

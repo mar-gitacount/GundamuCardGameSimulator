@@ -139,6 +139,7 @@ public partial class BattleGameMain
             if (fromHand)
             {
                 playerHandCards.Remove(unit.Data);
+                NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
             }
 
             if (!playerBattleZoneCards.Contains(unit))

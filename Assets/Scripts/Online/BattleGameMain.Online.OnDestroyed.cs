@@ -423,18 +423,17 @@ public partial class BattleGameMain
         // 誤って相手トラッシュへ乗っていたら除去
         enemyCardGameRule.TryRemoveCardFromTrash(cardId, out _);
 
-        GameObject go = Instantiate(CardImagePrefab, enemyCardGameRule.HandScrollContent);
-        CardController cc = go.GetComponent<CardController>();
+        CardController cc = enemyCardGameRule.PromoteOrAddOnlineOpponentHandCard(
+            data,
+            CardImagePrefab,
+            OnCardClicked,
+            revealFace: true);
         if (cc == null)
         {
-            Destroy(go);
             return;
         }
 
-        cc.SetUp(data, OnCardClicked);
         RegisterCardInHandLists(cc, PlayerType.Enemy);
-        enemyCardGameRule.ApplyHandZoneLayoutToCard(cc);
-        enemyCardGameRule.RefreshHandCountDisplay();
         Debug.Log($"[OnDestroyed][Online] enemy hand mirror add {data.cardName}(id:{cardId})");
     }
 

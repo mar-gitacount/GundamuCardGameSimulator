@@ -728,6 +728,10 @@ public partial class BattleGameMain
 
         TriggerOnHandAutoEffects(drawnCard, targetType, skipHandZoneCheck: true);
         targetRule.RefreshHandCountDisplay();
+        if (targetType == PlayerType.Player)
+        {
+            NotifyLocalPlayerHandDeckSnapshot();
+        }
     }
 
     private static List<int> CollectUntakenLookedCardIdsStillInDeck(LookResolutionContext context)

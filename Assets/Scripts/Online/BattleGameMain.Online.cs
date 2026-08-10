@@ -1105,6 +1105,9 @@ public partial class BattleGameMain
             case EosOnlineBattleMessage.ResourceState:
                 HandleRemoteResourceState(message.payload);
                 break;
+            case EosOnlineBattleMessage.HandDeckState:
+                HandleRemoteHandDeckState(message.payload);
+                break;
             case EosOnlineBattleMessage.OnDestroyedComplete:
                 HandleRemoteOnDestroyedComplete(message.payload);
                 break;

@@ -2205,6 +2205,150 @@ public class CardGameRule
         handCountText.color = Color.black;
     }
 
+    /// <summary>
+    /// オンライン相手手札ミラー：合計枚数に合わせて伏せカードを増減する。
+    /// 既に表向き／既知の手札カードはそのまま残し、不足分だけプレースホルダを足す。
+    /// </summary>
+    public void SetOnlineOpponentHandTotalCount(int totalCount, GameObject cardPrefab)
+    {
+        totalCount = Mathf.Max(0, totalCount);
+        if (HandScrollContent == null || cardPrefab == null)
+        {
+            RefreshHandCountDisplay();
+            return;
+        }
+
+        List<CardController> known = new List<CardController>();
+        List<CardController> placeholders = new List<CardController>();
+        CollectHandControllers(known, placeholders);
+
+        // 既知枚数が目標を超える場合は余剰プレースホルダ優先で削り、それでも超過なら末尾の既知を削除
+        while (known.Count + placeholders.Count > totalCount && placeholders.Count > 0)
+        {
+            CardController remove = placeholders[placeholders.Count - 1];
+            placeholders.RemoveAt(placeholders.Count - 1);
+            if (remove != null)
+            {
+                UnityEngine.Object.Destroy(remove.gameObject);
+            }
+        }
+
+        while (known.Count > totalCount)
+        {
+            CardController remove = known[known.Count - 1];
+            known.RemoveAt(known.Count - 1);
+            if (remove != null)
+            {
+                UnityEngine.Object.Destroy(remove.gameObject);
+            }
+        }
+
+        int needPlaceholders = totalCount - known.Count;
+        while (placeholders.Count > needPlaceholders)
+        {
+            CardController remove = placeholders[placeholders.Count - 1];
+            placeholders.RemoveAt(placeholders.Count - 1);
+            if (remove != null)
+            {
+                UnityEngine.Object.Destroy(remove.gameObject);
+            }
+        }
+
+        while (placeholders.Count < needPlaceholders)
+        {
+            GameObject go = UnityEngine.Object.Instantiate(cardPrefab, HandScrollContent);
+            CardController cc = go.GetComponent<CardController>();
+            if (cc == null)
+            {
+                UnityEngine.Object.Destroy(go);
+                break;
+            }
+
+            cc.ConfigureAsOnlineOpponentHandPlaceholder();
+            ApplyHandZoneLayoutToCard(cc);
+            placeholders.Add(cc);
+        }
+
+        RefreshHandCountDisplay();
+    }
+
+    /// <summary>伏せプレースホルダ1枚を公開カードへ差し替える（無い場合は新規追加）。</summary>
+    public CardController PromoteOrAddOnlineOpponentHandCard(
+        CardData data,
+        GameObject cardPrefab,
+        System.Action<CardController> onClick,
+        bool revealFace)
+    {
+        if (data == null || HandScrollContent == null || cardPrefab == null)
+        {
+            return null;
+        }
+
+        List<CardController> known = new List<CardController>();
+        List<CardController> placeholders = new List<CardController>();
+        CollectHandControllers(known, placeholders);
+
+        CardController target;
+        if (placeholders.Count > 0)
+        {
+            target = placeholders[0];
+            target.ConvertOnlineOpponentHandPlaceholderToKnownCard(data, onClick);
+        }
+        else
+        {
+            GameObject go = UnityEngine.Object.Instantiate(cardPrefab, HandScrollContent);
+            target = go.GetComponent<CardController>();
+            if (target == null)
+            {
+                UnityEngine.Object.Destroy(go);
+                return null;
+            }
+
+            target.SetUp(data, onClick);
+        }
+
+        if (revealFace)
+        {
+            target.RevealShieldFace();
+        }
+        else
+        {
+            target.SetShieldFaceHidden(true);
+        }
+
+        ApplyHandZoneLayoutToCard(target);
+        RefreshHandCountDisplay();
+        return target;
+    }
+
+    private void CollectHandControllers(List<CardController> known, List<CardController> placeholders)
+    {
+        known.Clear();
+        placeholders.Clear();
+        if (HandScrollContent == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < HandScrollContent.childCount; i++)
+        {
+            CardController cc = HandScrollContent.GetChild(i).GetComponent<CardController>();
+            if (cc == null)
+            {
+                continue;
+            }
+
+            if (cc.IsOnlineOpponentHandPlaceholder)
+            {
+                placeholders.Add(cc);
+            }
+            else
+            {
+                known.Add(cc);
+            }
+        }
+    }
+
     private int CountHandZoneCards()
     {
         if (HandScrollContent == null)
