@@ -47,12 +47,28 @@ public class CardGameRule
     private GameObject ScrollPanel;
     private GameObject deckObjectPanel;
     private GameObject trashAreaPanel;
+    private GameObject exileAreaPanel;
     private TextMeshProUGUI deckCountText;
     private TextMeshProUGUI handCountText;
     private TextMeshProUGUI discardZoneLabelText;
     private TextMeshProUGUI discardZoneCountText;
+    private TextMeshProUGUI exileZoneLabelText;
+    private TextMeshProUGUI exileZoneCountText;
     private Button discardZoneToggleButton;
     private Button discardZoneCountButton;
+    private Button exileZoneCountButton;
+
+    private RectTransform resourceTokensContent;
+    private RectTransform exTokensContent;
+    private TextMeshProUGUI resourceZoneHeaderText;
+    private TextMeshProUGUI exZoneHeaderText;
+    private readonly List<GameObject> resourceTokenObjects = new List<GameObject>();
+    private readonly List<GameObject> exTokenObjects = new List<GameObject>();
+    private const float ResourceTokenWidth = 28f;
+    private const float ResourceTokenHeight = 40f;
+    private const float ResourceTokenRestAngleZ = -90f;
+    /// <summary>親フィールドが 180° のとき true（相手盤）。レスト角の向き調整に使う。</summary>
+    private bool _resourceBoardIsFlipped;
 
     private GameObject shieldPanelRoot;
     private RectTransform shieldCardsContent;
@@ -82,67 +98,37 @@ public class CardGameRule
     public void SetUp(GameObject getfieldPanel)
     {
         this.fieldPanel = getfieldPanel;
-        // プレイヤー > メイン 
-        PlayerMainFieldPanel = fieldPanel.CreateChildPanelTop("PlayerMainField", 300); // プレイヤーのフィールドパネルを生成
-        // プレイヤー > メイン > バトルフィールド
-        // GameObject DeployPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployPanel", UIAnchor.TopCenter, 350, 250); // 配置パネルを生成
-        GameObject DeployAndResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeployResourcePanel", UIAnchor.TopCenter, 350, 300); // 配置パネルを生成
-        playerDeployPanel = DeployAndResourcePanel.CreateChildPanelCustom("PlayerDeployPanel",UIAnchor.TopCenter, 350, 250);
-        var deployGrid = playerDeployPanel.AddComponent<GridLayoutGroup>();
-        deployGrid.cellSize = new Vector2(100, 100);
-        deployGrid.spacing = new Vector2(10, 10);
-        deployGrid.padding = new RectOffset(10, 10, 10, 10);
-        deployGrid.childAlignment = TextAnchor.UpperLeft;
-        deployGrid.startAxis = GridLayoutGroup.Axis.Horizontal;
-        deployGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
-        GameObject ResourcePanel = DeployAndResourcePanel.CreateGridScrollView(350,50,UIAnchor.BottomCenter);
-        // プレイヤー > メイン > リソースフィールド
-        // GameObject ResourcePanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerResourcePanel", UIAnchor.BottomCenter, 350, 50); // リソースパネルを生成
-        // GameObject ResourcePanel = PlayerMainFieldPanel.CreateGridScrollView(350, 50,UIAnchor.TopCenter);
-        // プレイヤー > メイン > リソースフィールド > レベルテキスト
-        // LvText = ResourcePanel.CreateChildPanelCustom("LevelText", UIAnchor.TopLeft, 30, 30);
-        LvText = ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("LevelText",UIAnchor.TopLeft,50 ,50);
-        LvText.text = "LV:0";
-        LvText.color = Color.black;
-        ResourceText =  ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("ResourceText",UIAnchor.TopLeft,50 ,50);
-        ExResourceText = ResourcePanel.GetComponent<ScrollRect>().content.gameObject.CreateChildTextCustom("ExResourceText", UIAnchor.TopLeft, 50, 50);
+        ClearGeneratedFieldUi(fieldPanel);
+        ClearResourceTokenPools();
 
-        ResourceText.text = "Resource:0";
-        ResourceText.color = Color.black;
-        ExResourceText.text = "EX:0";
-        ExResourceText.color = Color.black;
-        ExResourceText.GetComponent<RectTransform>().anchoredPosition = new Vector2(110f, 0f);
+        // シーン上の旧 HandPanel が帯を隠すことがあるので無効化
+        Transform sceneHand = fieldPanel.transform.Find("HandPanel");
+        if (sceneHand != null)
+        {
+            sceneHand.gameObject.SetActive(false);
+        }
 
+        // 下から: 手札 → リソース帯 → バトル行（互いを重ねない）
+        // 相手フィールドは親を 180° 回転するため、ここは自分と同じ配置でよい
+        const int handHeaderHeight = 18;
+        const int handScrollHeight = 88;
+        const int handTotalHeight = handHeaderHeight + handScrollHeight; // 106
+        const int resourceStripHeight = 72;
+        const int gapHandToResource = 8;
+        const int gapResourceToBattle = 4;
+        const int sideColumnWidth = 70;
+        const int battleAreaWidth = 320;
+        float resourceBottom = handTotalHeight + gapHandToResource; // リソース帯の下端
+        float battleBottom = resourceBottom + resourceStripHeight + gapResourceToBattle;
 
-        // ScrollPanel = HandPanel.CreateGridScrollView(600,400);
-        //public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
-
-
-       
-       
-        // LvObj = new GameObject("testLvText");
-        // LvObj.transform.SetParent(ResourcePanel.transform, false);
-        // levelText = LvObj.AddComponent<TMPro.TextMeshProUGUI>();
-        // levelText.text = "1";
-        
-        
-        // var test = LvText.AddComponent<TextMeshProUGUI>();
-        // test.text = "test";
-        
-        // プレイヤー > メイン > シールド（EXベース表示＋シールド用カード5枚並び）
-        BuildShieldPanel();
-        //  プレイヤー > デッキ＆トラッシュ
-        GameObject DeckAndTrashPanel = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerDeckAndTrashPanel", UIAnchor.TopRight, 65, 300); // シールドパネルを生成
-        CreateDeckAndTrashArea(DeckAndTrashPanel);
-
-        // プレイヤー > ハンド（上段: 枚数表示、下段: スクロール）
-        const int handHeaderHeight = 26;
-        const int handScrollHeight = 100;
+        // 1) 手札（最下）
         HandPanel = fieldPanel.CreateChildPanelCustom(
             "PlayerHandPanel",
             UIAnchor.BottomStretch,
             0,
-            handHeaderHeight + handScrollHeight);
+            handTotalHeight);
+        RectTransform handRt = HandPanel.GetComponent<RectTransform>();
+        handRt.anchoredPosition = Vector2.zero;
         BuildHandCountArea(handHeaderHeight);
         ScrollPanel = HandPanel.CreateGridScrollView(600, handScrollHeight, UIAnchor.FullStretch);
         RectTransform scrollRect = ScrollPanel.GetComponent<RectTransform>();
@@ -152,9 +138,224 @@ public class CardGameRule
             scrollRect.offsetMax = new Vector2(0f, -handHeaderHeight);
         }
 
-        ScrollPanel.ConfigureGridCellFromViewportHeight(0.75f, 64f);
-        RefreshHandCountDisplay();
+        ScrollPanel.ConfigureGridCellFromViewportHeight(0.75f, 56f);
 
+        // 2) リソース帯（手札の真上・独立パネル）
+        GameObject resourceStripRoot = fieldPanel.CreateChildPanelCustom(
+            "PlayerResourceAndExStrip",
+            UIAnchor.BottomStretch,
+            0,
+            resourceStripHeight);
+        RectTransform resourceStripRt = resourceStripRoot.GetComponent<RectTransform>();
+        resourceStripRt.anchorMin = new Vector2(0f, 0f);
+        resourceStripRt.anchorMax = new Vector2(1f, 0f);
+        resourceStripRt.pivot = new Vector2(0.5f, 0f);
+        resourceStripRt.sizeDelta = new Vector2(0f, resourceStripHeight);
+        resourceStripRt.anchoredPosition = new Vector2(0f, resourceBottom);
+        BuildResourceAndExStripContents(resourceStripRoot, resourceStripHeight);
+
+        // 3) バトル行（リソース帯のさらに上）
+        PlayerMainFieldPanel = fieldPanel.CreateChildPanelCustom("PlayerMainField", UIAnchor.FullStretch, 0, 0);
+        RectTransform mainRt = PlayerMainFieldPanel.GetComponent<RectTransform>();
+        mainRt.anchorMin = Vector2.zero;
+        mainRt.anchorMax = Vector2.one;
+        mainRt.pivot = new Vector2(0.5f, 0.5f);
+        mainRt.offsetMin = new Vector2(0f, battleBottom);
+        mainRt.offsetMax = Vector2.zero;
+        Image mainBg = PlayerMainFieldPanel.GetComponent<Image>();
+        if (mainBg != null)
+        {
+            mainBg.color = new Color32(30, 42, 58, 40);
+            mainBg.raycastTarget = false;
+        }
+
+        GameObject battleRow = PlayerMainFieldPanel;
+        BuildShieldPanel(battleRow, sideColumnWidth);
+
+        GameObject battleAreaRoot = battleRow.CreateChildPanelCustom(
+            "PlayerBattleAreaRoot",
+            UIAnchor.TopCenter,
+            battleAreaWidth,
+            200);
+        StretchVerticallyInParent(battleAreaRoot.GetComponent<RectTransform>(), centerHorizontally: true, width: battleAreaWidth);
+        Image battleAreaBg = battleAreaRoot.GetComponent<Image>();
+        if (battleAreaBg != null)
+        {
+            battleAreaBg.color = new Color32(48, 42, 72, 90);
+        }
+
+        TextMeshProUGUI battleAreaLabel = battleAreaRoot.CreateChildTextCustom(
+            "BattleAreaLabel",
+            UIAnchor.TopCenter,
+            battleAreaWidth - 8,
+            20);
+        battleAreaLabel.text = "バトルエリア";
+        battleAreaLabel.fontSize = 14;
+        battleAreaLabel.color = new Color(0.85f, 0.9f, 1f, 1f);
+        battleAreaLabel.alignment = TextAlignmentOptions.Center;
+        battleAreaLabel.raycastTarget = false;
+        RectTransform battleLabelRt = battleAreaLabel.GetComponent<RectTransform>();
+        battleLabelRt.anchoredPosition = new Vector2(0f, -2f);
+
+        playerDeployPanel = battleAreaRoot.CreateChildPanelCustom(
+            "PlayerDeployPanel",
+            UIAnchor.FullStretch,
+            0,
+            0);
+        RectTransform deployRt = playerDeployPanel.GetComponent<RectTransform>();
+        deployRt.offsetMin = new Vector2(4f, 4f);
+        deployRt.offsetMax = new Vector2(-4f, -22f);
+        Image deployBg = playerDeployPanel.GetComponent<Image>();
+        if (deployBg != null)
+        {
+            deployBg.color = new Color32(255, 255, 255, 18);
+            deployBg.raycastTarget = false;
+        }
+
+        var deployGrid = playerDeployPanel.AddComponent<GridLayoutGroup>();
+        deployGrid.cellSize = new Vector2(96f, 88f);
+        deployGrid.spacing = new Vector2(6f, 6f);
+        deployGrid.padding = new RectOffset(6, 6, 4, 4);
+        // 親を 180° すると手前側に来るよう、ローカル上側から並べる
+        deployGrid.childAlignment = TextAnchor.UpperCenter;
+        deployGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        deployGrid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        deployGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        deployGrid.constraintCount = 3;
+
+        GameObject deckColumn = battleRow.CreateChildPanelCustom(
+            "PlayerDeckAndTrashPanel",
+            UIAnchor.TopRight,
+            sideColumnWidth,
+            200);
+        StretchVerticallyInParent(deckColumn.GetComponent<RectTransform>(), centerHorizontally: false, width: sideColumnWidth, rightAligned: true);
+        CreateDeckAndTrashArea(deckColumn, sideColumnWidth);
+
+        // 描画順: バトル < リソース < 手札（手札をクリック優先）
+        PlayerMainFieldPanel.transform.SetSiblingIndex(0);
+        resourceStripRoot.transform.SetAsLastSibling();
+        HandPanel.transform.SetAsLastSibling();
+
+        RefreshHandCountDisplay();
+        RebuildResourceTokenVisuals();
+        // スクロールレイアウトで相手フィールドが 180° されたあとに呼び直せるよう公開フック
+        RefreshResourceBoardFlipState();
+    }
+
+    /// <summary>
+    /// 親フィールドの回転を見て、リソーストークンのレスト向きを合わせる。
+    /// BattleBoardScrollLayout 適用後に呼ぶこと。
+    /// </summary>
+    public void RefreshResourceBoardFlipState()
+    {
+        _resourceBoardIsFlipped = false;
+        if (fieldPanel != null)
+        {
+            float z = fieldPanel.transform.eulerAngles.z;
+            _resourceBoardIsFlipped = Mathf.Abs(Mathf.DeltaAngle(z, 180f)) < 45f;
+        }
+
+        RebuildResourceTokenVisuals();
+    }
+
+    private void ClearResourceTokenPools()
+    {
+        DestroyTokenPool(resourceTokenObjects);
+        DestroyTokenPool(exTokenObjects);
+        resourceTokensContent = null;
+        exTokensContent = null;
+        resourceZoneHeaderText = null;
+        exZoneHeaderText = null;
+    }
+
+    private static void DestroyTokenPool(List<GameObject> pool)
+    {
+        if (pool == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < pool.Count; i++)
+        {
+            if (pool[i] != null)
+            {
+                UnityEngine.Object.DestroyImmediate(pool[i]);
+            }
+        }
+
+        pool.Clear();
+    }
+
+    /// <summary>前回 SetUp で生成した UI を破棄する。</summary>
+    private static void ClearGeneratedFieldUi(GameObject fieldPanel)
+    {
+        if (fieldPanel == null)
+        {
+            return;
+        }
+
+        string[] generatedNames =
+        {
+            "PlayerHandPanel",
+            "PlayerResourceAndExStrip",
+            "PlayerMainField",
+            "BattleRow",
+            "PlayerDeployResourcePanel"
+        };
+
+        for (int i = fieldPanel.transform.childCount - 1; i >= 0; i--)
+        {
+            Transform child = fieldPanel.transform.GetChild(i);
+            for (int n = 0; n < generatedNames.Length; n++)
+            {
+                if (child.name == generatedNames[n])
+                {
+                    UnityEngine.Object.DestroyImmediate(child.gameObject);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>親の高さに合わせて左右固定幅で縦ストレッチする。</summary>
+    private static void StretchVerticallyInParent(
+        RectTransform rect,
+        bool centerHorizontally,
+        float width,
+        bool rightAligned = false)
+    {
+        if (rect == null)
+        {
+            return;
+        }
+
+        if (centerHorizontally)
+        {
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(width, 0f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.offsetMin = new Vector2(rect.offsetMin.x, 0f);
+            rect.offsetMax = new Vector2(rect.offsetMax.x, 0f);
+            return;
+        }
+
+        if (rightAligned)
+        {
+            rect.anchorMin = new Vector2(1f, 0f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.offsetMin = new Vector2(-width, 0f);
+            rect.offsetMax = new Vector2(0f, 0f);
+            return;
+        }
+
+        rect.anchorMin = new Vector2(0f, 0f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.offsetMin = new Vector2(0f, 0f);
+        rect.offsetMax = new Vector2(width, 0f);
     }
     public void CreateField(GameObject targetPanel )
     {
@@ -371,8 +572,12 @@ public class CardGameRule
     public void AddResourcePoints(int amount=1)
     {
         resourceLevel += amount;
-        // LevelText.text = resourceLevel.ToString(); // レベルテキストを更新";
-        LvText.text = "LV:"+resourceLevel.ToString();
+        if (LvText != null)
+        {
+            LvText.text = "LV:"+resourceLevel.ToString();
+        }
+
+        RebuildResourceTokenVisuals();
         Debug.Log($"リソースレベルが{amount}増加しました。現在のレベル: {resourceLevel}");
     }
 
@@ -419,18 +624,42 @@ public class CardGameRule
             if (cc != null)
             {
                 cc.SetUp(data, onShieldCardClicked);
-                RectTransform cardRect = go.GetComponent<RectTransform>();
-                if (cardRect != null && shieldGrid != null)
-                {
-                    // ShieldCardsRow のサイズを変えず、カード側をセルに合わせて確実に収める
-                    cardRect.localScale = Vector3.one;
-                    cardRect.sizeDelta = shieldGrid.cellSize;
-                }
-
+                ApplyShieldCardLayout(go);
                 shieldControllersInDrawOrder.Add(cc);
                 cc.SetShieldFaceHidden(true);
             }
         }
+        SetShieldCountDisplay(shieldControllersInDrawOrder.Count);
+    }
+
+    /// <summary>シールド枠のカードサイズをグリッドに合わせる。</summary>
+    private void ApplyShieldCardLayout(GameObject cardObject)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        RectTransform cardRect = cardObject.GetComponent<RectTransform>();
+        Vector2 cell = shieldGrid != null ? shieldGrid.cellSize : new Vector2(48f, 26f);
+        if (cardRect != null)
+        {
+            cardRect.localScale = Vector3.one;
+            cardRect.localRotation = Quaternion.identity;
+            cardRect.sizeDelta = cell;
+        }
+
+        LayoutElement layout = cardObject.GetComponent<LayoutElement>();
+        if (layout == null)
+        {
+            layout = cardObject.AddComponent<LayoutElement>();
+        }
+
+        layout.preferredWidth = cell.x;
+        layout.preferredHeight = cell.y;
+        layout.minWidth = cell.x;
+        layout.minHeight = cell.y;
+        layout.ignoreLayout = false;
     }
 
     /// <summary>
@@ -484,18 +713,13 @@ public class CardGameRule
             if (cc != null)
             {
                 cc.SetUp(data, onShieldCardClicked);
-                RectTransform cardRect = go.GetComponent<RectTransform>();
-                if (cardRect != null && shieldGrid != null)
-                {
-                    cardRect.localScale = Vector3.one;
-                    cardRect.sizeDelta = shieldGrid.cellSize;
-                }
-
+                ApplyShieldCardLayout(go);
                 shieldControllersInDrawOrder.Add(cc);
                 cc.SetShieldFaceHidden(true);
             }
         }
 
+        SetShieldCountDisplay(shieldControllersInDrawOrder.Count);
         UpdateDeckAndTrashTexts();
     }
 
@@ -546,17 +770,13 @@ public class CardGameRule
             if (cc != null)
             {
                 cc.SetUp(data, onShieldCardClicked);
-                RectTransform cardRect = go.GetComponent<RectTransform>();
-                if (cardRect != null && shieldGrid != null)
-                {
-                    cardRect.localScale = Vector3.one;
-                    cardRect.sizeDelta = shieldGrid.cellSize;
-                }
-
+                ApplyShieldCardLayout(go);
                 shieldControllersInDrawOrder.Add(cc);
                 cc.SetShieldFaceHidden(true);
             }
         }
+
+        SetShieldCountDisplay(shieldControllersInDrawOrder.Count);
     }
 
     /// <summary>オンライン：相手の山札残数に合わせる（シールド ID 除去後に余剰を削る）。</summary>
@@ -969,7 +1189,13 @@ public class CardGameRule
         return _discardZoneViewMode;
     }
 
-    /// <summary>トラッシュ／除外ラベル押下（TRASH↔EXILE 切替のみ）。</summary>
+    public void SetDiscardZoneViewMode(DiscardZoneViewMode mode)
+    {
+        _discardZoneViewMode = mode;
+        UpdateDeckAndDiscardZoneTexts();
+    }
+
+    /// <summary>旧UI互換: ラベル押下で TRASH↔EXILE 切替。</summary>
     public void BindDiscardZoneToggleClick(Action onClick)
     {
         if (discardZoneToggleButton == null || onClick == null)
@@ -981,7 +1207,7 @@ public class CardGameRule
         discardZoneToggleButton.onClick.AddListener(() => onClick());
     }
 
-    /// <summary>トラッシュ／除外枚数押下（現在モードの一覧表示）。</summary>
+    /// <summary>トラッシュ領域押下。</summary>
     public void BindDiscardZoneCountClick(Action onClick)
     {
         if (discardZoneCountButton == null || onClick == null)
@@ -991,6 +1217,18 @@ public class CardGameRule
 
         discardZoneCountButton.onClick.RemoveAllListeners();
         discardZoneCountButton.onClick.AddListener(() => onClick());
+    }
+
+    /// <summary>除外領域押下。</summary>
+    public void BindExileZoneCountClick(Action onClick)
+    {
+        if (exileZoneCountButton == null || onClick == null)
+        {
+            return;
+        }
+
+        exileZoneCountButton.onClick.RemoveAllListeners();
+        exileZoneCountButton.onClick.AddListener(() => onClick());
     }
 
     /// <summary>互換エイリアス。<see cref="BindDiscardZoneCountClick"/> を使用してください。</summary>
@@ -1032,7 +1270,9 @@ public class CardGameRule
         }
 
         shieldCountDisplayText.gameObject.SetActive(true);
-        shieldCountDisplayText.text = $"シールド:{Mathf.Max(0, count)}";
+        shieldCountDisplayText.text = $"シールド ({Mathf.Max(0, count)})";
+        shieldCountDisplayText.fontStyle = FontStyles.Bold;
+        shieldCountDisplayText.color = new Color(1f, 0.95f, 0.55f, 1f);
     }
 
     /// <summary>EX ベース枠にベースカードを配置する。旧ベースは呼び出し側でトラッシュすること。</summary>
@@ -1081,46 +1321,77 @@ public class CardGameRule
         }
     }
 
-    private void BuildShieldPanel()
+    private void BuildShieldPanel(GameObject parent, int width)
     {
-        shieldPanelRoot = PlayerMainFieldPanel.CreateChildPanelCustom("PlayerShieldPanel", UIAnchor.TopLeft,65, 300);
-        exBaseDisplayText = shieldPanelRoot.CreateChildTextCustom("ExBaseText", UIAnchor.TopCenter, 65, 32);
-        exBaseDisplayText.text = "EX Base:0";
-        exBaseDisplayText.color = Color.black;
-        exBaseDisplayText.fontSize = 20;
+        shieldPanelRoot = parent.CreateChildPanelCustom("PlayerShieldPanel", UIAnchor.TopLeft, width, 200);
+        StretchVerticallyInParent(shieldPanelRoot.GetComponent<RectTransform>(), centerHorizontally: false, width: width);
+        Image shieldBg = shieldPanelRoot.GetComponent<Image>();
+        if (shieldBg != null)
+        {
+            // 回転フィールドでも視認できるよう少し濃くする
+            shieldBg.color = new Color32(40, 52, 68, 200);
+            shieldBg.raycastTarget = false;
+        }
 
-        GameObject baseSlot = shieldPanelRoot.CreateChildPanelCustom("BaseSlot", UIAnchor.TopCenter, 65, 86);
+        // 親が 180° 回転すると RectMask2D が子を全て消すことがあるため使わない
+
+        TextMeshProUGUI baseLabel = shieldPanelRoot.CreateChildTextCustom("BaseLabel", UIAnchor.TopCenter, width - 4, 18);
+        baseLabel.text = "ベース";
+        baseLabel.fontSize = 13;
+        baseLabel.color = new Color(0.9f, 0.92f, 1f, 1f);
+        baseLabel.raycastTarget = false;
+        RectTransform baseLabelRt = baseLabel.GetComponent<RectTransform>();
+        baseLabelRt.anchoredPosition = new Vector2(0f, -2f);
+
+        // 旧表示互換（非表示）
+        exBaseDisplayText = shieldPanelRoot.CreateChildTextCustom("ExBaseText", UIAnchor.TopCenter, width - 4, 16);
+        exBaseDisplayText.text = string.Empty;
+        exBaseDisplayText.gameObject.SetActive(false);
+
+        const float baseHeaderHeight = 100f;
+        GameObject baseSlot = shieldPanelRoot.CreateChildPanelCustom("BaseSlot", UIAnchor.TopCenter, width - 6, 72);
         baseSlotContent = baseSlot.GetComponent<RectTransform>();
-        baseSlotContent.anchorMin = new Vector2(0f, 1f);
-        baseSlotContent.anchorMax = new Vector2(1f, 1f);
-        baseSlotContent.pivot = new Vector2(0.5f, 1f);
-        baseSlotContent.offsetMin = new Vector2(4f, -86f);
-        baseSlotContent.offsetMax = new Vector2(-4f, -2f);
+        baseSlotContent.anchoredPosition = new Vector2(0f, -20f);
+        Image baseSlotBg = baseSlot.GetComponent<Image>();
+        if (baseSlotBg != null)
+        {
+            baseSlotBg.color = new Color32(255, 255, 255, 28);
+        }
 
-        shieldCountDisplayText = shieldPanelRoot.CreateChildTextCustom("ShieldCountText", UIAnchor.TopCenter, 62, 20);
-        shieldCountDisplayText.text = "シールド:0";
-        shieldCountDisplayText.color = Color.black;
-        shieldCountDisplayText.fontSize = 16;
+        shieldCountDisplayText = shieldPanelRoot.CreateChildTextCustom("ShieldCountText", UIAnchor.TopCenter, width - 4, 16);
+        shieldCountDisplayText.text = "シールド (0)";
+        shieldCountDisplayText.color = new Color(1f, 0.95f, 0.55f, 1f);
+        shieldCountDisplayText.fontSize = 12;
+        shieldCountDisplayText.fontStyle = FontStyles.Bold;
         shieldCountDisplayText.alignment = TextAlignmentOptions.Center;
         RectTransform shieldCountRt = shieldCountDisplayText.GetComponent<RectTransform>();
-        shieldCountRt.anchoredPosition = new Vector2(0f, -90f);
+        shieldCountRt.anchoredPosition = new Vector2(0f, -94f);
 
-        GameObject shieldRow = shieldPanelRoot.CreateChildPanelCustom("ShieldCardsRow", UIAnchor.BottomStretch, 65, 270);
+        // 残り高さだけをシールド枠に使う（RectMask2D は回転親で消えるので付けない）
+        GameObject shieldRow = shieldPanelRoot.CreateChildPanelCustom("ShieldCardsRow", UIAnchor.FullStretch, width, 0);
+        RectTransform shieldRowRt = shieldRow.GetComponent<RectTransform>();
+        shieldRowRt.anchorMin = new Vector2(0f, 0f);
+        shieldRowRt.anchorMax = new Vector2(1f, 1f);
+        shieldRowRt.offsetMin = new Vector2(2f, 2f);
+        shieldRowRt.offsetMax = new Vector2(-2f, -baseHeaderHeight);
+
+        Image shieldRowBg = shieldRow.GetComponent<Image>();
+        if (shieldRowBg != null)
+        {
+            shieldRowBg.color = new Color32(20, 60, 120, 100);
+            shieldRowBg.raycastTarget = false;
+        }
+
         shieldCardsContent = shieldRow.GetComponent<RectTransform>();
-        shieldCardsContent.anchorMin = new Vector2(0f, 0f);
-        shieldCardsContent.anchorMax = new Vector2(1f, 0.82f);
-        shieldCardsContent.pivot = new Vector2(0.5f, 0.5f);
-        shieldCardsContent.offsetMin = new Vector2(6f, 8f);
-        shieldCardsContent.offsetMax = new Vector2(-6f, -58f);
-
         shieldGrid = shieldRow.AddComponent<GridLayoutGroup>();
-        shieldGrid.cellSize = new Vector2(46f, 26f);
-        shieldGrid.spacing = new Vector2(0f, 2f);
-        shieldGrid.padding = new RectOffset(0, 0, 0, 0);
+        shieldGrid.cellSize = new Vector2(54f, 34f);
+        shieldGrid.spacing = new Vector2(0f, 3f);
+        shieldGrid.padding = new RectOffset(4, 4, 2, 2);
         shieldGrid.childAlignment = TextAnchor.UpperCenter;
-        shieldGrid.constraint = GridLayoutGroup.Constraint.FixedRowCount;
-        shieldGrid.constraintCount = 6;
-        shieldGrid.startAxis = GridLayoutGroup.Axis.Vertical; 
+        shieldGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        shieldGrid.constraintCount = 1;
+        shieldGrid.startAxis = GridLayoutGroup.Axis.Vertical;
+        shieldGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
     }
 
     public void SetHandScrollRightPadding(int rightPadding)
@@ -1192,9 +1463,13 @@ public class CardGameRule
     public void AddExtraResourcePoints(int amount)
     {
         ExtraResourcePoints += amount;
-        extraResourcePoint.text = ExtraResourcePoints.ToString(); // Exリソースポイントテキストを更新
+        if (extraResourcePoint != null)
+        {
+            extraResourcePoint.text = ExtraResourcePoints.ToString();
+        }
+
         // Exポイントの増加に応じてリソースレベルも増加させる
-        AddResourcePoints(amount); 
+        AddResourcePoints(amount);
         Debug.Log($"Exリソースポイントが{amount}増加しました。現在のExポイント: {ExtraResourcePoints}");
     }
 
@@ -1209,8 +1484,17 @@ public class CardGameRule
     public void RefreshResourcePoints()
     {
         resourcePoints = resourceLevel; // レベルに応じたポイントをリセット
-        ResourcePointText.text = resourcePoints.ToString(); // リソースポイントテキストを更新
-        ResourceText.text = $"Resource:{resourcePoints.ToString()}";
+        if (ResourcePointText != null)
+        {
+            ResourcePointText.text = resourcePoints.ToString();
+        }
+
+        if (ResourceText != null)
+        {
+            ResourceText.text = $"Resource:{resourcePoints}";
+        }
+
+        RebuildResourceTokenVisuals();
         Debug.Log("リソースポイントがリセットされました。");
     }
 
@@ -1231,7 +1515,12 @@ public class CardGameRule
     public void UseResourcePointsWithoutCheck(int amount)
     {
         resourcePoints -= amount;
-        ResourcePointText.text = resourcePoints.ToString(); // リソースポイントテキストを更新
+        if (ResourcePointText != null)
+        {
+            ResourcePointText.text = resourcePoints.ToString();
+        }
+
+        RebuildResourceTokenVisuals();
         Debug.Log($"{amount}ポイント使用しました。残りのポイント: {resourcePoints}");
     }
 
@@ -1347,6 +1636,14 @@ public class CardGameRule
             extraResourcePoint.text = ExtraResourcePoints.ToString();
             extraResourcePoint.color = Color.black;
         }
+
+        if (fieldPanel != null)
+        {
+            float z = fieldPanel.transform.eulerAngles.z;
+            _resourceBoardIsFlipped = Mathf.Abs(Mathf.DeltaAngle(z, 180f)) < 45f;
+        }
+
+        RebuildResourceTokenVisuals();
     }
 
     // 現在の残り枚数を知りたい場合に便利
@@ -1357,22 +1654,424 @@ public class CardGameRule
 
     // リソース関数もここに追加していく予定
 
-    private void CreateDeckAndTrashArea(GameObject deckAndTrashPanel)
+    private void BuildResourceAndExStripContents(GameObject strip, int height)
     {
-        // 上側: デッキ
-        deckObjectPanel = deckAndTrashPanel.CreateChildPanelCustom("DeckObjectPanel", UIAnchor.TopCenter, 60, 140);
-        var deckLabel = deckObjectPanel.CreateChildTextCustom("DeckLabel", UIAnchor.TopCenter, 60, 30);
-        deckLabel.text = "DECK";
-        deckLabel.color = Color.black;
-        deckCountText = deckObjectPanel.CreateChildTextCustom("DeckCountText", UIAnchor.BottomCenter, 60, 30);
-        deckCountText.text = "0";
-        deckCountText.color = Color.black;
+        Image stripBg = strip.GetComponent<Image>();
+        if (stripBg != null)
+        {
+            stripBg.color = new Color32(28, 72, 52, 230);
+            stripBg.raycastTarget = false;
+        }
 
-        // 下側: トラッシュ／除外（DECK と同じく上ラベル・下枚数）
-        trashAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("DiscardZonePanel", UIAnchor.BottomCenter, 60, 140);
-        discardZoneLabelText = trashAreaPanel.CreateChildTextCustom("DiscardZoneLabel", UIAnchor.TopCenter, 60, 30);
-        discardZoneLabelText.text = "TRASH";
-        discardZoneLabelText.color = Color.black;
+        GameObject resourceZone = strip.CreateChildPanelCustom("ResourceZone", UIAnchor.TopLeft, 340, height - 4);
+        RectTransform resourceZoneRt = resourceZone.GetComponent<RectTransform>();
+        resourceZoneRt.anchorMin = new Vector2(0f, 0f);
+        resourceZoneRt.anchorMax = new Vector2(0.72f, 1f);
+        resourceZoneRt.offsetMin = new Vector2(4f, 4f);
+        resourceZoneRt.offsetMax = new Vector2(-2f, -4f);
+        Image resourceZoneBg = resourceZone.GetComponent<Image>();
+        if (resourceZoneBg != null)
+        {
+            resourceZoneBg.color = new Color32(255, 255, 255, 18);
+            resourceZoneBg.raycastTarget = false;
+        }
+
+        resourceZoneHeaderText = resourceZone.CreateChildTextCustom("ResourceHeader", UIAnchor.TopLeft, 200, 16);
+        resourceZoneHeaderText.text = "リソース (0/0)";
+        resourceZoneHeaderText.fontSize = 12;
+        resourceZoneHeaderText.color = new Color(0.9f, 1f, 0.9f, 1f);
+        resourceZoneHeaderText.alignment = TextAlignmentOptions.MidlineLeft;
+        resourceZoneHeaderText.raycastTarget = false;
+        RectTransform resourceHeaderRt = resourceZoneHeaderText.GetComponent<RectTransform>();
+        resourceHeaderRt.anchoredPosition = new Vector2(6f, -2f);
+
+        // 互換テキスト（非表示）
+        LvText = resourceZone.CreateChildTextCustom("LevelText", UIAnchor.TopRight, 60, 16);
+        LvText.gameObject.SetActive(false);
+        ResourceText = resourceZone.CreateChildTextCustom("ResourceText", UIAnchor.TopRight, 60, 16);
+        ResourceText.gameObject.SetActive(false);
+
+        resourceTokensContent = CreateHorizontalTokenRow(resourceZone.transform, "ResourceTokens", 18f);
+
+        GameObject exZone = strip.CreateChildPanelCustom("ExZone", UIAnchor.TopRight, 120, height - 4);
+        RectTransform exZoneRt = exZone.GetComponent<RectTransform>();
+        exZoneRt.anchorMin = new Vector2(0.72f, 0f);
+        exZoneRt.anchorMax = new Vector2(1f, 1f);
+        exZoneRt.offsetMin = new Vector2(2f, 4f);
+        exZoneRt.offsetMax = new Vector2(-4f, -4f);
+        Image exZoneBg = exZone.GetComponent<Image>();
+        if (exZoneBg != null)
+        {
+            exZoneBg.color = new Color32(90, 70, 28, 120);
+            exZoneBg.raycastTarget = false;
+        }
+
+        exZoneHeaderText = exZone.CreateChildTextCustom("ExHeader", UIAnchor.TopLeft, 100, 16);
+        exZoneHeaderText.text = "EX (0)";
+        exZoneHeaderText.fontSize = 12;
+        exZoneHeaderText.color = new Color(1f, 0.95f, 0.75f, 1f);
+        exZoneHeaderText.alignment = TextAlignmentOptions.MidlineLeft;
+        exZoneHeaderText.raycastTarget = false;
+        RectTransform exHeaderRt = exZoneHeaderText.GetComponent<RectTransform>();
+        exHeaderRt.anchoredPosition = new Vector2(6f, -2f);
+
+        ExResourceText = exZone.CreateChildTextCustom("ExResourceText", UIAnchor.TopRight, 40, 16);
+        ExResourceText.gameObject.SetActive(false);
+
+        exTokensContent = CreateHorizontalTokenRow(exZone.transform, "ExTokens", 18f);
+    }
+
+    private static RectTransform CreateHorizontalTokenRow(Transform parent, string name, float topInset)
+    {
+        GameObject row = new GameObject(name, typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+        RectTransform rowRt = row.GetComponent<RectTransform>();
+        rowRt.anchorMin = new Vector2(0f, 0f);
+        rowRt.anchorMax = new Vector2(1f, 1f);
+        rowRt.offsetMin = new Vector2(4f, 2f);
+        rowRt.offsetMax = new Vector2(-4f, -topInset);
+
+        HorizontalLayoutGroup layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.spacing = 4f;
+        layout.padding = new RectOffset(2, 2, 0, 0);
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        return rowRt;
+    }
+
+    private void RebuildResourceTokenVisuals()
+    {
+        // ルール値: available = resourcePoints / 全体(通常) = TotalLevel - EX
+        int totalLevel = Mathf.Max(0, resourceLevel);
+        int exCount = Mathf.Clamp(ExtraResourcePoints, 0, totalLevel);
+        int normalCount = Mathf.Max(0, totalLevel - exCount);
+        // 利用可能数。使った分 = normalCount - activeNormal を横向きにする
+        int activeNormal = Mathf.Clamp(resourcePoints, 0, normalCount);
+        int restedNormal = Mathf.Max(0, normalCount - activeNormal);
+
+        if (resourceZoneHeaderText != null)
+        {
+            resourceZoneHeaderText.text = $"リソース ({activeNormal}/{normalCount})";
+        }
+
+        if (exZoneHeaderText != null)
+        {
+            exZoneHeaderText.text = $"EX ({exCount})";
+        }
+
+        EnsureTokenObjectCount(
+            resourceTokensContent,
+            resourceTokenObjects,
+            normalCount,
+            new Color32(42, 88, 140, 255),
+            new Color32(180, 210, 255, 255));
+
+        for (int i = 0; i < resourceTokenObjects.Count; i++)
+        {
+            // 相手盤は描画順が反転して見えるため、使った分を手前側に寄せて横にする
+            bool rested;
+            if (_resourceBoardIsFlipped)
+            {
+                // 先頭側をレスト（使用済）にする
+                rested = i < restedNormal;
+            }
+            else
+            {
+                // 先頭からアクティブ、以降レスト
+                rested = i >= activeNormal;
+            }
+
+            SetResourceTokenRested(resourceTokenObjects[i], rested);
+        }
+
+        EnsureTokenObjectCount(
+            exTokensContent,
+            exTokenObjects,
+            exCount,
+            new Color32(150, 110, 40, 255),
+            new Color32(255, 220, 140, 255));
+
+        for (int i = 0; i < exTokenObjects.Count; i++)
+        {
+            SetResourceTokenRested(exTokenObjects[i], false);
+        }
+
+        if (resourceTokensContent != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(resourceTokensContent);
+        }
+
+        if (exTokensContent != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(exTokensContent);
+        }
+    }
+
+    private void EnsureTokenObjectCount(
+        RectTransform content,
+        List<GameObject> pool,
+        int count,
+        Color32 faceColor,
+        Color32 borderColor)
+    {
+        if (content == null || pool == null)
+        {
+            return;
+        }
+
+        // 破棄済み参照を掃除
+        for (int i = pool.Count - 1; i >= 0; i--)
+        {
+            if (pool[i] == null)
+            {
+                pool.RemoveAt(i);
+            }
+        }
+
+        while (pool.Count < count)
+        {
+            pool.Add(CreateResourceTokenCard(content, faceColor, borderColor));
+        }
+
+        while (pool.Count > count)
+        {
+            int last = pool.Count - 1;
+            GameObject go = pool[last];
+            pool.RemoveAt(last);
+            if (go != null)
+            {
+                UnityEngine.Object.Destroy(go);
+            }
+        }
+
+        for (int i = 0; i < pool.Count; i++)
+        {
+            GameObject go = pool[i];
+            if (go == null)
+            {
+                pool[i] = CreateResourceTokenCard(content, faceColor, borderColor);
+                go = pool[i];
+            }
+
+            go.SetActive(true);
+            if (go.transform.parent != content)
+            {
+                go.transform.SetParent(content, false);
+            }
+
+            go.transform.SetSiblingIndex(i);
+        }
+    }
+
+    private GameObject CreateResourceTokenCard(Transform parent, Color32 faceColor, Color32 borderColor)
+    {
+        // Layout 用ルートは回転させない（180° 盤面でも LayoutGroup が向きを潰さない）
+        GameObject token = new GameObject("ResourceToken", typeof(RectTransform), typeof(LayoutElement));
+        token.transform.SetParent(parent, false);
+
+        RectTransform rt = token.GetComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(ResourceTokenWidth, ResourceTokenHeight);
+
+        LayoutElement layout = token.GetComponent<LayoutElement>();
+        layout.preferredWidth = ResourceTokenWidth;
+        layout.preferredHeight = ResourceTokenHeight;
+        layout.minWidth = ResourceTokenWidth;
+        layout.minHeight = ResourceTokenHeight;
+        layout.flexibleWidth = 0f;
+        layout.flexibleHeight = 0f;
+
+        GameObject visual = new GameObject("Visual", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        visual.transform.SetParent(token.transform, false);
+        RectTransform visualRt = visual.GetComponent<RectTransform>();
+        visualRt.anchorMin = new Vector2(0.5f, 0.5f);
+        visualRt.anchorMax = new Vector2(0.5f, 0.5f);
+        visualRt.pivot = new Vector2(0.5f, 0.5f);
+        visualRt.sizeDelta = new Vector2(ResourceTokenWidth, ResourceTokenHeight);
+        visualRt.anchoredPosition = Vector2.zero;
+        Image face = visual.GetComponent<Image>();
+        face.color = faceColor;
+        face.raycastTarget = false;
+
+        GameObject border = new GameObject("Border", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        border.transform.SetParent(visual.transform, false);
+        RectTransform borderRt = border.GetComponent<RectTransform>();
+        borderRt.anchorMin = Vector2.zero;
+        borderRt.anchorMax = Vector2.one;
+        borderRt.offsetMin = new Vector2(1f, 1f);
+        borderRt.offsetMax = new Vector2(-1f, -1f);
+        Image borderImage = border.GetComponent<Image>();
+        borderImage.color = borderColor;
+        borderImage.raycastTarget = false;
+
+        GameObject inner = new GameObject("Inner", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        inner.transform.SetParent(border.transform, false);
+        RectTransform innerRt = inner.GetComponent<RectTransform>();
+        innerRt.anchorMin = Vector2.zero;
+        innerRt.anchorMax = Vector2.one;
+        innerRt.offsetMin = new Vector2(2f, 2f);
+        innerRt.offsetMax = new Vector2(-2f, -2f);
+        Image innerImage = inner.GetComponent<Image>();
+        innerImage.color = faceColor;
+        innerImage.raycastTarget = false;
+
+        return token;
+    }
+
+    private void SetResourceTokenRested(GameObject token, bool rested)
+    {
+        if (token == null)
+        {
+            return;
+        }
+
+        RectTransform rt = token.GetComponent<RectTransform>();
+        LayoutElement layout = token.GetComponent<LayoutElement>();
+        Transform visual = token.transform.Find("Visual");
+        RectTransform visualRt = visual != null ? visual.GetComponent<RectTransform>() : null;
+        Image faceImage = visual != null ? visual.GetComponent<Image>() : null;
+
+        float layoutW = rested ? ResourceTokenHeight : ResourceTokenWidth;
+        float layoutH = rested ? ResourceTokenWidth : ResourceTokenHeight;
+
+        if (rt != null)
+        {
+            rt.localRotation = Quaternion.identity;
+            rt.sizeDelta = new Vector2(layoutW, layoutH);
+        }
+
+        if (layout != null)
+        {
+            layout.preferredWidth = layoutW;
+            layout.preferredHeight = layoutH;
+            layout.minWidth = layoutW;
+            layout.minHeight = layoutH;
+        }
+
+        if (visualRt != null)
+        {
+            visualRt.sizeDelta = new Vector2(ResourceTokenWidth, ResourceTokenHeight);
+            visualRt.anchoredPosition = Vector2.zero;
+            // ワールド角で固定（親 180° でも画面上の縦/横が確実に切り替わる）
+            float worldZ;
+            if (_resourceBoardIsFlipped)
+            {
+                worldZ = rested ? 90f : 180f;
+            }
+            else
+            {
+                worldZ = rested ? ResourceTokenRestAngleZ : 0f;
+            }
+
+            visualRt.rotation = Quaternion.Euler(0f, 0f, worldZ);
+        }
+
+        if (faceImage != null)
+        {
+            bool isExToken = token.transform.parent != null
+                && token.transform.parent.name == "ExTokens";
+            Color32 activeColor = isExToken
+                ? new Color32(150, 110, 40, 255)
+                : new Color32(42, 88, 140, 255);
+            Color32 restedColor = isExToken
+                ? new Color32(90, 70, 40, 255)
+                : new Color32(90, 90, 110, 255);
+            faceImage.color = rested ? restedColor : activeColor;
+        }
+    }
+
+    private void CreateDeckAndTrashArea(GameObject deckAndTrashPanel, int width)
+    {
+        Image columnBg = deckAndTrashPanel.GetComponent<Image>();
+        if (columnBg != null)
+        {
+            columnBg.color = new Color32(40, 52, 68, 110);
+        }
+
+        // 上1/3 デッキ・中1/3 除外・下1/3 トラッシュ
+        deckObjectPanel = deckAndTrashPanel.CreateChildPanelCustom("DeckObjectPanel", UIAnchor.FullStretch, width - 4, 0);
+        RectTransform deckRt = deckObjectPanel.GetComponent<RectTransform>();
+        deckRt.anchorMin = new Vector2(0f, 0.67f);
+        deckRt.anchorMax = new Vector2(1f, 1f);
+        deckRt.offsetMin = new Vector2(2f, 2f);
+        deckRt.offsetMax = new Vector2(-2f, -2f);
+        Image deckBg = deckObjectPanel.GetComponent<Image>();
+        if (deckBg != null)
+        {
+            deckBg.color = new Color32(255, 255, 255, 20);
+            deckBg.raycastTarget = false;
+        }
+
+        TextMeshProUGUI deckLabel = deckObjectPanel.CreateChildTextCustom("DeckLabel", UIAnchor.TopCenter, width - 8, 16);
+        deckLabel.text = "デッキ";
+        deckLabel.fontSize = 12;
+        deckLabel.color = new Color(0.9f, 0.92f, 1f, 1f);
+
+        GameObject deckCardPlaceholder = deckObjectPanel.CreateChildPanelCustom("DeckCardPlaceholder", UIAnchor.TopCenter, 40, 54);
+        RectTransform deckCardRt = deckCardPlaceholder.GetComponent<RectTransform>();
+        deckCardRt.anchoredPosition = new Vector2(0f, -16f);
+        Image deckCardImage = deckCardPlaceholder.GetComponent<Image>();
+        if (deckCardImage != null)
+        {
+            deckCardImage.color = new Color32(35, 55, 95, 255);
+        }
+
+        deckCountText = deckObjectPanel.CreateChildTextCustom("DeckCountText", UIAnchor.BottomCenter, width - 8, 16);
+        deckCountText.text = "0";
+        deckCountText.fontSize = 14;
+        deckCountText.color = Color.white;
+
+        exileAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("ExileZonePanel", UIAnchor.FullStretch, width - 4, 0);
+        RectTransform exileRt = exileAreaPanel.GetComponent<RectTransform>();
+        exileRt.anchorMin = new Vector2(0f, 0.34f);
+        exileRt.anchorMax = new Vector2(1f, 0.67f);
+        exileRt.offsetMin = new Vector2(2f, 2f);
+        exileRt.offsetMax = new Vector2(-2f, -2f);
+        Image exileBg = exileAreaPanel.GetComponent<Image>();
+        if (exileBg != null)
+        {
+            exileBg.color = new Color32(70, 50, 95, 120);
+        }
+
+        exileZoneLabelText = exileAreaPanel.CreateChildTextCustom("ExileZoneLabel", UIAnchor.TopCenter, width - 8, 16);
+        exileZoneLabelText.text = "除外";
+        exileZoneLabelText.fontSize = 12;
+        exileZoneLabelText.color = new Color(0.9f, 0.85f, 1f, 1f);
+        exileZoneLabelText.raycastTarget = true;
+
+        exileZoneCountText = exileAreaPanel.CreateChildTextCustom("ExileZoneCountText", UIAnchor.BottomCenter, width - 8, 18);
+        exileZoneCountText.text = "0";
+        exileZoneCountText.fontSize = 14;
+        exileZoneCountText.color = Color.white;
+        exileZoneCountText.raycastTarget = true;
+        exileZoneCountButton = exileZoneCountText.gameObject.GetComponent<Button>();
+        if (exileZoneCountButton == null)
+        {
+            exileZoneCountButton = exileZoneCountText.gameObject.AddComponent<Button>();
+        }
+
+        exileZoneCountButton.targetGraphic = exileZoneCountText;
+        ApplyTextButtonColors(exileZoneCountButton);
+
+        trashAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("TrashZonePanel", UIAnchor.FullStretch, width - 4, 0);
+        RectTransform trashRt = trashAreaPanel.GetComponent<RectTransform>();
+        trashRt.anchorMin = new Vector2(0f, 0f);
+        trashRt.anchorMax = new Vector2(1f, 0.34f);
+        trashRt.offsetMin = new Vector2(2f, 2f);
+        trashRt.offsetMax = new Vector2(-2f, -2f);
+        Image trashBg = trashAreaPanel.GetComponent<Image>();
+        if (trashBg != null)
+        {
+            trashBg.color = new Color32(60, 45, 45, 140);
+        }
+
+        discardZoneLabelText = trashAreaPanel.CreateChildTextCustom("TrashZoneLabel", UIAnchor.TopCenter, width - 8, 16);
+        discardZoneLabelText.text = "トラッシュ";
+        discardZoneLabelText.fontSize = 12;
+        discardZoneLabelText.color = new Color(1f, 0.9f, 0.9f, 1f);
         discardZoneLabelText.raycastTarget = true;
         discardZoneToggleButton = discardZoneLabelText.gameObject.GetComponent<Button>();
         if (discardZoneToggleButton == null)
@@ -1383,9 +2082,10 @@ public class CardGameRule
         discardZoneToggleButton.targetGraphic = discardZoneLabelText;
         ApplyTextButtonColors(discardZoneToggleButton);
 
-        discardZoneCountText = trashAreaPanel.CreateChildTextCustom("DiscardZoneCountText", UIAnchor.BottomCenter, 60, 30);
+        discardZoneCountText = trashAreaPanel.CreateChildTextCustom("TrashZoneCountText", UIAnchor.BottomCenter, width - 8, 18);
         discardZoneCountText.text = "0";
-        discardZoneCountText.color = Color.black;
+        discardZoneCountText.fontSize = 14;
+        discardZoneCountText.color = Color.white;
         discardZoneCountText.raycastTarget = true;
         discardZoneCountButton = discardZoneCountText.gameObject.GetComponent<Button>();
         if (discardZoneCountButton == null)
@@ -1415,9 +2115,9 @@ public class CardGameRule
 
         handCountText = handHeader.CreateChildTextCustom("HandCountText", UIAnchor.TopLeft, 200, headerHeight);
         handCountText.GetComponent<RectTransform>().SetFullSize();
-        handCountText.text = "手札: 0";
+        handCountText.text = "手札 (0)";
         handCountText.color = Color.black;
-        handCountText.fontSize = 18;
+        handCountText.fontSize = 16;
         handCountText.fontStyle = FontStyles.Bold;
         handCountText.alignment = TextAlignmentOptions.MidlineLeft;
         handCountText.margin = new Vector4(12f, 0f, 0f, 0f);
@@ -1433,7 +2133,7 @@ public class CardGameRule
             return;
         }
 
-        handCountText.text = $"手札: {CountHandZoneCards()}";
+        handCountText.text = $"手札 ({CountHandZoneCards()})";
         handCountText.color = Color.black;
     }
 
@@ -1506,19 +2206,28 @@ public class CardGameRule
 
     private void UpdateDeckAndDiscardZoneTexts()
     {
-        bool showingExile = _discardZoneViewMode == DiscardZoneViewMode.Exile;
-        int count = showingExile ? exileList.Count : trashList.Count;
-
         if (discardZoneLabelText != null)
         {
-            discardZoneLabelText.text = showingExile ? "EXILE" : "TRASH";
-            discardZoneLabelText.color = Color.black;
+            discardZoneLabelText.text = "トラッシュ";
+            discardZoneLabelText.color = new Color(1f, 0.9f, 0.9f, 1f);
         }
 
         if (discardZoneCountText != null)
         {
-            discardZoneCountText.text = count.ToString();
-            discardZoneCountText.color = Color.black;
+            discardZoneCountText.text = trashList.Count.ToString();
+            discardZoneCountText.color = Color.white;
+        }
+
+        if (exileZoneLabelText != null)
+        {
+            exileZoneLabelText.text = "除外";
+            exileZoneLabelText.color = new Color(0.9f, 0.85f, 1f, 1f);
+        }
+
+        if (exileZoneCountText != null)
+        {
+            exileZoneCountText.text = exileList.Count.ToString();
+            exileZoneCountText.color = Color.white;
         }
     }
 

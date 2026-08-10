@@ -37,6 +37,8 @@ public class OnlineBattleActionPayload
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+    /// <summary>DeployUnit / MountPilot 等: 支払後リソースを同梱したとき true。</summary>
+    public bool includeResourceSnapshot;
     /// <summary>DeployBase 同期：配備ベースの現在 HP。</summary>
     public int baseHpAfter;
     /// <summary>
@@ -117,7 +119,11 @@ public class OnlineBattleActionPayload
         int deployOverrideHp = 0,
         bool deployForceUnitType = false,
         int deployPrintedType = -1,
-        bool deployAsRested = false)
+        bool deployAsRested = false,
+        bool includeResourceSnapshot = false,
+        int resourceAfter = 0,
+        int exResourceAfter = 0,
+        int levelAfter = 0)
     {
         // extras は必要なときだけ付ける（通常配備のパケット肥大化を防ぐ）
         OnlineDeployUnitExtras extras = null;
@@ -141,13 +147,18 @@ public class OnlineBattleActionPayload
 
         // OnlineBattleActionPayload 全文はフィールド過多で EOS ~1170B を超えやすいため lean DTO のみ送る。
         // 受信側は JsonUtility.FromJson<OnlineBattleActionPayload> で不足フィールドが default になり解釈できる。
+        // 支払後リソースは同梱する（別 ResourceState メッセージに頼ると届かない／遅れやすい）。
         return JsonUtility.ToJson(new OnlineDeployUnitDto
         {
             action = DeployUnit,
             cardId = cardId,
             instanceId = instanceId,
             deployTargetZoneOwnerSide = deployTargetZoneOwnerSide,
-            deployUnitExtras = extras
+            deployUnitExtras = extras,
+            includeResourceSnapshot = includeResourceSnapshot,
+            resourceAfter = resourceAfter,
+            exResourceAfter = exResourceAfter,
+            levelAfter = levelAfter
         });
     }
 
@@ -156,7 +167,11 @@ public class OnlineBattleActionPayload
         int baseHpAfter,
         int exBaseAfter,
         int shieldCountAfter,
-        int[] shieldZoneCardIds)
+        int[] shieldZoneCardIds,
+        bool includeResourceSnapshot = false,
+        int resourceAfter = 0,
+        int exResourceAfter = 0,
+        int levelAfter = 0)
     {
         return JsonUtility.ToJson(new OnlineDeployBaseDto
         {
@@ -165,21 +180,33 @@ public class OnlineBattleActionPayload
             baseHpAfter = baseHpAfter,
             defenderExBaseAfter = exBaseAfter,
             defenderShieldAfter = shieldCountAfter,
-            shieldZoneCardIds = shieldZoneCardIds ?? Array.Empty<int>()
+            shieldZoneCardIds = shieldZoneCardIds ?? Array.Empty<int>(),
+            includeResourceSnapshot = includeResourceSnapshot,
+            resourceAfter = resourceAfter,
+            exResourceAfter = exResourceAfter,
+            levelAfter = levelAfter
         });
     }
 
     public static string CreateDeployShield(
         int cardId,
         int shieldCountAfter,
-        int[] shieldZoneCardIds)
+        int[] shieldZoneCardIds,
+        bool includeResourceSnapshot = false,
+        int resourceAfter = 0,
+        int exResourceAfter = 0,
+        int levelAfter = 0)
     {
         return JsonUtility.ToJson(new OnlineDeployShieldDto
         {
             action = DeployShield,
             cardId = cardId,
             defenderShieldAfter = shieldCountAfter,
-            shieldZoneCardIds = shieldZoneCardIds ?? Array.Empty<int>()
+            shieldZoneCardIds = shieldZoneCardIds ?? Array.Empty<int>(),
+            includeResourceSnapshot = includeResourceSnapshot,
+            resourceAfter = resourceAfter,
+            exResourceAfter = exResourceAfter,
+            levelAfter = levelAfter
         });
     }
 
@@ -280,14 +307,24 @@ public class OnlineBattleActionPayload
         });
     }
 
-    public static string CreateMountPilot(int hostInstanceId, int pilotCardId)
+    public static string CreateMountPilot(
+        int hostInstanceId,
+        int pilotCardId,
+        bool includeResourceSnapshot = false,
+        int resourceAfter = 0,
+        int exResourceAfter = 0,
+        int levelAfter = 0)
     {
         // OnlineBattleActionPayload 全文は EOS ~1170B を超えやすいため lean DTO のみ送る
         return JsonUtility.ToJson(new OnlineMountPilotDto
         {
             action = MountPilot,
             instanceId = hostInstanceId,
-            cardId = pilotCardId
+            cardId = pilotCardId,
+            includeResourceSnapshot = includeResourceSnapshot,
+            resourceAfter = resourceAfter,
+            exResourceAfter = exResourceAfter,
+            levelAfter = levelAfter
         });
     }
 
@@ -371,7 +408,11 @@ public class OnlineBattleActionPayload
         string context,
         int cardCost,
         int cardLevel,
-        int targetCardId = -1)
+        int targetCardId = -1,
+        bool includeResourceSnapshot = false,
+        int resourceAfter = 0,
+        int exResourceAfter = 0,
+        int levelAfter = 0)
     {
         return JsonUtility.ToJson(new OnlineOnActionCommandUsedDto
         {
@@ -381,7 +422,11 @@ public class OnlineBattleActionPayload
             onActionContext = context ?? string.Empty,
             cardCost = cardCost,
             cardLevel = cardLevel,
-            targetCardId = targetCardId
+            targetCardId = targetCardId,
+            includeResourceSnapshot = includeResourceSnapshot,
+            resourceAfter = resourceAfter,
+            exResourceAfter = exResourceAfter,
+            levelAfter = levelAfter
         });
     }
 
@@ -441,7 +486,8 @@ public class OnlineBattleActionPayload
                 case HandDiscardReveal:
                     return payload.cardId > 0 && payload.requestId > 0;
                 case ResourceState:
-                    return payload.actingZoneSide == 0 || payload.actingZoneSide == 1;
+                    // actingZoneSide=0（Player）も有効。旧判定は意図どおり通るが明示してブレを防ぐ
+                    return true;
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;
                 case DeployBase:
@@ -482,6 +528,11 @@ public class OnlineDeployUnitDto
     public int instanceId;
     public int deployTargetZoneOwnerSide;
     public OnlineDeployUnitExtras deployUnitExtras;
+    /// <summary>true なら支払後リソースを同梱（受信側で即レスト表示）。</summary>
+    public bool includeResourceSnapshot;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
 }
 
 /// <summary>MountPilot 送信用 lean DTO（EOS ~1170B 対策）。</summary>
@@ -491,6 +542,10 @@ public class OnlineMountPilotDto
     public string action;
     public int instanceId;
     public int cardId;
+    public bool includeResourceSnapshot;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
 }
 
 /// <summary>UnitAttack 送信用 lean DTO（EOS ~1170B 対策）。</summary>
@@ -522,6 +577,10 @@ public class OnlineDeployBaseDto
     public int defenderExBaseAfter;
     public int defenderShieldAfter;
     public int[] shieldZoneCardIds;
+    public bool includeResourceSnapshot;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
 }
 
 /// <summary>DeployShield 送信用 lean DTO。</summary>
@@ -532,6 +591,10 @@ public class OnlineDeployShieldDto
     public int cardId;
     public int defenderShieldAfter;
     public int[] shieldZoneCardIds;
+    public bool includeResourceSnapshot;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
 }
 
 /// <summary>AttackDeclare 送信用 lean DTO。</summary>
@@ -565,6 +628,10 @@ public class OnlineOnActionCommandUsedDto
     public int cardCost;
     public int cardLevel;
     public int targetCardId = -1;
+    public bool includeResourceSnapshot;
+    public int resourceAfter;
+    public int exResourceAfter;
+    public int levelAfter;
 }
 
 /// <summary>ResourceState 送信用 lean DTO。</summary>

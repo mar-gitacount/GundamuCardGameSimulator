@@ -35,18 +35,28 @@ public partial class BattleGameMain
             ? targetUnitOrNull.Data.id
             : -1;
 
+        bool includeRes = gundamRule?.Player != null;
+        int resourceAfter = includeRes ? gundamRule.Player.resource : 0;
+        int exAfter = includeRes ? gundamRule.Player.exResource : 0;
+        int levelAfter = includeRes ? gundamRule.Player.level : 0;
+
         string json = OnlineBattleActionPayload.CreateOnActionCommandUsed(
             command.Data.id,
             (int)side,
             _onlineOnActionActiveContext ?? string.Empty,
             command.CurrentCost,
             command.CurrentLevel,
-            targetCardId);
+            targetCardId,
+            includeRes,
+            resourceAfter,
+            exAfter,
+            levelAfter);
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionCommandUsed(json));
 
         Debug.Log(
             $"[OnActionCommandUsed][Send] card:{command.Data.cardName}(id:{command.Data.id}) "
             + $"cost:{command.CurrentCost} lv:{command.CurrentLevel} targetCardId:{targetCardId} "
+            + $"resource:{resourceAfter} ex:{exAfter} level:{levelAfter} "
             + $"context:{_onlineOnActionActiveContext}");
 
         LogOnActionCommandUsedBoardSnapshotCompact("localSend", side, command, targetUnitOrNull);
@@ -59,6 +69,20 @@ public partial class BattleGameMain
         {
             Debug.LogWarning($"[OnlineBattle] Invalid OnActionCommandUsed payload: {payload}");
             return;
+        }
+
+        // 支払後リソースを即反映（コマンド開示パネルより先にレスト表示する）
+        if (action.includeResourceSnapshot)
+        {
+            PlayerType senderZone = action.actingZoneSide == (int)PlayerType.Enemy
+                ? PlayerType.Enemy
+                : PlayerType.Player;
+            PlayerType localZone = MirrorOnlineZoneOwner(senderZone);
+            ApplyRemoteOnActionResourceSnapshot(
+                ToRuleSide(localZone),
+                action.resourceAfter,
+                action.exResourceAfter,
+                action.levelAfter);
         }
 
         CardData commandData = DeckSettinObject.Instance != null
@@ -79,7 +103,8 @@ public partial class BattleGameMain
         Debug.Log(
             $"[OnActionCommandUsed][Receive] card:{commandName}(id:{action.cardId}) "
             + $"cost:{action.cardCost} lv:{action.cardLevel} targetCardId:{action.targetCardId} "
-            + $"actingSide:{actingSide} context:{action.onActionContext}");
+            + $"actingSide:{actingSide} context:{action.onActionContext} "
+            + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
 
         LogOnActionCommandUsedBoardSnapshotCompact("remoteReceive", actingSide, commandData, targetUnit);
 

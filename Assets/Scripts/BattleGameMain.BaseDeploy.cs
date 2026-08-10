@@ -197,6 +197,7 @@ public partial class BattleGameMain
             return false;
         }
 
+        AfterLocalResourceChanged(side);
         return true;
     }
 

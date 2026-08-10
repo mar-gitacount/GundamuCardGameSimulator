@@ -907,14 +907,53 @@ public partial class BattleGameMain : MonoBehaviour
         cardGameRule.SetUp(PlayerFieldPanel);
         cardGameRule.CreateShuffledDeck(playerDeckData, GetOnlineDeckSeed(true));
         cardGameRule.ResourcAndLevelTextGet(PlayerresourcePointText, PlayerlevelText, ExresourcePointText);
+        // 相手は自分と同じ配置を作り、盤面全体を 180° 回転（向かい合わせ）
         enemyCardGameRule.SetUp(EnemyPlayerFieldPanel);
-        enemyCardGameRule.PlayerFieldPanel.SetRotation(180f);
         enemyCardGameRule.CreateShuffledDeck(enemyDeckData, GetOnlineDeckSeed(false));
 
-        cardGameRule.BindDiscardZoneToggleClick(() => cardGameRule.ToggleDiscardZoneView());
-        cardGameRule.BindDiscardZoneCountClick(() => OpenDiscardZoneInspectionPanel(cardGameRule));
-        enemyCardGameRule.BindDiscardZoneToggleClick(() => enemyCardGameRule.ToggleDiscardZoneView());
-        enemyCardGameRule.BindDiscardZoneCountClick(() => OpenDiscardZoneInspectionPanel(enemyCardGameRule));
+        // 自分フィールドを大きめに取り、相手は上スクロールで見る（回転もここで設定）
+        RectTransform boardCanvas = ResolveBattleBoardRoot();
+        BattleBoardScrollLayout.Apply(
+            boardCanvas,
+            PlayerFieldPanel != null ? PlayerFieldPanel.GetComponent<RectTransform>() : null,
+            EnemyPlayerFieldPanel != null ? EnemyPlayerFieldPanel.GetComponent<RectTransform>() : null);
+        // 180° 後に相手リソースのレスト向きを合わせる
+        cardGameRule.RefreshResourceBoardFlipState();
+        enemyCardGameRule.RefreshResourceBoardFlipState();
+        // レイアウト確定後にもう一度（eulerAngles が確定してから）
+        Canvas.ForceUpdateCanvases();
+        enemyCardGameRule.RefreshResourceBoardFlipState();
+
+        cardGameRule.BindDiscardZoneToggleClick(() =>
+        {
+            cardGameRule.SetDiscardZoneViewMode(DiscardZoneViewMode.Trash);
+            OpenDiscardZoneInspectionPanel(cardGameRule);
+        });
+        cardGameRule.BindDiscardZoneCountClick(() =>
+        {
+            cardGameRule.SetDiscardZoneViewMode(DiscardZoneViewMode.Trash);
+            OpenDiscardZoneInspectionPanel(cardGameRule);
+        });
+        cardGameRule.BindExileZoneCountClick(() =>
+        {
+            cardGameRule.SetDiscardZoneViewMode(DiscardZoneViewMode.Exile);
+            OpenDiscardZoneInspectionPanel(cardGameRule);
+        });
+        enemyCardGameRule.BindDiscardZoneToggleClick(() =>
+        {
+            enemyCardGameRule.SetDiscardZoneViewMode(DiscardZoneViewMode.Trash);
+            OpenDiscardZoneInspectionPanel(enemyCardGameRule);
+        });
+        enemyCardGameRule.BindDiscardZoneCountClick(() =>
+        {
+            enemyCardGameRule.SetDiscardZoneViewMode(DiscardZoneViewMode.Trash);
+            OpenDiscardZoneInspectionPanel(enemyCardGameRule);
+        });
+        enemyCardGameRule.BindExileZoneCountClick(() =>
+        {
+            enemyCardGameRule.SetDiscardZoneViewMode(DiscardZoneViewMode.Exile);
+            OpenDiscardZoneInspectionPanel(enemyCardGameRule);
+        });
         BindEnemyAiPlayerTrashObservation();
         RegisterOnlineZoneSyncObservers();
 
@@ -1131,6 +1170,34 @@ public partial class BattleGameMain : MonoBehaviour
             canvas = Object.FindObjectOfType<Canvas>();
         }
         return canvas;
+    }
+
+    /// <summary>BattleBoardCanvas / BattleBoardRoot を解決する（スクロール化後も可）。</summary>
+    private RectTransform ResolveBattleBoardRoot()
+    {
+        Transform start = PlayerFieldPanel != null
+            ? PlayerFieldPanel.transform
+            : (EnemyPlayerFieldPanel != null ? EnemyPlayerFieldPanel.transform : null);
+        if (start == null)
+        {
+            return null;
+        }
+
+        Transform p = start;
+        while (p != null)
+        {
+            string n = p.name;
+            if (n == "BattleBoardCanvas"
+                || n == "BattleBoardRoot"
+                || n == "BattleBiardCanvas")
+            {
+                return p as RectTransform;
+            }
+
+            p = p.parent;
+        }
+
+        return start.parent as RectTransform;
     }
 
     /// <summary>手札のカードを山札に戻しシャッフルして、指定枚数ドローし直す。</summary>
@@ -3397,21 +3464,49 @@ public partial class BattleGameMain : MonoBehaviour
     {
         CardGameRule targetRule = side == Gundam2024RuleScript.PlayerSide.Player ? cardGameRule : enemyCardGameRule;
         Gundam2024RuleScript.PlayerState state = side == Gundam2024RuleScript.PlayerSide.Player ? gundamRule.Player : gundamRule.Enemy;
+        if (targetRule == null || state == null)
+        {
+            return;
+        }
+
+        // 相手盤 180° 時もレスト向きがずれないよう、毎回フリップ状態を取り直してから描画する
+        targetRule.RefreshResourceBoardFlipState();
         targetRule.ApplyExternalResourceState(state.TotalLevel, state.resource, state.exResource);
         ReconcileShieldStateWithZone(side);
-        int shieldDisplayCount = targetRule != null ? targetRule.GetShieldZoneCardCount() : state.shield;
+        int shieldDisplayCount = targetRule.GetShieldZoneCardCount();
         targetRule.SetShieldCountDisplay(shieldDisplayCount);
         SyncBaseZoneHeaderDisplay(side);
         targetRule.RefreshHandCountDisplay();
 
         if (side == Gundam2024RuleScript.PlayerSide.Player)
         {
-            PlayerlevelText.text = $"LV:{state.TotalLevel}";
-            PlayerresourcePointText.text = state.resource.ToString();
+            if (PlayerlevelText != null)
+            {
+                PlayerlevelText.text = $"LV:{state.TotalLevel}";
+            }
+
+            if (PlayerresourcePointText != null)
+            {
+                PlayerresourcePointText.text = state.resource.ToString();
+            }
+
             if (ExresourcePointText != null)
             {
                 ExresourcePointText.text = state.exResource.ToString();
             }
+        }
+    }
+
+    /// <summary>
+    /// リソース支払い・戻し・配置など state 変更後の共通処理。
+    /// ローカルUIを即更新し、自分側ならオンライン相手へ残リソースを送る（トークンレスト表示）。
+    /// </summary>
+    private void AfterLocalResourceChanged(Gundam2024RuleScript.PlayerSide side)
+    {
+        SyncResourceViewsFromRule(side);
+        if (side == Gundam2024RuleScript.PlayerSide.Player)
+        {
+            NotifyLocalPlayerResourceSnapshotAfterCost();
         }
     }
 
@@ -14927,7 +15022,7 @@ public partial class BattleGameMain : MonoBehaviour
                         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
                         if (gundamRule.TryRefundLastResourceUsageForCard(ruleSide, source.Data.id))
                         {
-                            SyncResourceViewsFromRule(ruleSide);
+                            AfterLocalResourceChanged(ruleSide);
                         }
                     }
 

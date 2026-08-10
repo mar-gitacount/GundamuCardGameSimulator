@@ -37,7 +37,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        SyncResourceViewsFromRule(ToRuleSide(side));
+        AfterLocalResourceChanged(ToRuleSide(side));
         return true;
     }
 

@@ -1358,7 +1358,7 @@ public partial class BattleGameMain
             yield break;
         }
 
-        SyncResourceViewsFromRule(ToRuleSide(side));
+        AfterLocalResourceChanged(ToRuleSide(side));
 
         MarkActionStepCardUsed(side, command);
 

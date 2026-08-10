@@ -19,6 +19,7 @@ public partial class BattleGameMain
         Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
         CardGameRule rule = cardGameRule;
         int[] shieldIds = CollectShieldZoneCardIds(rule);
+        Gundam2024RuleScript.PlayerState payState = gundamRule != null ? gundamRule.Player : null;
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
             OnlineBattleActionPayload.CreateDeployBase(
@@ -26,11 +27,16 @@ public partial class BattleGameMain
                 baseCard.CurrentHp,
                 state.exBase,
                 state.shield,
-                shieldIds)));
+                shieldIds,
+                includeResourceSnapshot: payState != null,
+                resourceAfter: payState != null ? payState.resource : 0,
+                exResourceAfter: payState != null ? payState.exResource : 0,
+                levelAfter: payState != null ? payState.level : 0)));
 
         Debug.Log(
             $"[OnlineBattle] DeployBase sync sent. card={baseCard.Data.cardName}(id:{baseCard.Data.id}) "
-            + $"hp:{baseCard.CurrentHp} exBase:{state.exBase} shield:{state.shield} zone:{shieldIds.Length}");
+            + $"hp:{baseCard.CurrentHp} exBase:{state.exBase} shield:{state.shield} zone:{shieldIds.Length} "
+            + $"resource:{(payState != null ? payState.resource : -1)}");
     }
 
     private void NotifyLocalDeployShieldSynced(CardController shieldCard, PlayerType ownerType)
@@ -48,16 +54,22 @@ public partial class BattleGameMain
         Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
         CardGameRule rule = cardGameRule;
         int[] shieldIds = CollectShieldZoneCardIds(rule);
+        Gundam2024RuleScript.PlayerState payState = gundamRule != null ? gundamRule.Player : null;
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
             OnlineBattleActionPayload.CreateDeployShield(
                 shieldCard.Data.id,
                 state.shield,
-                shieldIds)));
+                shieldIds,
+                includeResourceSnapshot: payState != null,
+                resourceAfter: payState != null ? payState.resource : 0,
+                exResourceAfter: payState != null ? payState.exResource : 0,
+                levelAfter: payState != null ? payState.level : 0)));
 
         Debug.Log(
             $"[OnlineBattle] DeployShield sync sent. card={shieldCard.Data.cardName}(id:{shieldCard.Data.id}) "
-            + $"shield:{state.shield} zone:{shieldIds.Length}");
+            + $"shield:{state.shield} zone:{shieldIds.Length} "
+            + $"resource:{(payState != null ? payState.resource : -1)}");
     }
 
     private static int[] CollectShieldZoneCardIds(CardGameRule rule)
@@ -128,10 +140,19 @@ public partial class BattleGameMain
                 gundamRule.SyncShieldCountFromZone(ruleSide, rule.GetShieldZoneCardCount());
             }
 
-            SyncResourceViewsFromRule(ruleSide);
+            if (action.includeResourceSnapshot)
+            {
+                ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
+            }
+            else
+            {
+                SyncResourceViewsFromRule(ruleSide);
+            }
+
             Debug.Log(
                 $"[OnlineBattle] Remote base deployed on opponent zone: {cardData.cardName}({action.cardId}) "
-                + $"hp:{controller.CurrentHp} exBase:{enemyState.exBase} shield:{enemyState.shield}");
+                + $"hp:{controller.CurrentHp} exBase:{enemyState.exBase} shield:{enemyState.shield} "
+                + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
         }
         finally
         {
@@ -166,10 +187,19 @@ public partial class BattleGameMain
                 gundamRule.SyncShieldCountFromZone(ruleSide, rule.GetShieldZoneCardCount());
             }
 
-            SyncResourceViewsFromRule(ruleSide);
+            if (action.includeResourceSnapshot)
+            {
+                ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
+            }
+            else
+            {
+                SyncResourceViewsFromRule(ruleSide);
+            }
+
             Debug.Log(
                 $"[OnlineBattle] Remote shield zone synced. addedCardId={action.cardId} "
-                + $"shield:{enemyState.shield} zone:{rule.GetShieldZoneCardCount()}");
+                + $"shield:{enemyState.shield} zone:{rule.GetShieldZoneCardCount()} "
+                + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
         }
         finally
         {

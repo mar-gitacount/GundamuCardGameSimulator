@@ -705,6 +705,11 @@ public partial class BattleGameMain
         }
 
         SyncResourceViewsFromRule(side);
+        if (side == Gundam2024RuleScript.PlayerSide.Player)
+        {
+            NotifyLocalPlayerResourceSnapshotAfterCost();
+        }
+
         Gundam2024RuleScript.PlayerState after = targetPlayer == PlayerType.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
@@ -741,6 +746,11 @@ public partial class BattleGameMain
         }
 
         SyncResourceViewsFromRule(side);
+        if (side == Gundam2024RuleScript.PlayerSide.Player)
+        {
+            NotifyLocalPlayerResourceSnapshotAfterCost();
+        }
+
         Gundam2024RuleScript.PlayerState after = targetPlayer == PlayerType.Player
             ? gundamRule.Player
             : gundamRule.Enemy;

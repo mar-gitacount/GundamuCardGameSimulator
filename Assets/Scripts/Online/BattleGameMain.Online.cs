@@ -866,6 +866,19 @@ public partial class BattleGameMain
             printedType = (int)cardController.TemporaryBurstBattleUnitPrintedType;
         }
 
+        int resourceAfter = 0;
+        int exResourceAfter = 0;
+        int levelAfter = 0;
+        bool includeResource = false;
+        if (gundamRule?.Player != null)
+        {
+            includeResource = true;
+            Gundam2024RuleScript.PlayerState payState = gundamRule.Player;
+            resourceAfter = payState.resource;
+            exResourceAfter = payState.exResource;
+            levelAfter = payState.level;
+        }
+
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
             OnlineBattleActionPayload.CreateDeployUnit(
                 cardController.Data.id,
@@ -876,7 +889,37 @@ public partial class BattleGameMain
                 overrideHp,
                 forceUnit,
                 printedType,
-                deployAsRested)));
+                deployAsRested,
+                includeResource,
+                resourceAfter,
+                exResourceAfter,
+                levelAfter)));
+        Debug.Log(
+            $"[OnlineBattle] DeployUnit sync sent id:{cardController.Data.id} inst:{cardController.BattleInstanceId} "
+            + $"resource:{resourceAfter} ex:{exResourceAfter} level:{levelAfter} includeRes:{includeResource}");
+    }
+
+    /// <summary>
+    /// 自分側のコスト支払い直後のリソース／EX／レベルを相手へ送る。
+    /// 配備・搭乗などで支払いが終わった時点で呼び、ターン終了の OnAction を待たせない。
+    /// </summary>
+    private void NotifyLocalPlayerResourceSnapshotAfterCost()
+    {
+        if (_applyingRemoteBattleAction || !IsOnlineBattle() || gundamRule?.Player == null)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerState state = gundamRule.Player;
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateResourceState(
+            OnlineBattleActionPayload.CreateResourceState(
+                (int)PlayerType.Player,
+                state.resource,
+                state.exResource,
+                state.level)));
+        Debug.Log(
+            $"[OnlineBattle] ResourceState (after cost) sent "
+            + $"resource:{state.resource} ex:{state.exResource} level:{state.level}");
     }
 
     /// <summary>EXリソース増減を相手へスナップショット同期する（AddExResource 等）。</summary>
@@ -942,9 +985,16 @@ public partial class BattleGameMain
         }
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateMountPilot(
-            OnlineBattleActionPayload.CreateMountPilot(hostUnit.BattleInstanceId, pilotCard.Data.id)));
+            OnlineBattleActionPayload.CreateMountPilot(
+                hostUnit.BattleInstanceId,
+                pilotCard.Data.id,
+                includeResourceSnapshot: gundamRule?.Player != null,
+                resourceAfter: gundamRule?.Player != null ? gundamRule.Player.resource : 0,
+                exResourceAfter: gundamRule?.Player != null ? gundamRule.Player.exResource : 0,
+                levelAfter: gundamRule?.Player != null ? gundamRule.Player.level : 0)));
         Debug.Log(
-            $"[OnlineBattle] MountPilot sync sent. host={hostUnit.BattleInstanceId} pilot={pilotCard.Data.id}");
+            $"[OnlineBattle] MountPilot sync sent. host={hostUnit.BattleInstanceId} pilot={pilotCard.Data.id} "
+            + $"resource:{(gundamRule?.Player != null ? gundamRule.Player.resource : -1)}");
     }
 
     private bool SendOnlineBattleMessage(string json)
@@ -1463,11 +1513,34 @@ public partial class BattleGameMain
         }
 
         RefreshAllFieldOwnerTurnPassives();
+        ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
         Debug.Log(
             $"[OnlineBattle] Remote unit deployed zone:{localZoneOwner} senderZone:{senderZoneOwner} "
             + $"{cardData.cardName} ({cardId}) inst:{controller.BattleInstanceId} "
             + $"forceUnit:{temporaryBurstUnit} AP:{cardData.power} HP:{cardData.hp} "
-            + $"rested:{(extras != null && extras.deployAsRested)}");
+            + $"rested:{(extras != null && extras.deployAsRested)} "
+            + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
+    }
+
+    /// <summary>
+    /// 相手の配備／搭乗ペイロードに含まれる支払後リソースを、ローカルの Enemy 側へ即反映する。
+    /// </summary>
+    private void ApplyRemoteDeployCostResourceSnapshotIfPresent(OnlineBattleActionPayload action)
+    {
+        if (action == null || !action.includeResourceSnapshot)
+        {
+            return;
+        }
+
+        // 送信側の Player 支払い → 受信側では Enemy ゾーン
+        ApplyRemoteOnActionResourceSnapshot(
+            Gundam2024RuleScript.PlayerSide.Enemy,
+            action.resourceAfter,
+            action.exResourceAfter,
+            action.levelAfter);
+        Debug.Log(
+            $"[OnlineBattle] Deploy cost resource applied to Enemy "
+            + $"resource:{action.resourceAfter} ex:{action.exResourceAfter} level:{action.levelAfter}");
     }
 
     private void NotifyLocalShieldAttackResolved(
@@ -2083,9 +2156,15 @@ public partial class BattleGameMain
         ApplyUnitAttackFlgFromLink(hostUnit, hostOwner);
         TryGrantOperationMeteorFirstStrikeOnPilotMount(hostUnit, pilotController, hostOwner);
         RefreshAllFieldOwnerTurnPassives();
-        SyncAllResourceViewsFromRule();
+        ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
+        if (!action.includeResourceSnapshot)
+        {
+            SyncAllResourceViewsFromRule();
+        }
+
         Debug.Log(
             $"[OnlineBattle] Remote pilot mounted. host={action.instanceId} pilot={action.cardId} "
-            + $"AP:{hostUnit.CurrentPower} HP:{hostUnit.CurrentHp}");
+            + $"AP:{hostUnit.CurrentPower} HP:{hostUnit.CurrentHp} "
+            + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
     }
 }
