@@ -227,35 +227,31 @@ public partial class BattleGameMain
         dim.color = new Color(0f, 0f, 0f, 0.68f);
         dim.raycastTarget = true;
 
-        string sourceName = sourceCard?.Data?.cardName ?? "このカード";
+        string sourceName = sourceCard?.Data?.cardName ?? GameLocale.T("このカード", "this card");
         TextMeshProUGUI title = root.CreateChildTextCustom("EffectChoiceTitle", UIAnchor.TopCenter, 920, 52);
-        title.SetTextWithJapaneseFont($"効果を選んで OK — {sourceName}");
+        title.SetLocalizedText(
+            $"効果を選んで OK — {sourceName}",
+            $"Choose an effect — OK — {sourceName}");
         title.fontSize = 28;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
         title.alignment = TextAlignmentOptions.Center;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -36f);
 
-        TextMeshProUGUI promptJaText = root.CreateChildTextCustom("EffectChoicePromptJa", UIAnchor.TopCenter, 920, 44);
         string promptJa = !string.IsNullOrWhiteSpace(effect.choicePromptJa)
             ? effect.choicePromptJa.Trim()
             : "効果を1つ選んでから OK を押すと発動します。Cancel で中止します。";
-        promptJaText.SetTextWithJapaneseFont(promptJa);
-        promptJaText.fontSize = 18;
-        promptJaText.color = new Color(0.92f, 0.96f, 1f, 1f);
-        promptJaText.alignment = TextAlignmentOptions.Center;
-        promptJaText.enableWordWrapping = true;
-        promptJaText.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -88f);
-
-        TextMeshProUGUI promptEnText = root.CreateChildTextCustom("EffectChoicePromptEn", UIAnchor.TopCenter, 920, 34);
         string promptEn = !string.IsNullOrWhiteSpace(effect.choicePromptEn)
             ? effect.choicePromptEn.Trim()
             : "Select 1 effect, then press OK. Press Cancel to abort.";
-        promptEnText.SetTextWithJapaneseFont(promptEn);
-        promptEnText.fontSize = 14;
-        promptEnText.color = new Color(0.72f, 0.82f, 0.95f, 1f);
-        promptEnText.alignment = TextAlignmentOptions.Center;
-        promptEnText.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -126f);
+
+        TextMeshProUGUI promptText = root.CreateChildTextCustom("EffectChoicePrompt", UIAnchor.TopCenter, 920, 52);
+        promptText.SetLocalizedText(promptJa, promptEn);
+        promptText.fontSize = GameLocale.IsJapanese ? 18 : 16;
+        promptText.color = new Color(0.92f, 0.96f, 1f, 1f);
+        promptText.alignment = TextAlignmentOptions.Center;
+        promptText.enableWordWrapping = true;
+        promptText.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -96f);
 
         int branchCount = effect.choiceBranches != null ? effect.choiceBranches.Length : 0;
         if (branchCount <= 0)
@@ -355,7 +351,7 @@ public partial class BattleGameMain
             optionBtn.targetGraphic = bg;
 
             TextMeshProUGUI indexLabel = optionGo.CreateChildTextCustom($"Index_{bi}", UIAnchor.TopCenter, (int)cardWidth - 24, 36);
-            indexLabel.SetTextWithJapaneseFont($"効果 {bi + 1}");
+            indexLabel.SetLocalizedText($"効果 {bi + 1}", $"Effect {bi + 1}");
             indexLabel.fontSize = 20;
             indexLabel.fontStyle = FontStyles.Bold;
             indexLabel.color = available
@@ -365,26 +361,15 @@ public partial class BattleGameMain
             indexLabel.raycastTarget = false;
             indexLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -12f);
 
-            TextMeshProUGUI jaLabel = optionGo.CreateChildTextCustom($"Ja_{bi}", UIAnchor.TopCenter, (int)cardWidth - 28, 120);
-            jaLabel.SetTextWithJapaneseFont(ja);
-            jaLabel.fontSize = 17;
-            jaLabel.color = available ? Color.white : new Color(0.55f, 0.55f, 0.55f, 1f);
-            jaLabel.alignment = TextAlignmentOptions.Top;
-            jaLabel.enableWordWrapping = true;
-            jaLabel.overflowMode = TextOverflowModes.Overflow;
-            jaLabel.raycastTarget = false;
-            jaLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -52f);
-
-            TextMeshProUGUI enLabel = optionGo.CreateChildTextCustom($"En_{bi}", UIAnchor.BottomCenter, (int)cardWidth - 28, 88);
-            enLabel.SetTextWithJapaneseFont(en);
-            enLabel.fontSize = 13;
-            enLabel.color = available
-                ? new Color(0.78f, 0.88f, 1f, 1f)
-                : new Color(0.45f, 0.45f, 0.5f, 1f);
-            enLabel.alignment = TextAlignmentOptions.Bottom;
-            enLabel.enableWordWrapping = true;
-            enLabel.raycastTarget = false;
-            enLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 16f);
+            TextMeshProUGUI bodyLabel = optionGo.CreateChildTextCustom($"Body_{bi}", UIAnchor.TopCenter, (int)cardWidth - 28, 200);
+            bodyLabel.SetLocalizedText(ja, en);
+            bodyLabel.fontSize = GameLocale.IsJapanese ? 17 : 15;
+            bodyLabel.color = available ? Color.white : new Color(0.55f, 0.55f, 0.55f, 1f);
+            bodyLabel.alignment = TextAlignmentOptions.Top;
+            bodyLabel.enableWordWrapping = true;
+            bodyLabel.overflowMode = TextOverflowModes.Overflow;
+            bodyLabel.raycastTarget = false;
+            bodyLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -52f);
 
             if (available)
             {
@@ -399,7 +384,7 @@ public partial class BattleGameMain
             }
         }
 
-        okBtn = root.CreateChildButton("OK");
+        okBtn = root.CreateChildButton(GameLocale.T("OK", "OK"));
         RectTransform okRt = okBtn.GetComponent<RectTransform>();
         okRt.sizeDelta = new Vector2(200f, 52f);
         okRt.anchorMin = new Vector2(0.5f, 0f);
@@ -409,11 +394,11 @@ public partial class BattleGameMain
         okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (okLabel != null)
         {
-            okLabel.SetTextWithJapaneseFont("OK");
+            okLabel.SetLocalizedText("OK", "OK");
             okLabel.fontSize = 22;
         }
 
-        Button cancelBtn = root.CreateChildButton("Cancel");
+        Button cancelBtn = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
         RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
         cancelRt.sizeDelta = new Vector2(200f, 52f);
         cancelRt.anchorMin = new Vector2(0.5f, 0f);
@@ -423,7 +408,7 @@ public partial class BattleGameMain
         TextMeshProUGUI cancelLabel = cancelBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (cancelLabel != null)
         {
-            cancelLabel.SetTextWithJapaneseFont("Cancel");
+            cancelLabel.SetLocalizedText("キャンセル", "Cancel");
             cancelLabel.fontSize = 22;
         }
 

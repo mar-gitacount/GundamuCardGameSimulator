@@ -16,75 +16,53 @@ using TMPro;
     }
 public static class UIExtensions
 {
-    private const string JapaneseFontResourcePath = "SourceHanSansJP-Regular SDF";
-    private static TMP_FontAsset _japaneseFont;
-    private static bool _japaneseFontLoadAttempted;
-
-    /// <summary>動的生成 TMP に日本語フォントを適用する（未設定だと漢字・かなが出ない）。</summary>
+    /// <summary>現行言語の UI フォントを適用する（JP=SourceHan / EN=LiberationSans）。</summary>
     public static void ApplyJapaneseFont(this TMP_Text tmp)
     {
-        if (tmp == null)
-        {
-            return;
-        }
-
-        TMP_FontAsset font = GetJapaneseFontAsset();
-        if (font != null)
-        {
-            tmp.font = font;
-            if (font.material != null)
-            {
-                tmp.fontSharedMaterial = font.material;
-            }
-        }
+        ApplyLocalizedFont(tmp);
     }
 
-    /// <summary>文言設定後にもう一度フォントを当て、動的アトラスへ字形を取り込む。</summary>
+    /// <summary>現行言語の UI フォントを適用する。</summary>
+    public static void ApplyLocalizedFont(this TMP_Text tmp)
+    {
+        GameLocale.ApplyFont(tmp);
+    }
+
+    /// <summary>文言設定後に現行言語フォントを当て、動的アトラスへ字形を取り込む。</summary>
     public static void SetTextWithJapaneseFont(this TMP_Text tmp, string text)
+    {
+        SetLocalizedText(tmp, text);
+    }
+
+    /// <summary>単一言文を現行フォントで設定。</summary>
+    public static void SetLocalizedText(this TMP_Text tmp, string text)
     {
         if (tmp == null)
         {
             return;
         }
 
-        tmp.ApplyJapaneseFont();
+        GameLocale.ApplyFont(tmp);
         tmp.text = text ?? string.Empty;
+        tmp.ForceMeshUpdate(true);
+    }
+
+    /// <summary>日英ペアから現行言語の文言を設定。</summary>
+    public static void SetLocalizedText(this TMP_Text tmp, string japanese, string english)
+    {
+        if (tmp == null)
+        {
+            return;
+        }
+
+        GameLocale.ApplyFont(tmp);
+        tmp.text = GameLocale.T(japanese, english);
         tmp.ForceMeshUpdate(true);
     }
 
     private static TMP_FontAsset GetJapaneseFontAsset()
     {
-        if (_japaneseFont != null)
-        {
-            return _japaneseFont;
-        }
-
-        if (_japaneseFontLoadAttempted)
-        {
-            return null;
-        }
-
-        _japaneseFontLoadAttempted = true;
-
-        // まず OS 日本語フォント（字形欠けが起きにくい）
-        _japaneseFont = TryCreateOsJapaneseFontAsset();
-        if (_japaneseFont == null)
-        {
-            _japaneseFont = Resources.Load<TMP_FontAsset>(JapaneseFontResourcePath);
-        }
-
-        if (_japaneseFont == null)
-        {
-            _japaneseFont = Resources.Load<TMP_FontAsset>("Fonts/" + JapaneseFontResourcePath);
-        }
-
-        if (_japaneseFont == null)
-        {
-            Debug.LogWarning(
-                $"[UIExtensions] 日本語フォントを読めませんでした ({JapaneseFontResourcePath})。");
-        }
-
-        return _japaneseFont;
+        return GameLocale.GetJapaneseFont();
     }
 
     private static TMP_FontAsset TryCreateOsJapaneseFontAsset()
