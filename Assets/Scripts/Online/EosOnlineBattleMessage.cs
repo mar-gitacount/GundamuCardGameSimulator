@@ -222,6 +222,17 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public const string HandDeckState = "HandDeckState";
+
+    public static string CreateHandDeckState(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
+        {
+            type = HandDeckState,
+            payload = payload ?? string.Empty
+        });
+    }
+
     public const string OnDestroyedComplete = "OnDestroyedComplete";
 
     public static string CreateOnDestroyedComplete(string payload)

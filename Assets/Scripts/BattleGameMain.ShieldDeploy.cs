@@ -105,6 +105,7 @@ public partial class BattleGameMain
         if (ownerType == PlayerType.Player)
         {
             playerHandCards.Add(card.Data);
+            NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
         }
         else
         {

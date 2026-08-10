@@ -1,0 +1,118 @@
+using UnityEngine;
+
+/// <summary>オンライン：自サイドの手札枚数／山札残数と相手手札伏せ UI の同期。</summary>
+public partial class BattleGameMain
+{
+    /// <summary>
+    /// 自分視点の Player ゾーン手札・山札を相手へ送る。
+    /// カード ID は送らず枚数のみ（手札内容の秘匿を維持）。
+    /// </summary>
+    private void NotifyLocalPlayerHandDeckSnapshot()
+    {
+        if (_applyingRemoteBattleAction || !IsOnlineBattle() || cardGameRule == null)
+        {
+            return;
+        }
+
+        int handCount = Mathf.Max(0, playerHandCards.Count);
+        int deckRemain = Mathf.Max(0, cardGameRule.GetRemainingCount());
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateHandDeckState(
+            OnlineBattleActionPayload.CreateHandDeckState(
+                (int)PlayerType.Player,
+                handCount,
+                deckRemain)));
+        Debug.Log(
+            $"[OnlineBattle] HandDeckState sent hand:{handCount} deckRemain:{deckRemain}");
+    }
+
+    /// <summary>手札 UI から消える Destroy 直後でもリスト基準で確実に送る。</summary>
+    private void NotifyLocalPlayerHandDeckSnapshotAfterHandListChange()
+    {
+        NotifyLocalPlayerHandDeckSnapshot();
+    }
+
+    private void HandleRemoteHandDeckState(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
+            || action.action != OnlineBattleActionPayload.HandDeckState)
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid HandDeckState payload: {payload}");
+            return;
+        }
+
+        PlayerType senderZone = action.actingZoneSide == (int)PlayerType.Enemy
+            ? PlayerType.Enemy
+            : PlayerType.Player;
+        PlayerType localZone = MirrorOnlineZoneOwner(senderZone);
+
+        // 受信したのは相手の手札／山札 → ローカルでは Enemy ゾーンへミラー
+        if (localZone != PlayerType.Enemy || enemyCardGameRule == null)
+        {
+            Debug.LogWarning(
+                $"[OnlineBattle] HandDeckState ignored unexpected localZone:{localZone}");
+            return;
+        }
+
+        int handCount = Mathf.Max(0, action.handCount);
+        int deckRemain = Mathf.Max(0, action.deckRemainCount);
+
+        enemyCardGameRule.TrimDeckToRemainingCount(deckRemain);
+        SyncGundamRuleDeckCount(PlayerType.Enemy, deckRemain);
+        SyncGundamRuleHandCount(PlayerType.Enemy, handCount);
+
+        if (CardImagePrefab != null)
+        {
+            enemyCardGameRule.SetOnlineOpponentHandTotalCount(handCount, CardImagePrefab);
+        }
+        else
+        {
+            enemyCardGameRule.RefreshHandCountDisplay();
+        }
+
+        RebuildEnemyHandCardListFromUi();
+
+        Debug.Log(
+            $"[OnlineBattle] HandDeckState applied localEnemy hand:{handCount} deckRemain:{deckRemain}");
+    }
+
+    /// <summary>Enemy 手札 UI（既知カードのみ）から enemyHandCards を再構築する。伏せトークンは含めない。</summary>
+    private void RebuildEnemyHandCardListFromUi()
+    {
+        enemyHandCards.Clear();
+        RectTransform content = enemyCardGameRule != null ? enemyCardGameRule.HandScrollContent : null;
+        if (content == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < content.childCount; i++)
+        {
+            CardController cc = content.GetChild(i).GetComponent<CardController>();
+            if (cc == null || cc.IsOnlineOpponentHandPlaceholder || cc.Data == null)
+            {
+                continue;
+            }
+
+            if (!enemyHandCards.Contains(cc.Data))
+            {
+                enemyHandCards.Add(cc.Data);
+            }
+        }
+    }
+
+    private void SyncGundamRuleHandCount(PlayerType owner, int handCount)
+    {
+        if (gundamRule == null)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerState state = owner == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        if (state != null)
+        {
+            state.handCount = Mathf.Max(0, handCount);
+        }
+    }
+}

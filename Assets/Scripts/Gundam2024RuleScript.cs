@@ -132,14 +132,21 @@ public class Gundam2024RuleScript
         state.deckCount = Mathf.Max(0, deckRemainAfterShieldDraw);
     }
 
-    public void BeginTurn()
+    /// <param name="drawCards">
+    /// false のときレベル／リソースのみ更新（オンラインで相手ドローを UI 同期に任せる場合）。
+    /// </param>
+    public void BeginTurn(bool drawCards = true)
     {
         CurrentPhase = TurnPhase.Start;
         TurnIndex++;
         PlayerState state = GetState(CurrentTurnPlayer);
         GetCurrentTurnUsageLogs(CurrentTurnPlayer).Clear();
         GainLevelAndRefreshResource(state);
-        DrawCards(state, Config.drawPerTurn);
+        if (drawCards)
+        {
+            DrawCards(state, Config.drawPerTurn);
+        }
+
         OnPhaseChanged?.Invoke(CurrentTurnPlayer, CurrentPhase);
     }
 

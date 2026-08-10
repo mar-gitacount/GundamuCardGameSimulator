@@ -78,6 +78,9 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     /// <summary>シールド用：表が隠れている間は true（カバーを破棄すると false）。</summary>
     public bool IsShieldFaceHidden => shieldFaceCoverRoot != null;
 
+    /// <summary>オンライン相手手札の伏せプレースホルダ（カード内容非公開）。</summary>
+    public bool IsOnlineOpponentHandPlaceholder { get; private set; }
+
     private GameObject shieldFaceCoverRoot;
     private int pilotPowerBonus;
     private readonly List<StatModifier> powerModifiers = new List<StatModifier>();
@@ -692,10 +695,42 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     }
     public void OnPointerClick(PointerEventData eventData)
     {
+        if (IsOnlineOpponentHandPlaceholder || Data == null)
+        {
+            return;
+        }
+
         Debug.Log($"カードがクリックされました。カード名前: {Data.cardName}");
         Debug.Log($"カードがクリックされました。カードコスト: {CurrentCost} (base:{Data.cost})");
         Debug.Log("クリックされました");
         onClickCallback?.Invoke(this);
+    }
+
+    /// <summary>オンライン相手手札用：裏向きで中身を見せないトークンとして構成する。</summary>
+    public void ConfigureAsOnlineOpponentHandPlaceholder()
+    {
+        IsOnlineOpponentHandPlaceholder = true;
+        Data = null;
+        onClickCallback = null;
+        BattleInstanceId = 0;
+        _attackFlg = AttackFlg.False;
+        eligibleForShieldZoneDeploy = false;
+        SetBattleStatOverlayVisible(false);
+        SetShieldFaceHidden(true);
+    }
+
+    /// <summary>伏せプレースホルダを、公開された実カード表示へ差し替える。</summary>
+    public void ConvertOnlineOpponentHandPlaceholderToKnownCard(CardData carddata, Action<CardController> callback)
+    {
+        if (carddata == null)
+        {
+            return;
+        }
+
+        IsOnlineOpponentHandPlaceholder = false;
+        SetUp(carddata, callback);
+        SetShieldFaceHidden(true);
+        // 公開帰手が必要な場合は呼び出し側で RevealShieldFace する
     }
 
     public int GetCardcost()

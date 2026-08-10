@@ -115,6 +115,9 @@ public partial class BattleGameMain
         {
             Debug.LogWarning("[OnlineBattle] Remote mulligan bootstrap missing — opponent shields may desync.");
         }
+
+        // シールド設置後の山札残数を相手へ同期（手札枚数も合わせて送る）
+        NotifyLocalPlayerHandDeckSnapshot();
     }
 
     private void ApplyRemoteOpponentShieldBootstrap(OnlineMulliganSyncPayload payload, int exBasePoints)

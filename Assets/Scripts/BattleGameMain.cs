@@ -987,6 +987,10 @@ public partial class BattleGameMain : MonoBehaviour
         cardGameRule.RefreshHandCountDisplay();
         enemyCardGameRule.RefreshHandCountDisplay();
         Debug.Log($"[ドロー] 初期手札: プレイヤー{openingHandSize}枚、エネミー{enemyHandCountForSync}枚を引きました。");
+        if (IsOnlineBattle())
+        {
+            NotifyLocalPlayerHandDeckSnapshot();
+        }
 
         int exBasePoints = exBaseData != null ? exBaseData.startingPoints : 3;
 
@@ -1215,6 +1219,10 @@ public partial class BattleGameMain : MonoBehaviour
 
         RefreshAllHandsConditionalOnHandAuto();
         rule.RefreshHandCountDisplay();
+        if (playerType == PlayerType.Player)
+        {
+            NotifyLocalPlayerHandDeckSnapshot();
+        }
     }
 
     private static List<int> CollectHandCardIdsFromHandContent(CardGameRule rule)
@@ -1834,6 +1842,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         TriggerOnHandAutoEffects(drawnCard, targetType, skipHandZoneCheck: true);
         targetRule.RefreshHandCountDisplay();
+        if (targetType == PlayerType.Player)
+        {
+            NotifyLocalPlayerHandDeckSnapshot();
+        }
+
         return drawnCard;
     }
     public bool DecideTurnOrder()
@@ -2021,7 +2034,8 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log("エネミーのターン開始処理を実行します。");
             gundamRule.SetCurrentTurnPlayer(Gundam2024RuleScript.PlayerSide.Enemy);
-            gundamRule.BeginTurn();
+            // オンラインは相手ドローの抽象手札更新もスキップし、HandDeckState を正とする
+            gundamRule.BeginTurn(drawCards: !ShouldSkipEnemyDrawOnline());
             if (!ShouldSkipEnemyDrawOnline())
             {
                 CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
@@ -3971,6 +3985,7 @@ public partial class BattleGameMain : MonoBehaviour
             if (!playerHandCards.Contains(card.Data))
             {
                 playerHandCards.Add(card.Data);
+                NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
             }
         }
         else if (!enemyHandCards.Contains(card.Data))
@@ -4315,6 +4330,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (ownerType == PlayerType.Player)
         {
             NotifyLocalPlayCardDeployed(cardController);
+            NotifyLocalPlayerHandDeckSnapshot();
         }
     }
 
@@ -4457,6 +4473,7 @@ public partial class BattleGameMain : MonoBehaviour
                 if (ownerType == PlayerType.Player)
                 {
                     playerHandCards.Remove(pilotCard.Data);
+                    NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
                 }
                 else
                 {
@@ -15688,6 +15705,10 @@ public partial class BattleGameMain : MonoBehaviour
         playerHandCards.Remove(command.Data);
         enemyHandCards.Remove(command.Data);
         Destroy(command.gameObject);
+        if (ownerType == PlayerType.Player)
+        {
+            NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
+        }
     }
 
     private void FinalizeOnActionSourceCard(CardController source, PlayerType side)
