@@ -1004,7 +1004,9 @@ public partial class BattleGameMain : MonoBehaviour
                 isMulliganPromptOpen = true;
                 yield return MulliganPromptCoroutine(
                     canvas,
-                    "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)",
+                    GameLocale.T(
+                        "手札を山札に戻して5枚引き直しますか？（マリガン）",
+                        "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)"),
                     value => playerChoice = value);
                 isMulliganPromptOpen = false;
 
@@ -1273,24 +1275,25 @@ public partial class BattleGameMain : MonoBehaviour
         GameObject titleObj = new GameObject("Title", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
         titleObj.transform.SetParent(panel.transform, false);
         TextMeshProUGUI titleTmp = titleObj.GetComponent<TextMeshProUGUI>();
-        titleTmp.text = message;
+        titleTmp.SetLocalizedText(message);
         titleTmp.fontSize = 22;
         titleTmp.alignment = TextAlignmentOptions.Center;
         titleTmp.color = Color.black;
+        titleTmp.enableWordWrapping = true;
         RectTransform titleRt = titleObj.GetComponent<RectTransform>();
         titleRt.anchorMin = new Vector2(0f, 0.55f);
         titleRt.anchorMax = new Vector2(1f, 1f);
         titleRt.offsetMin = new Vector2(16f, 0f);
         titleRt.offsetMax = new Vector2(-16f, -12f);
 
-        Button yesButton = panel.CreateChildButton("Yes");
+        Button yesButton = panel.CreateChildButton(GameLocale.T("はい", "Yes"));
         RectTransform yesRt = yesButton.GetComponent<RectTransform>();
         yesRt.anchorMin = new Vector2(0.15f, 0.12f);
         yesRt.anchorMax = new Vector2(0.45f, 0.42f);
         yesRt.offsetMin = Vector2.zero;
         yesRt.offsetMax = Vector2.zero;
 
-        Button noButton = panel.CreateChildButton("No");
+        Button noButton = panel.CreateChildButton(GameLocale.T("いいえ", "No"));
         RectTransform noRt = noButton.GetComponent<RectTransform>();
         noRt.anchorMin = new Vector2(0.55f, 0.12f);
         noRt.anchorMax = new Vector2(0.85f, 0.42f);

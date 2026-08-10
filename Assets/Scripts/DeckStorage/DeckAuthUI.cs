@@ -32,6 +32,7 @@ public class DeckAuthUI : MonoBehaviour
         EnsurePlayerAuthService();
         WireButtons();
         PlayerAuthService.Instance.AuthStateChanged += RefreshUi;
+        GameLocale.LanguageChanged += OnLanguageChanged;
     }
 
     private void OnDestroy()
@@ -40,6 +41,13 @@ public class DeckAuthUI : MonoBehaviour
         {
             PlayerAuthService.Instance.AuthStateChanged -= RefreshUi;
         }
+
+        GameLocale.LanguageChanged -= OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged(GameLanguage _)
+    {
+        RefreshUi();
     }
 
     private async void Start()
@@ -162,23 +170,25 @@ public class DeckAuthUI : MonoBehaviour
         string password = passwordField != null ? passwordField.text : string.Empty;
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
-            SetStatus("Please enter username and password.");
+            SetStatus(GameLocale.TKey("auth.enter_user_pass"));
             return;
         }
 
         try
         {
-            SetStatus("Signing in...");
+            SetStatus(GameLocale.TKey("auth.signing_in"));
             await PlayerAuthService.Instance.SignInWithUsernamePasswordAsync(username.Trim(), password);
             guestModeChosen = true;
             ClearPasswordField();
-            SetStatus($"Signed in as {PlayerAuthService.Instance.SignedInUsername} (cloud save)");
+            SetStatus(GameLocale.T(
+                $"サインインしました: {PlayerAuthService.Instance.SignedInUsername}（クラウド保存）",
+                $"Signed in as {PlayerAuthService.Instance.SignedInUsername} (cloud save)"));
             SetLoginOverlayVisible(false);
             RefreshDeckListAfterCloudAuth();
         }
         catch (System.Exception e)
         {
-            SetStatus("Sign-in failed: " + FormatAuthError(e));
+            SetStatus(GameLocale.T("サインインに失敗: ", "Sign-in failed: ") + FormatAuthError(e));
             Debug.LogException(e);
         }
     }
@@ -189,7 +199,7 @@ public class DeckAuthUI : MonoBehaviour
         string password = passwordField != null ? passwordField.text : string.Empty;
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
-            SetStatus("Please enter username and password.");
+            SetStatus(GameLocale.TKey("auth.enter_user_pass"));
             return;
         }
 
@@ -201,17 +211,19 @@ public class DeckAuthUI : MonoBehaviour
 
         try
         {
-            SetStatus("Creating account...");
+            SetStatus(GameLocale.TKey("auth.creating"));
             await PlayerAuthService.Instance.SignUpWithUsernamePasswordAsync(username.Trim(), password);
             guestModeChosen = true;
             ClearPasswordField();
-            SetStatus($"Account created. Signed in as {PlayerAuthService.Instance.SignedInUsername} (cloud save)");
+            SetStatus(GameLocale.T(
+                $"アカウント作成完了。サインイン中: {PlayerAuthService.Instance.SignedInUsername}（クラウド保存）",
+                $"Account created. Signed in as {PlayerAuthService.Instance.SignedInUsername} (cloud save)"));
             SetLoginOverlayVisible(false);
             RefreshDeckListAfterCloudAuth();
         }
         catch (System.Exception e)
         {
-            SetStatus("Sign-up failed: " + FormatAuthError(e));
+            SetStatus(GameLocale.T("新規登録に失敗: ", "Sign-up failed: ") + FormatAuthError(e));
             Debug.LogException(e);
         }
     }
@@ -220,7 +232,7 @@ public class DeckAuthUI : MonoBehaviour
     {
         PlayerAuthService.Instance.SignOut();
         guestModeChosen = false;
-        SetStatus("Guest mode (local save)");
+        SetStatus(GameLocale.T("ゲストモード（ローカル保存）", "Guest mode (local save)"));
         if (DeckSettinObject.Instance != null)
         {
             DeckSettinObject.Instance.OnGuestModeActivated();
@@ -233,7 +245,7 @@ public class DeckAuthUI : MonoBehaviour
     private void OnGuestContinueClicked()
     {
         guestModeChosen = true;
-        SetStatus("Guest mode (local save)");
+        SetStatus(GameLocale.T("ゲストモード（ローカル保存）", "Guest mode (local save)"));
         SetLoginOverlayVisible(false);
         RefreshUi();
         RefreshDeckList();
@@ -254,8 +266,10 @@ public class DeckAuthUI : MonoBehaviour
     {
         SetLoginOverlayVisible(true);
         SetStatus(PlayerAuthService.Instance.UseCloudStorage
-            ? $"Signed in as {PlayerAuthService.Instance.SignedInUsername}"
-            : "Sign in or continue as guest.");
+            ? GameLocale.T(
+                $"サインイン中: {PlayerAuthService.Instance.SignedInUsername}",
+                $"Signed in as {PlayerAuthService.Instance.SignedInUsername}")
+            : GameLocale.T("サインインするか、ゲストで続けてください。", "Sign in or continue as guest."));
     }
 
     private void RefreshUi()
@@ -264,9 +278,13 @@ public class DeckAuthUI : MonoBehaviour
 
         if (accountBarLabel != null)
         {
-            accountBarLabel.text = signedIn
-                ? $"Signed in: {PlayerAuthService.Instance.SignedInUsername}"
-                : "Guest (local save)";
+            accountBarLabel.SetLocalizedText(
+                signedIn
+                    ? $"サインイン中: {PlayerAuthService.Instance.SignedInUsername}"
+                    : "ゲスト（ローカル保存）",
+                signedIn
+                    ? $"Signed in: {PlayerAuthService.Instance.SignedInUsername}"
+                    : "Guest (local save)");
         }
 
         if (openLoginButton != null)
@@ -286,15 +304,17 @@ public class DeckAuthUI : MonoBehaviour
 
         if (!signedIn && !guestModeChosen)
         {
-            SetStatus("Sign in or continue as guest.");
+            SetStatus(GameLocale.T("サインインするか、ゲストで続けてください。", "Sign in or continue as guest."));
         }
         else if (signedIn)
         {
-            SetStatus($"Signed in as {PlayerAuthService.Instance.SignedInUsername} (cloud save)");
+            SetStatus(GameLocale.T(
+                $"サインインしました: {PlayerAuthService.Instance.SignedInUsername}（クラウド保存）",
+                $"Signed in as {PlayerAuthService.Instance.SignedInUsername} (cloud save)"));
         }
         else
         {
-            SetStatus("Guest mode (local save)");
+            SetStatus(GameLocale.T("ゲストモード（ローカル保存）", "Guest mode (local save)"));
         }
     }
 
@@ -334,7 +354,7 @@ public class DeckAuthUI : MonoBehaviour
     {
         if (statusText != null)
         {
-            statusText.text = message;
+            statusText.SetLocalizedText(message);
         }
 
         Debug.Log("[AuthUI] " + message);

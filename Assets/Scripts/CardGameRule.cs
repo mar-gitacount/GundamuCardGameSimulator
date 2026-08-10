@@ -62,6 +62,11 @@ public class CardGameRule
     private RectTransform exTokensContent;
     private TextMeshProUGUI resourceZoneHeaderText;
     private TextMeshProUGUI exZoneHeaderText;
+    private TextMeshProUGUI battleAreaLabelText;
+    private TextMeshProUGUI baseZoneLabelText;
+    private TextMeshProUGUI deckZoneLabelText;
+    private static readonly List<CardGameRule> ActiveRules = new List<CardGameRule>();
+    private static bool _localeHooked;
     private readonly List<GameObject> resourceTokenObjects = new List<GameObject>();
     private readonly List<GameObject> exTokenObjects = new List<GameObject>();
     private const float ResourceTokenWidth = 28f;
@@ -189,7 +194,8 @@ public class CardGameRule
             UIAnchor.TopCenter,
             battleAreaWidth - 8,
             20);
-        battleAreaLabel.text = "バトルエリア";
+        battleAreaLabelText = battleAreaLabel;
+        battleAreaLabelText.SetLocalizedText(GameLocale.TKey("zone.battle"));
         battleAreaLabel.fontSize = 14;
         battleAreaLabel.color = new Color(0.85f, 0.9f, 1f, 1f);
         battleAreaLabel.alignment = TextAlignmentOptions.Center;
@@ -240,6 +246,65 @@ public class CardGameRule
         RebuildResourceTokenVisuals();
         // スクロールレイアウトで相手フィールドが 180° されたあとに呼び直せるよう公開フック
         RefreshResourceBoardFlipState();
+        RegisterForLocaleRefresh();
+        RefreshLocalizedZoneLabels();
+    }
+
+    private void RegisterForLocaleRefresh()
+    {
+        if (!ActiveRules.Contains(this))
+        {
+            ActiveRules.Add(this);
+        }
+
+        if (!_localeHooked)
+        {
+            _localeHooked = true;
+            GameLocale.LanguageChanged += OnLocaleLanguageChanged;
+        }
+    }
+
+    private static void OnLocaleLanguageChanged(GameLanguage _)
+    {
+        for (int i = ActiveRules.Count - 1; i >= 0; i--)
+        {
+            CardGameRule rule = ActiveRules[i];
+            if (rule == null)
+            {
+                ActiveRules.RemoveAt(i);
+                continue;
+            }
+
+            rule.RefreshLocalizedZoneLabels();
+        }
+    }
+
+    /// <summary>盤面ゾーン名などを現行言語で書き換える。</summary>
+    public void RefreshLocalizedZoneLabels()
+    {
+        if (battleAreaLabelText != null)
+        {
+            battleAreaLabelText.SetLocalizedText(GameLocale.TKey("zone.battle"));
+        }
+
+        if (baseZoneLabelText != null)
+        {
+            baseZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.base"));
+        }
+
+        if (deckZoneLabelText != null)
+        {
+            deckZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.deck"));
+        }
+
+        UpdateDeckAndDiscardZoneTexts();
+        RebuildResourceTokenVisuals();
+        RefreshHandCountDisplay();
+
+        if (shieldCountDisplayText != null && shieldCountDisplayText.gameObject.activeInHierarchy)
+        {
+            SetShieldCountDisplay(GetShieldZoneCardCount());
+        }
     }
 
     /// <summary>
@@ -1270,7 +1335,8 @@ public class CardGameRule
         }
 
         shieldCountDisplayText.gameObject.SetActive(true);
-        shieldCountDisplayText.text = $"シールド ({Mathf.Max(0, count)})";
+        shieldCountDisplayText.SetLocalizedText(
+            $"{GameLocale.TKey("zone.shield")} ({Mathf.Max(0, count)})");
         shieldCountDisplayText.fontStyle = FontStyles.Bold;
         shieldCountDisplayText.color = new Color(1f, 0.95f, 0.55f, 1f);
     }
@@ -1335,12 +1401,12 @@ public class CardGameRule
 
         // 親が 180° 回転すると RectMask2D が子を全て消すことがあるため使わない
 
-        TextMeshProUGUI baseLabel = shieldPanelRoot.CreateChildTextCustom("BaseLabel", UIAnchor.TopCenter, width - 4, 18);
-        baseLabel.text = "ベース";
-        baseLabel.fontSize = 13;
-        baseLabel.color = new Color(0.9f, 0.92f, 1f, 1f);
-        baseLabel.raycastTarget = false;
-        RectTransform baseLabelRt = baseLabel.GetComponent<RectTransform>();
+        baseZoneLabelText = shieldPanelRoot.CreateChildTextCustom("BaseLabel", UIAnchor.TopCenter, width - 4, 18);
+        baseZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.base"));
+        baseZoneLabelText.fontSize = 13;
+        baseZoneLabelText.color = new Color(0.9f, 0.92f, 1f, 1f);
+        baseZoneLabelText.raycastTarget = false;
+        RectTransform baseLabelRt = baseZoneLabelText.GetComponent<RectTransform>();
         baseLabelRt.anchoredPosition = new Vector2(0f, -2f);
 
         // 旧表示互換（非表示）
@@ -1359,7 +1425,7 @@ public class CardGameRule
         }
 
         shieldCountDisplayText = shieldPanelRoot.CreateChildTextCustom("ShieldCountText", UIAnchor.TopCenter, width - 4, 16);
-        shieldCountDisplayText.text = "シールド (0)";
+        shieldCountDisplayText.SetLocalizedText($"{GameLocale.TKey("zone.shield")} (0)");
         shieldCountDisplayText.color = new Color(1f, 0.95f, 0.55f, 1f);
         shieldCountDisplayText.fontSize = 12;
         shieldCountDisplayText.fontStyle = FontStyles.Bold;
@@ -1677,7 +1743,7 @@ public class CardGameRule
         }
 
         resourceZoneHeaderText = resourceZone.CreateChildTextCustom("ResourceHeader", UIAnchor.TopLeft, 200, 16);
-        resourceZoneHeaderText.text = "リソース (0/0)";
+        resourceZoneHeaderText.SetLocalizedText($"{GameLocale.TKey("zone.resource")} (0/0)");
         resourceZoneHeaderText.fontSize = 12;
         resourceZoneHeaderText.color = new Color(0.9f, 1f, 0.9f, 1f);
         resourceZoneHeaderText.alignment = TextAlignmentOptions.MidlineLeft;
@@ -1707,7 +1773,7 @@ public class CardGameRule
         }
 
         exZoneHeaderText = exZone.CreateChildTextCustom("ExHeader", UIAnchor.TopLeft, 100, 16);
-        exZoneHeaderText.text = "EX (0)";
+        exZoneHeaderText.SetLocalizedText($"{GameLocale.TKey("zone.ex")} (0)");
         exZoneHeaderText.fontSize = 12;
         exZoneHeaderText.color = new Color(1f, 0.95f, 0.75f, 1f);
         exZoneHeaderText.alignment = TextAlignmentOptions.MidlineLeft;
@@ -1755,12 +1821,14 @@ public class CardGameRule
 
         if (resourceZoneHeaderText != null)
         {
-            resourceZoneHeaderText.text = $"リソース ({activeNormal}/{normalCount})";
+            resourceZoneHeaderText.SetLocalizedText(
+                $"{GameLocale.TKey("zone.resource")} ({activeNormal}/{normalCount})");
         }
 
         if (exZoneHeaderText != null)
         {
-            exZoneHeaderText.text = $"EX ({exCount})";
+            exZoneHeaderText.SetLocalizedText(
+                $"{GameLocale.TKey("zone.ex")} ({exCount})");
         }
 
         EnsureTokenObjectCount(
@@ -2005,10 +2073,10 @@ public class CardGameRule
             deckBg.raycastTarget = false;
         }
 
-        TextMeshProUGUI deckLabel = deckObjectPanel.CreateChildTextCustom("DeckLabel", UIAnchor.TopCenter, width - 8, 16);
-        deckLabel.text = "デッキ";
-        deckLabel.fontSize = 12;
-        deckLabel.color = new Color(0.9f, 0.92f, 1f, 1f);
+        deckZoneLabelText = deckObjectPanel.CreateChildTextCustom("DeckLabel", UIAnchor.TopCenter, width - 8, 16);
+        deckZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.deck"));
+        deckZoneLabelText.fontSize = 12;
+        deckZoneLabelText.color = new Color(0.9f, 0.92f, 1f, 1f);
 
         GameObject deckCardPlaceholder = deckObjectPanel.CreateChildPanelCustom("DeckCardPlaceholder", UIAnchor.TopCenter, 40, 54);
         RectTransform deckCardRt = deckCardPlaceholder.GetComponent<RectTransform>();
@@ -2037,7 +2105,7 @@ public class CardGameRule
         }
 
         exileZoneLabelText = exileAreaPanel.CreateChildTextCustom("ExileZoneLabel", UIAnchor.TopCenter, width - 8, 16);
-        exileZoneLabelText.text = "除外";
+        exileZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.exile"));
         exileZoneLabelText.fontSize = 12;
         exileZoneLabelText.color = new Color(0.9f, 0.85f, 1f, 1f);
         exileZoneLabelText.raycastTarget = true;
@@ -2069,7 +2137,7 @@ public class CardGameRule
         }
 
         discardZoneLabelText = trashAreaPanel.CreateChildTextCustom("TrashZoneLabel", UIAnchor.TopCenter, width - 8, 16);
-        discardZoneLabelText.text = "トラッシュ";
+        discardZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.trash"));
         discardZoneLabelText.fontSize = 12;
         discardZoneLabelText.color = new Color(1f, 0.9f, 0.9f, 1f);
         discardZoneLabelText.raycastTarget = true;
@@ -2115,7 +2183,7 @@ public class CardGameRule
 
         handCountText = handHeader.CreateChildTextCustom("HandCountText", UIAnchor.TopLeft, 200, headerHeight);
         handCountText.GetComponent<RectTransform>().SetFullSize();
-        handCountText.text = "手札 (0)";
+        handCountText.SetLocalizedText($"{GameLocale.TKey("zone.hand")} (0)");
         handCountText.color = Color.black;
         handCountText.fontSize = 16;
         handCountText.fontStyle = FontStyles.Bold;
@@ -2133,7 +2201,7 @@ public class CardGameRule
             return;
         }
 
-        handCountText.text = $"手札 ({CountHandZoneCards()})";
+        handCountText.SetLocalizedText($"{GameLocale.TKey("zone.hand")} ({CountHandZoneCards()})");
         handCountText.color = Color.black;
     }
 
@@ -2208,7 +2276,7 @@ public class CardGameRule
     {
         if (discardZoneLabelText != null)
         {
-            discardZoneLabelText.text = "トラッシュ";
+            discardZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.trash"));
             discardZoneLabelText.color = new Color(1f, 0.9f, 0.9f, 1f);
         }
 
@@ -2216,11 +2284,12 @@ public class CardGameRule
         {
             discardZoneCountText.text = trashList.Count.ToString();
             discardZoneCountText.color = Color.white;
+            GameLocale.ApplyFont(discardZoneCountText);
         }
 
         if (exileZoneLabelText != null)
         {
-            exileZoneLabelText.text = "除外";
+            exileZoneLabelText.SetLocalizedText(GameLocale.TKey("zone.exile"));
             exileZoneLabelText.color = new Color(0.9f, 0.85f, 1f, 1f);
         }
 
@@ -2228,6 +2297,7 @@ public class CardGameRule
         {
             exileZoneCountText.text = exileList.Count.ToString();
             exileZoneCountText.color = Color.white;
+            GameLocale.ApplyFont(exileZoneCountText);
         }
     }
 

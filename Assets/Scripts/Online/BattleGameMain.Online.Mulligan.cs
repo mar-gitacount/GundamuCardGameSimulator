@@ -71,7 +71,9 @@ public partial class BattleGameMain
         isMulliganPromptOpen = true;
         yield return MulliganPromptCoroutine(
             canvas,
-            "手札を山札に戻して引き直しますか？ (Mulligan)",
+            GameLocale.T(
+                "手札を山札に戻して5枚引き直しますか？（マリガン）",
+                "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)"),
             value => playerChoice = value);
         isMulliganPromptOpen = false;
 
@@ -140,7 +142,7 @@ public partial class BattleGameMain
             yield break;
         }
 
-        ShowMulliganThinkOverlay(canvas, "mulliganthink");
+        ShowMulliganThinkOverlay(canvas);
         yield return new WaitUntil(() => _remoteMulliganDecideReceived || !IsOnlineBattle());
         CloseMulliganThinkOverlay();
     }
@@ -152,12 +154,12 @@ public partial class BattleGameMain
             yield break;
         }
 
-        ShowMulliganThinkOverlay(canvas, "mulliganthink");
+        ShowMulliganThinkOverlay(canvas);
         yield return new WaitUntil(() => _remoteMulliganBootstrapReceived || !IsOnlineBattle());
         CloseMulliganThinkOverlay();
     }
 
-    private void ShowMulliganThinkOverlay(Canvas canvas, string label)
+    private void ShowMulliganThinkOverlay(Canvas canvas)
     {
         if (canvas == null)
         {
@@ -166,7 +168,6 @@ public partial class BattleGameMain
 
         CloseMulliganThinkOverlay();
         isMulliganThinkPauseOpen = true;
-        Debug.Log(label);
 
         GameObject root = new GameObject("MulliganThinkPause", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         _activeMulliganThinkRoot = root;
@@ -178,14 +179,14 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("MulliganThinkTitle", UIAnchor.TopCenter, 720, 56);
-        title.text = label;
+        title.SetLocalizedText("マリガン待機中", "Waiting for mulligan");
         title.color = new Color(1f, 0.95f, 0.2f, 1f);
         title.fontSize = 26;
         title.alignment = TextAlignmentOptions.Center;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
 
         TextMeshProUGUI sub = root.CreateChildTextCustom("MulliganThinkSub", UIAnchor.TopCenter, 720, 40);
-        sub.text = "相手のマリガンを待っています…";
+        sub.SetLocalizedText("相手のマリガンを待っています…", "Waiting for opponent's mulligan...");
         sub.color = Color.white;
         sub.fontSize = 18;
         sub.alignment = TextAlignmentOptions.Center;

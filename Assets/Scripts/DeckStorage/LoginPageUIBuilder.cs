@@ -59,23 +59,35 @@ public static class LoginPageUIBuilder
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        CreateLabel(card.transform, "Account", 28, FontStyles.Bold, new Color(0.95f, 0.97f, 1f));
-        CreateLabel(card.transform, "Sign in to save your decks to the cloud", 16, FontStyles.Normal, new Color(0.75f, 0.82f, 0.92f));
-
-        page.UsernameField = CreateInputField(card.transform, "Username", false);
-        page.PasswordField = CreateInputField(card.transform, "Password", true);
+        CreateLabel(card.transform, GameLocale.T("アカウント", "Account"), 28, FontStyles.Bold, new Color(0.95f, 0.97f, 1f));
         CreateLabel(
             card.transform,
-            "Password: 8-30 chars, uppercase, lowercase, digit, and symbol",
+            GameLocale.T("サインインするとデッキをクラウドに保存できます", "Sign in to save your decks to the cloud"),
+            16,
+            FontStyles.Normal,
+            new Color(0.75f, 0.82f, 0.92f));
+
+        page.UsernameField = CreateInputField(card.transform, GameLocale.TKey("auth.username"), false);
+        page.PasswordField = CreateInputField(card.transform, GameLocale.TKey("auth.password"), true);
+        CreateLabel(
+            card.transform,
+            GameLocale.T(
+                "パスワード: 8〜30文字、大文字・小文字・数字・記号を含む",
+                "Password: 8-30 chars, uppercase, lowercase, digit, and symbol"),
             13,
             FontStyles.Normal,
             new Color(0.65f, 0.72f, 0.82f));
-        page.StatusText = CreateLabel(card.transform, "Guest mode (local save)", 15, FontStyles.Normal, new Color(0.85f, 0.9f, 0.95f));
+        page.StatusText = CreateLabel(
+            card.transform,
+            GameLocale.T("ゲストモード（ローカル保存）", "Guest mode (local save)"),
+            15,
+            FontStyles.Normal,
+            new Color(0.85f, 0.9f, 0.95f));
         page.StatusText.alignment = TextAlignmentOptions.Center;
 
-        page.SignInButton = CreateButton(card.transform, "Sign In", new Color(0.18f, 0.45f, 0.82f));
-        page.SignUpButton = CreateButton(card.transform, "Sign Up", new Color(0.2f, 0.55f, 0.45f));
-        page.GuestButton = CreateButton(card.transform, "Continue as Guest", new Color(0.35f, 0.38f, 0.45f));
+        page.SignInButton = CreateButton(card.transform, GameLocale.TKey("auth.sign_in"), new Color(0.18f, 0.45f, 0.82f));
+        page.SignUpButton = CreateButton(card.transform, GameLocale.TKey("auth.sign_up"), new Color(0.2f, 0.55f, 0.45f));
+        page.GuestButton = CreateButton(card.transform, GameLocale.TKey("auth.guest"), new Color(0.35f, 0.38f, 0.45f));
 
         page.AccountBar = CreateRect("AccountBar", rootTransform);
 
@@ -91,12 +103,12 @@ public static class LoginPageUIBuilder
         barFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
         barFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        page.AccountBarLabel = CreateLabel(page.AccountBar.transform, "Guest", 14, FontStyles.Normal, Color.white);
+        page.AccountBarLabel = CreateLabel(page.AccountBar.transform, GameLocale.T("ゲスト", "Guest"), 14, FontStyles.Normal, Color.white);
         LayoutElement labelLayout = page.AccountBarLabel.gameObject.AddComponent<LayoutElement>();
         labelLayout.preferredWidth = 200f;
 
-        page.OpenLoginButton = CreateButton(page.AccountBar.transform, "Sign In", new Color(0.18f, 0.45f, 0.82f), 96f, 36f);
-        page.SignOutButton = CreateButton(page.AccountBar.transform, "Sign Out", new Color(0.55f, 0.22f, 0.22f), 104f, 36f);
+        page.OpenLoginButton = CreateButton(page.AccountBar.transform, GameLocale.TKey("auth.sign_in"), new Color(0.18f, 0.45f, 0.82f), 96f, 36f);
+        page.SignOutButton = CreateButton(page.AccountBar.transform, GameLocale.TKey("auth.sign_out"), new Color(0.55f, 0.22f, 0.22f), 104f, 36f);
 
         PositionAccountBarBelowDeckButton(page.AccountBar.GetComponent<RectTransform>(), rootTransform);
 
@@ -181,12 +193,7 @@ public static class LoginPageUIBuilder
 
     private static void EnsureFont()
     {
-        if (_font != null)
-        {
-            return;
-        }
-
-        _font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF - Fallback");
+        _font = GameLocale.GetUiFont();
         if (_font == null)
         {
             _font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
@@ -217,8 +224,9 @@ public static class LoginPageUIBuilder
         layout.minHeight = fontSize + 12f;
 
         TextMeshProUGUI label = go.AddComponent<TextMeshProUGUI>();
-        label.font = _font;
+        GameLocale.ApplyFont(label);
         label.text = text;
+        label.ForceMeshUpdate(true);
         label.fontSize = fontSize;
         label.fontStyle = style;
         label.color = color;
@@ -247,8 +255,9 @@ public static class LoginPageUIBuilder
         GameObject placeholderGo = CreateRect("Placeholder", textArea.transform);
         StretchFull(placeholderGo);
         TextMeshProUGUI placeholderText = placeholderGo.AddComponent<TextMeshProUGUI>();
-        placeholderText.font = _font;
+        GameLocale.ApplyFont(placeholderText);
         placeholderText.text = placeholder;
+        placeholderText.ForceMeshUpdate(true);
         placeholderText.fontSize = 18;
         placeholderText.fontStyle = FontStyles.Italic;
         placeholderText.color = new Color(0.55f, 0.6f, 0.68f, 0.85f);
@@ -256,7 +265,7 @@ public static class LoginPageUIBuilder
         GameObject textGo = CreateRect("Text", textArea.transform);
         StretchFull(textGo);
         TextMeshProUGUI inputText = textGo.AddComponent<TextMeshProUGUI>();
-        inputText.font = _font;
+        GameLocale.ApplyFont(inputText);
         inputText.fontSize = 18;
         inputText.color = Color.white;
 
@@ -301,8 +310,9 @@ public static class LoginPageUIBuilder
         GameObject textGo = CreateRect("Text", go.transform);
         StretchFull(textGo);
         TextMeshProUGUI text = textGo.AddComponent<TextMeshProUGUI>();
-        text.font = _font;
+        GameLocale.ApplyFont(text);
         text.text = label;
+        text.ForceMeshUpdate(true);
         text.fontSize = 18;
         text.fontStyle = FontStyles.Bold;
         text.color = Color.white;
@@ -333,8 +343,9 @@ public static class LoginPageUIBuilder
         GameObject textGo = CreateRect("Text", go.transform);
         StretchFull(textGo);
         TextMeshProUGUI text = textGo.AddComponent<TextMeshProUGUI>();
-        text.font = _font;
+        GameLocale.ApplyFont(text);
         text.text = "×";
+        text.ForceMeshUpdate(true);
         text.fontSize = 28;
         text.fontStyle = FontStyles.Bold;
         text.color = Color.white;
