@@ -153,12 +153,22 @@ public class EosOnlineBattleMessage
     }
 
     public const string OnActionCommandUsed = "OnActionCommandUsed";
+    public const string CommandPlayRevealComplete = "CommandPlayRevealComplete";
 
     public static string CreateOnActionCommandUsed(string payload)
     {
         return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
             type = OnActionCommandUsed,
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateCommandPlayRevealComplete(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
+        {
+            type = CommandPlayRevealComplete,
             payload = payload ?? string.Empty
         });
     }

@@ -14,6 +14,7 @@ public partial class BattleGameMain
         _pendingHandDiscardRevealRequestId = 0;
         _handDiscardRevealRemoteCompleteReceived = false;
         CloseHandDiscardRevealPanelIfAny();
+        CloseOnlineOpponentCardConfirmWaitOverlay();
     }
 
     private IEnumerator WaitForHandDiscardRevealAcknowledgedCoroutine(
@@ -40,7 +41,11 @@ public partial class BattleGameMain
 
         if (IsOnlineBattle() && isInitiator && !_applyingRemoteBattleAction && requestId > 0)
         {
-            yield return new WaitUntil(() => _handDiscardRevealRemoteCompleteReceived);
+            // 自分の公開 OK 後は、相手の確認完了まで操作不可
+            ShowOnlineOpponentCardConfirmWaitOverlay();
+            yield return new WaitUntil(() =>
+                _handDiscardRevealRemoteCompleteReceived || !IsOnlineBattle());
+            CloseOnlineOpponentCardConfirmWaitOverlay();
             _pendingHandDiscardRevealRequestId = 0;
         }
     }

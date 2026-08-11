@@ -3,63 +3,78 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>OnAction コマンド使用を相手へ通知し、カード UI を表示する。</summary>
+/// <summary>
+/// オンライン：自分がコマンドを使ったとき相手へカード公開し、相手 OK まで進行を止める。
+/// OnMain / OnAction 双方で使う。
+/// </summary>
 public partial class BattleGameMain
 {
     private GameObject _activeOnActionCommandRevealRoot;
+    private int _commandPlayRevealRequestIdCounter;
+    private int _pendingCommandPlayRevealRequestId;
+    private bool _commandPlayRevealRemoteCompleteReceived;
 
     private void ResetOnlineOnActionCommandRevealState()
     {
+        _commandPlayRevealRequestIdCounter = 0;
+        _pendingCommandPlayRevealRequestId = 0;
+        _commandPlayRevealRemoteCompleteReceived = false;
         CloseOnActionCommandRevealPanelIfAny();
+        CloseOnlineOpponentCardConfirmWaitOverlay();
     }
 
     /// <summary>
-    /// ローカル人間が OnAction コマンドを使用したとき、相手へカード情報を送る。
+    /// 相手へコマンド公開し、オンラインかつ自分が initiator のとき相手 OK まで待つ。
     /// </summary>
-    private void TryNotifyLocalOnActionCommandUsed(
+    private IEnumerator WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
         CardController command,
-        PlayerType side,
+        string context,
         CardController targetUnitOrNull = null)
     {
-        if (!IsOnlineBattle() || _applyingRemoteBattleAction || side != PlayerType.Player)
-        {
-            return;
-        }
-
         if (command == null || command.Data == null || !command.Data.IsCommand())
         {
-            return;
+            yield break;
         }
 
-        int targetCardId = targetUnitOrNull != null && targetUnitOrNull.Data != null
-            ? targetUnitOrNull.Data.id
-            : -1;
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            yield break;
+        }
+
+        int requestId = ++_commandPlayRevealRequestIdCounter;
+        _pendingCommandPlayRevealRequestId = requestId;
+        _commandPlayRevealRemoteCompleteReceived = false;
 
         bool includeRes = gundamRule?.Player != null;
         int resourceAfter = includeRes ? gundamRule.Player.resource : 0;
         int exAfter = includeRes ? gundamRule.Player.exResource : 0;
         int levelAfter = includeRes ? gundamRule.Player.level : 0;
+        int targetCardId = targetUnitOrNull != null && targetUnitOrNull.Data != null
+            ? targetUnitOrNull.Data.id
+            : -1;
 
         string json = OnlineBattleActionPayload.CreateOnActionCommandUsed(
             command.Data.id,
-            (int)side,
-            _onlineOnActionActiveContext ?? string.Empty,
+            (int)PlayerType.Player,
+            context ?? string.Empty,
             command.CurrentCost,
             command.CurrentLevel,
             targetCardId,
             includeRes,
             resourceAfter,
             exAfter,
-            levelAfter);
+            levelAfter,
+            requestId);
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionCommandUsed(json));
-
         Debug.Log(
-            $"[OnActionCommandUsed][Send] card:{command.Data.cardName}(id:{command.Data.id}) "
-            + $"cost:{command.CurrentCost} lv:{command.CurrentLevel} targetCardId:{targetCardId} "
-            + $"resource:{resourceAfter} ex:{exAfter} level:{levelAfter} "
-            + $"context:{_onlineOnActionActiveContext}");
+            $"[CommandPlayReveal][Send] card:{command.Data.cardName}(id:{command.Data.id}) "
+            + $"context:{context} requestId:{requestId} targetCardId:{targetCardId}");
 
-        LogOnActionCommandUsedBoardSnapshotCompact("localSend", side, command, targetUnitOrNull);
+        LogOnActionCommandUsedBoardSnapshotCompact("localSend", PlayerType.Player, command, targetUnitOrNull);
+
+        yield return WaitForOpponentCardConfirmCompleteWithOverlayCoroutine(requestId);
+        ClearPendingOpponentCardConfirmRequest();
+        Debug.Log($"[CommandPlayReveal][Ack] requestId:{requestId}");
     }
 
     private void HandleRemoteOnActionCommandUsed(string payload)
@@ -71,7 +86,6 @@ public partial class BattleGameMain
             return;
         }
 
-        // 支払後リソースを即反映（コマンド開示パネルより先にレスト表示する）
         if (action.includeResourceSnapshot)
         {
             PlayerType senderZone = action.actingZoneSide == (int)PlayerType.Enemy
@@ -96,22 +110,62 @@ public partial class BattleGameMain
             targetUnit = FindBattleZoneUnitByCardId(action.targetCardId);
         }
 
-        PlayerType actingSide = action.actingZoneSide == (int)PlayerType.Enemy
-            ? PlayerType.Enemy
-            : PlayerType.Player;
-
         Debug.Log(
-            $"[OnActionCommandUsed][Receive] card:{commandName}(id:{action.cardId}) "
-            + $"cost:{action.cardCost} lv:{action.cardLevel} targetCardId:{action.targetCardId} "
-            + $"actingSide:{actingSide} context:{action.onActionContext} "
-            + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
+            $"[CommandPlayReveal][Receive] card:{commandName}(id:{action.cardId}) "
+            + $"context:{action.onActionContext} requestId:{action.requestId}");
 
-        LogOnActionCommandUsedBoardSnapshotCompact("remoteReceive", actingSide, commandData, targetUnit);
+        LogOnActionCommandUsedBoardSnapshotCompact(
+            "remoteReceive",
+            PlayerType.Enemy,
+            commandData,
+            targetUnit);
 
-        StartCoroutine(ShowOnActionCommandUsedRevealPanelCoroutine(action, commandData, commandName, targetUnit));
+        StartCoroutine(HandleRemoteCommandPlayRevealCoroutine(action, commandData, commandName, targetUnit));
     }
 
-    /// <summary>フル [BoardSnapshot] ではなく 1 行の AP/HP 要約（Editor GPU 負荷軽減）。</summary>
+    private IEnumerator HandleRemoteCommandPlayRevealCoroutine(
+        OnlineBattleActionPayload action,
+        CardData commandData,
+        string commandName,
+        CardController targetUnitOrNull)
+    {
+        if (isOnlineEffectThinkPauseOpen)
+        {
+            CloseOnlineEffectThinkOverlay();
+        }
+
+        yield return ShowOnActionCommandUsedRevealPanelCoroutine(
+            action,
+            commandData,
+            commandName,
+            targetUnitOrNull);
+
+        if (action.requestId > 0)
+        {
+            SendOpponentCardConfirmComplete(action.requestId);
+        }
+    }
+
+    private void HandleRemoteCommandPlayRevealComplete(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
+            || action.action != OnlineBattleActionPayload.CommandPlayRevealComplete)
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid CommandPlayRevealComplete payload: {payload}");
+            return;
+        }
+
+        if (action.requestId != _pendingCommandPlayRevealRequestId || _pendingCommandPlayRevealRequestId <= 0)
+        {
+            Debug.Log(
+                $"[CommandPlayReveal] Ignored Complete requestId={action.requestId} pending={_pendingCommandPlayRevealRequestId}");
+            return;
+        }
+
+        _commandPlayRevealRemoteCompleteReceived = true;
+        Debug.Log($"[CommandPlayReveal][CompleteRecv] requestId:{action.requestId}");
+    }
+
     private void LogOnActionCommandUsedBoardSnapshotCompact(
         string phase,
         PlayerType actingSide,
@@ -171,6 +225,7 @@ public partial class BattleGameMain
             typeof(CanvasRenderer),
             typeof(Image));
         _activeOnActionCommandRevealRoot = root;
+        isOnActionPopupOpen = true;
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
@@ -178,22 +233,31 @@ public partial class BattleGameMain
         dim.color = new Color(0f, 0f, 0f, 0.72f);
         dim.raycastTarget = true;
 
+        bool isOnMain = action != null
+            && !string.IsNullOrEmpty(action.onActionContext)
+            && action.onActionContext.IndexOf("OnMain", System.StringComparison.OrdinalIgnoreCase) >= 0;
+
         TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandRevealTitle", UIAnchor.TopCenter, 760, 52);
-        title.text = "相手がアクションステップでコマンドを使用";
+        title.text = isOnMain
+            ? GameLocale.T("相手がコマンドを使用（メイン）", "Opponent used a Command (Main)")
+            : GameLocale.T("相手がコマンドを使用", "Opponent used a Command");
         title.color = new Color(1f, 0.92f, 0.35f, 1f);
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
+        GameLocale.ApplyFont(title);
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -36f);
 
         TextMeshProUGUI nameLabel = root.CreateChildTextCustom("OnActionCommandRevealName", UIAnchor.TopCenter, 760, 36);
+        int shownCost = action != null ? action.cardCost : 0;
+        int shownLevel = action != null ? action.cardLevel : 0;
         nameLabel.text = commandData != null
-            ? $"{commandData.cardName}  (Lv.{action.cardLevel} / Cost {action.cardCost})"
-            : $"{commandName}  (Lv.{action.cardLevel} / Cost {action.cardCost})";
+            ? $"{commandData.cardName}  (Lv.{shownLevel} / Cost {shownCost})"
+            : $"{commandName}  (Lv.{shownLevel} / Cost {shownCost})";
         nameLabel.color = Color.white;
         nameLabel.fontSize = 22;
         nameLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -84f);
 
-        if (!string.IsNullOrWhiteSpace(action.onActionContext))
+        if (action != null && !string.IsNullOrWhiteSpace(action.onActionContext))
         {
             TextMeshProUGUI ctxLabel = root.CreateChildTextCustom("OnActionCommandRevealContext", UIAnchor.TopCenter, 760, 28);
             ctxLabel.text = action.onActionContext;
@@ -248,13 +312,7 @@ public partial class BattleGameMain
 
         ok.onClick.AddListener(() => { acknowledged = true; });
 
-        float elapsed = 0f;
-        const float autoCloseSeconds = 4f;
-        while (!acknowledged && elapsed < autoCloseSeconds)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            yield return null;
-        }
+        yield return new WaitUntil(() => acknowledged);
 
         CloseOnActionCommandRevealPanelIfAny();
     }
@@ -266,5 +324,7 @@ public partial class BattleGameMain
             Destroy(_activeOnActionCommandRevealRoot);
             _activeOnActionCommandRevealRoot = null;
         }
+
+        isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
     }
 }

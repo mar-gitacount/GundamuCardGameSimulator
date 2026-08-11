@@ -87,6 +87,7 @@ public class OnlineBattleActionPayload
     public const string OnActionBegin = "OnActionBegin";
     public const string OnActionEnd = "OnActionEnd";
     public const string OnActionCommandUsed = "OnActionCommandUsed";
+    public const string CommandPlayRevealComplete = "CommandPlayRevealComplete";
     public const string ShieldBreakComplete = "ShieldBreakComplete";
     public const string AttackKindShield = "Shield";
     public const string AttackKindUnitVsUnit = "UnitVsUnit";
@@ -115,6 +116,15 @@ public class OnlineBattleActionPayload
         });
     }
 
+    public static string CreateCommandPlayRevealComplete(int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineCommandPlayRevealCompleteDto
+        {
+            action = CommandPlayRevealComplete,
+            requestId = requestId
+        });
+    }
+
     public static string CreateDeployUnit(
         int cardId,
         int instanceId,
@@ -128,7 +138,8 @@ public class OnlineBattleActionPayload
         bool includeResourceSnapshot = false,
         int resourceAfter = 0,
         int exResourceAfter = 0,
-        int levelAfter = 0)
+        int levelAfter = 0,
+        int requestId = 0)
     {
         // extras は必要なときだけ付ける（通常配備のパケット肥大化を防ぐ）
         OnlineDeployUnitExtras extras = null;
@@ -163,7 +174,8 @@ public class OnlineBattleActionPayload
             includeResourceSnapshot = includeResourceSnapshot,
             resourceAfter = resourceAfter,
             exResourceAfter = exResourceAfter,
-            levelAfter = levelAfter
+            levelAfter = levelAfter,
+            requestId = requestId
         });
     }
 
@@ -318,7 +330,8 @@ public class OnlineBattleActionPayload
         bool includeResourceSnapshot = false,
         int resourceAfter = 0,
         int exResourceAfter = 0,
-        int levelAfter = 0)
+        int levelAfter = 0,
+        int requestId = 0)
     {
         // OnlineBattleActionPayload 全文は EOS ~1170B を超えやすいため lean DTO のみ送る
         return JsonUtility.ToJson(new OnlineMountPilotDto
@@ -329,7 +342,8 @@ public class OnlineBattleActionPayload
             includeResourceSnapshot = includeResourceSnapshot,
             resourceAfter = resourceAfter,
             exResourceAfter = exResourceAfter,
-            levelAfter = levelAfter
+            levelAfter = levelAfter,
+            requestId = requestId
         });
     }
 
@@ -417,7 +431,8 @@ public class OnlineBattleActionPayload
         bool includeResourceSnapshot = false,
         int resourceAfter = 0,
         int exResourceAfter = 0,
-        int levelAfter = 0)
+        int levelAfter = 0,
+        int requestId = 0)
     {
         return JsonUtility.ToJson(new OnlineOnActionCommandUsedDto
         {
@@ -431,7 +446,8 @@ public class OnlineBattleActionPayload
             includeResourceSnapshot = includeResourceSnapshot,
             resourceAfter = resourceAfter,
             exResourceAfter = exResourceAfter,
-            levelAfter = levelAfter
+            levelAfter = levelAfter,
+            requestId = requestId
         });
     }
 
@@ -501,6 +517,7 @@ public class OnlineBattleActionPayload
                     return payload.requestId > 0;
                 case OnActionCommandUsed:
                     return payload.cardId > 0;
+                case CommandPlayRevealComplete:
                 case HandDiscardRevealComplete:
                     return payload.requestId > 0;
                 case HandDiscardReveal:
@@ -556,6 +573,8 @@ public class OnlineDeployUnitDto
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+    /// <summary>相手確認 OK 待ち用。0 は待たない。</summary>
+    public int requestId;
 }
 
 /// <summary>MountPilot 送信用 lean DTO（EOS ~1170B 対策）。</summary>
@@ -569,6 +588,8 @@ public class OnlineMountPilotDto
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+    /// <summary>相手確認 OK 待ち用。0 は待たない。</summary>
+    public int requestId;
 }
 
 /// <summary>UnitAttack 送信用 lean DTO（EOS ~1170B 対策）。</summary>
@@ -655,6 +676,15 @@ public class OnlineOnActionCommandUsedDto
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+    public int requestId;
+}
+
+/// <summary>CommandPlayRevealComplete 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineCommandPlayRevealCompleteDto
+{
+    public string action;
+    public int requestId;
 }
 
 /// <summary>ResourceState 送信用 lean DTO。</summary>

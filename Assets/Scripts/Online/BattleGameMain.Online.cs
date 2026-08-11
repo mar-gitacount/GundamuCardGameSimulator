@@ -879,7 +879,13 @@ public partial class BattleGameMain
             levelAfter = payState.level;
         }
 
-        SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
+        int requestId = 0;
+        if (!_applyingRemoteBattleAction)
+        {
+            requestId = BeginPendingOpponentCardConfirmRequest();
+        }
+
+        bool sent = SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
             OnlineBattleActionPayload.CreateDeployUnit(
                 cardController.Data.id,
                 cardController.BattleInstanceId,
@@ -893,10 +899,28 @@ public partial class BattleGameMain
                 includeResource,
                 resourceAfter,
                 exResourceAfter,
-                levelAfter)));
+                levelAfter,
+                requestId)));
         Debug.Log(
             $"[OnlineBattle] DeployUnit sync sent id:{cardController.Data.id} inst:{cardController.BattleInstanceId} "
-            + $"resource:{resourceAfter} ex:{exResourceAfter} level:{levelAfter} includeRes:{includeResource}");
+            + $"resource:{resourceAfter} ex:{exResourceAfter} level:{levelAfter} includeRes:{includeResource} "
+            + $"requestId:{requestId}");
+
+        if (requestId > 0 && sent)
+        {
+            StartCoroutine(CoWaitOpponentCardConfirmAfterLocalPlay(requestId));
+        }
+        else if (requestId > 0)
+        {
+            ClearPendingOpponentCardConfirmRequest();
+        }
+    }
+
+    private IEnumerator CoWaitOpponentCardConfirmAfterLocalPlay(int requestId)
+    {
+        yield return WaitForOpponentCardConfirmCompleteWithOverlayCoroutine(requestId);
+        ClearPendingOpponentCardConfirmRequest();
+        Debug.Log($"[OpponentCardConfirm][Ack] requestId:{requestId}");
     }
 
     /// <summary>
@@ -984,17 +1008,28 @@ public partial class BattleGameMain
             return;
         }
 
-        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateMountPilot(
+        int requestId = BeginPendingOpponentCardConfirmRequest();
+        bool sent = SendOnlineBattleMessage(EosOnlineBattleMessage.CreateMountPilot(
             OnlineBattleActionPayload.CreateMountPilot(
                 hostUnit.BattleInstanceId,
                 pilotCard.Data.id,
                 includeResourceSnapshot: gundamRule?.Player != null,
                 resourceAfter: gundamRule?.Player != null ? gundamRule.Player.resource : 0,
                 exResourceAfter: gundamRule?.Player != null ? gundamRule.Player.exResource : 0,
-                levelAfter: gundamRule?.Player != null ? gundamRule.Player.level : 0)));
+                levelAfter: gundamRule?.Player != null ? gundamRule.Player.level : 0,
+                requestId: requestId)));
         Debug.Log(
             $"[OnlineBattle] MountPilot sync sent. host={hostUnit.BattleInstanceId} pilot={pilotCard.Data.id} "
-            + $"resource:{(gundamRule?.Player != null ? gundamRule.Player.resource : -1)}");
+            + $"resource:{(gundamRule?.Player != null ? gundamRule.Player.resource : -1)} requestId:{requestId}");
+
+        if (sent)
+        {
+            StartCoroutine(CoWaitOpponentCardConfirmAfterLocalPlay(requestId));
+        }
+        else
+        {
+            ClearPendingOpponentCardConfirmRequest();
+        }
     }
 
     private bool SendOnlineBattleMessage(string json)
@@ -1061,7 +1096,7 @@ public partial class BattleGameMain
                 HandleRemoteEndTurn();
                 break;
             case "PlayCard":
-                HandleRemotePlayCard(message.payload);
+                StartCoroutine(HandleRemotePlayCardCoroutine(message.payload));
                 break;
             case "Attack":
                 HandleRemoteAttack(message.payload);
@@ -1076,7 +1111,7 @@ public partial class BattleGameMain
                 HandleRemoteEffectSync(message.payload);
                 break;
             case "MountPilot":
-                HandleRemoteMountPilot(message.payload);
+                StartCoroutine(HandleRemoteMountPilotCoroutine(message.payload));
                 break;
             case "OnActionBegin":
                 HandleRemoteOnActionBegin(message.payload);
@@ -1086,6 +1121,9 @@ public partial class BattleGameMain
                 break;
             case "OnActionCommandUsed":
                 HandleRemoteOnActionCommandUsed(message.payload);
+                break;
+            case EosOnlineBattleMessage.CommandPlayRevealComplete:
+                HandleRemoteCommandPlayRevealComplete(message.payload);
                 break;
             case "MulliganSync":
                 HandleRemoteMulliganSync(message.payload);
@@ -1389,12 +1427,12 @@ public partial class BattleGameMain
         isEndTurnFlowRunning = false;
     }
 
-    private void HandleRemotePlayCard(string payload)
+    private IEnumerator HandleRemotePlayCardCoroutine(string payload)
     {
         if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action))
         {
             Debug.LogWarning($"[OnlineBattle] Invalid PlayCard payload: {payload}");
-            return;
+            yield break;
         }
 
         if (currentPlayerType != PlayerType.Enemy
@@ -1403,19 +1441,30 @@ public partial class BattleGameMain
                  && action.deployUnitExtras.allowOffTurnDeploy))
         {
             Debug.Log("[OnlineBattle] Ignored remote PlayCard because it is not opponent turn locally.");
-            return;
+            SendOpponentCardConfirmComplete(action.requestId);
+            yield break;
         }
 
         if (action.action == OnlineBattleActionPayload.DeployUnit)
         {
-            ApplyRemoteDeployUnit(action);
-            return;
+            CardController deployed = ApplyRemoteDeployUnit(action);
+            if (deployed != null)
+            {
+                yield return ShowCommandUseAcknowledgementCoroutine(
+                    deployed,
+                    null,
+                    null,
+                    GameLocale.T("相手 — ユニット配備", "Opponent — Unit Deploy"));
+            }
+
+            SendOpponentCardConfirmComplete(action.requestId);
+            yield break;
         }
 
         if (action.action == OnlineBattleActionPayload.DeployBase)
         {
             ApplyRemoteDeployBase(action);
-            return;
+            yield break;
         }
 
         if (action.action == OnlineBattleActionPayload.DeployShield)
@@ -1425,11 +1474,11 @@ public partial class BattleGameMain
     }
 
 //    　ApplyRemoteDeployUnit … 相手のカードデプロイを適用する
-    private void ApplyRemoteDeployUnit(OnlineBattleActionPayload action)
+    private CardController ApplyRemoteDeployUnit(OnlineBattleActionPayload action)
     {
         if (action == null || DeckSettinObject.Instance == null)
         {
-            return;
+            return null;
         }
 
         int cardId = action.cardId;
@@ -1444,14 +1493,14 @@ public partial class BattleGameMain
         if (instanceId > 0 && FindUnitByInstanceIdEitherZone(instanceId) != null)
         {
             Debug.Log($"[OnlineBattle] Remote deploy skipped (duplicate inst:{instanceId})");
-            return;
+            return null;
         }
 
         CardData printed = DeckSettinObject.Instance.GetCardDataById(cardId);
         if (printed == null || rule?.PlayerDeployPanel == null)
         {
             Debug.LogWarning($"[OnlineBattle] Unknown card id for remote deploy: {cardId}");
-            return;
+            return null;
         }
 
         OnlineDeployUnitExtras extras = action.deployUnitExtras;
@@ -1523,6 +1572,7 @@ public partial class BattleGameMain
             + $"forceUnit:{temporaryBurstUnit} AP:{cardData.power} HP:{cardData.hp} "
             + $"rested:{(extras != null && extras.deployAsRested)} "
             + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
+        return controller;
     }
 
     /// <summary>
@@ -2090,36 +2140,58 @@ public partial class BattleGameMain
         ApplyRemoteUnitRemovedFromField(unit);
     }
 
-    private void HandleRemoteMountPilot(string payload)
+    private IEnumerator HandleRemoteMountPilotCoroutine(string payload)
     {
-        if (currentPlayerType != PlayerType.Enemy)
-        {
-            Debug.Log("[OnlineBattle] Ignored MountPilot because it is not opponent turn locally.");
-            return;
-        }
-
         if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
             || action.action != OnlineBattleActionPayload.MountPilot)
         {
             Debug.LogWarning($"[OnlineBattle] Invalid MountPilot payload: {payload}");
-            return;
+            yield break;
         }
 
+        if (currentPlayerType != PlayerType.Enemy)
+        {
+            Debug.Log("[OnlineBattle] Ignored MountPilot because it is not opponent turn locally.");
+            SendOpponentCardConfirmComplete(action.requestId);
+            yield break;
+        }
+
+        CardController hostUnit = null;
+        CardController pilotController = null;
         _applyingRemoteBattleAction = true;
         try
         {
-            ApplyRemoteMountPilot(action);
+            ApplyRemoteMountPilot(action, out hostUnit, out pilotController);
         }
         finally
         {
             _applyingRemoteBattleAction = false;
         }
+
+        if (pilotController != null)
+        {
+            List<CardController> hosts = hostUnit != null
+                ? new List<CardController> { hostUnit }
+                : null;
+            yield return ShowCommandUseAcknowledgementCoroutine(
+                pilotController,
+                null,
+                hosts,
+                GameLocale.T("相手 — パイロット搭乗", "Opponent — Pilot Mount"));
+        }
+
+        SendOpponentCardConfirmComplete(action.requestId);
     }
 
-    private void ApplyRemoteMountPilot(OnlineBattleActionPayload action)
+    private void ApplyRemoteMountPilot(
+        OnlineBattleActionPayload action,
+        out CardController hostUnit,
+        out CardController pilotController)
     {
+        hostUnit = null;
+        pilotController = null;
         // 相手が Player ゾーンに配備した MS への搭乗 → 受信側は Enemy ゾーンで検索
-        CardController hostUnit = FindBattleZoneUnitForRemoteSync(action.instanceId, PlayerType.Player);
+        hostUnit = FindBattleZoneUnitForRemoteSync(action.instanceId, PlayerType.Player);
         if (hostUnit == null)
         {
             Debug.LogWarning($"[OnlineBattle] MountPilot host not found: {action.instanceId}");
@@ -2146,12 +2218,13 @@ public partial class BattleGameMain
 
         PlayerType hostOwner = ResolveCardOwner(hostUnit.transform);
         GameObject pilotObject = Instantiate(CardImagePrefab, hostUnit.transform);
-        CardController pilotController = pilotObject.GetComponent<CardController>();
+        pilotController = pilotObject.GetComponent<CardController>();
         pilotController.SetUp(pilotData, OnCardClicked);
 
         if (!hostUnit.TryAttachPilot(pilotController))
         {
             Destroy(pilotObject);
+            pilotController = null;
             Debug.LogWarning("[OnlineBattle] MountPilot TryAttachPilot failed on remote.");
             return;
         }

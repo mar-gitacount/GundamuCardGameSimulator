@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -15,8 +16,8 @@ public partial class BattleGameMain
         public int ReservedCommandSimScore;
     }
 
-    /// <summary>コストが許せる限りユニットを配備する。温存分を除いたリソースで実行。</summary>
-    private int TryEnemyDeployAllAffordableUnitsFromHand()
+    /// <summary>コストが許せる限りユニットを配備する。各配備後に相手（プレイヤー）へ OK 確認を出す。</summary>
+    private IEnumerator TryEnemyDeployAllAffordableUnitsFromHandCoroutine()
     {
         EnemyAiDeployResourceBudget reserve = ComputeEnemyAiOnActionResourceReserve();
         if (reserve.ReservedCommand != null)
@@ -27,7 +28,34 @@ public partial class BattleGameMain
         }
 
         int deployed = 0;
-        while (TryEnemyDeployBestUnitFromHand(reserve))
+        while (true)
+        {
+            CardController unit = TryEnemyDeployBestUnitFromHand(reserve);
+            if (unit == null)
+            {
+                break;
+            }
+
+            deployed++;
+            yield return ShowCommandUseAcknowledgementCoroutine(
+                unit,
+                null,
+                null,
+                "敵 — ユニット配備");
+        }
+
+        if (deployed > 0)
+        {
+            Debug.Log($"[EnemyAI] Deployed {deployed} unit(s) from hand this main phase (reserve:{reserve.ResourceToKeep}).");
+        }
+    }
+
+    /// <summary>互換用。コルーチン版を使えない箇所向け。</summary>
+    private int TryEnemyDeployAllAffordableUnitsFromHand()
+    {
+        EnemyAiDeployResourceBudget reserve = ComputeEnemyAiOnActionResourceReserve();
+        int deployed = 0;
+        while (TryEnemyDeployBestUnitFromHand(reserve) != null)
         {
             deployed++;
         }
@@ -181,7 +209,7 @@ public partial class BattleGameMain
         return canShieldOrDirect || canAttackUnit;
     }
 
-    private bool TryEnemyDeployBestUnitFromHand(EnemyAiDeployResourceBudget reserve)
+    private CardController TryEnemyDeployBestUnitFromHand(EnemyAiDeployResourceBudget reserve)
     {
         Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Enemy;
         EnemyAiDeployResourceBudget noReserve = default;
@@ -193,7 +221,7 @@ public partial class BattleGameMain
             : CollectEnemyDeployableUnitsFromHand(side, reserve);
         if (candidates.Count == 0)
         {
-            return false;
+            return null;
         }
 
         CardController best = null;
@@ -221,7 +249,7 @@ public partial class BattleGameMain
 
         if (best == null)
         {
-            return false;
+            return null;
         }
 
         int requiredBenefit = forceOnlyHandDeploy
@@ -229,7 +257,7 @@ public partial class BattleGameMain
             : EnemyAiMinDeployUnitBenefit;
         if (bestBenefit < requiredBenefit)
         {
-            return false;
+            return null;
         }
 
         Gundam2024RuleScript.PlayerState payState = side == Gundam2024RuleScript.PlayerSide.Player
@@ -238,7 +266,7 @@ public partial class BattleGameMain
         int exToUse = Gundam2024RuleScript.GetExNeededForCost(payState, best.CurrentCost);
         if (!TryPayHandDeployCost(side, best, exToUse))
         {
-            return false;
+            return null;
         }
 
         SendCardToField(best, PlayerType.Enemy, enemyCardGameRule);
@@ -249,7 +277,7 @@ public partial class BattleGameMain
                   + $"enemyLv:{gundamRule.Enemy.TotalLevel} res:{gundamRule.Enemy.resource} reserveLeft:{effectiveReserve.ResourceToKeep})"
                 : $"[Enemy] ユニット配備: {best.Data.cardName}(lv:{best.CurrentLevel} cost:{best.CurrentCost} benefit:{bestBenefit} "
                   + $"enemyLv:{gundamRule.Enemy.TotalLevel} res:{gundamRule.Enemy.resource} reserveLeft:{effectiveReserve.ResourceToKeep})");
-        return true;
+        return best;
     }
 
     /// <summary>手札にユニット配備以外の有用行動が無いときは配備を強制する（場の攻撃可否は見ない）。</summary>

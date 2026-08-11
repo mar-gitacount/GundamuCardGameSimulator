@@ -25,7 +25,7 @@ public class Deck : MonoBehaviour
         canvas = GetComponentInParent<Canvas>().rootCanvas;
         RectTransform rect = canvas.GetComponent<RectTransform>();
 
-git clean -fd        float width  = rect.rect.width;
+        float width  = rect.rect.width;
         float height = rect.rect.height;
         displayButton.onClick.AddListener(clicked);
         AllViewButton.onClick.AddListener(AllViewbuttonCliekd);
