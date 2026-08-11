@@ -318,6 +318,8 @@ public static class LocaleCatalog
             { "zone.hand", ("手札", "Hand") },
             { "zone.shield", ("シールド", "Shield") },
             { "zone.base", ("ベース", "Base") },
+            { "online.card_confirm_wait_title", ("カード確認待ち", "Waiting for confirmation") },
+            { "online.card_confirm_wait_sub", ("対戦相手が発動カードを確認中…", "Opponent is reviewing the activated card...") },
         };
 
     public static string Get(string key, GameLanguage language)

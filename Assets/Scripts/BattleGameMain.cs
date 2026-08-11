@@ -2095,18 +2095,11 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log("エネミーの行動を開始します。");
             yield return new WaitForSeconds(0.8f);
 
-            int deployedCount = TryEnemyDeployAllAffordableUnitsFromHand();
-            if (deployedCount > 0)
-            {
-                yield return new WaitForSeconds(0.6f);
-            }
+            yield return TryEnemyDeployAllAffordableUnitsFromHandCoroutine();
+            yield return WaitForBattleFlowIdleCoroutine();
 
-            int mountedCount = TryEnemyMountAllAffordablePilotsFromHand();
-            if (mountedCount > 0)
-            {
-                yield return WaitForBattleFlowIdleCoroutine();
-                yield return new WaitForSeconds(0.6f);
-            }
+            yield return TryEnemyMountAllAffordablePilotsFromHandCoroutine();
+            yield return WaitForBattleFlowIdleCoroutine();
 
             if (TryEnemyExecuteOnMainFromHand())
             {
@@ -2163,7 +2156,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             yield return WaitForBattleFlowIdleCoroutine();
-            Debug.Log($"エネミーの行動が終了しました。deployUnits:{deployedCount} shieldAttack:{attacked}");
+            Debug.Log($"エネミーの行動が終了しました。shieldAttack:{attacked}");
             ChangePhase(BattlePhase.EndTurn);
         }
         finally
@@ -3372,11 +3365,14 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return isOnActionPopupOpen
+            || _activeOnActionCommandRevealRoot != null
+            || _activeHandDiscardRevealRoot != null
             || isAttackedSidePanelOpen
             || isActionThinkPauseOpen
             || isMulliganPromptOpen
             || isMulliganThinkPauseOpen
             || isOnlineEffectThinkPauseOpen
+            || isOnlineOpponentCardConfirmWaitOpen
             || ShouldBlockOnlineLocalPlayDueToOnAction()
             || isOnlineShieldBreakThinkPauseOpen
             || isShieldBreakFlowOpen
@@ -14702,7 +14698,10 @@ public partial class BattleGameMain : MonoBehaviour
             yield break;
         }
 
-        TryNotifyLocalOnActionCommandUsed(command, side);
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            command,
+            "OnAction",
+            null);
         MarkActionStepCardUsed(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
         string effectDetail =
@@ -14859,7 +14858,10 @@ public partial class BattleGameMain : MonoBehaviour
             yield break;
         }
 
-        TryNotifyLocalOnActionCommandUsed(command, side, picked);
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            command,
+            "OnAction",
+            picked);
         MarkActionStepCardUsed(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
         string detail =
@@ -14984,6 +14986,36 @@ public partial class BattleGameMain : MonoBehaviour
             onDone?.Invoke();
             return;
         }
+
+        // オンライン：自分がコマンドを出したとき相手へ公開し、OK まで待ってから効果解決
+        if (IsOnlineBattle()
+            && !_applyingRemoteBattleAction
+            && side == PlayerType.Player
+            && source.Data.IsCommand())
+        {
+            StartCoroutine(ExecuteOnMainCardWithOpponentRevealCoroutine(side, source, blocks, onDone));
+            return;
+        }
+
+        TryExecuteOnMainBlocks(side, source, blocks, 0, onDone);
+    }
+
+    private IEnumerator ExecuteOnMainCardWithOpponentRevealCoroutine(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        System.Action onDone)
+    {
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            source,
+            null,
+            null,
+            "コマンド発動");
+
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            source,
+            "OnMain",
+            null);
 
         TryExecuteOnMainBlocks(side, source, blocks, 0, onDone);
     }

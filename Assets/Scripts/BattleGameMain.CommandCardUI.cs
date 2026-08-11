@@ -51,7 +51,8 @@ public partial class BattleGameMain
 
         bool showAttack = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
         float cmdX = showAttack ? 70f : 0f;
-        AppendNonInteractiveCardPreview(root, command, "発動コマンド", new Vector2(cmdX, -100f));
+        string playedLabel = command.Data.IsCommand() ? "発動コマンド" : "配備ユニット";
+        AppendNonInteractiveCardPreview(root, command, playedLabel, new Vector2(cmdX, -100f));
 
         if (showAttack)
         {

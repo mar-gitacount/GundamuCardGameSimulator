@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,12 +10,42 @@ public partial class BattleGameMain
     private const int EnemyAiMountPlayerHarmWeight = 3;
     private const int EnemyAiMountEnemySelfHarmWeight = 4;
 
-    /// <summary>温存リソースを考慮し、スコアが最も高い搭乗を繰り返す。</summary>
+    /// <summary>温存リソースを考慮し、スコアが最も高い搭乗を繰り返す。各搭乗後に OK 確認。</summary>
+    private IEnumerator TryEnemyMountAllAffordablePilotsFromHandCoroutine()
+    {
+        EnemyAiDeployResourceBudget reserve = ComputeEnemyAiOnActionResourceReserve();
+        int mounted = 0;
+        while (true)
+        {
+            CardController pilot = TryEnemyMountBestPilotFromHand(reserve, out CardController hostUnit);
+            if (pilot == null)
+            {
+                break;
+            }
+
+            mounted++;
+            List<CardController> hosts = hostUnit != null
+                ? new List<CardController> { hostUnit }
+                : null;
+            yield return ShowCommandUseAcknowledgementCoroutine(
+                pilot,
+                null,
+                hosts,
+                "敵 — パイロット搭乗");
+        }
+
+        if (mounted > 0)
+        {
+            Debug.Log($"[EnemyAI] Mounted {mounted} pilot(s) from hand (reserve:{reserve.ResourceToKeep}).");
+        }
+    }
+
+    /// <summary>互換用。</summary>
     private int TryEnemyMountAllAffordablePilotsFromHand()
     {
         EnemyAiDeployResourceBudget reserve = ComputeEnemyAiOnActionResourceReserve();
         int mounted = 0;
-        while (TryEnemyMountBestPilotFromHand(reserve))
+        while (TryEnemyMountBestPilotFromHand(reserve, out _) != null)
         {
             mounted++;
         }
@@ -27,13 +58,16 @@ public partial class BattleGameMain
         return mounted;
     }
 
-    private bool TryEnemyMountBestPilotFromHand(EnemyAiDeployResourceBudget reserve)
+    private CardController TryEnemyMountBestPilotFromHand(
+        EnemyAiDeployResourceBudget reserve,
+        out CardController mountedHostUnit)
     {
+        mountedHostUnit = null;
         List<CardController> pilots = CollectEnemyMountablePilotsFromHand(reserve);
         List<CardController> units = GetMountableUnits(PlayerType.Enemy);
         if (pilots.Count == 0 || units.Count == 0)
         {
-            return false;
+            return null;
         }
 
         CardController bestPilot = null;
@@ -62,18 +96,19 @@ public partial class BattleGameMain
 
         if (bestPilot == null || bestUnit == null || bestBenefit < EnemyAiMinPilotMountBenefit)
         {
-            return false;
+            return null;
         }
 
         if (!TryExecuteEnemyPilotMount(bestPilot, bestUnit, reserve))
         {
-            return false;
+            return null;
         }
 
         Debug.Log(
             $"[EnemyAI] Pilot mount: {bestPilot.Data.cardName} → {bestUnit.Data.cardName} "
             + $"benefit:{bestBenefit} link:{UnitLinkExtensions.MatchesLinkPilot(bestUnit.Data, bestPilot.Data)}");
-        return true;
+        mountedHostUnit = bestUnit;
+        return bestPilot;
     }
 
     private List<CardController> CollectEnemyMountablePilotsFromHand(EnemyAiDeployResourceBudget reserve)
