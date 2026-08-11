@@ -17,6 +17,7 @@ public class CardDatabase : MonoBehaviour
         Debug.Log("CardDatabase Awake: インスタンスが作成されました");
 
         CardFeatureRegistry.EnsureLoaded();
+        CardPilotIdRegistry.EnsureLoaded();
         NamedEffectSetRegistry.EnsureLoaded();
         cardDict = new Dictionary<int, CardData>();
         LoadAllCards();
@@ -94,6 +95,7 @@ public class CardDatabase : MonoBehaviour
         color = (int)card.color, // カードの色を追加
         type = (int)card.type,
         featureIds = CardFeatureRegistry.CollectIds(card.features),
+        pilotIdIds = CardPilotIdRegistry.CollectIds(card.pilotIds),
         isBlocker = card.isBlocker,
         isDeployTurnAttack = card.isDeployTurnAttack,
         isNotDirectAttack = card.isNotDirectAttack,
@@ -157,6 +159,7 @@ CardData ConvertToCardData(CardJson json)
     card.notUsedOnline = json.notUsedOnline;
     card.cannotMountPilot = json.cannotMountPilot;
     card.SetFeaturesFromIds(json.featureIds);
+    card.SetPilotIdsFromIds(json.pilotIdIds);
 
     return card;
 }

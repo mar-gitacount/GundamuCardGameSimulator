@@ -509,7 +509,8 @@ public class OnlineBattleActionPayload
                     // actingZoneSide=0（Player）も有効。旧判定は意図どおり通るが明示してブレを防ぐ
                     return true;
                 case HandDeckState:
-                    return payload.handCount >= 0 && payload.deckRemainCount >= 0;
+                    // hand=0 / deck=0 も有効。欠落フィールドは受信側でクランプする
+                    return true;
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;
                 case DeployBase:

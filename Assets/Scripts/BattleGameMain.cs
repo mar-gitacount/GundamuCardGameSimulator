@@ -888,6 +888,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         Debug.Log("バトルゲームのメインシーン");
         CardFeatureRegistry.EnsureLoaded();
+        CardPilotIdRegistry.EnsureLoaded();
         NamedEffectSetRegistry.Reload();
         ClearOwnEffectDestroyOfOwnUnitHistory();
         InitializeBattleOpponent();
