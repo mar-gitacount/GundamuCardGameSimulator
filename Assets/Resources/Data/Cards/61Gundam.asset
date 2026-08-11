@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 61Gundam
   m_EditorClassIdentifier: 
   id: 61
+  gcgOfficialId: 
   cardName: Gundam
   cost: 3
   level: 4
@@ -47,6 +48,8 @@ MonoBehaviour:
       pilotLevelThreshold: 0
       activationStatTarget: -1
       observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: 
     effects:
@@ -60,6 +63,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -72,6 +76,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -82,21 +88,39 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
       autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      requireTargetLacksBreach: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  pilotIds: []
   link:
-  - pilotCardId: 39
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: e1a825d6f2c17c4e3d7a9b0c1e5f6a7b, type: 2}
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -107,3 +131,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 1
   repairAmount: 2
+  notUsedOnline: 0
+  cannotMountPilot: 0

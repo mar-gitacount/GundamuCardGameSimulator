@@ -8,8 +8,14 @@ using UnityEngine;
 [Serializable]
 public class UnitLinkPilotSlot
 {
-    [Tooltip("特定パイロットカード ID。0 なら Feature のみで判定。")]
+    [Tooltip("特定パイロットカード ID。0 なら PilotId / Feature のみで判定。")]
     public int pilotCardId;
+
+    [Tooltip("Link 対象の PilotId（いずれか一致で可）。複数アムロ等は同一 PilotId でまとめて指定。")]
+    public List<CardPilotIdData> linkPilotIds = new List<CardPilotIdData>();
+
+    [Tooltip("JSON 用 PilotId の整数 ID（linkPilotIds 未設定時に使用）。")]
+    public int[] linkPilotIdIds;
 
     [Tooltip("パイロットが持つ必要がある Feature（すべて満たす）。Inspector 用。")]
     public List<CardFeatureData> pilotFeatures = new List<CardFeatureData>();
@@ -71,6 +77,16 @@ public static class UnitLinkExtensions
             return true;
         }
 
+        if (slot.linkPilotIds != null && slot.linkPilotIds.Count > 0)
+        {
+            return true;
+        }
+
+        if (slot.linkPilotIdIds != null && slot.linkPilotIdIds.Length > 0)
+        {
+            return true;
+        }
+
         if (slot.pilotFeatures != null && slot.pilotFeatures.Count > 0)
         {
             return true;
@@ -119,27 +135,79 @@ public static class UnitLinkExtensions
             return false;
         }
 
-        bool idOk = slot.pilotCardId <= 0 || slot.pilotCardId == pilotData.id;
-        if (!idOk)
+        if (slot.pilotCardId > 0 && slot.pilotCardId != pilotData.id)
         {
             return false;
         }
 
-        IReadOnlyList<CardFeatureData> required = ResolveSlotFeatures(slot);
-        if (required.Count == 0)
+        IReadOnlyList<CardPilotIdData> requiredPilotIds = ResolveSlotPilotIds(slot);
+        IReadOnlyList<CardFeatureData> requiredFeatures = ResolveSlotFeatures(slot);
+
+        // 指定されている条件はすべて満たす必要がある（AND）。未指定の条件は無視。
+        if (requiredPilotIds.Count == 0 && requiredFeatures.Count == 0)
         {
             return slot.pilotCardId > 0;
         }
 
-        for (int i = 0; i < required.Count; i++)
+        if (requiredPilotIds.Count > 0 && !pilotData.HasAnyPilotId(requiredPilotIds))
         {
-            if (required[i] == null || !pilotData.HasFeature(required[i]))
+            return false;
+        }
+
+        for (int i = 0; i < requiredFeatures.Count; i++)
+        {
+            if (requiredFeatures[i] == null || !pilotData.HasFeature(requiredFeatures[i]))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static IReadOnlyList<CardPilotIdData> ResolveSlotPilotIds(UnitLinkPilotSlot slot)
+    {
+        if (slot.linkPilotIds != null && slot.linkPilotIds.Count > 0)
+        {
+            List<CardPilotIdData> filtered = new List<CardPilotIdData>(slot.linkPilotIds.Count);
+            for (int i = 0; i < slot.linkPilotIds.Count; i++)
+            {
+                CardPilotIdData pilotId = slot.linkPilotIds[i];
+                if (pilotId != null)
+                {
+                    filtered.Add(pilotId);
+                }
+            }
+
+            if (filtered.Count > 0)
+            {
+                return filtered;
+            }
+        }
+
+        if (slot.linkPilotIdIds == null || slot.linkPilotIdIds.Length == 0)
+        {
+            return Array.Empty<CardPilotIdData>();
+        }
+
+        CardPilotIdRegistry.EnsureLoaded();
+        List<CardPilotIdData> list = new List<CardPilotIdData>();
+        for (int i = 0; i < slot.linkPilotIdIds.Length; i++)
+        {
+            int id = slot.linkPilotIdIds[i];
+            if (id <= 0)
+            {
+                continue;
+            }
+
+            CardPilotIdData pilotId = CardPilotIdRegistry.GetById(id);
+            if (pilotId != null)
+            {
+                list.Add(pilotId);
+            }
+        }
+
+        return list;
     }
 
     private static IReadOnlyList<CardFeatureData> ResolveSlotFeatures(UnitLinkPilotSlot slot)

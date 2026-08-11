@@ -388,7 +388,7 @@ public partial class BattleGameMain
             return;
         }
 
-        rule.TrimDeckToRemainingCount(deckRemain);
+        rule.SetDeckRemainCount(deckRemain);
         SyncGundamRuleDeckCount(zoneOwner, deckRemain);
     }
 }

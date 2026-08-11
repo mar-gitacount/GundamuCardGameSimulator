@@ -32,6 +32,9 @@ public class CardData : ScriptableObject
     [Tooltip("カード特性（複数可）。マスタは Game/Card Feature または Resources/Data/Features。")]
     public List<CardFeatureData> features = new List<CardFeatureData>();
 
+    [Tooltip("パイロット識別子（複数可）。同一人物の別カードは同じ PilotId を共有する。一覧は Resources/Data/Json/pilot_master.json。")]
+    public List<CardPilotIdData> pilotIds = new List<CardPilotIdData>();
+
     [Tooltip("ユニット／ユニットトークン向け。Link＝条件パイロット定義。任意搭乗可。条件一致で出したターンから攻撃可。次ターン以降は通常どおり。")]
     public List<UnitLinkPilotSlot> link = new List<UnitLinkPilotSlot>();
 
@@ -82,6 +85,7 @@ public class CardJson
     public int color; // カードの色を追加
     public int type;
     public int[] featureIds;
+    public int[] pilotIdIds;
     public bool isBlocker;
     public bool isDeployTurnAttack;
     public bool isNotDirectAttack;

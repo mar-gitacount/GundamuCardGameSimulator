@@ -609,15 +609,22 @@ public class CardGameRule
     /// </summary>
     public int Draw()
     {
+        // オンラインミラー用パディングを先頭から捨てる
+        while (deckList.Count > 0 && deckList[0] == OnlineDeckCountPaddingId)
+        {
+            deckList.RemoveAt(0);
+        }
+
         if (deckList.Count == 0)
         {
             Debug.LogWarning("山札が空です！");
+            UpdateDeckAndTrashTexts();
             return -1; // デッキ切れの合図
         }
 
         // 一番上のカードを取得して、リストから消す
         int topCardId = deckList[0];
-        deckList.RemoveAt(0); 
+        deckList.RemoveAt(0);
         UpdateDeckAndTrashTexts();
 
         return topCardId;
@@ -844,8 +851,19 @@ public class CardGameRule
         SetShieldCountDisplay(shieldControllersInDrawOrder.Count);
     }
 
+    /// <summary>オンラインミラー用：実カードが無いときの山札枚数パディング ID。</summary>
+    public const int OnlineDeckCountPaddingId = -999;
+
     /// <summary>オンライン：相手の山札残数に合わせる（シールド ID 除去後に余剰を削る）。</summary>
     public void TrimDeckToRemainingCount(int targetRemainCount)
+    {
+        SetDeckRemainCount(targetRemainCount);
+    }
+
+    /// <summary>
+    /// 山札残数を権威値へ完全同期する。少ないときは末尾を削り、多いときはパディングして UI 枚数を合わせる。
+    /// </summary>
+    public void SetDeckRemainCount(int targetRemainCount)
     {
         if (targetRemainCount < 0)
         {
@@ -855,6 +873,11 @@ public class CardGameRule
         while (deckList.Count > targetRemainCount)
         {
             deckList.RemoveAt(deckList.Count - 1);
+        }
+
+        while (deckList.Count < targetRemainCount)
+        {
+            deckList.Add(OnlineDeckCountPaddingId);
         }
 
         UpdateDeckAndTrashTexts();
@@ -1902,7 +1925,9 @@ public class CardGameRule
 
         while (pool.Count < count)
         {
-            pool.Add(CreateResourceTokenCard(content, faceColor, borderColor));
+            GameObject created = CreateResourceTokenCard(content, faceColor, borderColor);
+            PlayResourceTokenAppear(created, (pool.Count) * 0.05f);
+            pool.Add(created);
         }
 
         while (pool.Count > count)
@@ -1923,6 +1948,7 @@ public class CardGameRule
             {
                 pool[i] = CreateResourceTokenCard(content, faceColor, borderColor);
                 go = pool[i];
+                PlayResourceTokenAppear(go, 0f);
             }
 
             go.SetActive(true);
@@ -1933,6 +1959,22 @@ public class CardGameRule
 
             go.transform.SetSiblingIndex(i);
         }
+    }
+
+    private static void PlayResourceTokenAppear(GameObject token, float delaySeconds)
+    {
+        if (token == null)
+        {
+            return;
+        }
+
+        ResourceTokenAppearAnim anim = token.GetComponent<ResourceTokenAppearAnim>();
+        if (anim == null)
+        {
+            anim = token.AddComponent<ResourceTokenAppearAnim>();
+        }
+
+        anim.Play(delaySeconds);
     }
 
     private GameObject CreateResourceTokenCard(Transform parent, Color32 faceColor, Color32 borderColor)
@@ -2450,7 +2492,9 @@ public class CardGameRule
         if (deckCountText != null)
         {
             deckCountText.text = deckList.Count.ToString();
-            deckCountText.color = Color.black;
+            // デッキ帯は暗めの背景のため白字で視認性を確保
+            deckCountText.color = Color.white;
+            GameLocale.ApplyFont(deckCountText);
         }
 
         UpdateDeckAndDiscardZoneTexts();

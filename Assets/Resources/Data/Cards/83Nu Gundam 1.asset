@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 83Nu Gundam 1
   m_EditorClassIdentifier: 
   id: 83
+  gcgOfficialId: 
   cardName: Nu Gundam
   cost: 5
   level: 7
@@ -55,6 +56,8 @@ MonoBehaviour:
       pilotLevelThreshold: 0
       activationStatTarget: -1
       observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: Exile3_LondoBell_OptionalEffectBattle
     effects: []
@@ -63,8 +66,12 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+  pilotIds: []
   link:
-  - pilotCardId: 88
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: e1a825d6f2c17c4e3d7a9b0c1e5f6a7b, type: 2}
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -75,3 +82,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0

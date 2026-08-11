@@ -53,26 +53,43 @@ public partial class BattleGameMain
             return;
         }
 
-        int handCount = Mathf.Max(0, action.handCount);
-        int deckRemain = Mathf.Max(0, action.deckRemainCount);
-
-        enemyCardGameRule.TrimDeckToRemainingCount(deckRemain);
-        SyncGundamRuleDeckCount(PlayerType.Enemy, deckRemain);
-        SyncGundamRuleHandCount(PlayerType.Enemy, handCount);
-
-        if (CardImagePrefab != null)
+        // 欠落時は -1（フィールド初期値）。正当な 0 枚は反映する。
+        if (action.deckRemainCount >= 0)
         {
-            enemyCardGameRule.SetOnlineOpponentHandTotalCount(handCount, CardImagePrefab);
-        }
-        else
-        {
-            enemyCardGameRule.RefreshHandCountDisplay();
+            ApplyOnlineEnemyDeckRemain(action.deckRemainCount);
         }
 
-        RebuildEnemyHandCardListFromUi();
+        if (action.handCount >= 0)
+        {
+            int handCount = action.handCount;
+            SyncGundamRuleHandCount(PlayerType.Enemy, handCount);
+
+            if (CardImagePrefab != null)
+            {
+                enemyCardGameRule.SetOnlineOpponentHandTotalCount(handCount, CardImagePrefab);
+            }
+            else
+            {
+                enemyCardGameRule.RefreshHandCountDisplay();
+            }
+
+            RebuildEnemyHandCardListFromUi();
+        }
 
         Debug.Log(
-            $"[OnlineBattle] HandDeckState applied localEnemy hand:{handCount} deckRemain:{deckRemain}");
+            $"[OnlineBattle] HandDeckState applied localEnemy hand:{action.handCount} deckRemain:{action.deckRemainCount}");
+    }
+
+    /// <summary>相手山札残数を権威値へ同期し UI／ルール状態も更新する。</summary>
+    private void ApplyOnlineEnemyDeckRemain(int deckRemain)
+    {
+        if (enemyCardGameRule == null || deckRemain < 0)
+        {
+            return;
+        }
+
+        enemyCardGameRule.SetDeckRemainCount(deckRemain);
+        SyncGundamRuleDeckCount(PlayerType.Enemy, deckRemain);
     }
 
     /// <summary>Enemy 手札 UI（既知カードのみ）から enemyHandCards を再構築する。伏せトークンは含めない。</summary>

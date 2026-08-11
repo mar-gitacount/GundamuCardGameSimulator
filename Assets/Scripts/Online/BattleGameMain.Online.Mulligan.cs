@@ -133,7 +133,7 @@ public partial class BattleGameMain
             OnCardClicked,
             shieldIds,
             exBasePoints);
-        enemyCardGameRule.TrimDeckToRemainingCount(payload.deckRemainCount);
+        ApplyOnlineEnemyDeckRemain(payload.deckRemainCount);
         Debug.Log(
             $"[OnlineBattle] Opponent shield zone synced. shields={shieldIds.Length} deckRemain={payload.deckRemainCount}");
     }
@@ -217,6 +217,11 @@ public partial class BattleGameMain
         if (sync.phase == OnlineMulliganSyncPayload.PhaseDecide)
         {
             _remoteMulliganDecideReceived = true;
+            if (sync.deckRemainCount >= 0)
+            {
+                ApplyOnlineEnemyDeckRemain(sync.deckRemainCount);
+            }
+
             Debug.Log(
                 $"[OnlineBattle] Remote mulligan decide received. performed={sync.performedMulligan} deck={sync.deckRemainCount}");
             return;
