@@ -14,7 +14,11 @@ public partial class BattleGameMain
     private bool IsResolvingBurstEffect => burstEffectResolutionDepth > 0;
 
     /// <summary>コマンドの OnAction / OnMain 用。バースト解決中はリソースを消費しない。</summary>
-    private bool TryConsumeResourceForCommandPlay(PlayerType side, CardController command, string context)
+    private bool TryConsumeResourceForCommandPlay(
+        PlayerType side,
+        CardController command,
+        string context,
+        int exToUse = 0)
     {
         if (command == null || command.Data == null)
         {
@@ -29,7 +33,7 @@ public partial class BattleGameMain
         if (!gundamRule.TryConsumeResource(
                 ToRuleSide(side),
                 command.CurrentCost,
-                0,
+                exToUse,
                 command.Data.id,
                 command.CurrentLevel))
         {
