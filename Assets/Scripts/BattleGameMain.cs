@@ -11480,6 +11480,10 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyRecoverHpEffect(targets, magnitude);
                 break;
 
+            case EffectType.SyncTurnEndRepairBonus:
+                ApplySyncTurnEndRepairBonusEffect(sourceCard, ownerType, effect);
+                break;
+
             case EffectType.AddExResource:
                 ApplyAddExResourceEffect(sourceCard, ownerType, effect);
                 break;

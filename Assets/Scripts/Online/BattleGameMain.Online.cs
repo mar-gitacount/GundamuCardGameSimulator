@@ -599,11 +599,15 @@ public partial class BattleGameMain
             return;
         }
 
-        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        AssignBattleInstanceIdIfNeeded(target);
+        bool queued = TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindRepair,
             hpAfter = target.CurrentHp
         });
+        Debug.Log(
+            $"[EffectSync][QueueRepair] queued:{queued} unit={FormatOnlineEffectSyncUnit(target)} "
+            + $"hpAfter:{target.CurrentHp}");
     }
 
     private void QueueOnlineUnitStat(
@@ -1409,9 +1413,8 @@ public partial class BattleGameMain
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
         PlayerType endingTurnSide = PlayerType.Enemy;
-        // リペアを持つターンプレイヤーが敵の場合はリペアを適用しない
-       
-        // ApplyTurnEndRepairForAllInPlayUnits();
+        // ターン終了リペアはターン所有者側だけで適用し EffectSync(Repair) で同期する。
+        // ここで再計算すると相手盤面 HP が二重回復／ズレする。
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);

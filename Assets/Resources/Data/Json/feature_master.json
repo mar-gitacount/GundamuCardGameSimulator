@@ -119,6 +119,12 @@
             "featureKey": "Newtype",
             "displayName": "ニュータイプ",
             "description": ""
+        },
+        {
+            "id": 20,
+            "featureKey": "Calamity_War",
+            "displayName": "厄祭戦",
+            "description": ""
         }
     ]
 }

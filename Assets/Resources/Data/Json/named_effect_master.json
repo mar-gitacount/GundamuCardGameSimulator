@@ -2693,6 +2693,53 @@
                     "valueCountExcludeSource": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "DeployPlumaToken1_OnEnemyUnitDestroyed_BattleDamage",
+            "displayName": "【ターン1回・自分ターン】バトルダメージで敵破壊時：プルーマ・ユニットトークン1体を配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 143,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "SyncTurnEndRepairFromCalamityWarUnitTokens",
+            "displayName": "〔厄祭戦〕ユニットトークン数に応じてターン終了リペアを再設定",
+            "effects": [
+                {
+                    "type": 47,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 1,
+                    "valueCountFeatureId": 20,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 5
+                }
+            ]
         }
     ]
 }

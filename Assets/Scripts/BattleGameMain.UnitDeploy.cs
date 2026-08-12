@@ -274,6 +274,11 @@ public partial class BattleGameMain
         }
 
         FlushOnlineEffectSyncBatch();
+        if (applied > 0)
+        {
+            RefreshSyncTurnEndRepairBonusesForSide(recipient);
+        }
+
         Debug.Log(
             $"[Effect] DeployUnit Token x{applied}/{deployCount} id:{cardId} target:{effect.target} "
             + $"by cardId:{sourceCard?.Data?.id}");

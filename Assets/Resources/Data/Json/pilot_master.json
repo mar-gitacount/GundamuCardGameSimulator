@@ -5,6 +5,12 @@
             "pilotKey": "Amuro_Ray",
             "displayName": "アムロ・レイ",
             "description": ""
+        },
+        {
+            "id": 2,
+            "pilotKey": "Char_Aznable",
+            "displayName": "シャア・アズナブル",
+            "description": ""
         }
     ]
 }
