@@ -125,6 +125,18 @@
             "featureKey": "Calamity_War",
             "displayName": "厄祭戦",
             "description": ""
+        },
+        {
+            "id": 21,
+            "featureKey": "Titans",
+            "displayName": "ティターンズ",
+            "description": ""
+        },
+        {
+            "id": 22,
+            "featureKey": "Shrike_Team",
+            "displayName": "シュラク隊",
+            "description": ""
         }
     ]
 }

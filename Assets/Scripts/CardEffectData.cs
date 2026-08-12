@@ -44,6 +44,11 @@ public enum EffectTiming
     /// 自分の〔必殺技〕コマンドの【メイン】／【アクション】を発動したとき（場のユニットが監視）。
     /// </summary>
     OnOwnerSpecialMoveCommandActivated = 22,
+    /// <summary>
+    /// 自分のユニットがバトルゾーンへ配備されたとき（場のユニットが監視）。
+    /// 配備されたカードは ObservedCards に載る（例: ObservedCardHasFeature で〔オーブ〕判定）。
+    /// </summary>
+    OnAllyUnitDeployed = 23,
 }
 
 public enum EffectType
@@ -2092,6 +2097,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnOwnerSpecialMoveCommandActivated
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>味方ユニット配備時（OnAllyUnitDeployed）に解決するブロック。</summary>
+    public static bool IsOnAllyUnitDeployedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnAllyUnitDeployed
             || !timed.HasResolvedEffects())
         {
             return false;

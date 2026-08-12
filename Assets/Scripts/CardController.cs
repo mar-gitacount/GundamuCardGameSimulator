@@ -268,6 +268,21 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _firstStrikeUntilEndOfTurnDepth = 0;
     }
 
+    /// <summary>《高機動》のターン終了まで付与回数。0 は未付与。</summary>
+    private int _highMobilityUntilEndOfTurnDepth;
+
+    public bool HasHighMobilityUntilEndOfTurnGrant => _highMobilityUntilEndOfTurnDepth > 0;
+
+    public void AddHighMobilityUntilEndOfTurnGrant()
+    {
+        _highMobilityUntilEndOfTurnDepth++;
+    }
+
+    public void ClearHighMobilityUntilEndOfTurnGrants()
+    {
+        _highMobilityUntilEndOfTurnDepth = 0;
+    }
+
     /// <summary>《突破》のターン終了まで付与量。0 は未付与。</summary>
     private int _breachUntilEndOfTurnAmount;
 
@@ -547,6 +562,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         MountedUnit = null;
         _notDirectAttackUntilEndOfTurnDepth = 0;
         _firstStrikeUntilEndOfTurnDepth = 0;
+        _highMobilityUntilEndOfTurnDepth = 0;
         _turnEndRepairBonus = 0;
         _ownerEffectDestroyArmed = false;
         _runtimeBlockerAbilityEnabled = Data.IsBlockerUnit();

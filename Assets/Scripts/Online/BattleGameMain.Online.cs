@@ -1418,6 +1418,11 @@ public partial class BattleGameMain
         TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
+        ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
+        ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
+        ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
+        ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
+        ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
         DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
         currentPlayerType = PlayerType.Player;

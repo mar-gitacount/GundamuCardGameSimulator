@@ -3424,6 +3424,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
         ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
         ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
+        ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
         ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
         ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
         ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
@@ -4338,6 +4339,11 @@ public partial class BattleGameMain : MonoBehaviour
         bool finished = false;
         TriggerOnPlayedEffects(sourceCard, ownerType, () => finished = true);
         yield return new WaitUntil(() => finished);
+
+        bool watchFinished = false;
+        NotifyAllyUnitDeployed(ownerType, sourceCard, () => watchFinished = true);
+        yield return new WaitUntil(() => watchFinished);
+
         RefreshAllFieldOwnerTurnPassives();
     }
 
@@ -6326,6 +6332,15 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (TryApplyFirstStrikeMarker(effect, targets))
+        {
+            SetEffectChainLastPickedTargets(targets);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (TryApplyHighMobilityMarker(effect, targets))
         {
             SetEffectChainLastPickedTargets(targets);
             BeginOnlineEffectSyncBatch(ownerType);
@@ -11227,6 +11242,19 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.HighMobility)
+        {
+            List<CardController> highMobilityTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyHighMobilityMarker(effect, highMobilityTargets))
+            {
+                SetEffectChainLastPickedTargets(highMobilityTargets);
+                BeginOnlineEffectSyncBatch(ownerType);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                return;
+            }
+        }
+
         if (effect.type == EffectType.GrantBreach)
         {
             List<CardController> breachTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
@@ -11430,8 +11458,18 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
 
             case EffectType.HighMobility:
-                // HighMobility は攻撃フロー分岐で解釈するため、ここでは何もしない。
-                Debug.Log($"[Effect] HighMobility marker by cardId:{sourceCard.Data.id}");
+                if (TryApplyHighMobilityMarker(effect, targets))
+                {
+                    Debug.Log(
+                        $"[Effect] HighMobility UntilEndOfTurn granted by cardId:{sourceCard.Data.id} "
+                        + $"targets:{targets?.Count ?? 0}");
+                }
+                else
+                {
+                    // Permanent は攻撃フロー分岐で解釈するため、ここでは何もしない。
+                    Debug.Log($"[Effect] HighMobility marker by cardId:{sourceCard.Data.id}");
+                }
+
                 break;
 
             case EffectType.AttackActiveEnemyUnit:

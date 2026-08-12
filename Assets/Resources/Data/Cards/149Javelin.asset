@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: 149Javelin
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  id: 149
+  gcgOfficialId: 
+  cardName: Javelin
+  cost: 1
+  level: 2
+  power: 2
+  hp: 2
+  imageName: {fileID: 8522176863357372626, guid: 619b27aa2eeb28c4e9e5970b9352624e, type: 3}
+  image: {fileID: 0}
+  version: 5
+  sourceType: 1
+  filterType: 0
+  color: 2
+  type: 0
+  attackFlg: 0
+  timedEffects: []
+  features:
+  - {fileID: 11400000, guid: 6c9d22bb03525944d8ce81c2d3215a6e, type: 2}
+  - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  - {fileID: 11400000, guid: b2c3d4e5f60718293a4b5c6d7e8f9012, type: 2}
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0

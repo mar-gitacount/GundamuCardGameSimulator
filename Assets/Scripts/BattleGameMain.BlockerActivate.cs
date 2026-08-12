@@ -192,6 +192,58 @@ public partial class BattleGameMain
         return applied > 0;
     }
 
+    private bool TryApplyHighMobilityMarker(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null || effect.type != EffectType.HighMobility || targets == null || targets.Count == 0)
+        {
+            return false;
+        }
+
+        // Permanent はカード印刷のマーカー判定（HasHighMobilityAbility）に任せる
+        if (effect.duration != EffectDuration.UntilEndOfTurn
+            && effect.duration != EffectDuration.UntilEndOfBattle)
+        {
+            return false;
+        }
+
+        int limit = effect.value > 0 ? effect.value : targets.Count;
+        int applied = 0;
+        for (int i = 0; i < targets.Count && applied < limit; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            unit.AddHighMobilityUntilEndOfTurnGrant();
+            applied++;
+            Debug.Log(
+                $"[HighMobility] UntilEndOfTurn 付与: {unit.Data.cardName}(id:{unit.Data.id})");
+        }
+
+        return applied > 0;
+    }
+
+    private void ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits()
+    {
+        ClearHighMobilityUntilEndOfTurnGrantsOnZone(playerBattleZoneCards);
+        ClearHighMobilityUntilEndOfTurnGrantsOnZone(enemyBattleZoneCards);
+    }
+
+    private static void ClearHighMobilityUntilEndOfTurnGrantsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearHighMobilityUntilEndOfTurnGrants();
+        }
+    }
+
     private bool TryApplyGrantBreachMarker(EffectData effect, List<CardController> targets)
     {
         if (effect == null || effect.type != EffectType.GrantBreach || targets == null || targets.Count == 0)

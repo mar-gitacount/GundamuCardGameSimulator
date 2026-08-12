@@ -102,7 +102,7 @@ public static class CardImportEditor
 
         card.features = BuildFeatureList(entry.featureIds);
         card.pilotIds = new List<CardPilotIdData>();
-        card.link = new List<UnitLinkPilotSlot>();
+        card.link = BuildLinkSlots(entry.linkFeatureIds, entry.linkPilotIdIds);
         card.timedEffects = BuildTimedEffects(entry.timedBlocks);
     }
 
@@ -143,6 +143,37 @@ public static class CardImportEditor
             {
                 list.Add(feature);
             }
+        }
+
+        return list;
+    }
+
+    private static List<UnitLinkPilotSlot> BuildLinkSlots(int[] linkFeatureIds, int[] linkPilotIdIds)
+    {
+        List<UnitLinkPilotSlot> list = new List<UnitLinkPilotSlot>();
+
+        List<CardFeatureData> features = BuildFeatureList(linkFeatureIds);
+        if (features.Count > 0)
+        {
+            list.Add(new UnitLinkPilotSlot
+            {
+                pilotCardId = 0,
+                linkPilotIds = new List<CardPilotIdData>(),
+                pilotFeatures = features,
+                pilotFeatureIds = linkFeatureIds
+            });
+        }
+
+        List<CardPilotIdData> pilotIds = CardPilotIdRegistry.ResolveIds(linkPilotIdIds);
+        if (pilotIds.Count > 0)
+        {
+            list.Add(new UnitLinkPilotSlot
+            {
+                pilotCardId = 0,
+                linkPilotIds = pilotIds,
+                linkPilotIdIds = linkPilotIdIds,
+                pilotFeatures = new List<CardFeatureData>()
+            });
         }
 
         return list;
@@ -204,6 +235,20 @@ public static class CardImportEditor
             });
         }
 
+        if (block.observedFeatureIds != null && block.observedFeatureIds.Length > 0)
+        {
+            List<CardFeatureData> features = BuildFeatureList(block.observedFeatureIds);
+            conditions.Add(new EffectActivationCondition
+            {
+                boardSide = EffectBoardSide.Unset,
+                checkKind = EffectActivationCheckKind.ObservedCardHasFeature,
+                turnCheck = EffectTurnCheckKind.Unset,
+                features = features.ToArray(),
+                featureIds = block.observedFeatureIds,
+                minimumCount = 1
+            });
+        }
+
         return conditions;
     }
 
@@ -256,6 +301,8 @@ public class CardImportJsonEntry
     public int repairAmount;
     public bool notUsedOnline;
     public bool cannotMountPilot;
+    public int[] linkFeatureIds;
+    public int[] linkPilotIdIds;
     public CardImportTimedBlockJson[] timedBlocks;
 }
 
@@ -267,6 +314,7 @@ public class CardImportTimedBlockJson
     public bool oncePerTurn;
     public bool ownerTurn;
     public bool battleDamageDestroy;
+    public int[] observedFeatureIds;
 }
 
 /// <summary>card_master.json 変更時に自動インポート。</summary>

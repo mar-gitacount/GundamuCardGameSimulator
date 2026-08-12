@@ -35,9 +35,19 @@ public static class CardHighMobilityExtensions
         return false;
     }
 
-    /// <summary>フィールド上のユニットが高機動を持つか。</summary>
+    /// <summary>フィールド上のユニットが高機動を持つか（印刷効果またはターン限定付与）。</summary>
     public static bool HasHighMobilityAbility(this CardController unit)
     {
-        return unit != null && unit.Data != null && unit.Data.HasHighMobilityAbility();
+        if (unit == null)
+        {
+            return false;
+        }
+
+        if (unit.HasHighMobilityUntilEndOfTurnGrant)
+        {
+            return true;
+        }
+
+        return unit.Data != null && unit.Data.HasHighMobilityAbility();
     }
 }

@@ -170,7 +170,17 @@ public partial class BattleGameMain
 
         if (triggerOnPlayed)
         {
-            TriggerOnPlayedEffects(unit, recipient, RefreshAllHandsConditionalOnHandAuto);
+            TriggerOnPlayedEffects(
+                unit,
+                recipient,
+                () =>
+                {
+                    NotifyAllyUnitDeployed(recipient, unit, RefreshAllHandsConditionalOnHandAuto);
+                });
+        }
+        else
+        {
+            NotifyAllyUnitDeployed(recipient, unit, null);
         }
 
         if (IsOnlineBattle() && !_applyingRemoteBattleAction)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -160,7 +161,39 @@ public partial class BattleGameMain
             return plumaCount;
         }
 
-        return unit.GetTurnEndRepairAmount();
+        int amount = unit.GetTurnEndRepairAmount();
+        // 【リンク中】リペアは常時 isRepair ではなく、現時点で Link 条件を満たす搭乗があるときだけ加算する。
+        if (UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+        {
+            amount += GetWhileLinkedRepairAmount(unit.Data);
+        }
+
+        return amount;
+    }
+
+    /// <summary>【リンク中】に得る《リペア》量。名前付き効果 GrantRepair1_WhileLinked をマーカーとして読む。</summary>
+    private static int GetWhileLinkedRepairAmount(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return 0;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || string.IsNullOrWhiteSpace(timed.effectsName))
+            {
+                continue;
+            }
+
+            if (string.Equals(timed.effectsName.Trim(), "GrantRepair1_WhileLinked", StringComparison.Ordinal))
+            {
+                return 1;
+            }
+        }
+
+        return 0;
     }
 
     private int CountOwnedPlumaTokens(PlayerType owner)

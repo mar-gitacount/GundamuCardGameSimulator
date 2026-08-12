@@ -10,27 +10,28 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 78kira yamato 1
-  m_EditorClassIdentifier: 
-  id: 78
-  cardName: "\u30AD\u30E9\u30E4\u30DE\u30C8"
-  cost: 1
-  level: 5
-  power: 2
-  hp: 2
-  imageName: {fileID: 21300000, guid: bbff6ffe70b6c3447bf480189a7d0fcd, type: 3}
+  m_Name: 145Asshimar
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  id: 145
+  gcgOfficialId: 
+  cardName: Asshimar
+  cost: 2
+  level: 3
+  power: 1
+  hp: 4
+  imageName: {fileID: 3870707770496230489, guid: 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
   filterType: 0
   color: 2
-  type: 1
+  type: 0
   attackFlg: 0
   timedEffects:
-  - timing: 5
+  - timing: 18
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: AddSelfToHand_OnBurst
+    effectsName: BuffSelfAp2_Permanent_OnLink
     effects: []
     activationCost: 0
     oncePerTurn: 0
@@ -38,17 +39,22 @@ MonoBehaviour:
   - timing: 18
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: Draw1_OnLink
+    effectsName: GrantRepair1_WhileLinked
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
-  - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
-  - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
-  pilotIds:
-  - {fileID: 11400000, guid: c3d4e5f60718293a4b5c6d7e8f9012a3, type: 2}
-  link: []
+  - {fileID: 11400000, guid: 6c9d22bb03525944d8ce81c2d3215a6e, type: 2}
+  - {fileID: 11400000, guid: c21f0a1b2c3d4e5f6a7b8c9d0e1f2a3b, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
+    pilotFeatures:
+    - {fileID: 11400000, guid: c21f0a1b2c3d4e5f6a7b8c9d0e1f2a3b, type: 2}
+    pilotFeatureIds: 15000000
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
@@ -57,3 +63,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
