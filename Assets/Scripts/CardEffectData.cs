@@ -225,7 +225,12 @@ public enum EffectType
     /// 対象ユニットに《突破》value を付与する（UntilEndOfTurn 等）。
     /// 既に突破を持つユニットは requireTargetLacksBreach で除外できる。
     /// </summary>
-    GrantBreach
+    GrantBreach,
+    /// <summary>
+    /// Self のターン終了リペアボーナスを、盤上の〔特徴〕ユニットトークン数×value に再設定する。
+    /// filterByTargetCardType=UnitToken / valueCountFeatureId 必須。
+    /// </summary>
+    SyncTurnEndRepairBonus
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

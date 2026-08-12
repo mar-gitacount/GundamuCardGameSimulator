@@ -1,0 +1,74 @@
+{
+    "cards": [
+        {
+            "id": 143,
+            "gcgOfficialId": "",
+            "cardName": "Pluma",
+            "cost": 0,
+            "level": 0,
+            "power": 2,
+            "hp": 1,
+            "imageName": "Pluma",
+            "version": 5,
+            "sourceType": 1,
+            "color": 4,
+            "type": 5,
+            "featureIds": [20],
+            "isBlocker": false,
+            "isDeployTurnAttack": false,
+            "isNotDirectAttack": false,
+            "isShieldToken": false,
+            "isRepair": false,
+            "repairAmount": 0,
+            "notUsedOnline": false,
+            "cannotMountPilot": true,
+            "timedBlocks": []
+        },
+        {
+            "id": 144,
+            "gcgOfficialId": "",
+            "cardName": "Hashmal",
+            "cost": 6,
+            "level": 7,
+            "power": 5,
+            "hp": 6,
+            "imageName": "Hashmal",
+            "version": 5,
+            "sourceType": 1,
+            "color": 2,
+            "type": 0,
+            "featureIds": [1, 20],
+            "isBlocker": false,
+            "isDeployTurnAttack": false,
+            "isNotDirectAttack": false,
+            "isShieldToken": false,
+            "isRepair": true,
+            "repairAmount": 0,
+            "notUsedOnline": false,
+            "cannotMountPilot": false,
+            "timedBlocks": [
+                {
+                    "timing": 0,
+                    "effectsName": "SyncTurnEndRepairFromCalamityWarUnitTokens",
+                    "oncePerTurn": false,
+                    "ownerTurn": false,
+                    "battleDamageDestroy": false
+                },
+                {
+                    "timing": 1,
+                    "effectsName": "SyncTurnEndRepairFromCalamityWarUnitTokens",
+                    "oncePerTurn": false,
+                    "ownerTurn": false,
+                    "battleDamageDestroy": false
+                },
+                {
+                    "timing": 16,
+                    "effectsName": "DeployPlumaToken1_OnEnemyUnitDestroyed_BattleDamage",
+                    "oncePerTurn": true,
+                    "ownerTurn": true,
+                    "battleDamageDestroy": true
+                }
+            ]
+        }
+    ]
+}

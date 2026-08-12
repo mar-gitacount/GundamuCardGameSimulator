@@ -20,6 +20,13 @@
             "description": "",
              "version": 3,
              "sourceType": 2
+         },
+         {
+            "id": 5,
+            "name": "Freedom Ascension [GD05]",
+            "description": "",
+            "version": 5,
+            "sourceType": 1
          }
     ]
 }
