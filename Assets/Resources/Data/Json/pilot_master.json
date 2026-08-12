@@ -11,6 +11,19 @@
             "pilotKey": "Char_Aznable",
             "displayName": "シャア・アズナブル",
             "description": ""
+        },
+        {
+            "id": 3,
+            "pilotKey": "Kira_Yamato",
+            "displayName": "キラヤマト",
+            "description": ""
+        },
+        {
+            "id": 4,
+            "pilotKey": "Shin_Asuka",
+            "displayName": "シン・アスカ",
+            "description": ""
         }
+        
     ]
 }
