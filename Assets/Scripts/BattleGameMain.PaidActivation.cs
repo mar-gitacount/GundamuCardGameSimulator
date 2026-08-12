@@ -139,7 +139,27 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (!TryConsumeOnMainActivationCost(context.Side, context.Source, context.Timed))
+        int cost = GetOnMainActivationCost(context.Source, context.Timed, context.Side);
+        int exToUse = 0;
+        if (cost > 0)
+        {
+            Gundam2024RuleScript.PlayerState resourceState = context.Side == PlayerType.Player
+                ? gundamRule.Player
+                : gundamRule.Enemy;
+            exToUse = Gundam2024RuleScript.GetExNeededForCost(resourceState, cost);
+        }
+
+        return TryFinalizeOnMainPaidActivation(context, exToUse);
+    }
+
+    private bool TryFinalizeOnMainPaidActivation(PaidActivationBlockContext context, int exToUse)
+    {
+        if (context.Timed == null || context.Source == null)
+        {
+            return false;
+        }
+
+        if (!TryConsumeOnMainActivationCost(context.Side, context.Source, context.Timed, exToUse))
         {
             return false;
         }
@@ -293,6 +313,25 @@ public partial class BattleGameMain
 
     private bool TryConsumeOnMainActivationCost(PlayerType side, CardController source, TimedEffectData timed)
     {
+        int cost = GetOnMainActivationCost(source, timed, side);
+        int exToUse = 0;
+        if (cost > 0 && gundamRule != null)
+        {
+            Gundam2024RuleScript.PlayerState resourceState = side == PlayerType.Player
+                ? gundamRule.Player
+                : gundamRule.Enemy;
+            exToUse = Gundam2024RuleScript.GetExNeededForCost(resourceState, cost);
+        }
+
+        return TryConsumeOnMainActivationCost(side, source, timed, exToUse);
+    }
+
+    private bool TryConsumeOnMainActivationCost(
+        PlayerType side,
+        CardController source,
+        TimedEffectData timed,
+        int exToUse)
+    {
         if (source == null || source.Data == null)
         {
             return false;
@@ -312,11 +351,7 @@ public partial class BattleGameMain
         }
 
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
-        Gundam2024RuleScript.PlayerState resourceState = side == PlayerType.Player
-            ? gundamRule.Player
-            : gundamRule.Enemy;
         int requiredLevel = IsOnMainActivatedFromHand(source, side) ? source.CurrentLevel : -1;
-        int exToUse = Gundam2024RuleScript.GetExNeededForCost(resourceState, cost);
         if (!gundamRule.TryConsumeResource(
                 ruleSide,
                 cost,

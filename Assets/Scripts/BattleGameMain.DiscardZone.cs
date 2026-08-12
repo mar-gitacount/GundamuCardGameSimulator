@@ -613,7 +613,11 @@ public partial class BattleGameMain
 
         if (confirmed)
         {
-            if (!TryCommitOnMainPaidBlockBeforeExile())
+            bool finalized = false;
+            yield return CoTryFinalizeOnMainPaidActivationWithUi(
+                _activeOnMainPaidBlock,
+                ok => finalized = ok);
+            if (!finalized)
             {
                 (onSkipped ?? onComplete)?.Invoke();
                 yield break;

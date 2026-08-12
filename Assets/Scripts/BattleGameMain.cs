@@ -1611,7 +1611,6 @@ public partial class BattleGameMain : MonoBehaviour
             ? gundamRule.Player
             : gundamRule.Enemy;
         int currentLevel = ownerState.TotalLevel;
-        int currentResource = ownerState.resource;
 
         if (currentLevel < cardController.CurrentLevel)
         {
@@ -1645,8 +1644,7 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            int requiredExForPilot = Mathf.Max(0, cost - currentResource);
-            if (requiredExForPilot > 0 && ownerState.exResource < requiredExForPilot)
+            if (!gundamRule.CanPlayCardWithAnyEx(ownerSide, cardController.CurrentLevel, cost))
             {
                 if (!isCommandPilot)
                 {
@@ -1664,82 +1662,47 @@ public partial class BattleGameMain : MonoBehaviour
                 mountRt.anchoredPosition = new Vector2(0f, handActionY);
                 closeBtnRect.anchoredPosition = new Vector2(0, handActionY - 70f);
 
-                int exForMount = requiredExForPilot;
                 mountBtn.onClick.AddListener(() =>
                 {
-                    if (exForMount > 0)
-                    {
-                        ShowPilotMountExConfirmThenTargets(
-                            FilterPanel,
-                            cardController,
-                            ownerType,
-                            ownerSide,
-                            cost,
-                            exForMount);
-                    }
-                    else
-                    {
-                        ShowPilotMountTargetButtons(FilterPanel, cardController, ownerType, ownerSide, cost, 0);
-                    }
+                    ShowPilotMountResourcePaymentThenTargets(
+                        FilterPanel,
+                        cardController,
+                        ownerType,
+                        ownerSide,
+                        cost);
                 });
                 return;
             }
 
-            if (requiredExForPilot > 0)
-            {
-                var exUseLabel = FilterPanel.CreateChildTextCustom("UseExPromptPilot", UIAnchor.TopCenter, 420, 60);
-                exUseLabel.text = $"Resource が {requiredExForPilot} 足りません。EXリソースを利用しますか？";
-                exUseLabel.fontSize = 20;
-                exUseLabel.alignment = TextAlignmentOptions.Center;
-                exUseLabel.color = Color.black;
-                exUseLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
-
-                var yesBtn = FilterPanel.CreateChildButton($"Yes (Use EX:{requiredExForPilot})");
-                RectTransform yesRt = yesBtn.GetComponent<RectTransform>();
-                yesRt.sizeDelta = new Vector2(220f, 50f);
-                yesRt.anchoredPosition = new Vector2(-125f, -90f);
-                yesBtn.onClick.AddListener(() =>
-                {
-                    ShowPilotMountTargetButtons(FilterPanel, cardController, ownerType, ownerSide, cost, requiredExForPilot);
-                });
-
-                var noBtn = FilterPanel.CreateChildButton("No");
-                RectTransform noRt = noBtn.GetComponent<RectTransform>();
-                noRt.sizeDelta = new Vector2(220f, 50f);
-                noRt.anchoredPosition = new Vector2(125f, -90f);
-                noBtn.onClick.AddListener(() => Destroy(FilterPanel));
-                return;
-            }
-
-            ShowPilotMountTargetButtons(FilterPanel, cardController, ownerType, ownerSide, cost, 0);
+            ShowPilotMountResourcePaymentThenTargets(
+                FilterPanel,
+                cardController,
+                ownerType,
+                ownerSide,
+                cost);
             return;
         }
 
-        if (currentResource < cost)
+        if (!gundamRule.CanPlayCardWithAnyEx(ownerSide, cardController.CurrentLevel, cost))
         {
-            int requiredEx = cost - currentResource;
-            if (ownerState.exResource < requiredEx)
-            {
-                Debug.Log("リソースポイントが足りません。EXリソースを含めても不足しています。");
-                return;
-            }
+            Debug.Log("リソースポイントが足りません。EXリソースを含めても不足しています。");
+            Destroy(FilterPanel);
+            return;
+        }
 
-            var exUseLabel = FilterPanel.CreateChildTextCustom("UseExPrompt", UIAnchor.TopCenter, 380, 60);
-            exUseLabel.text = $"Resource が {requiredEx} 足りません。EXリソースを利用しますか？";
-            exUseLabel.fontSize = 20;
-            exUseLabel.alignment = TextAlignmentOptions.Center;
-            exUseLabel.color = Color.black;
-            exUseLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
-
-            var yesBtn = FilterPanel.CreateChildButton($"Yes (Use EX:{requiredEx})");
-            RectTransform yesRt = yesBtn.GetComponent<RectTransform>();
-            yesRt.sizeDelta = new Vector2(220f, 50f);
-            yesRt.anchoredPosition = new Vector2(-125f, -90f);
-            yesBtn.onClick.AddListener(() =>
+        // 配備前に通常／EXリソースを選択して支払う
+        closeBtnRect.anchoredPosition = new Vector2(0f, handActionY - 320f);
+        EmbedResourcePaymentUI(
+            FilterPanel,
+            ownerType,
+            cost,
+            cardController.CurrentLevel,
+            handActionY,
+            exToUse =>
             {
-                if (!TryPayHandDeployCost(ownerSide, cardController, requiredEx))
+                if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
                 {
-                    Debug.Log("EX/リソースが不足しているため配備できません。");
+                    Debug.Log("リソースポイントが足りません！");
                     return;
                 }
 
@@ -1754,64 +1717,9 @@ public partial class BattleGameMain : MonoBehaviour
 
                 SyncResourceViewsFromRule(ownerSide);
                 Destroy(FilterPanel);
-            });
-
-            var noBtn = FilterPanel.CreateChildButton("No");
-            RectTransform noRt = noBtn.GetComponent<RectTransform>();
-            noRt.sizeDelta = new Vector2(220f, 50f);
-            noRt.anchoredPosition = new Vector2(125f, -90f);
-            noBtn.onClick.AddListener(() => Destroy(FilterPanel));
-            return;
-        }
-
-        if (cardController.Data.type == Type.Base)
-        {
-            var deployBaseBtn = FilterPanel.CreateChildButton("Deploy Base");
-            RectTransform baseBtnRect = deployBaseBtn.GetComponent<RectTransform>();
-            baseBtnRect.sizeDelta = new Vector2(240, 50);
-            baseBtnRect.anchoredPosition = new Vector2(0, handActionY);
-            deployBaseBtn.onClick.AddListener(() =>
-            {
-                if (!TryPayHandDeployCost(ownerSide, cardController, 0))
-                {
-                    Debug.Log("リソースポイントが足りません！");
-                    return;
-                }
-
-                BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
-                SyncResourceViewsFromRule(ownerSide);
-                Destroy(FilterPanel);
-            });
-            return;
-        }
-
-        var playButton = FilterPanel.CreateChildButton("send to field");
-        RectTransform btnRect = playButton.GetComponent<RectTransform>();
-        btnRect.sizeDelta = new Vector2(240, 50);
-        btnRect.anchoredPosition = new Vector2(0, handActionY);
-
-        playButton.onClick.AddListener(() =>
-        {
-            if (!TryPayHandDeployCost(ownerSide, cardController, 0))
-            {
-                Debug.Log("リソースポイントが足りません！");
-                return;
-            }
-
-            if (cardController.Data.type == Type.Base)
-            {
-                BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
-            }
-            else
-            {
-                SendCardToField(cardController, ownerType, ownerRule);
-            }
-
-            SyncResourceViewsFromRule(ownerSide);
-            Destroy(FilterPanel);
-        });
-        
-        // Instantiate(CardImagePrefab, playerHandTransform);
+            },
+            () => Destroy(FilterPanel));
+        return;
     }
     //! 以下の関数もCardGameRuleに移す予定。
     void CardAddtoHand(CardGameRule targetRule, PlayerType targetType)
@@ -4366,13 +4274,12 @@ public partial class BattleGameMain : MonoBehaviour
         return result;
     }
 
-    private void ShowPilotMountExConfirmThenTargets(
+    private void ShowPilotMountResourcePaymentThenTargets(
         GameObject filterPanel,
         CardController pilotCard,
         PlayerType ownerType,
         Gundam2024RuleScript.PlayerSide ownerSide,
-        int cost,
-        int requiredEx)
+        int cost)
     {
         if (filterPanel == null || pilotCard == null)
         {
@@ -4393,27 +4300,31 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        var exUseLabel = filterPanel.CreateChildTextCustom("UseExPromptPilot", UIAnchor.TopCenter, 420, 60);
-        exUseLabel.text = $"Resource が {requiredEx} 足りません。EXリソースを利用しますか？";
-        exUseLabel.fontSize = 20;
-        exUseLabel.alignment = TextAlignmentOptions.Center;
-        exUseLabel.color = Color.black;
-        exUseLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -160f);
+        EmbedResourcePaymentUI(
+            filterPanel,
+            ownerType,
+            cost,
+            pilotCard.CurrentLevel,
+            anchorY: -10f,
+            exToUse =>
+            {
+                ClearEmbeddedResourcePaymentUi(filterPanel);
+                ShowPilotMountTargetButtons(filterPanel, pilotCard, ownerType, ownerSide, cost, exToUse);
+            },
+            () => Destroy(filterPanel));
+    }
 
-        var yesBtn = filterPanel.CreateChildButton($"Yes (Use EX:{requiredEx})");
-        RectTransform yesRt = yesBtn.GetComponent<RectTransform>();
-        yesRt.sizeDelta = new Vector2(220f, 50f);
-        yesRt.anchoredPosition = new Vector2(-125f, -230f);
-        yesBtn.onClick.AddListener(() =>
-        {
-            ShowPilotMountTargetButtons(filterPanel, pilotCard, ownerType, ownerSide, cost, requiredEx);
-        });
-
-        var noBtn = filterPanel.CreateChildButton("No");
-        RectTransform noRt = noBtn.GetComponent<RectTransform>();
-        noRt.sizeDelta = new Vector2(220f, 50f);
-        noRt.anchoredPosition = new Vector2(125f, -230f);
-        noBtn.onClick.AddListener(() => Destroy(filterPanel));
+    private void ShowPilotMountExConfirmThenTargets(
+        GameObject filterPanel,
+        CardController pilotCard,
+        PlayerType ownerType,
+        Gundam2024RuleScript.PlayerSide ownerSide,
+        int cost,
+        int requiredEx)
+    {
+        // 互換: 旧 Yes/No EX 確認は支払い UI に統合
+        _ = requiredEx;
+        ShowPilotMountResourcePaymentThenTargets(filterPanel, pilotCard, ownerType, ownerSide, cost);
     }
 
     private void ShowPilotMountTargetButtons(
@@ -14725,7 +14636,18 @@ public partial class BattleGameMain : MonoBehaviour
             resolvedBeforeApply,
             "コマンド発動");
 
-        if (!TryConsumeResourceForCommandPlay(side, command, "OnAction"))
+        bool paymentOk = false;
+        int exToUse = 0;
+        yield return WaitForResourcePaymentCoroutine(
+            side,
+            command.CurrentCost,
+            command.CurrentLevel,
+            (ok, chosenEx) =>
+            {
+                paymentOk = ok;
+                exToUse = chosenEx;
+            });
+        if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
         {
             EndOnDestroyedLatencyHold();
             LogCommandUseResultWithBoard(
@@ -14885,7 +14807,18 @@ public partial class BattleGameMain : MonoBehaviour
             new List<CardController> { picked },
             "コマンド発動");
 
-        if (!TryConsumeResourceForCommandPlay(side, command, "OnAction"))
+        bool paymentOk = false;
+        int exToUse = 0;
+        yield return WaitForResourcePaymentCoroutine(
+            side,
+            command.CurrentCost,
+            command.CurrentLevel,
+            (ok, chosenEx) =>
+            {
+                paymentOk = ok;
+                exToUse = chosenEx;
+            });
+        if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
         {
             EndOnDestroyedLatencyHold();
             LogCommandUseResultWithBoard(
@@ -15069,10 +15002,20 @@ public partial class BattleGameMain : MonoBehaviour
         int blockIndex,
         System.Action onDone)
     {
+        StartCoroutine(CoTryExecuteOnMainBlocks(side, source, blocks, blockIndex, onDone));
+    }
+
+    private IEnumerator CoTryExecuteOnMainBlocks(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        int blockIndex,
+        System.Action onDone)
+    {
         if (blocks == null || blockIndex >= blocks.Count)
         {
             onDone?.Invoke();
-            return;
+            yield break;
         }
 
         OnMainExecutableBlock entry = blocks[blockIndex];
@@ -15080,10 +15023,14 @@ public partial class BattleGameMain : MonoBehaviour
         bool deferPayment = NeedsDeferredOnMainPayment(timed, side, source);
         if (!deferPayment)
         {
-            if (!TryFinalizeOnMainPaidActivation(new PaidActivationBlockContext(side, source, timed, entry.BlockIndex)))
+            bool finalized = false;
+            yield return CoTryFinalizeOnMainPaidActivationWithUi(
+                new PaidActivationBlockContext(side, source, timed, entry.BlockIndex),
+                ok => finalized = ok);
+            if (!finalized)
             {
                 TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
-                return;
+                yield break;
             }
         }
         else
@@ -15364,10 +15311,17 @@ public partial class BattleGameMain : MonoBehaviour
                             return;
                         }
 
-                        if (!activationCostAlreadyPaid
-                            && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                        if (!activationCostAlreadyPaid)
                         {
-                            onDone?.Invoke();
+                            StartCoroutine(CoDeferredOnMainPayThenApplyTargets(
+                                source,
+                                side,
+                                effect,
+                                selected,
+                                effects,
+                                index,
+                                chainActivationContext,
+                                onDone));
                             return;
                         }
 
@@ -15713,10 +15667,17 @@ public partial class BattleGameMain : MonoBehaviour
             null,
             picked =>
             {
-                if (!activationCostAlreadyPaid
-                    && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                if (!activationCostAlreadyPaid)
                 {
-                    onDone?.Invoke();
+                    StartCoroutine(CoDeferredOnMainPayThenApplyTargets(
+                        source,
+                        side,
+                        effect,
+                        new List<CardController> { picked },
+                        allEffects,
+                        effectIndex,
+                        chainActivationContext,
+                        onDone));
                     return;
                 }
 
@@ -15730,6 +15691,37 @@ public partial class BattleGameMain : MonoBehaviour
                     chainActivationContext,
                     onDone);
             },
+            onDone);
+    }
+
+    private IEnumerator CoDeferredOnMainPayThenApplyTargets(
+        CardController source,
+        PlayerType side,
+        EffectData effect,
+        List<CardController> targets,
+        IReadOnlyList<EffectData> allEffects,
+        int effectIndex,
+        EffectActivationContext chainActivationContext,
+        System.Action onDone)
+    {
+        bool finalized = false;
+        yield return CoTryFinalizeOnMainPaidActivationWithUi(
+            _activeOnMainPaidBlock,
+            ok => finalized = ok);
+        if (!finalized)
+        {
+            onDone?.Invoke();
+            yield break;
+        }
+
+        ApplyEffectToSpecificTargets(source, side, effect, targets);
+        TryExecuteOnMainEffectChain(
+            side,
+            source,
+            allEffects,
+            effectIndex + 1,
+            true,
+            chainActivationContext,
             onDone);
     }
 
