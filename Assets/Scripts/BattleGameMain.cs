@@ -8756,9 +8756,9 @@ public partial class BattleGameMain : MonoBehaviour
         dim.color = new Color(0f, 0f, 0f, 0.5f);
         dim.raycastTarget = true;
 
-        TextMeshProUGUI title = root.CreateChildTextCustom("AttackedSideUnitsTitle", UIAnchor.TopCenter, 720, 48);
+        TextMeshProUGUI title = root.CreateChildTextCustom("AttackedSideUnitsTitle", UIAnchor.TopCenter, AttackFlowPopupContentWidth, 48);
         title.color = Color.white;
-        title.fontSize = 24;
+        title.fontSize = 22;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
         PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
@@ -8780,7 +8780,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         // ブロッカー一覧（上）。下は Close 直上にバトル予定を固定表示
         const int scrollHeight = 300;
-        GameObject scrollGo = root.CreateGridScrollView(680, scrollHeight, UIAnchor.TopCenter);
+        GameObject scrollGo = root.CreateGridScrollView(AttackFlowPopupContentWidth, scrollHeight, UIAnchor.TopCenter);
         RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
         scrollRt.anchoredPosition = new Vector2(0f, -86f);
         scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
@@ -8802,11 +8802,11 @@ public partial class BattleGameMain : MonoBehaviour
         CardController selectedDefender = null;
         if (blockRedirectUnits.Count == 0)
         {
-            TextMeshProUGUI empty = root.CreateChildTextCustom("AttackedSideEmpty", UIAnchor.TopCenter, 480, 40);
+            TextMeshProUGUI empty = root.CreateChildTextCustom("AttackedSideEmpty", UIAnchor.TopCenter, AttackFlowPopupContentWidth, 40);
             empty.text = enemyAttackingPlayer
                 ? "No blockers (isBlocker) on the battlefield"
                 : "No blockers available";
-            empty.fontSize = 20;
+            empty.fontSize = 18;
             empty.color = Color.white;
             empty.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -126f);
         }
@@ -8863,7 +8863,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         Button closeBtn = root.CreateChildButton("Close");
         RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
-        closeRt.sizeDelta = new Vector2(180f, 48f);
+        closeRt.sizeDelta = new Vector2(140f, 48f);
         closeRt.anchorMin = new Vector2(0.5f, 0f);
         closeRt.anchorMax = new Vector2(0.5f, 0f);
         closeRt.pivot = new Vector2(0.5f, 0f);
@@ -8871,7 +8871,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         Button cancelBtn = root.CreateChildButton("Cancel");
         RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
-        cancelRt.sizeDelta = new Vector2(180f, 48f);
+        cancelRt.sizeDelta = new Vector2(140f, 48f);
         cancelRt.anchorMin = new Vector2(0.5f, 0f);
         cancelRt.anchorMax = new Vector2(0.5f, 0f);
         cancelRt.pivot = new Vector2(0.5f, 0f);
@@ -14364,12 +14364,12 @@ public partial class BattleGameMain : MonoBehaviour
         bool useAlternatingActionStepUi = IsActionStepSessionActive
             || IsOnlineBattle();
         string roleLabel = GetActionStepThinkSubtitle(side, context);
-        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, 720, 48);
+        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, AttackFlowPopupContentWidth, 48);
         title.text = hasSelectableCards
             ? $"Action Step — {roleLabel}"
             : $"Action Step — {roleLabel} (no playable cards)";
         title.color = Color.white;
-        title.fontSize = 24;
+        title.fontSize = 22;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
         HashSet<CardController> selectedSet = new HashSet<CardController>();
@@ -14395,7 +14395,7 @@ public partial class BattleGameMain : MonoBehaviour
             // マッチアップ表示分、カード一覧を少し上寄せ・低めにする
             int scrollHeight = showMatchup ? 280 : 410;
             float scrollY = showMatchup ? -86f : (showAttackHighlight ? -98f : -86f);
-            GameObject scrollGo = root.CreateGridScrollView(680, scrollHeight, UIAnchor.TopCenter);
+            GameObject scrollGo = root.CreateGridScrollView(AttackFlowPopupContentWidth, scrollHeight, UIAnchor.TopCenter);
             RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
             scrollRt.anchoredPosition = new Vector2(0f, scrollY);
             scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
@@ -14535,11 +14535,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         Button confirmBtn = root.CreateChildButton("Confirm");
         RectTransform confirmRt = confirmBtn.GetComponent<RectTransform>();
-        confirmRt.sizeDelta = new Vector2(160f, 48f);
+        confirmRt.sizeDelta = new Vector2(140f, 48f);
         confirmRt.anchorMin = new Vector2(0.5f, 0f);
         confirmRt.anchorMax = new Vector2(0.5f, 0f);
         confirmRt.pivot = new Vector2(0.5f, 0f);
-        confirmRt.anchoredPosition = new Vector2(-190f, 36f);
+        confirmRt.anchoredPosition = new Vector2(-150f, 36f);
         TextMeshProUGUI confirmLabel = confirmBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (confirmLabel != null)
         {
@@ -14567,7 +14567,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         Button cancelBtn = root.CreateChildButton("Cancel");
         RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
-        cancelRt.sizeDelta = new Vector2(160f, 48f);
+        cancelRt.sizeDelta = new Vector2(140f, 48f);
         cancelRt.anchorMin = new Vector2(0.5f, 0f);
         cancelRt.anchorMax = new Vector2(0.5f, 0f);
         cancelRt.pivot = new Vector2(0.5f, 0f);
@@ -14592,11 +14592,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         Button actionEndBtn = root.CreateChildButton("ActionEnd");
         RectTransform actionEndRt = actionEndBtn.GetComponent<RectTransform>();
-        actionEndRt.sizeDelta = new Vector2(160f, 48f);
+        actionEndRt.sizeDelta = new Vector2(140f, 48f);
         actionEndRt.anchorMin = new Vector2(0.5f, 0f);
         actionEndRt.anchorMax = new Vector2(0.5f, 0f);
         actionEndRt.pivot = new Vector2(0.5f, 0f);
-        actionEndRt.anchoredPosition = new Vector2(190f, 36f);
+        actionEndRt.anchoredPosition = new Vector2(150f, 36f);
         TextMeshProUGUI actionEndLabel = actionEndBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (actionEndLabel != null)
         {

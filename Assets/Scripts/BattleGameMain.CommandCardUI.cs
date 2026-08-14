@@ -10,6 +10,10 @@ public partial class BattleGameMain
     private const float BattleCardPreviewWidth = 120f;
     private const float BattleCardPreviewHeight = 168f;
     private const float CommandUsePreviewHoldSeconds = 1.15f;
+    /// <summary>ブロック／アクションタイミングの一覧・タイトル横幅。</summary>
+    private const int AttackFlowPopupContentWidth = 480;
+    /// <summary>バトル予定カードの左右オフセット（横幅480内に収める）。</summary>
+    private const float AttackMatchupCardOffsetX = 110f;
 
     /// <summary>敵コマンド確認パネルを組み立てる。戻り値はルート（null なら失敗）。</summary>
     private GameObject BuildCommandUseAcknowledgementPanel(
@@ -293,22 +297,22 @@ public partial class BattleGameMain
         bool showFallback = !hasUnitDefender && !string.IsNullOrEmpty(fallback);
 
         UIAnchor cardAnchor = useBottomAnchor ? UIAnchor.BottomCenter : UIAnchor.TopCenter;
-        Vector2 attackerPos = useBottomAnchor
-            ? new Vector2(-150f, anchoredY)
-            : new Vector2(-150f, anchoredY);
+        Vector2 attackerPos = new Vector2(-AttackMatchupCardOffsetX, anchoredY);
         Vector2 arrowPos = useBottomAnchor
             ? new Vector2(0f, anchoredY + 70f)
             : new Vector2(0f, anchoredY - 70f);
         Vector2 headerPos = useBottomAnchor
             ? new Vector2(0f, anchoredY + BattleCardPreviewHeight + 28f)
             : new Vector2(0f, anchoredY + 28f);
-        Vector2 defenderPos = useBottomAnchor
-            ? new Vector2(150f, anchoredY)
-            : new Vector2(150f, anchoredY);
+        Vector2 defenderPos = new Vector2(AttackMatchupCardOffsetX, anchoredY);
 
         if (!string.IsNullOrEmpty(headerText))
         {
-            TextMeshProUGUI header = parent.CreateChildTextCustom("MatchupHeader", cardAnchor, 420, 26);
+            TextMeshProUGUI header = parent.CreateChildTextCustom(
+                "MatchupHeader",
+                cardAnchor,
+                AttackFlowPopupContentWidth,
+                26);
             header.text = headerText;
             header.fontSize = 18;
             header.fontStyle = FontStyles.Bold;
@@ -348,21 +352,22 @@ public partial class BattleGameMain
         }
         else if (showFallback)
         {
-            TextMeshProUGUI shieldCap = parent.CreateChildTextCustom("ShieldCaption", cardAnchor, 180, 24);
+            TextMeshProUGUI shieldCap = parent.CreateChildTextCustom("ShieldCaption", cardAnchor, 160, 24);
             shieldCap.text = "攻撃先";
             shieldCap.fontSize = 15;
             shieldCap.color = new Color(0.92f, 0.92f, 0.92f, 1f);
             shieldCap.alignment = TextAlignmentOptions.Center;
             float capY = useBottomAnchor ? anchoredY + BattleCardPreviewHeight + 10f : anchoredY + 10f;
-            shieldCap.GetComponent<RectTransform>().anchoredPosition = new Vector2(150f, capY);
+            shieldCap.GetComponent<RectTransform>().anchoredPosition = new Vector2(AttackMatchupCardOffsetX, capY);
 
-            TextMeshProUGUI shieldLabel = parent.CreateChildTextCustom("ShieldFallback", cardAnchor, 180, 80);
+            TextMeshProUGUI shieldLabel = parent.CreateChildTextCustom("ShieldFallback", cardAnchor, 160, 80);
             shieldLabel.text = fallback;
             shieldLabel.fontSize = 28;
             shieldLabel.fontStyle = FontStyles.Bold;
             shieldLabel.color = new Color(0.95f, 0.95f, 0.7f, 1f);
             shieldLabel.alignment = TextAlignmentOptions.Center;
-            shieldLabel.GetComponent<RectTransform>().anchoredPosition = arrowPos + new Vector2(150f, 0f);
+            shieldLabel.GetComponent<RectTransform>().anchoredPosition =
+                new Vector2(AttackMatchupCardOffsetX, arrowPos.y);
         }
 
         return true;
@@ -383,7 +388,7 @@ public partial class BattleGameMain
 
         if (!string.IsNullOrEmpty(caption))
         {
-            TextMeshProUGUI cap = parent.CreateChildTextCustom("CardCaption", anchor, 220, 24);
+            TextMeshProUGUI cap = parent.CreateChildTextCustom("CardCaption", anchor, 160, 24);
             cap.text = caption;
             cap.fontSize = 15;
             cap.color = new Color(0.92f, 0.92f, 0.92f, 1f);
