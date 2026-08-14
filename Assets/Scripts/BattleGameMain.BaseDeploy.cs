@@ -180,6 +180,11 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (IsTestPlayBattle())
+        {
+            return true;
+        }
+
         int requiredLevel = card.CurrentLevel;
         int cost = card.CurrentCost;
         if (!gundamRule.CanPlayCard(side, requiredLevel, cost, exToUse))

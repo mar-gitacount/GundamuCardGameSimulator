@@ -57,11 +57,23 @@ public class CardGameRule
     private Button discardZoneToggleButton;
     private Button discardZoneCountButton;
     private Button exileZoneCountButton;
+    private Button deckAreaButton;
+    private Button testPlayDeckDrawButton;
+    private Button baseSlotAreaButton;
 
     private RectTransform resourceTokensContent;
     private RectTransform exTokensContent;
+    private GameObject resourceZoneRoot;
+    private GameObject exZoneRoot;
     private TextMeshProUGUI resourceZoneHeaderText;
     private TextMeshProUGUI exZoneHeaderText;
+    private GameObject testPlayResourceCounterRoot;
+    private GameObject testPlayExCounterRoot;
+    private TextMeshProUGUI testPlayResourceCountText;
+    private TextMeshProUGUI testPlayExCountText;
+    private Action<bool> testPlayResourceTokenClickHandler;
+    private Action<int> testPlayResourceLevelDeltaHandler;
+    private Action<int> testPlayExDeltaHandler;
     private TextMeshProUGUI battleAreaLabelText;
     private TextMeshProUGUI baseZoneLabelText;
     private TextMeshProUGUI deckZoneLabelText;
@@ -329,8 +341,17 @@ public class CardGameRule
         DestroyTokenPool(exTokenObjects);
         resourceTokensContent = null;
         exTokensContent = null;
+        resourceZoneRoot = null;
+        exZoneRoot = null;
         resourceZoneHeaderText = null;
         exZoneHeaderText = null;
+        testPlayResourceCounterRoot = null;
+        testPlayExCounterRoot = null;
+        testPlayResourceCountText = null;
+        testPlayExCountText = null;
+        testPlayResourceTokenClickHandler = null;
+        testPlayResourceLevelDeltaHandler = null;
+        testPlayExDeltaHandler = null;
     }
 
     private static void DestroyTokenPool(List<GameObject> pool)
@@ -1120,6 +1141,25 @@ public class CardGameRule
         return true;
     }
 
+    /// <summary>TestPlay: 種類制限なしでシールドゾーンへ載せる（ベース含む）。</summary>
+    public bool TryForceAttachShieldCard(CardController cc)
+    {
+        if (cc == null || cc.Data == null || shieldCardsContent == null)
+        {
+            return false;
+        }
+
+        shieldCardIds.Add(cc.Data.id);
+        shieldControllersInDrawOrder.Add(cc);
+        cc.gameObject.SetActive(true);
+        cc.transform.SetParent(shieldCardsContent, false);
+        ApplyShieldCardLayout(cc.gameObject);
+        cc.SetShieldFaceHidden(true);
+        cc.SetEligibleForShieldZoneDeploy(false);
+        SetShieldCountDisplay(shieldControllersInDrawOrder.Count);
+        return true;
+    }
+
     public bool HasShieldCardInZone => GetShieldZoneCardCount() > 0;
 
     /// <summary>シールドゾーンの登録リストに載っているか（親 Transform だけ残っているゾンビは false）。</summary>
@@ -1230,6 +1270,32 @@ public class CardGameRule
         return deployedBase != null;
     }
 
+    /// <summary>指定シールドカードを手札へ移す（破壊 UI なし）。</summary>
+    public bool TryMoveShieldCardToHand(CardController shieldCard, RectTransform handContent)
+    {
+        if (shieldCard == null || handContent == null)
+        {
+            return false;
+        }
+
+        if (!TryUnregisterShieldZoneCard(shieldCard))
+        {
+            return false;
+        }
+
+        shieldCard.RevealShieldFace();
+        shieldCard.gameObject.SetActive(true);
+        shieldCard.transform.SetParent(handContent, false);
+        RectTransform cardRect = shieldCard.GetComponent<RectTransform>();
+        if (cardRect != null)
+        {
+            cardRect.localScale = Vector3.one;
+        }
+
+        ApplyHandZoneLayoutToCard(shieldCard);
+        return true;
+    }
+
     /// <summary>シールドゾーン先頭1枚を手札へ移す（破壊・バースト UI なし）。</summary>
     public bool TryMoveTopShieldCardToHand(RectTransform handContent, out CardController movedCard)
     {
@@ -1317,6 +1383,254 @@ public class CardGameRule
 
         exileZoneCountButton.onClick.RemoveAllListeners();
         exileZoneCountButton.onClick.AddListener(() => onClick());
+    }
+
+    /// <summary>山札ゾーン押下。</summary>
+    public void BindDeckAreaClick(Action onClick)
+    {
+        if (deckAreaButton == null || onClick == null)
+        {
+            return;
+        }
+
+        deckAreaButton.onClick.RemoveAllListeners();
+        deckAreaButton.onClick.AddListener(() => onClick());
+    }
+
+    /// <summary>ベース枠（EXベース表示含む）押下。配備ベースカード自体のクリックは CardController 側。</summary>
+    public void BindBaseSlotAreaClick(Action onClick)
+    {
+        if (onClick == null)
+        {
+            return;
+        }
+
+        void EnsureButton(GameObject go, Graphic graphic)
+        {
+            if (go == null)
+            {
+                return;
+            }
+
+            if (graphic != null)
+            {
+                graphic.raycastTarget = true;
+            }
+
+            Button btn = go.GetComponent<Button>();
+            if (btn == null)
+            {
+                btn = go.AddComponent<Button>();
+            }
+
+            if (graphic != null)
+            {
+                btn.targetGraphic = graphic;
+            }
+
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.RemoveAllListeners();
+            btn.onClick.AddListener(() => onClick());
+        }
+
+        if (baseSlotContent != null)
+        {
+            Image slotBg = baseSlotContent.GetComponent<Image>();
+            EnsureButton(baseSlotContent.gameObject, slotBg);
+            baseSlotAreaButton = baseSlotContent.GetComponent<Button>();
+        }
+
+        if (exBaseDisplayText != null)
+        {
+            EnsureButton(exBaseDisplayText.gameObject, exBaseDisplayText);
+        }
+    }
+
+    /// <summary>TestPlay: リソース／EXゾーン上の +/- カウンターとトークン押下。</summary>
+    public void BindTestPlayResourceZoneControls(
+        Action<int> onResourceLevelDelta,
+        Action<int> onExDelta,
+        Action<bool> onResourceTokenClicked)
+    {
+        testPlayResourceLevelDeltaHandler = onResourceLevelDelta;
+        testPlayExDeltaHandler = onExDelta;
+        testPlayResourceTokenClickHandler = onResourceTokenClicked;
+        EnsureTestPlayZoneCounter(
+            resourceZoneRoot,
+            ref testPlayResourceCounterRoot,
+            ref testPlayResourceCountText,
+            "TestPlayResCounter",
+            () => testPlayResourceLevelDeltaHandler?.Invoke(-1),
+            () => testPlayResourceLevelDeltaHandler?.Invoke(1));
+        EnsureTestPlayZoneCounter(
+            exZoneRoot,
+            ref testPlayExCounterRoot,
+            ref testPlayExCountText,
+            "TestPlayExCounter",
+            () => testPlayExDeltaHandler?.Invoke(-1),
+            () => testPlayExDeltaHandler?.Invoke(1));
+
+        if (resourceZoneHeaderText != null)
+        {
+            RectTransform headerRt = resourceZoneHeaderText.GetComponent<RectTransform>();
+            headerRt.sizeDelta = new Vector2(160f, 16f);
+        }
+
+        if (exZoneHeaderText != null)
+        {
+            RectTransform headerRt = exZoneHeaderText.GetComponent<RectTransform>();
+            headerRt.sizeDelta = new Vector2(36f, 16f);
+        }
+
+        RebuildResourceTokenVisuals();
+    }
+
+    private void EnsureTestPlayZoneCounter(
+        GameObject zone,
+        ref GameObject root,
+        ref TextMeshProUGUI countText,
+        string name,
+        Action onMinus,
+        Action onPlus)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        if (root != null)
+        {
+            return;
+        }
+
+        root = new GameObject(name, typeof(RectTransform));
+        root.transform.SetParent(zone.transform, false);
+        RectTransform rt = root.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 1f);
+        rt.sizeDelta = new Vector2(84f, 18f);
+        rt.anchoredPosition = new Vector2(-2f, -1f);
+
+        Button minusBtn = root.CreateChildButton("-");
+        RectTransform minusRt = minusBtn.GetComponent<RectTransform>();
+        minusRt.anchorMin = new Vector2(0f, 0.5f);
+        minusRt.anchorMax = new Vector2(0f, 0.5f);
+        minusRt.pivot = new Vector2(0f, 0.5f);
+        minusRt.sizeDelta = new Vector2(22f, 16f);
+        minusRt.anchoredPosition = Vector2.zero;
+        TextMeshProUGUI minusLabel = minusBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (minusLabel != null)
+        {
+            minusLabel.fontSize = 14;
+            minusLabel.color = Color.black;
+        }
+
+        minusBtn.onClick.RemoveAllListeners();
+        minusBtn.onClick.AddListener(() => onMinus?.Invoke());
+
+        countText = root.CreateChildTextCustom("Count", UIAnchor.TopCenter, 36, 16);
+        countText.text = "0";
+        countText.fontSize = 12;
+        countText.fontStyle = FontStyles.Bold;
+        countText.color = Color.white;
+        countText.alignment = TextAlignmentOptions.Center;
+        countText.raycastTarget = false;
+
+        Button plusBtn = root.CreateChildButton("+");
+        RectTransform plusRt = plusBtn.GetComponent<RectTransform>();
+        plusRt.anchorMin = new Vector2(1f, 0.5f);
+        plusRt.anchorMax = new Vector2(1f, 0.5f);
+        plusRt.pivot = new Vector2(1f, 0.5f);
+        plusRt.sizeDelta = new Vector2(22f, 16f);
+        plusRt.anchoredPosition = Vector2.zero;
+        TextMeshProUGUI plusLabel = plusBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (plusLabel != null)
+        {
+            plusLabel.fontSize = 14;
+            plusLabel.color = Color.black;
+        }
+
+        plusBtn.onClick.RemoveAllListeners();
+        plusBtn.onClick.AddListener(() => onPlus?.Invoke());
+    }
+
+    /// <summary>TestPlay: 山札ゾーン下に Draw ボタンを用意する。</summary>
+    public void EnsureTestPlayDeckDrawButton(Action onDraw)
+    {
+        if (deckObjectPanel == null || onDraw == null)
+        {
+            return;
+        }
+
+        if (testPlayDeckDrawButton == null)
+        {
+            Button btn = deckObjectPanel.CreateChildButton("Draw");
+            testPlayDeckDrawButton = btn;
+            RectTransform btnRt = btn.GetComponent<RectTransform>();
+            btnRt.anchorMin = new Vector2(0.5f, 0f);
+            btnRt.anchorMax = new Vector2(0.5f, 0f);
+            btnRt.pivot = new Vector2(0.5f, 0f);
+            btnRt.sizeDelta = new Vector2(52f, 22f);
+            btnRt.anchoredPosition = new Vector2(0f, 2f);
+            TextMeshProUGUI label = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+            {
+                label.SetLocalizedText("ドロー", "Draw");
+                label.fontSize = 12;
+                label.color = Color.black;
+            }
+
+            // 枚数表示を Draw の上へずらす
+            if (deckCountText != null)
+            {
+                RectTransform countRt = deckCountText.GetComponent<RectTransform>();
+                countRt.anchoredPosition = new Vector2(0f, 24f);
+            }
+        }
+
+        testPlayDeckDrawButton.gameObject.SetActive(true);
+        testPlayDeckDrawButton.onClick.RemoveAllListeners();
+        testPlayDeckDrawButton.onClick.AddListener(() => onDraw());
+    }
+
+    public void SetTestPlayDeckDrawButtonInteractable(bool interactable)
+    {
+        if (testPlayDeckDrawButton != null)
+        {
+            testPlayDeckDrawButton.interactable = interactable;
+        }
+    }
+
+    /// <summary>山札の上から最大 count 枚を取り出す（先頭＝一番上）。</summary>
+    public List<int> TakeTopCardIds(int count)
+    {
+        List<int> taken = new List<int>();
+        if (count <= 0 || deckList == null)
+        {
+            return taken;
+        }
+
+        int remain = count;
+        while (remain > 0 && deckList.Count > 0)
+        {
+            while (deckList.Count > 0 && deckList[0] == OnlineDeckCountPaddingId)
+            {
+                deckList.RemoveAt(0);
+            }
+
+            if (deckList.Count == 0)
+            {
+                break;
+            }
+
+            taken.Add(deckList[0]);
+            deckList.RemoveAt(0);
+            remain--;
+        }
+
+        UpdateDeckAndTrashTexts();
+        return taken;
     }
 
     /// <summary>互換エイリアス。<see cref="BindDiscardZoneCountClick"/> を使用してください。</summary>
@@ -1753,6 +2067,7 @@ public class CardGameRule
         }
 
         GameObject resourceZone = strip.CreateChildPanelCustom("ResourceZone", UIAnchor.TopLeft, 340, height - 4);
+        resourceZoneRoot = resourceZone;
         RectTransform resourceZoneRt = resourceZone.GetComponent<RectTransform>();
         resourceZoneRt.anchorMin = new Vector2(0f, 0f);
         resourceZoneRt.anchorMax = new Vector2(0.72f, 1f);
@@ -1783,6 +2098,7 @@ public class CardGameRule
         resourceTokensContent = CreateHorizontalTokenRow(resourceZone.transform, "ResourceTokens", 18f);
 
         GameObject exZone = strip.CreateChildPanelCustom("ExZone", UIAnchor.TopRight, 120, height - 4);
+        exZoneRoot = exZone;
         RectTransform exZoneRt = exZone.GetComponent<RectTransform>();
         exZoneRt.anchorMin = new Vector2(0.72f, 0f);
         exZoneRt.anchorMax = new Vector2(1f, 1f);
@@ -1877,6 +2193,7 @@ public class CardGameRule
             }
 
             SetResourceTokenRested(resourceTokenObjects[i], rested);
+            BindResourceTokenClick(resourceTokenObjects[i], rested);
         }
 
         EnsureTokenObjectCount(
@@ -1889,6 +2206,16 @@ public class CardGameRule
         for (int i = 0; i < exTokenObjects.Count; i++)
         {
             SetResourceTokenRested(exTokenObjects[i], false);
+        }
+
+        if (testPlayResourceCountText != null)
+        {
+            testPlayResourceCountText.text = normalCount.ToString();
+        }
+
+        if (testPlayExCountText != null)
+        {
+            testPlayExCountText.text = exCount.ToString();
         }
 
         if (resourceTokensContent != null)
@@ -2028,7 +2355,48 @@ public class CardGameRule
         innerImage.color = faceColor;
         innerImage.raycastTarget = false;
 
+        Image hit = token.GetComponent<Image>();
+        if (hit == null)
+        {
+            hit = token.AddComponent<Image>();
+        }
+
+        hit.color = new Color(1f, 1f, 1f, 0.01f);
+        hit.raycastTarget = true;
+
+        Button btn = token.GetComponent<Button>();
+        if (btn == null)
+        {
+            btn = token.AddComponent<Button>();
+        }
+
+        btn.targetGraphic = hit;
+        btn.transition = Selectable.Transition.None;
+
         return token;
+    }
+
+    private void BindResourceTokenClick(GameObject token, bool rested)
+    {
+        if (token == null)
+        {
+            return;
+        }
+
+        Button btn = token.GetComponent<Button>();
+        if (btn == null)
+        {
+            return;
+        }
+
+        btn.onClick.RemoveAllListeners();
+        if (testPlayResourceTokenClickHandler == null)
+        {
+            return;
+        }
+
+        bool capturedRested = rested;
+        btn.onClick.AddListener(() => testPlayResourceTokenClickHandler.Invoke(capturedRested));
     }
 
     private void SetResourceTokenRested(GameObject token, bool rested)
@@ -2133,6 +2501,23 @@ public class CardGameRule
         deckCountText.text = "0";
         deckCountText.fontSize = 14;
         deckCountText.color = Color.white;
+        deckCountText.raycastTarget = false;
+
+        // デッキ領域タップ用（TestPlay 等）。通常時はリスナーなし。
+        if (deckBg != null)
+        {
+            deckBg.raycastTarget = true;
+        }
+
+        deckAreaButton = deckObjectPanel.GetComponent<Button>();
+        if (deckAreaButton == null)
+        {
+            deckAreaButton = deckObjectPanel.AddComponent<Button>();
+        }
+
+        deckAreaButton.targetGraphic = deckBg;
+        deckAreaButton.transition = Selectable.Transition.None;
+        ApplyTextButtonColors(deckAreaButton);
 
         exileAreaPanel = deckAndTrashPanel.CreateChildPanelCustom("ExileZonePanel", UIAnchor.FullStretch, width - 4, 0);
         RectTransform exileRt = exileAreaPanel.GetComponent<RectTransform>();

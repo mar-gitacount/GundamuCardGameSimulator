@@ -27,6 +27,8 @@ public class NewDeckMaking : MonoBehaviour
     [SerializeField] private Button ButtleButton;
 
     [SerializeField] private Button OnlineBattleButton;
+
+    [SerializeField] private Button TestPlayButton;
     
 
     // Start is called before the first frame update
@@ -44,6 +46,12 @@ public class NewDeckMaking : MonoBehaviour
         if (OnlineBattleButton != null)
         {
             OnlineBattleButton.onClick.AddListener(OnlineBattleButtonClicked);
+        }
+
+        EnsureTestPlayButton();
+        if (TestPlayButton != null)
+        {
+            TestPlayButton.onClick.AddListener(TestPlayButtonClicked);
         }
     }
 
@@ -81,8 +89,29 @@ public class NewDeckMaking : MonoBehaviour
             return;
         }
 
+        TestPlayMatchState.Clear();
         deckSettings.ClearBattleStartFlag();
         EosOnlinePlaytestController.OpenPanel();
+    }
+
+    private void TestPlayButtonClicked()
+    {
+        DeckSettinObject deckSettings = DeckSettinObject.Instance;
+        if (deckSettings == null)
+        {
+            Debug.LogWarning("[TestPlay] DeckSettinObject not found.");
+            return;
+        }
+
+        if (!deckSettings.HasSelectedPlayerDeck())
+        {
+            Debug.LogWarning("[TestPlay] Select your deck from the list first, then press TestPlay, then select the enemy deck.");
+            return;
+        }
+
+        // AI バトルの BattoleStartFlag とは別。敵デッキ選択待ちにする。
+        deckSettings.ClearBattleStartFlag();
+        TestPlayMatchState.BeginEnemyDeckPick();
     }
 
     private GameObject _notUsedOnlineAlertRoot;
@@ -219,6 +248,37 @@ public class NewDeckMaking : MonoBehaviour
         if (label != null)
         {
             label.text = "Online Battle";
+        }
+    }
+
+    private void EnsureTestPlayButton()
+    {
+        if (TestPlayButton != null || ButtleButton == null)
+        {
+            return;
+        }
+
+        Button source = OnlineBattleButton != null ? OnlineBattleButton : ButtleButton;
+        GameObject clone = Instantiate(source.gameObject, ButtleButton.transform.parent);
+        clone.name = "TestPlayButton";
+
+        TestPlayButton = clone.GetComponent<Button>();
+        if (TestPlayButton == null)
+        {
+            TestPlayButton = clone.AddComponent<Button>();
+        }
+
+        RectTransform cloneRect = clone.GetComponent<RectTransform>();
+        RectTransform sourceRect = source.GetComponent<RectTransform>();
+        if (cloneRect != null && sourceRect != null)
+        {
+            cloneRect.anchoredPosition = sourceRect.anchoredPosition + new Vector2(0f, -56f);
+        }
+
+        TextMeshProUGUI label = clone.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (label != null)
+        {
+            label.SetLocalizedText("TestPlay", "TestPlay");
         }
     }
 

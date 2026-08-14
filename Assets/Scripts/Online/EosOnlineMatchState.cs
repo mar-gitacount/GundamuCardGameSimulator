@@ -22,6 +22,7 @@ public static class EosOnlineMatchState
         string localProductUserId,
         string remoteProductUserId)
     {
+        TestPlayMatchState.Clear();
         HasActiveMatch = true;
         IsHost = isHost;
         LocalPlayerGoesFirst = localPlayerGoesFirst;

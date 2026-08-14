@@ -902,6 +902,7 @@ public partial class BattleGameMain : MonoBehaviour
         playerDeckData = DeckSettinObject.Instance.LoadDeckReturn();
         enemyDeckData = DeckSettinObject.Instance.LoadEnemyDeckReturn();
         ConfigureOnlineBattleDecks(ref playerDeckData, ref enemyDeckData);
+        ConfigureTestPlayDecks(ref playerDeckData, ref enemyDeckData);
         enemyDeckData = EnsureDeckHasMinimumCardsForOpening(enemyDeckData, playerDeckData, minDeckTotalForOpening, "Enemy");
         playerDeckData = EnsureDeckHasMinimumCardsForOpening(playerDeckData, enemyDeckData, minDeckTotalForOpening, "Player");
 
@@ -955,8 +956,12 @@ public partial class BattleGameMain : MonoBehaviour
             enemyCardGameRule.SetDiscardZoneViewMode(DiscardZoneViewMode.Exile);
             OpenDiscardZoneInspectionPanel(enemyCardGameRule);
         });
-        BindEnemyAiPlayerTrashObservation();
         RegisterOnlineZoneSyncObservers();
+
+        if (!IsTestPlayBattle())
+        {
+            BindEnemyAiPlayerTrashObservation();
+        }
 
         gundamRule.InitializeGame(
             cardGameRule.GetRemainingCount(),
@@ -1002,6 +1007,10 @@ public partial class BattleGameMain : MonoBehaviour
             if (IsOnlineBattle())
             {
                 yield return RunOnlineMulliganAndBootstrapCoroutine(canvas, openingHandSize, exBasePoints);
+            }
+            else if (IsTestPlayBattle())
+            {
+                yield return RunTestPlayOpeningWithoutMulliganCoroutine(exBasePoints);
             }
             else
             {
@@ -1071,9 +1080,20 @@ public partial class BattleGameMain : MonoBehaviour
 
         SyncAllResourceViewsFromRule();
 
+        if (IsTestPlayBattle())
+        {
+            ConfigureTestPlaySandboxToolbar();
+            ApplyTestPlayBoardPerspective(currentPlayerType);
+        }
+
         ChangePhase(BattlePhase.StartTurn);
 
         ConfigureEndTurnButtonInHandPanel();
+        if (IsTestPlayBattle())
+        {
+            ConfigureEndTurnButtonForActiveSide(currentPlayerType);
+        }
+
         ConfigureBattleMenuButtonInHandPanel();
         if (EndTurnButton != null)
         {
@@ -1413,8 +1433,14 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (isInShield && cardController.IsShieldFaceHidden)
         {
-            Debug.Log("シールドは裏向きです。破壊されると中身が表示されます。");
-            return;
+            if (!IsTestPlayBattle())
+            {
+                Debug.Log("シールドは裏向きです。破壊されると中身が表示されます。");
+                return;
+            }
+
+            // TestPlay: 内容を見せて操作メニューへ
+            cardController.RevealShieldFace();
         }
 
         // クリック時にフィルターパネルを表示する処理
@@ -1469,7 +1495,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (isOnField)
         {
             bool canShowUnitAttackMenu = currentPhase == BattlePhase.MainPhase
-                && ownerType == currentPlayerType
+                && IsActingSideForUi(ownerType)
                 && cardController.Data.IsUnitLike()
                 && cardController.AttackFlgState == AttackFlg.True;
 
@@ -1544,6 +1570,16 @@ public partial class BattleGameMain : MonoBehaviour
                 fieldActionY -= 60f;
             }
 
+            // TestPlay: ユニットは AP永続 / HP / APターン、ベースは HP のみ
+            if (IsTestPlayBattle())
+            {
+                fieldActionY = EmbedTestPlayFieldStatCounters(
+                    FilterPanel,
+                    cardController,
+                    isInBaseSlot,
+                    fieldActionY);
+            }
+
             var trashButton = FilterPanel.CreateChildButton("send to trash");
             RectTransform trashBtnRect = trashButton.GetComponent<RectTransform>();
             trashBtnRect.sizeDelta = new Vector2(180, 50);
@@ -1555,13 +1591,49 @@ public partial class BattleGameMain : MonoBehaviour
                 Destroy(FilterPanel);
             });
 
-            closeBtnRect.anchoredPosition = new Vector2(0, fieldActionY - 70f);
+            fieldActionY -= 60f;
+            if (IsTestPlayBattle())
+            {
+                var exileButton = FilterPanel.CreateChildButton(
+                    GameLocale.T("除外する", "Exile"));
+                RectTransform exileBtnRect = exileButton.GetComponent<RectTransform>();
+                exileBtnRect.sizeDelta = new Vector2(180, 50);
+                exileBtnRect.anchoredPosition = new Vector2(0, fieldActionY);
+                exileButton.onClick.AddListener(() =>
+                {
+                    TestPlayExileCardInstance(cardController, ownerType);
+                    Destroy(FilterPanel);
+                });
+                fieldActionY -= 60f;
+            }
+
+            if (IsTestPlayBattle())
+            {
+                fieldActionY = EmbedTestPlayFieldUnitExtraActions(
+                    FilterPanel,
+                    cardController,
+                    ownerType,
+                    fieldActionY);
+            }
+
+            closeBtnRect.anchoredPosition = new Vector2(0, fieldActionY - 20f);
             return;
         }
 
-        // シールドエリア：OnRest の能動起動を許可
+        // シールドエリア：TestPlay は操作メニュー、通常は OnRest の能動起動を許可
         if (isInShield)
         {
+            if (IsTestPlayBattle())
+            {
+                TryEmbedTestPlayShieldMenu(
+                    FilterPanel,
+                    cardController,
+                    ownerType,
+                    ownerRule,
+                    closeBtnRect);
+                return;
+            }
+
             if (TryAddOnRestSelfActivateButton(FilterPanel, cardController, ownerType, -10f))
             {
                 closeBtnRect.anchoredPosition = new Vector2(0, -80f);
@@ -1577,8 +1649,8 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // 相手ターン中に相手手札を操作させない。
-        if (ownerType != currentPlayerType)
+        // 相手ターン中に相手手札を操作させない（TestPlay は両サイド操作可）。
+        if (!IsActingSideForUi(ownerType))
         {
             Debug.Log("現在のターンプレイヤーの手札ではありません。");
             Destroy(FilterPanel);
@@ -1612,18 +1684,31 @@ public partial class BattleGameMain : MonoBehaviour
             : gundamRule.Enemy;
         int currentLevel = ownerState.TotalLevel;
 
-        if (currentLevel < cardController.CurrentLevel)
-        {
-            Debug.Log("レベルが足りません。");
-            Destroy(FilterPanel);
-            return;
-        }
-
         float handActionY = -10f;
         if (TryAddOnMainEffectApplyButton(FilterPanel, cardController, ownerType, handActionY))
         {
             handActionY -= 60f;
             closeBtnRect.anchoredPosition = new Vector2(0, handActionY - 70f);
+        }
+
+        if (IsTestPlayBattle())
+        {
+            TryEmbedTestPlayFreeHandDeployUi(
+                FilterPanel,
+                cardController,
+                ownerType,
+                ownerRule,
+                ownerSide,
+                closeBtnRect,
+                handActionY);
+            return;
+        }
+
+        if (currentLevel < cardController.CurrentLevel)
+        {
+            Debug.Log("レベルが足りません。");
+            Destroy(FilterPanel);
+            return;
         }
 
         if (cardController.Data.IsPilot())
@@ -1762,9 +1847,20 @@ public partial class BattleGameMain : MonoBehaviour
     public bool DecideTurnOrder()
     {
         // 先攻後攻は1回の乱数で決定（isFirstPlayer / currentPlayerType / currentPlayer を矛盾なく同期）
-        bool playerGoesFirst = TryOverrideTurnOrderFromOnlineMatch(out bool onlinePlayerGoesFirst)
-            ? onlinePlayerGoesFirst
-            : Random.value < 0.5f;
+        bool playerGoesFirst;
+        if (IsTestPlayBattle())
+        {
+            playerGoesFirst = true;
+        }
+        else if (TryOverrideTurnOrderFromOnlineMatch(out bool onlinePlayerGoesFirst))
+        {
+            playerGoesFirst = onlinePlayerGoesFirst;
+        }
+        else
+        {
+            playerGoesFirst = Random.value < 0.5f;
+        }
+
         isFirstPlayer = playerGoesFirst;
         currentPlayerType = playerGoesFirst ? PlayerType.Player : PlayerType.Enemy;
         currentPlayer = playerGoesFirst;
@@ -1838,6 +1934,18 @@ public partial class BattleGameMain : MonoBehaviour
 
         isTurnPhaseSequenceRunning = true;
         yield return WaitForShieldBreakFlowCompleteCoroutine();
+
+        if (IsTestPlayBattle())
+        {
+            ApplyTestPlayBoardPerspective(currentPlayerType);
+            ExecuteTurnStartCore();
+            currentPhase = BattlePhase.MainPhase;
+            UpdateEndTurnButtonVisibility();
+            ExcuteMainPhase();
+            isTurnPhaseSequenceRunning = false;
+            yield break;
+        }
+
         yield return ShowPhasePauseCoroutine(currentPlayerType == PlayerType.Player ? "Player Turn" : "Enemy Turn");
         currentPhase = BattlePhase.DrawPhase;
         UpdateEndTurnButtonVisibility();
@@ -1857,7 +1965,6 @@ public partial class BattleGameMain : MonoBehaviour
         UpdateEndTurnButtonVisibility();
         yield return ShowPhasePauseCoroutine("Main Phase");
         ExcuteMainPhase();
-
         isTurnPhaseSequenceRunning = false;
     }
 
@@ -1866,7 +1973,11 @@ public partial class BattleGameMain : MonoBehaviour
         currentPhase = BattlePhase.EndTurn;
         UpdateEndTurnButtonVisibility();
         yield return WaitForBattleFlowIdleCoroutine();
-        yield return ShowPhasePauseCoroutine("End Phase");
+        if (!IsTestPlayBattle())
+        {
+            yield return ShowPhasePauseCoroutine("End Phase");
+        }
+
         while (isEnemyMainPhaseCoroutineRunning || IsBattleFlowBlockingTurnProgress())
         {
             yield return null;
@@ -3344,6 +3455,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         // プレイヤーとエネミーのターンを切り替える
         currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
+        if (IsTestPlayBattle())
+        {
+            ApplyTestPlayBoardPerspective(currentPlayerType);
+        }
+
         RefreshAllFieldOwnerTurnPassives();
         AdvanceRuleToNextTurnStart();
         UpdateEndTurnButtonVisibility();
@@ -5181,7 +5297,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         PlayerType attackerOwner = ResolveCardOwner(pendingUnitAttackAttacker.transform);
-        if (attackerOwner != currentPlayerType)
+        if (!IsActingSideForUi(attackerOwner))
         {
             pendingUnitAttackAttacker = null;
             return false;
@@ -6623,7 +6739,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         PlayerType attackerOwner = shieldAttackOwnerEarly;
-        if (attackerOwner != currentPlayerType)
+        if (!IsActingSideForUi(attackerOwner))
         {
             return;
         }
@@ -7334,7 +7450,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (ownerType != currentPlayerType || currentPhase != BattlePhase.MainPhase)
+        if (!IsActingSideForUi(ownerType) || currentPhase != BattlePhase.MainPhase)
         {
             return false;
         }
@@ -7396,7 +7512,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (currentPhase != BattlePhase.MainPhase || attackerOwner != currentPlayerType)
+        if (currentPhase != BattlePhase.MainPhase || !IsActingSideForUi(attackerOwner))
         {
             return;
         }
@@ -12180,6 +12296,12 @@ public partial class BattleGameMain : MonoBehaviour
     /// </summary>
     private bool TryRunTurnEndOnActionPhases(PlayerType endingTurnSide, System.Action onComplete)
     {
+        if (IsTestPlayBattle())
+        {
+            onComplete?.Invoke();
+            return false;
+        }
+
         PlayerType nonTurnSide = OpponentSide(endingTurnSide);
         BeginActionStepSession(
             endingTurnSide,
@@ -12201,6 +12323,12 @@ public partial class BattleGameMain : MonoBehaviour
         System.Action onComplete,
         CardController attackingUnitInAttackFlow = null)
     {
+        if (IsTestPlayBattle())
+        {
+            onComplete?.Invoke();
+            return true;
+        }
+
         string defenderContext = defenderSide == PlayerType.Player
             ? "attack:player-action"
             : "attack:enemy-action";
@@ -15934,7 +16062,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private bool CanExecuteOnMainCardNow(PlayerType ownerType, CardController card)
     {
-        if (card == null || card.Data == null || ownerType != currentPlayerType || currentPhase != BattlePhase.MainPhase)
+        if (card == null || card.Data == null || !IsActingSideForUi(ownerType) || currentPhase != BattlePhase.MainPhase)
         {
             return false;
         }
@@ -16161,9 +16289,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        bool isMyTurn = currentPlayerType == PlayerType.Player;
+        bool isMyTurn = IsTestPlayBattle()
+            || currentPlayerType == PlayerType.Player;
         EndTurnButton.gameObject.SetActive(true);
         EndTurnButton.interactable = isMyTurn;
+
+        if (IsTestPlayBattle())
+        {
+            RefreshTestPlayDeckDrawButtonStates();
+        }
 
         Image buttonImage = EndTurnButton.GetComponent<Image>();
         if (buttonImage != null)
