@@ -231,6 +231,225 @@ public partial class BattleGameMain
         return go;
     }
 
+    /// <summary>
+    /// 攻撃フロー用：攻撃元 → 攻撃先（またはシールド）を矢印付きで表示する。
+    /// anchoredYFromTop はカード上端の位置（TopCenter 基準）。
+    /// </summary>
+    private bool AppendAttackMatchupPreview(
+        GameObject parent,
+        CardController attacker,
+        CardController defender,
+        float anchoredYFromTop,
+        string headerText = "バトル予定",
+        string defenderFallbackLabel = null)
+    {
+        return AppendAttackMatchupPreviewInternal(
+            parent,
+            attacker,
+            defender,
+            headerText,
+            defenderFallbackLabel,
+            useBottomAnchor: false,
+            anchoredY: anchoredYFromTop);
+    }
+
+    /// <summary>Close/Cancel の直上（画面下部）に攻撃元 → 攻撃先を固定表示する。</summary>
+    private bool AppendAttackMatchupPreviewAboveBottomButtons(
+        GameObject parent,
+        CardController attacker,
+        CardController defender,
+        string headerText = "バトル予定",
+        string defenderFallbackLabel = null)
+    {
+        // ボタン高さ〜48 + 余白。カード下端がボタン上に来るよう Bottom 基準で配置
+        return AppendAttackMatchupPreviewInternal(
+            parent,
+            attacker,
+            defender,
+            headerText,
+            defenderFallbackLabel,
+            useBottomAnchor: true,
+            anchoredY: 220f);
+    }
+
+    private bool AppendAttackMatchupPreviewInternal(
+        GameObject parent,
+        CardController attacker,
+        CardController defender,
+        string headerText,
+        string defenderFallbackLabel,
+        bool useBottomAnchor,
+        float anchoredY)
+    {
+        if (parent == null || attacker == null || attacker.Data == null || CardImagePrefab == null)
+        {
+            return false;
+        }
+
+        bool hasUnitDefender = defender != null && defender.Data != null;
+        string fallback = !string.IsNullOrEmpty(defenderFallbackLabel)
+            ? defenderFallbackLabel
+            : (!hasUnitDefender ? "？" : null);
+        bool showFallback = !hasUnitDefender && !string.IsNullOrEmpty(fallback);
+
+        UIAnchor cardAnchor = useBottomAnchor ? UIAnchor.BottomCenter : UIAnchor.TopCenter;
+        Vector2 attackerPos = useBottomAnchor
+            ? new Vector2(-150f, anchoredY)
+            : new Vector2(-150f, anchoredY);
+        Vector2 arrowPos = useBottomAnchor
+            ? new Vector2(0f, anchoredY + 70f)
+            : new Vector2(0f, anchoredY - 70f);
+        Vector2 headerPos = useBottomAnchor
+            ? new Vector2(0f, anchoredY + BattleCardPreviewHeight + 28f)
+            : new Vector2(0f, anchoredY + 28f);
+        Vector2 defenderPos = useBottomAnchor
+            ? new Vector2(150f, anchoredY)
+            : new Vector2(150f, anchoredY);
+
+        if (!string.IsNullOrEmpty(headerText))
+        {
+            TextMeshProUGUI header = parent.CreateChildTextCustom("MatchupHeader", cardAnchor, 420, 26);
+            header.text = headerText;
+            header.fontSize = 18;
+            header.fontStyle = FontStyles.Bold;
+            header.color = new Color(1f, 0.92f, 0.55f, 1f);
+            header.alignment = TextAlignmentOptions.Center;
+            header.GetComponent<RectTransform>().anchoredPosition = headerPos;
+        }
+
+        AppendNonInteractiveCardPreviewAtAnchor(
+            parent,
+            attacker,
+            "攻撃元",
+            attackerPos,
+            cardAnchor,
+            new Color(1f, 0.45f, 0.45f, 1f));
+
+        TextMeshProUGUI arrow = parent.CreateChildTextCustom("MatchupArrow", cardAnchor, 80, 40);
+        arrow.text = "→";
+        arrow.fontSize = 36;
+        arrow.fontStyle = FontStyles.Bold;
+        arrow.color = Color.white;
+        arrow.alignment = TextAlignmentOptions.Center;
+        arrow.GetComponent<RectTransform>().anchoredPosition = arrowPos;
+
+        if (hasUnitDefender)
+        {
+            string defenderCaption = attackFlowBlockRedirectUnit != null && defender == attackFlowBlockRedirectUnit
+                ? "ブロック先"
+                : "攻撃先";
+            AppendNonInteractiveCardPreviewAtAnchor(
+                parent,
+                defender,
+                defenderCaption,
+                defenderPos,
+                cardAnchor,
+                new Color(0.45f, 0.85f, 1f, 1f));
+        }
+        else if (showFallback)
+        {
+            TextMeshProUGUI shieldCap = parent.CreateChildTextCustom("ShieldCaption", cardAnchor, 180, 24);
+            shieldCap.text = "攻撃先";
+            shieldCap.fontSize = 15;
+            shieldCap.color = new Color(0.92f, 0.92f, 0.92f, 1f);
+            shieldCap.alignment = TextAlignmentOptions.Center;
+            float capY = useBottomAnchor ? anchoredY + BattleCardPreviewHeight + 10f : anchoredY + 10f;
+            shieldCap.GetComponent<RectTransform>().anchoredPosition = new Vector2(150f, capY);
+
+            TextMeshProUGUI shieldLabel = parent.CreateChildTextCustom("ShieldFallback", cardAnchor, 180, 80);
+            shieldLabel.text = fallback;
+            shieldLabel.fontSize = 28;
+            shieldLabel.fontStyle = FontStyles.Bold;
+            shieldLabel.color = new Color(0.95f, 0.95f, 0.7f, 1f);
+            shieldLabel.alignment = TextAlignmentOptions.Center;
+            shieldLabel.GetComponent<RectTransform>().anchoredPosition = arrowPos + new Vector2(150f, 0f);
+        }
+
+        return true;
+    }
+
+    private GameObject AppendNonInteractiveCardPreviewAtAnchor(
+        GameObject parent,
+        CardController liveCard,
+        string caption,
+        Vector2 anchoredPosition,
+        UIAnchor anchor,
+        Color? statColor = null)
+    {
+        if (parent == null || liveCard == null || liveCard.Data == null || CardImagePrefab == null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(caption))
+        {
+            TextMeshProUGUI cap = parent.CreateChildTextCustom("CardCaption", anchor, 220, 24);
+            cap.text = caption;
+            cap.fontSize = 15;
+            cap.color = new Color(0.92f, 0.92f, 0.92f, 1f);
+            cap.alignment = TextAlignmentOptions.Center;
+            float captionOffset = anchor == UIAnchor.BottomCenter
+                ? BattleCardPreviewHeight + 10f
+                : 10f;
+            cap.GetComponent<RectTransform>().anchoredPosition =
+                anchoredPosition + new Vector2(0f, captionOffset);
+        }
+
+        GameObject go = Instantiate(CardImagePrefab, parent.transform);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        if (anchor == UIAnchor.BottomCenter)
+        {
+            rt.anchorMin = new Vector2(0.5f, 0f);
+            rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+        }
+        else
+        {
+            rt.anchorMin = new Vector2(0.5f, 1f);
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+        }
+
+        rt.sizeDelta = new Vector2(BattleCardPreviewWidth, BattleCardPreviewHeight);
+        rt.anchoredPosition = anchoredPosition;
+
+        CardController preview = go.GetComponent<CardController>();
+        if (preview != null)
+        {
+            preview.SetUp(liveCard.Data, _ => { });
+        }
+
+        AppendCardLiveStatOverlay(go, liveCard, statColor ?? Color.white);
+
+        Button btn = go.GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.interactable = false;
+        }
+
+        return go;
+    }
+
+    /// <summary>攻撃フロー中の表示用防御側（ブロック中ならブロッカー、否则宣言対象）。</summary>
+    private CardController ResolveAttackFlowDefenderForPreview()
+    {
+        if (attackFlowBlockRedirectUnit != null
+            && attackFlowBlockRedirectUnit.Data != null
+            && attackFlowBlockRedirectUnit.CurrentHp > 0)
+        {
+            return attackFlowBlockRedirectUnit;
+        }
+
+        if (attackFlowDeclaredDefenderUnit != null
+            && attackFlowDeclaredDefenderUnit.Data != null
+            && attackFlowDeclaredDefenderUnit.CurrentHp > 0)
+        {
+            return attackFlowDeclaredDefenderUnit;
+        }
+
+        return null;
+    }
+
     private void AppendSelectableTargetCardToGrid(
         RectTransform content,
         CardController target,

@@ -1229,6 +1229,23 @@ public partial class BattleGameMain
             return;
         }
 
+        bool isShieldAttack = string.Equals(
+            action.attackKind,
+            OnlineBattleActionPayload.AttackKindShield,
+            System.StringComparison.Ordinal);
+        CardController declaredTarget = null;
+        if (!isShieldAttack && action.defenderInstanceId > 0)
+        {
+            declaredTarget = FindBattleZoneUnitByInstanceId(action.defenderInstanceId, PlayerType.Player);
+        }
+
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            PlayerType.Enemy,
+            isShieldAttack ? AttackFlowStrikeKind.Shield : AttackFlowStrikeKind.UnitVsUnit,
+            declaredTarget,
+            null);
+
         // オフライン AI 攻撃時のブロック UI（attackerOwner==Enemy）と同じ Close / Cancel 構造。
         CardController selectedBlocker = null;
         int requestId = action.requestId;
@@ -1265,7 +1282,8 @@ public partial class BattleGameMain
 
                 SendOnlineBlockResponse(requestId, blockerInstanceId);
             },
-            passBlockAndSendResponse);
+            passBlockAndSendResponse,
+            declaredAttackTargetForDisplay: declaredTarget);
 
         if (!opened)
         {
