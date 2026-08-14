@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: CardSetData 1
   m_EditorClassIdentifier: 
   setId: 2
-  setName: DualImpact
+  setName: Dual Impact
   description: 
   price: 2
   isReleased: 0

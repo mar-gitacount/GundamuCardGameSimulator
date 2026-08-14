@@ -19,6 +19,17 @@ public class CardData : ScriptableObject
     public Sprite image;
     public int version;
     public CardSourceType sourceType;
+
+    [Header("収録セット（プルダウン）")]
+    [Tooltip("ブースター / スターター / Eternal Booster。セット名は下の各プルダウンで指定。")]
+    public CardProductLine productLine;
+    [Tooltip("productLine がブースターのとき設定する。")]
+    public BoosterProductSet boosterSet;
+    [Tooltip("productLine がスターターのとき設定する。")]
+    public StarterProductSet starterSet;
+    [Tooltip("productLine が Eternal Booster のとき設定する。")]
+    public EternalBoosterProductSet eternalBoosterSet;
+
     public FilterType filterType;
     public CardColor color;
     [Tooltip("カード種類（ユニット / パイロット / コマンド / ベース / EXリソース / ユニットトークン / コマンドパイロット）。")]
@@ -66,6 +77,51 @@ public class CardData : ScriptableObject
 
     [Tooltip("true のときパイロットをセットできない（有線式アーム等）。")]
     public bool cannotMountPilot;
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        SyncProductFieldsFromLine();
+    }
+#endif
+
+    /// <summary>productLine に合わせて sourceType / version / 未使用セットを揃える。</summary>
+    public void SyncProductFieldsFromLine()
+    {
+        switch (productLine)
+        {
+            case CardProductLine.Booster:
+                sourceType = CardSourceType.Booster;
+                if (boosterSet != BoosterProductSet.None)
+                {
+                    version = (int)boosterSet;
+                }
+
+                starterSet = StarterProductSet.None;
+                eternalBoosterSet = EternalBoosterProductSet.None;
+                break;
+            case CardProductLine.Starter:
+                sourceType = CardSourceType.Starter;
+                if (starterSet != StarterProductSet.None)
+                {
+                    version = (int)starterSet;
+                }
+
+                boosterSet = BoosterProductSet.None;
+                eternalBoosterSet = EternalBoosterProductSet.None;
+                break;
+            case CardProductLine.EternalBooster:
+                sourceType = CardSourceType.EternalBooster;
+                if (eternalBoosterSet != EternalBoosterProductSet.None)
+                {
+                    version = (int)eternalBoosterSet;
+                }
+
+                boosterSet = BoosterProductSet.None;
+                starterSet = StarterProductSet.None;
+                break;
+        }
+    }
 }
 
 
@@ -82,6 +138,10 @@ public class CardJson
     public string imageName;
     public int version;
     public int sourceType;
+    public int productLine;
+    public int boosterSet;
+    public int starterSet;
+    public int eternalBoosterSet;
     public int color; // カードの色を追加
     public int type;
     public int[] featureIds;

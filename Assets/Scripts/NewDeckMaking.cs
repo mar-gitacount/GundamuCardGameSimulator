@@ -710,9 +710,26 @@ public class NewDeckMaking : MonoBehaviour
 
     private void DeleteexecutionJsonFileToUseDeckSeetinObject()
     {
-        // 1. ファイルが存在するか確認
-        DeckSettinObject.Instance.DeleteJsonFile();
-        
+        if (DeckSettinObject.Instance == null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(DeckSettinObject.Instance.deckPathName))
+        {
+            Debug.LogWarning("[Deck] 削除対象のデッキが選択されていません。");
+            return;
+        }
+
+        ShowTwoButtonConfirm(
+            "消してしまうともとには戻れません！本当に消しますか？",
+            "Once deleted, it cannot be restored. Delete this deck?",
+            "OK",
+            "OK",
+            "キャンセル",
+            "Cancel",
+            () => DeckSettinObject.Instance.DeleteJsonFile(),
+            null);
     }
     private void DeckCopyButtonClicked()
     {

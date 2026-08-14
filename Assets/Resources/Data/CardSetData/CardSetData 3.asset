@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: CardSetData 3
   m_EditorClassIdentifier: 
   setId: 4
-  setName: HeroicBegining
+  setName: Phantom Aria
   description: 
   price: 0
   isReleased: 0
@@ -21,7 +21,7 @@ MonoBehaviour:
   setIcon: {fileID: 0}
   setBanner: {fileID: 0}
   cardIds: 
-  version: 1
-  sourceType: 2
+  version: 4
+  sourceType: 1
   filterType: 0
   color: 0
