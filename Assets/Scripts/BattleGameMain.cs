@@ -6846,7 +6846,8 @@ public partial class BattleGameMain : MonoBehaviour
 
                         passShieldBlockAndStartOnAction.Invoke();
                     },
-                    passShieldBlockAndStartOnAction))
+                    passShieldBlockAndStartOnAction,
+                    declaredAttackTargetForDisplay: null))
                 {
                     return;
                 }
@@ -7589,7 +7590,8 @@ public partial class BattleGameMain : MonoBehaviour
 
                     passBlockAndStartOnAction.Invoke();
                 },
-                passBlockAndStartOnAction))
+                passBlockAndStartOnAction,
+                declaredAttackTargetForDisplay: defender))
             {
                 return;
             }
@@ -8720,7 +8722,8 @@ public partial class BattleGameMain : MonoBehaviour
         CardController attackingUnitForDisplay,
         System.Action<CardController> onSelectDefender,
         System.Action onCloseResume,
-        System.Action onBlockPassOrCancel = null)
+        System.Action onBlockPassOrCancel = null,
+        CardController declaredAttackTargetForDisplay = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
@@ -8758,9 +8761,28 @@ public partial class BattleGameMain : MonoBehaviour
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
-        GameObject scrollGo = root.CreateGridScrollView(700, 430, UIAnchor.TopCenter);
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        bool enemyAttackingPlayer = attackerOwner == PlayerType.Enemy
+            && attackingUnitForDisplay != null
+            && attackingUnitForDisplay.Data != null;
+        List<CardController> blockRedirectUnits = CollectBlockRedirectCapableUnits(attackerOwner);
+
+        if (enemyAttackingPlayer)
+        {
+            title.text = enableAttackFlowActionThinkTest
+                ? "blockthink — Select an ACTIVE blocker, then Close"
+                : "Enemy attack — Select an ACTIVE blocker, then Close";
+        }
+        else
+        {
+            title.text = enableAttackFlowActionThinkTest ? "blockthink" : "Select a blocker, then Close";
+        }
+
+        // ブロッカー一覧（上）。下は Close 直上にバトル予定を固定表示
+        const int scrollHeight = 300;
+        GameObject scrollGo = root.CreateGridScrollView(680, scrollHeight, UIAnchor.TopCenter);
         RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
-        scrollRt.anchoredPosition = new Vector2(0f, -84f);
+        scrollRt.anchoredPosition = new Vector2(0f, -86f);
         scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
         ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
         RectTransform content = sr != null ? sr.content : null;
@@ -8777,25 +8799,6 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
-        bool enemyAttackingPlayer = attackerOwner == PlayerType.Enemy
-            && attackingUnitForDisplay != null
-            && attackingUnitForDisplay.Data != null;
-        List<CardController> blockRedirectUnits = CollectBlockRedirectCapableUnits(attackerOwner);
-
-        if (enemyAttackingPlayer)
-        {
-            title.text = enableAttackFlowActionThinkTest
-                ? "blockthink — Select an ACTIVE blocker, then Close"
-                : "Enemy attack — Select an ACTIVE blocker, then Close";
-            AppendAttackerPreviewToDefensePanel(root, attackingUnitForDisplay);
-            scrollRt.anchoredPosition = new Vector2(0f, -200f);
-        }
-        else
-        {
-            title.text = enableAttackFlowActionThinkTest ? "blockthink" : "Select a blocker, then Close";
-        }
-
         CardController selectedDefender = null;
         if (blockRedirectUnits.Count == 0)
         {
@@ -8805,7 +8808,7 @@ public partial class BattleGameMain : MonoBehaviour
                 : "No blockers available";
             empty.fontSize = 20;
             empty.color = Color.white;
-            empty.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -280f);
+            empty.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -126f);
         }
         else
         {
@@ -8833,6 +8836,29 @@ public partial class BattleGameMain : MonoBehaviour
                         title.text = $"Blocker selected: {unit.Data.cardName}";
                     });
             }
+        }
+
+        // 画面下部（Close/Cancel の直上）に攻撃元 → 攻撃先
+        CardController matchupAttacker = attackingUnitForDisplay != null && attackingUnitForDisplay.Data != null
+            ? attackingUnitForDisplay
+            : attackFlowAttackerUnit;
+        CardController matchupDefender = declaredAttackTargetForDisplay != null
+            && declaredAttackTargetForDisplay.Data != null
+                ? declaredAttackTargetForDisplay
+                : ResolveAttackFlowDefenderForPreview();
+        string shieldFallback = attackFlowStrikeKind == AttackFlowStrikeKind.Shield ? "シールド" : null;
+        if (matchupAttacker != null && matchupAttacker.Data != null)
+        {
+            AppendAttackMatchupPreviewAboveBottomButtons(
+                root,
+                matchupAttacker,
+                matchupDefender,
+                "バトル予定（誰が誰に攻撃）",
+                shieldFallback);
+            Debug.Log(
+                $"[BlockPanelMatchup] attacker:{matchupAttacker.Data.cardName} "
+                + $"defender:{(matchupDefender != null ? matchupDefender.Data.cardName : shieldFallback ?? "none")} "
+                + $"strike:{attackFlowStrikeKind}");
         }
 
         Button closeBtn = root.CreateChildButton("Close");
@@ -14356,9 +14382,22 @@ public partial class BattleGameMain : MonoBehaviour
                 && !string.IsNullOrEmpty(context)
                 && context.Contains("attack");
 
-            GameObject scrollGo = root.CreateGridScrollView(680, 410, UIAnchor.TopCenter);
+            CardController matchupAttacker = attackingUnitInAttackFlow != null
+                ? attackingUnitInAttackFlow
+                : attackFlowAttackerUnit;
+            CardController matchupDefender = ResolveAttackFlowDefenderForPreview();
+            bool showMatchup = showAttackHighlight
+                && matchupAttacker != null
+                && matchupAttacker.Data != null
+                && (matchupDefender != null
+                    || attackFlowStrikeKind == AttackFlowStrikeKind.Shield);
+
+            // マッチアップ表示分、カード一覧を少し上寄せ・低めにする
+            int scrollHeight = showMatchup ? 280 : 410;
+            float scrollY = showMatchup ? -86f : (showAttackHighlight ? -98f : -86f);
+            GameObject scrollGo = root.CreateGridScrollView(680, scrollHeight, UIAnchor.TopCenter);
             RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
-            scrollRt.anchoredPosition = new Vector2(0f, showAttackHighlight ? -98f : -86f);
+            scrollRt.anchoredPosition = new Vector2(0f, scrollY);
             scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
             ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
             RectTransform content = sr != null ? sr.content : null;
@@ -14381,6 +14420,33 @@ public partial class BattleGameMain : MonoBehaviour
                     selectedSet,
                     alreadyUsedInActionStep);
             }
+
+            if (showMatchup)
+            {
+                // グリッド下・Confirm ボタン上に攻撃元 → 攻撃先
+                float matchupY = -(86f + scrollHeight + 36f);
+                AppendAttackMatchupPreview(
+                    root,
+                    matchupAttacker,
+                    matchupDefender,
+                    matchupY,
+                    "バトル予定",
+                    attackFlowStrikeKind == AttackFlowStrikeKind.Shield ? "シールド" : null);
+            }
+        }
+        else if (attackingUnitInAttackFlow != null
+            && attackingUnitInAttackFlow.Data != null
+            && !string.IsNullOrEmpty(context)
+            && context.Contains("attack"))
+        {
+            // 使えるカードが無くても攻撃対象は見せる
+            AppendAttackMatchupPreview(
+                root,
+                attackingUnitInAttackFlow,
+                ResolveAttackFlowDefenderForPreview(),
+                -120f,
+                "バトル予定",
+                attackFlowStrikeKind == AttackFlowStrikeKind.Shield ? "シールド" : null);
         }
 
         void finishUi(ActionStepPassKind passKind)
