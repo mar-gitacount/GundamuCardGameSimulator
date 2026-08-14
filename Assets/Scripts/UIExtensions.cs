@@ -219,6 +219,7 @@ public static class UIExtensions
 
     /// <summary>
     /// ScrollView内のGridセルを、表示エリアの高さ基準で設定する。
+    /// 横幅を超えないようクランプする（狭いポップアップ向け）。
     /// </summary>
     public static void ConfigureGridCellFromViewportHeight(this GameObject scrollRoot, float heightRatio = 0.8f, float minCellSize = 48f)
     {
@@ -239,11 +240,37 @@ public static class UIExtensions
             return;
         }
 
+        RectTransform rootRt = scrollRoot.GetComponent<RectTransform>();
         float viewportHeight = sr.viewport.rect.height;
+        float viewportWidth = sr.viewport.rect.width;
+        if (viewportHeight <= 0.01f && rootRt != null)
+        {
+            viewportHeight = Mathf.Max(0f, rootRt.sizeDelta.y);
+        }
+
+        if (viewportWidth <= 0.01f && rootRt != null)
+        {
+            viewportWidth = Mathf.Max(0f, rootRt.sizeDelta.x);
+        }
+
         float availableHeight = Mathf.Max(0f, viewportHeight - grid.padding.top - grid.padding.bottom);
+        float availableWidth = Mathf.Max(0f, viewportWidth - grid.padding.left - grid.padding.right);
         float ratio = Mathf.Clamp01(heightRatio);
         float cell = Mathf.Max(minCellSize, availableHeight * ratio);
+
+        // 2列想定で横にはみ出さない上限
+        float twoColMax = (availableWidth - grid.spacing.x) * 0.5f;
+        if (twoColMax >= minCellSize)
+        {
+            cell = Mathf.Min(cell, twoColMax);
+        }
+        else if (availableWidth > 0f)
+        {
+            cell = Mathf.Min(cell, availableWidth);
+        }
+
         grid.cellSize = new Vector2(cell, cell);
+        grid.childAlignment = TextAnchor.UpperCenter;
     }
 
 
