@@ -69,12 +69,13 @@ public static class DeckStorageService
         return exception.GetBaseException().Message;
     }
 
-    public static DeckSaveData BuildSaveData(string title, Dictionary<int, int> cardData)
+    public static DeckSaveData BuildSaveData(string title, Dictionary<int, int> cardData, int preferredThumbnailId = 0)
     {
         DeckSaveData saveData = new DeckSaveData
         {
             title = title,
             thumbnailId = 0,
+            updatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
 
         foreach (KeyValuePair<int, int> item in cardData)
@@ -84,14 +85,37 @@ public static class DeckStorageService
                 continue;
             }
 
-            if (saveData.thumbnailId == 0)
-            {
-                saveData.thumbnailId = item.Key;
-            }
-
             saveData.cards.Add(new CardSlot { id = item.Key, count = item.Value });
         }
 
+        saveData.thumbnailId = ResolveThumbnailId(cardData, preferredThumbnailId);
         return saveData;
+    }
+
+    /// <summary>指定 ID がデッキ内にあればそれを、なければ先頭の残カードをサムネにする。</summary>
+    public static int ResolveThumbnailId(Dictionary<int, int> cardData, int preferredThumbnailId)
+    {
+        if (cardData != null
+            && preferredThumbnailId > 0
+            && cardData.TryGetValue(preferredThumbnailId, out int preferredCount)
+            && preferredCount > 0)
+        {
+            return preferredThumbnailId;
+        }
+
+        if (cardData == null)
+        {
+            return 0;
+        }
+
+        foreach (KeyValuePair<int, int> item in cardData)
+        {
+            if (item.Value > 0)
+            {
+                return item.Key;
+            }
+        }
+
+        return 0;
     }
 }

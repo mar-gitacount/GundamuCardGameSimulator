@@ -6,6 +6,7 @@ using System.Linq;
 using TMPro;
 using System.IO;
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 
 public class DeckSettinObject : MonoBehaviour
@@ -37,9 +38,23 @@ public class DeckSettinObject : MonoBehaviour
 
     private const string DeckTotalCountLabelName = "DeckTotalCountLabel";
     private const string DeckCardCountBadgeName = "DeckCardCountBadge";
+    private const string DeckThumbnailFrameName = "ThumbnailFrame";
+    private const float HomeBoardDesignWidth = 480f;
+    private const float HomeBoardDesignHeight = 800f;
+    private const float DeckListCellWidth = 140f;
+    private const float DeckListCellHeight = 228f;
     private TextMeshProUGUI _deckTotalCountLabel;
     private GameObject _deckTotalCountLabelRoot;
     private static Sprite _deckCardCountBadgeCircleSprite;
+    private static Sprite _uiWhiteSprite;
+    private Vector2 _lastHomeBoardParentSize;
+    /// <summary>編集中デッキの代表サムネカード ID。0 は未設定（先頭にフォールバック）。</summary>
+    private int _thumbnailCardId;
+    /// <summary>編集開始時のデッキ内容。Cancel 時の差分判定・復元に使う。</summary>
+    private Dictionary<int, int> _editBaselineCards = new Dictionary<int, int>();
+    private string _editBaselineTitle = string.Empty;
+    private int _editBaselineThumbnailId;
+    private string _editBaselinePath = string.Empty;
     // バトルキャンバス
     [SerializeField] private Canvas BattleCanvas;
     // !デッキデータを保存するクラス
@@ -113,20 +128,31 @@ public class DeckSettinObject : MonoBehaviour
         RefreshDeckListFromStorage();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void LateUpdate()
     {
-        
+        CenterHomeBoardAndDeckinfoPanel(force: false);
     }
     public void ClearDeckList()
     {
         cardData.Clear();
-        DeckListPanel.transform.DetachChildren(); // デッキリストの子オブジェクトを全て削除
-        // DeckListPanel の子オブジェクトを全て削除
-        // foreach (Transform child in DeckListPanel.transform)
-        // {
-        //     Destroy(child.gameObject);
-        // }
+        _thumbnailCardId = 0;
+        deckPathName = string.Empty;
+        if (DeckListPanel != null)
+        {
+            DeckListPanel.transform.DetachChildren(); // デッキリストの子オブジェクトを全て削除
+        }
+    }
+
+    /// <summary>新規デッキ編集用に、選択中パスとカードを空にする（既存ファイルを上書きしない）。</summary>
+    public void BeginNewEmptyDeck()
+    {
+        cardData.Clear();
+        _thumbnailCardId = 0;
+        deckPathName = string.Empty;
+        _editBaselineCards = new Dictionary<int, int>();
+        _editBaselineTitle = string.Empty;
+        _editBaselineThumbnailId = 0;
+        _editBaselinePath = string.Empty;
     }
 
     public Dictionary<int, int> LoadDeckReturn()
@@ -199,6 +225,12 @@ public class DeckSettinObject : MonoBehaviour
         return BattoleStartFlag;
     }
 
+    /// <summary>現在の編集内容を保存し、完了まで待つ。</summary>
+    public IEnumerator SaveCurrentDeckCoroutine()
+    {
+        yield return SaveDeckCoroutine(cardData);
+    }
+
     // デッキパネル内のカードを保存（ゲスト=ローカル JSON / ログイン=Cloud Save）
     public void SaveDeckToJson(Dictionary<int, int> cardData)
     {
@@ -208,7 +240,8 @@ public class DeckSettinObject : MonoBehaviour
     private IEnumerator SaveDeckCoroutine(Dictionary<int, int> sourceCardData)
     {
         string title = DeckTitleInputField != null ? DeckTitleInputField.text : string.Empty;
-        DeckSaveData saveData = DeckStorageService.BuildSaveData(title, sourceCardData);
+        DeckSaveData saveData = DeckStorageService.BuildSaveData(title, sourceCardData, _thumbnailCardId);
+        _thumbnailCardId = saveData.thumbnailId;
         string storageKey = DeckStorageService.PrepareStorageKeyForSave(deckPathName);
 
         Task saveTask = DeckStorageService.SaveDeckAsync(storageKey, saveData);
@@ -279,6 +312,7 @@ public class DeckSettinObject : MonoBehaviour
     {
         SetDeckinfoPanelVisible(true);
         ConfigureDeckinfoPanelRaycast(false);
+        CenterHomeBoardAndDeckinfoPanel(force: true);
     }
 
     public void HideDeckActionButtons()
@@ -291,7 +325,72 @@ public class DeckSettinObject : MonoBehaviour
         if (DeckinfoPanel != null)
         {
             DeckinfoPanel.SetActive(visible);
+            if (visible)
+            {
+                CenterHomeBoardAndDeckinfoPanel(force: true);
+            }
         }
+    }
+
+    /// <summary>
+    /// ホームの 480×800 盤面を親キャンバス中央に置き、DeckinfoPanel はその枠いっぱいに合わせる。
+    /// ストレッチの SizeDelta 残り（約+622）が上方向にはみ出すのを防ぐ。
+    /// </summary>
+    private void CenterHomeBoardAndDeckinfoPanel(bool force)
+    {
+        if (DeckinfoPanel == null)
+        {
+            return;
+        }
+
+        RectTransform panelRt = DeckinfoPanel.GetComponent<RectTransform>();
+        if (panelRt == null)
+        {
+            return;
+        }
+
+        RectTransform boardRt = panelRt.parent as RectTransform;
+        RectTransform parentRt = boardRt != null ? boardRt.parent as RectTransform : null;
+        Vector2 parentSize = parentRt != null ? parentRt.rect.size : new Vector2(HomeBoardDesignWidth, HomeBoardDesignHeight);
+        if (parentSize.x < 1f)
+        {
+            parentSize.x = HomeBoardDesignWidth;
+        }
+
+        if (parentSize.y < 1f)
+        {
+            parentSize.y = HomeBoardDesignHeight;
+        }
+
+        if (!force && (parentSize - _lastHomeBoardParentSize).sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        _lastHomeBoardParentSize = parentSize;
+
+        if (boardRt != null)
+        {
+            float width = Mathf.Min(HomeBoardDesignWidth, parentSize.x);
+            float height = Mathf.Min(HomeBoardDesignHeight, parentSize.y);
+            boardRt.anchorMin = new Vector2(0.5f, 0.5f);
+            boardRt.anchorMax = new Vector2(0.5f, 0.5f);
+            boardRt.pivot = new Vector2(0.5f, 0.5f);
+            boardRt.sizeDelta = new Vector2(width, height);
+            boardRt.anchoredPosition = Vector2.zero;
+            boardRt.localScale = Vector3.one;
+            boardRt.localRotation = Quaternion.identity;
+        }
+
+        panelRt.anchorMin = Vector2.zero;
+        panelRt.anchorMax = Vector2.one;
+        panelRt.pivot = new Vector2(0.5f, 0.5f);
+        panelRt.offsetMin = Vector2.zero;
+        panelRt.offsetMax = Vector2.zero;
+        panelRt.anchoredPosition = Vector2.zero;
+        panelRt.sizeDelta = Vector2.zero;
+        panelRt.localScale = Vector3.one;
+        panelRt.localRotation = Quaternion.identity;
     }
 
     private void ConfigureDeckinfoPanelRaycast(bool blockRaycasts)
@@ -709,7 +808,7 @@ public class DeckSettinObject : MonoBehaviour
 
         Debug.Log($"デッキデータ{id}の枚数: {count}");
         DeckEditNowpanel.SetActive(true);
-        RefreshDeckEditCountDisplays();
+        OnDeckCompositionChanged();
     }
     public void RemoveCardById(int targetId)
 {
@@ -732,6 +831,8 @@ public class DeckSettinObject : MonoBehaviour
     }
 
     RefreshDeckEditCountDisplays();
+    EnsureThumbnailCardId();
+    RefreshThumbnailFrames();
 }
 public GameObject FindCardById(int targetId)
 {
@@ -807,7 +908,7 @@ public void cardObj(int cardId, GameObject preferredTemplate = null)
             ? CardDatabase.Instance.FindById(cardId)
             : null;
         Card.EnsureNotUsedOnlineLabel(existing, existingData);
-        RefreshDeckEditCountDisplays();
+        OnDeckCompositionChanged();
         return;
     }
 
@@ -864,7 +965,7 @@ public void cardObj(int cardId, GameObject preferredTemplate = null)
         Debug.Log("Sprite: " + img.sprite);
     }
 
-    RefreshDeckEditCountDisplays();
+    OnDeckCompositionChanged();
 }
 
 private GameObject ResolveDeckEditCardTemplate(int cardId, GameObject preferredTemplate)
@@ -1065,12 +1166,482 @@ public void ShowFileList()
         StartCoroutine(ShowFileListCoroutine());
     }
 
+    /// <summary>編集開始時点のデッキを記録する。</summary>
+    public void CaptureEditBaseline(string title)
+    {
+        _editBaselineCards = new Dictionary<int, int>();
+        foreach (KeyValuePair<int, int> pair in cardData)
+        {
+            if (pair.Value > 0)
+            {
+                _editBaselineCards[pair.Key] = pair.Value;
+            }
+        }
+
+        _editBaselineTitle = title ?? string.Empty;
+        _editBaselineThumbnailId = _thumbnailCardId;
+        _editBaselinePath = deckPathName ?? string.Empty;
+    }
+
+    /// <summary>編集開始時からカード・タイトル・サムネに差分があるか。</summary>
+    public bool HasChangesFromEditBaseline(string currentTitle)
+    {
+        string nowTitle = currentTitle ?? string.Empty;
+        if (!string.Equals(_editBaselineTitle.Trim(), nowTitle.Trim(), StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (_thumbnailCardId != _editBaselineThumbnailId)
+        {
+            return true;
+        }
+
+        Dictionary<int, int> current = new Dictionary<int, int>();
+        foreach (KeyValuePair<int, int> pair in cardData)
+        {
+            if (pair.Value > 0)
+            {
+                current[pair.Key] = pair.Value;
+            }
+        }
+
+        if (current.Count != _editBaselineCards.Count)
+        {
+            return true;
+        }
+
+        foreach (KeyValuePair<int, int> pair in _editBaselineCards)
+        {
+            if (!current.TryGetValue(pair.Key, out int count) || count != pair.Value)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>編集開始時の内容に戻す。復元後のタイトルを返す。</summary>
+    public string RestoreEditBaseline()
+    {
+        cardData.Clear();
+        foreach (KeyValuePair<int, int> pair in _editBaselineCards)
+        {
+            if (pair.Value > 0)
+            {
+                cardData[pair.Key] = pair.Value;
+            }
+        }
+
+        _thumbnailCardId = _editBaselineThumbnailId;
+        deckPathName = _editBaselinePath ?? string.Empty;
+        EnsureThumbnailCardId();
+        return _editBaselineTitle ?? string.Empty;
+    }
+
+    /// <summary>編集開始時に既存ファイルがあったか（新規作成ではなく既存編集）。</summary>
+    public bool HasEditBaselineStorageKey()
+    {
+        return !string.IsNullOrEmpty(_editBaselinePath);
+    }
+
+    /// <summary>編集中デッキのサムネカード ID。未設定なら先頭。</summary>
+    public int GetThumbnailCardId()
+    {
+        EnsureThumbnailCardId();
+        return _thumbnailCardId;
+    }
+
+    /// <summary>デッキ内カードをサムネに設定する（1枚以上ある場合のみ）。</summary>
+    public void SetThumbnailCardId(int cardId)
+    {
+        if (cardId <= 0 || CardCount(cardId) <= 0)
+        {
+            Debug.LogWarning($"[Deck] サムネにできないカード id:{cardId}");
+            return;
+        }
+
+        _thumbnailCardId = cardId;
+        RefreshThumbnailFrames();
+        Debug.Log($"[Deck] サムネ設定: {_thumbnailCardId}");
+    }
+
+    private void OnDeckCompositionChanged()
+    {
+        RefreshDeckEditCountDisplays();
+        EnsureThumbnailCardId();
+        RefreshThumbnailFrames();
+    }
+
+    private void EnsureThumbnailCardId()
+    {
+        if (_thumbnailCardId > 0 && CardCount(_thumbnailCardId) > 0)
+        {
+            return;
+        }
+
+        _thumbnailCardId = 0;
+        if (DeckEditNowpanel != null)
+        {
+            Card[] cards = DeckEditNowpanel.GetComponentsInChildren<Card>(true);
+            for (int i = 0; i < cards.Length; i++)
+            {
+                Card card = cards[i];
+                if (card == null || card.CardId <= 0)
+                {
+                    continue;
+                }
+
+                if (CardCount(card.CardId) > 0)
+                {
+                    _thumbnailCardId = card.CardId;
+                    return;
+                }
+            }
+        }
+
+        foreach (KeyValuePair<int, int> pair in cardData)
+        {
+            if (pair.Value > 0)
+            {
+                _thumbnailCardId = pair.Key;
+                return;
+            }
+        }
+    }
+
+    /// <summary>デッキ編集プレビューにサムネ枠を付ける／外す。</summary>
+    public void RefreshThumbnailFrames()
+    {
+        if (DeckEditNowpanel == null)
+        {
+            return;
+        }
+
+        EnsureThumbnailCardId();
+        Card[] cards = DeckEditNowpanel.GetComponentsInChildren<Card>(true);
+        for (int i = 0; i < cards.Length; i++)
+        {
+            Card card = cards[i];
+            if (card == null)
+            {
+                continue;
+            }
+
+            bool isThumb = card.CardId == _thumbnailCardId && CardCount(card.CardId) > 0;
+            ApplyThumbnailFrame(card.gameObject, isThumb);
+        }
+    }
+
+    private static void ApplyThumbnailFrame(GameObject cardObject, bool enabled)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        Outline outline = cardObject.GetComponent<Outline>();
+        if (!enabled)
+        {
+            if (outline != null)
+            {
+                outline.enabled = false;
+            }
+
+            Transform legacy = cardObject.transform.Find(DeckThumbnailFrameName);
+            if (legacy != null)
+            {
+                legacy.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        if (outline == null)
+        {
+            outline = cardObject.AddComponent<Outline>();
+        }
+
+        outline.enabled = true;
+        outline.effectColor = new Color(1f, 0.84f, 0.2f, 1f);
+        outline.effectDistance = new Vector2(4f, 4f);
+        outline.useGraphicAlpha = true;
+    }
+
+    private void ConfigureDeckListGridLayout()
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        DeckListPanel.transform.localScale = Vector3.one;
+
+        GridLayoutGroup grid = DeckListPanel.GetComponent<GridLayoutGroup>();
+        if (grid == null)
+        {
+            grid = DeckListPanel.AddComponent<GridLayoutGroup>();
+        }
+
+        grid.padding = new RectOffset(12, 12, 8, 16);
+        grid.spacing = new Vector2(8f, 12f);
+        grid.cellSize = new Vector2(DeckListCellWidth, DeckListCellHeight);
+        grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        grid.childAlignment = TextAnchor.UpperCenter;
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+
+        Image panelImage = DeckListPanel.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.color = new Color(0f, 0f, 0f, 0.2f);
+            if (panelImage.sprite == null)
+            {
+                panelImage.sprite = GetUiWhiteSprite();
+            }
+        }
+    }
+
+    private GameObject CreateDeckListItem(DeckSaveData data, DeckStorageEntry entry)
+    {
+        GameObject cardObj = Instantiate(DeckDataPrefab, DeckListPanel.transform);
+        cardObj.name = string.IsNullOrEmpty(data.title) ? entry.DisplayName : data.title;
+        cardObj.transform.localScale = Vector3.one;
+
+        Image panelImage = cardObj.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.sprite = GetUiWhiteSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = new Color(0.12f, 0.12f, 0.14f, 1f);
+            panelImage.raycastTarget = true;
+        }
+
+        VerticalLayoutGroup layout = cardObj.GetComponent<VerticalLayoutGroup>();
+        if (layout == null)
+        {
+            layout = cardObj.AddComponent<VerticalLayoutGroup>();
+        }
+
+        layout.padding = new RectOffset(8, 8, 8, 8);
+        layout.spacing = 4f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        int thumbId = DeckStorageService.ResolveThumbnailId(
+            BuildCountMap(data),
+            data.thumbnailId);
+        Sprite thumbSprite = ResolveCardSprite(thumbId);
+
+        GameObject thumbGo = new GameObject(
+            "Thumbnail",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(LayoutElement));
+        thumbGo.transform.SetParent(cardObj.transform, false);
+        LayoutElement thumbLayout = thumbGo.GetComponent<LayoutElement>();
+        thumbLayout.preferredHeight = 132f;
+        thumbLayout.minHeight = 120f;
+        Image thumbImage = thumbGo.GetComponent<Image>();
+        thumbImage.sprite = thumbSprite;
+        thumbImage.preserveAspect = true;
+        thumbImage.raycastTarget = false;
+        thumbImage.color = Color.white;
+
+        string title = string.IsNullOrEmpty(data.title) ? entry.DisplayName : data.title;
+        TextMeshProUGUI titleText = CreateDeckListLabel(cardObj, "DeckTitle", title, 16f, FontStyles.Bold, 36f);
+        titleText.alignment = TextAlignmentOptions.TopLeft;
+        titleText.enableWordWrapping = true;
+        titleText.overflowMode = TextOverflowModes.Ellipsis;
+
+        DateTime stamp = entry.LastWriteTime;
+        if (stamp == DateTime.MinValue && data.updatedAtUnix > 0)
+        {
+            stamp = DateTimeOffset.FromUnixTimeSeconds(data.updatedAtUnix).LocalDateTime;
+        }
+
+        string dateLine = stamp == DateTime.MinValue
+            ? string.Empty
+            : FormatDeckListDate(stamp);
+        string weekLine = stamp == DateTime.MinValue
+            ? string.Empty
+            : $"({FormatDeckListWeekday(stamp.DayOfWeek)})";
+
+        TextMeshProUGUI dateText = CreateDeckListLabel(cardObj, "DeckDate", dateLine, 12f, FontStyles.Normal, 18f);
+        dateText.alignment = TextAlignmentOptions.TopLeft;
+        TextMeshProUGUI weekText = CreateDeckListLabel(cardObj, "DeckWeekday", weekLine, 12f, FontStyles.Normal, 18f);
+        weekText.alignment = TextAlignmentOptions.TopLeft;
+
+        return cardObj;
+    }
+
+    private static TextMeshProUGUI CreateDeckListLabel(
+        GameObject parent,
+        string name,
+        string text,
+        float fontSize,
+        FontStyles style,
+        float preferredHeight)
+    {
+        GameObject go = new GameObject(
+            name,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI),
+            typeof(LayoutElement));
+        go.transform.SetParent(parent.transform, false);
+        LayoutElement layout = go.GetComponent<LayoutElement>();
+        layout.preferredHeight = preferredHeight;
+        layout.minHeight = preferredHeight;
+
+        TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
+        tmp.ApplyJapaneseFont();
+        tmp.text = text ?? string.Empty;
+        tmp.fontSize = fontSize;
+        tmp.fontStyle = style;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
+        return tmp;
+    }
+
+    private static Dictionary<int, int> BuildCountMap(DeckSaveData data)
+    {
+        Dictionary<int, int> map = new Dictionary<int, int>();
+        if (data == null || data.cards == null)
+        {
+            return map;
+        }
+
+        for (int i = 0; i < data.cards.Count; i++)
+        {
+            CardSlot slot = data.cards[i];
+            if (slot == null || slot.id <= 0 || slot.count <= 0)
+            {
+                continue;
+            }
+
+            map[slot.id] = slot.count;
+        }
+
+        return map;
+    }
+
+    private static Sprite ResolveCardSprite(int cardId)
+    {
+        if (cardId <= 0)
+        {
+            return null;
+        }
+
+        if (CardDatabase.Instance != null)
+        {
+            CardData data = CardDatabase.Instance.FindById(cardId);
+            if (data != null && data.imageName != null)
+            {
+                return data.imageName;
+            }
+        }
+
+        CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (all[i] != null && all[i].id == cardId && all[i].imageName != null)
+            {
+                return all[i].imageName;
+            }
+        }
+
+        return null;
+    }
+
+    private static string FormatDeckListDate(DateTime stamp)
+    {
+        if (GameLocale.IsEnglish)
+        {
+            return stamp.ToString("MMM dd, yyyy", CultureInfo.GetCultureInfo("en-US"));
+        }
+
+        return stamp.ToString("yyyy年MM月dd日");
+    }
+
+    private static string FormatDeckListWeekday(DayOfWeek day)
+    {
+        if (GameLocale.IsEnglish)
+        {
+            switch (day)
+            {
+                case DayOfWeek.Sunday: return "Sun";
+                case DayOfWeek.Monday: return "Mon";
+                case DayOfWeek.Tuesday: return "Tue";
+                case DayOfWeek.Wednesday: return "Wed";
+                case DayOfWeek.Thursday: return "Thu";
+                case DayOfWeek.Friday: return "Fri";
+                case DayOfWeek.Saturday: return "Sat";
+                default: return string.Empty;
+            }
+        }
+
+        switch (day)
+        {
+            case DayOfWeek.Sunday: return "日";
+            case DayOfWeek.Monday: return "月";
+            case DayOfWeek.Tuesday: return "火";
+            case DayOfWeek.Wednesday: return "水";
+            case DayOfWeek.Thursday: return "木";
+            case DayOfWeek.Friday: return "金";
+            case DayOfWeek.Saturday: return "土";
+            default: return string.Empty;
+        }
+    }
+
+    private static Sprite GetUiWhiteSprite()
+    {
+        if (_uiWhiteSprite != null)
+        {
+            return _uiWhiteSprite;
+        }
+
+        Texture2D texture = new Texture2D(8, 8, TextureFormat.RGBA32, false)
+        {
+            name = "DeckListUiWhite",
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+        };
+        Color32 white = new Color32(255, 255, 255, 255);
+        Color32[] pixels = new Color32[64];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = white;
+        }
+
+        texture.SetPixels32(pixels);
+        texture.Apply();
+        _uiWhiteSprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, 8f, 8f),
+            new Vector2(0.5f, 0.5f),
+            100f,
+            0u,
+            SpriteMeshType.FullRect,
+            new Vector4(2f, 2f, 2f, 2f));
+        _uiWhiteSprite.name = "DeckListUiWhiteSprite";
+        return _uiWhiteSprite;
+    }
+
     private IEnumerator ShowFileListCoroutine()
 {
     if (DeckListPanel != null)
     {
         DeckListPanel.transform.DetachChildren();
     }
+
+    ConfigureDeckListGridLayout();
 
     Task<List<DeckStorageEntry>> listTask = DeckStorageService.ListDecksAsync();
     while (!listTask.IsCompleted)
@@ -1111,21 +1682,17 @@ public void ShowFileList()
             continue;
         }
 
-    Sprite cardSprite = Resources.Load<Sprite>($"Data/Cards/{data.thumbnailId}");
-  
-    var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(c => c.id);
-    Debug.Log($"カードテーブルの長さ: {cardTable.Count}");
-
-    GameObject cardObj = Instantiate(DeckDataPrefab, DeckListPanel.transform);
-    Image targetImg = cardObj.GetComponent<Image>();
-    if (cardSprite != null)
-    {
-        targetImg.sprite = cardSprite;
-    }
+    GameObject cardObj = CreateDeckListItem(data, entry);
 
     Button btn = cardObj.GetComponentInChildren<Button>();
+    if (btn == null)
+    {
+        btn = cardObj.GetComponent<Button>();
+    }
+
     if (btn != null)
     {
+    btn.onClick.RemoveAllListeners();
     btn.onClick.AddListener(() => {
         Debug.Log(cardObj.name + " がクリックされました！");
         deckPathName = captureKey;
@@ -1160,6 +1727,7 @@ public void ShowFileList()
             return;
         }
         cardData.Clear();
+        _thumbnailCardId = data.thumbnailId;
         ShowDeckActionButtons();
         DeckTitleInputField.text = data.title;
         foreach (var card in data.cards)
@@ -1167,36 +1735,10 @@ public void ShowFileList()
             Debug.Log($"クリックされたデッキのカードID: {card.id}, 枚数: {card.count}");
             cardData[card.id] = card.count;
         }
+
+        EnsureThumbnailCardId();
     });
     }
-
-    if (cardTable.TryGetValue(data.thumbnailId, out CardData card))
-    {
-        string targetImageName = card.imageName.name;
-        Debug.Log($"ID:{data.thumbnailId} の画像名は {targetImageName} です");
-        Sprite sp = Resources.Load<Sprite>($"Data/Images/{targetImageName}");
-        cardObj.GetComponent<Image>().sprite = sp;
-    }
-    else
-    {
-        Debug.LogError($"ID {data.thumbnailId} のデータがResources/Data/Cards 内に見つかりません！");
-    }
-
-    GameObject textGo = new GameObject("CardCountText");
-    textGo.transform.SetParent(cardObj.transform);
-    textGo.transform.localScale = new Vector3(1f, 1f, 1f); 
-
-    TextMeshProUGUI myText = textGo.AddComponent<TextMeshProUGUI>();
-    TMP_FontAsset loadedFont = Resources.Load<TMP_FontAsset>("SourceHanSansJP-Regular SDF");
-    myText.font = loadedFont;
-    myText.text = string.IsNullOrEmpty(data.title) ? entry.DisplayName : data.title; 
-    myText.fontSize = 30;
-    myText.alignment = TextAlignmentOptions.Center;
-    myText.color = Color.black;
-
-    RectTransform rect = textGo.GetComponent<RectTransform>();
-    rect.anchoredPosition = Vector2.zero; 
-    rect.sizeDelta = new Vector2(10, 10); 
     }
 }
 }

@@ -459,17 +459,54 @@ public partial class BattleGameMain
         System.Func<string> getHint,
         Color valueColor)
     {
-        TextMeshProUGUI valueText = parent.CreateChildTextCustom(
+        bool stacked = parent != null && parent.GetComponent<VerticalLayoutGroup>() != null;
+        GameObject row = new GameObject(
+            "StatCounterRow",
+            typeof(RectTransform),
+            typeof(LayoutElement),
+            typeof(HorizontalLayoutGroup));
+        row.transform.SetParent(parent.transform, false);
+        RectTransform rowRt = row.GetComponent<RectTransform>();
+        rowRt.sizeDelta = new Vector2(420f, 48f);
+        LayoutElement rowLayout = row.GetComponent<LayoutElement>();
+        rowLayout.preferredWidth = 420f;
+        rowLayout.preferredHeight = 48f;
+        rowLayout.minHeight = 48f;
+
+        HorizontalLayoutGroup h = row.GetComponent<HorizontalLayoutGroup>();
+        h.spacing = 8f;
+        h.childAlignment = TextAnchor.MiddleCenter;
+        h.childControlWidth = false;
+        h.childControlHeight = false;
+        h.childForceExpandWidth = false;
+        h.childForceExpandHeight = false;
+        h.padding = new RectOffset(0, 0, 0, 0);
+
+        if (!stacked)
+        {
+            rowRt.anchorMin = new Vector2(0.5f, 1f);
+            rowRt.anchorMax = new Vector2(0.5f, 1f);
+            rowRt.pivot = new Vector2(0.5f, 1f);
+            rowRt.anchoredPosition = new Vector2(0f, anchoredY);
+        }
+
+        Button minusBtn = row.CreateChildButton("-");
+        RectTransform minusRt = minusBtn.GetComponent<RectTransform>();
+        minusRt.sizeDelta = new Vector2(72f, 44f);
+
+        TextMeshProUGUI valueText = row.CreateChildTextCustom(
             "StatCounterValue",
             UIAnchor.TopCenter,
-            360,
+            250,
             40);
-        RectTransform valueRt = valueText.GetComponent<RectTransform>();
-        valueRt.anchoredPosition = new Vector2(0f, anchoredY);
         valueText.fontSize = 20;
         valueText.fontStyle = FontStyles.Bold;
         valueText.color = valueColor;
         valueText.alignment = TextAlignmentOptions.Center;
+
+        Button plusBtn = row.CreateChildButton("+");
+        RectTransform plusRt = plusBtn.GetComponent<RectTransform>();
+        plusRt.sizeDelta = new Vector2(72f, 44f);
 
         void Refresh()
         {
@@ -486,27 +523,11 @@ public partial class BattleGameMain
         }
 
         Refresh();
-
-        Button minusBtn = parent.CreateChildButton("-");
-        RectTransform minusRt = minusBtn.GetComponent<RectTransform>();
-        minusRt.sizeDelta = new Vector2(72f, 44f);
-        minusRt.anchorMin = new Vector2(0.5f, 1f);
-        minusRt.anchorMax = new Vector2(0.5f, 1f);
-        minusRt.pivot = new Vector2(0.5f, 1f);
-        minusRt.anchoredPosition = new Vector2(-200f, anchoredY);
         minusBtn.onClick.AddListener(() =>
         {
             applyDelta?.Invoke(-1);
             Refresh();
         });
-
-        Button plusBtn = parent.CreateChildButton("+");
-        RectTransform plusRt = plusBtn.GetComponent<RectTransform>();
-        plusRt.sizeDelta = new Vector2(72f, 44f);
-        plusRt.anchorMin = new Vector2(0.5f, 1f);
-        plusRt.anchorMax = new Vector2(0.5f, 1f);
-        plusRt.pivot = new Vector2(0.5f, 1f);
-        plusRt.anchoredPosition = new Vector2(200f, anchoredY);
         plusBtn.onClick.AddListener(() =>
         {
             applyDelta?.Invoke(1);
@@ -963,7 +984,7 @@ public partial class BattleGameMain
         trashBtn.onClick.AddListener(() =>
         {
             SendCardToTrash(cardController, ownerType);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         y -= 52f;
 
@@ -975,7 +996,7 @@ public partial class BattleGameMain
         exileBtn.onClick.AddListener(() =>
         {
             TestPlayExileCardInstance(cardController, ownerType);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         y -= 52f;
 
@@ -1005,7 +1026,7 @@ public partial class BattleGameMain
 
             if (!isCommandPilot)
             {
-                closeBtnRect.anchoredPosition = new Vector2(0f, y - 20f);
+                PinFilterCloseButton(closeBtnRect);
                 return true;
             }
         }
@@ -1020,7 +1041,7 @@ public partial class BattleGameMain
             baseBtn.onClick.AddListener(() =>
             {
                 BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
-                Destroy(filterPanel);
+                DestroyCardFilterOverlay(filterPanel);
             });
             y -= 52f;
         }
@@ -1034,12 +1055,12 @@ public partial class BattleGameMain
             deployBtn.onClick.AddListener(() =>
             {
                 SendCardToField(cardController, ownerType, ownerRule);
-                Destroy(filterPanel);
+                DestroyCardFilterOverlay(filterPanel);
             });
             y -= 52f;
         }
 
-        closeBtnRect.anchoredPosition = new Vector2(0f, y - 20f);
+        PinFilterCloseButton(closeBtnRect);
         return true;
     }
 
@@ -1079,7 +1100,7 @@ public partial class BattleGameMain
         trashBtn.onClick.AddListener(() =>
         {
             TestPlaySendShieldToTrash(shieldCard, ownerType, ownerRule);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         y -= 52f;
 
@@ -1091,7 +1112,7 @@ public partial class BattleGameMain
         exileBtn.onClick.AddListener(() =>
         {
             TestPlayExileCardInstance(shieldCard, ownerType);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         y -= 52f;
 
@@ -1103,7 +1124,7 @@ public partial class BattleGameMain
         handBtn.onClick.AddListener(() =>
         {
             TestPlayMoveShieldToHand(shieldCard, ownerType, ownerRule);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         y -= 52f;
 
@@ -1117,12 +1138,12 @@ public partial class BattleGameMain
             deployBtn.onClick.AddListener(() =>
             {
                 TestPlayDeployBaseFromShield(shieldCard, ownerType, ownerRule);
-                Destroy(filterPanel);
+                DestroyCardFilterOverlay(filterPanel);
             });
             y -= 52f;
         }
 
-        closeBtnRect.anchoredPosition = new Vector2(0f, y - 20f);
+        PinFilterCloseButton(closeBtnRect);
         return true;
     }
 
@@ -1540,7 +1561,7 @@ public partial class BattleGameMain
         deckBottomBtn.onClick.AddListener(() =>
         {
             TestPlaySendUnitToDeckBottom(card, ownerType);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         y -= 60f;
 
@@ -1555,7 +1576,7 @@ public partial class BattleGameMain
         restBtn.onClick.AddListener(() =>
         {
             TestPlayToggleUnitRest(card);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         y -= 60f;
 

@@ -72,6 +72,7 @@ public class LocalDeckStorageProvider : IDeckStorageProvider
             string fullPath = files[i];
             string fileName = Path.GetFileName(fullPath);
             string title = fileName;
+            DateTime lastWrite = File.GetLastWriteTime(fullPath);
             try
             {
                 DeckSaveData data = JsonUtility.FromJson<DeckSaveData>(File.ReadAllText(fullPath));
@@ -79,13 +80,18 @@ public class LocalDeckStorageProvider : IDeckStorageProvider
                 {
                     title = data.title;
                 }
+
+                if (data != null && data.updatedAtUnix > 0)
+                {
+                    lastWrite = DateTimeOffset.FromUnixTimeSeconds(data.updatedAtUnix).LocalDateTime;
+                }
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"[DeckStorage][Local] 一覧読込失敗 {fullPath}: {e.Message}");
             }
 
-            entries.Add(new DeckStorageEntry(fullPath, title, false));
+            entries.Add(new DeckStorageEntry(fullPath, title, false, lastWrite));
         }
 
         return Task.FromResult(entries);

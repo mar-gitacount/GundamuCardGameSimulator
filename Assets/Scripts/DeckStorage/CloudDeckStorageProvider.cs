@@ -108,12 +108,18 @@ public class CloudDeckStorageProvider : IDeckStorageProvider
                 storageKey = key,
                 title = data.title,
                 thumbnailId = data.thumbnailId,
+                lastSavedUnix = data.updatedAtUnix > 0
+                    ? data.updatedAtUnix
+                    : DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             });
         }
         else
         {
             existing.title = data.title;
             existing.thumbnailId = data.thumbnailId;
+            existing.lastSavedUnix = data.updatedAtUnix > 0
+                ? data.updatedAtUnix
+                : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         }
 
         await SaveIndexAsync(index);
@@ -191,7 +197,13 @@ public class CloudDeckStorageProvider : IDeckStorageProvider
             }
 
             string title = string.IsNullOrEmpty(entry.title) ? entry.storageKey : entry.title;
-            entries.Add(new DeckStorageEntry(entry.storageKey, title, true));
+            DateTime lastWrite = DateTime.MinValue;
+            if (entry.lastSavedUnix > 0)
+            {
+                lastWrite = DateTimeOffset.FromUnixTimeSeconds(entry.lastSavedUnix).LocalDateTime;
+            }
+
+            entries.Add(new DeckStorageEntry(entry.storageKey, title, true, lastWrite));
         }
 
         return entries;
