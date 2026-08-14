@@ -1345,10 +1345,13 @@ public partial class BattleGameMain
             previewTargets,
             "敵 — コマンド（OnAction）");
 
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
+        Gundam2024RuleScript.PlayerState payState = GetRuleState(ruleSide);
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(payState, command.CurrentCost);
         if (!gundamRule.TryConsumeResource(
-                ToRuleSide(side),
+                ruleSide,
                 command.CurrentCost,
-                0,
+                exToUse,
                 command.Data.id,
                 command.CurrentLevel))
         {
@@ -1358,7 +1361,7 @@ public partial class BattleGameMain
             yield break;
         }
 
-        AfterLocalResourceChanged(ToRuleSide(side));
+        AfterLocalResourceConsumed(ruleSide, exToUse);
 
         MarkActionStepCardUsed(side, command);
 
@@ -1396,6 +1399,7 @@ public partial class BattleGameMain
         System.Action onDone)
     {
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+        yield return FlushPendingExResourceRemovedWatchesCoroutine();
         FinalizeOnActionSourceCard(command, side);
         SyncAllResourceViewsFromRule();
         onDone?.Invoke();

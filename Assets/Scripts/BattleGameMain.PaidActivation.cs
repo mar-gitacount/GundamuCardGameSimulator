@@ -363,7 +363,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        AfterLocalResourceChanged(ruleSide);
+        AfterLocalResourceConsumed(ruleSide, exToUse);
         return true;
     }
 

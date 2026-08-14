@@ -115,38 +115,41 @@ public partial class BattleGameMain
     {
         bool attackerFirstStrike = attacker != null && attacker.HasFirstStrike();
         bool defenderFirstStrike = defender != null && defender.HasFirstStrike();
-
-        int attackerHpBefore = attacker != null ? attacker.CurrentHp : 0;
         int defenderHpBefore = defender != null ? defender.CurrentHp : 0;
+        attackerStrike = Mathf.Max(0, attackerStrike);
+        defenderStrike = Mathf.Max(0, defenderStrike);
 
-        ResolveUnitVsUnitCombatHpExchange(
-            attackerHpBefore,
-            defenderHpBefore,
-            attackerStrike,
-            defenderStrike,
-            attackerFirstStrike,
-            defenderFirstStrike,
-            out int attackerHpAfter,
-            out int defenderHpAfter);
-
-        if (attackerFirstStrike && !defenderFirstStrike && defenderHpAfter <= 0)
+        // 軽減は ApplyDamage 側。残 HP でキャップした差分を渡すと
+        // 「AP7・軽減6・HP5」が 7-6=1 ではなく min(7,5)-6=0 になる。
+        if (attackerFirstStrike && !defenderFirstStrike)
         {
-            Debug.Log(
-                $"[FirstStrike] {attacker?.Data?.cardName} 先制撃破 → {defender?.Data?.cardName} "
-                + $"HP:{defenderHpBefore}->{defenderHpAfter}（反撃なし）");
+            defender?.ApplyDamage(attackerStrike);
+            if (defender != null && defender.CurrentHp <= 0)
+            {
+                Debug.Log(
+                    $"[FirstStrike] {attacker?.Data?.cardName} 先制撃破 → {defender?.Data?.cardName} "
+                    + $"HP:{defenderHpBefore}->{defender.CurrentHp}（反撃なし）");
+                return;
+            }
+
+            attacker?.ApplyDamage(defenderStrike);
+            return;
         }
 
-        int defenderDamage = defenderHpBefore - defenderHpAfter;
-        int attackerDamage = attackerHpBefore - attackerHpAfter;
-        if (defenderDamage > 0)
+        if (defenderFirstStrike && !attackerFirstStrike)
         {
-            defender?.ApplyDamage(defenderDamage);
+            attacker?.ApplyDamage(defenderStrike);
+            if (attacker != null && attacker.CurrentHp <= 0)
+            {
+                return;
+            }
+
+            defender?.ApplyDamage(attackerStrike);
+            return;
         }
 
-        if (attackerDamage > 0)
-        {
-            attacker?.ApplyDamage(attackerDamage);
-        }
+        defender?.ApplyDamage(attackerStrike);
+        attacker?.ApplyDamage(defenderStrike);
     }
 
     private static void ApplyVirtualUnitVsUnitCombatHpExchange(

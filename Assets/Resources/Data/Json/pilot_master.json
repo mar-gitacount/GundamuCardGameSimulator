@@ -23,7 +23,12 @@
             "pilotKey": "Shin_Asuka",
             "displayName": "シン・アスカ",
             "description": ""
+        },
+        {
+            "id": 5,
+            "pilotKey": "Suletta_Mercury",
+            "displayName": "スレッタ・マーキュリー",
+            "description": ""
         }
-        
     ]
 }

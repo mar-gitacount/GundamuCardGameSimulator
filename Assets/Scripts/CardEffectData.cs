@@ -49,6 +49,11 @@ public enum EffectTiming
     /// 配備されたカードは ObservedCards に載る（例: ObservedCardHasFeature で〔オーブ〕判定）。
     /// </summary>
     OnAllyUnitDeployed = 23,
+    /// <summary>
+    /// 自分の EX リソースがゲームから除外されたとき（コスト支払いで EX を消費したとき等。場のユニットが監視）。
+    /// メイン／アクションいずれの支払いでも誘発する。
+    /// </summary>
+    OnExResourceRemoved = 24,
 }
 
 public enum EffectType
@@ -2110,6 +2115,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnAllyUnitDeployed
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>EXリソース除外時（OnExResourceRemoved）に解決するブロック。</summary>
+    public static bool IsOnExResourceRemovedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnExResourceRemoved
             || !timed.HasResolvedEffects())
         {
             return false;

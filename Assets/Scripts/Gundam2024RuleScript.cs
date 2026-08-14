@@ -37,6 +37,8 @@ public class Gundam2024RuleScript
     public class RuleConfig
     {
         public int maxLevel = 10;
+        /// <summary>EXリソースの上限枚数（ルール上 5）。</summary>
+        public int maxExResource = 5;
         /// <summary>ゲーム開始時レベル（0。ターン開始で +1 される）。</summary>
         public int startingLevel = 10;
         /// <summary>ゲーム開始時リソース（0。ターン開始でレベルに同期して増える）。</summary>
@@ -348,7 +350,7 @@ public class Gundam2024RuleScript
 
             if (log.exUsed > 0)
             {
-                state.exResource += log.exUsed;
+                state.exResource = Mathf.Min(MaxExResource, state.exResource + log.exUsed);
             }
 
             state.resource = Mathf.Min(state.resource, state.TotalLevel);
@@ -362,6 +364,9 @@ public class Gundam2024RuleScript
         return false;
     }
 
+    /// <summary>EXリソースの上限（Config.maxExResource）。</summary>
+    public int MaxExResource => Mathf.Max(0, Config.maxExResource);
+
     public void AddExResource(PlayerSide side, int amount)
     {
         if (amount == 0)
@@ -370,8 +375,22 @@ public class Gundam2024RuleScript
         }
 
         PlayerState state = GetState(side);
-        state.exResource = Mathf.Max(0, state.exResource + amount);
+        int before = state.exResource;
+        int next = before + amount;
+        if (amount > 0)
+        {
+            next = Mathf.Min(next, MaxExResource);
+        }
+
+        state.exResource = Mathf.Max(0, next);
         state.resource = Mathf.Min(state.resource, state.TotalLevel);
+
+        if (amount > 0 && state.exResource < before + amount)
+        {
+            Debug.Log(
+                $"[Resource] AddExResource capped side:{side} "
+                + $"requested:+{amount} before:{before} after:{state.exResource} max:{MaxExResource}");
+        }
     }
 
     /// <summary>
@@ -452,7 +471,7 @@ public class Gundam2024RuleScript
         }
 
         state.resource -= convert;
-        state.exResource += convert;
+        state.exResource = Mathf.Min(MaxExResource, state.exResource + convert);
         return true;
     }
 

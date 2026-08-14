@@ -3468,6 +3468,13 @@ public partial class BattleGameMain : MonoBehaviour
         SyncResourceViewsFromRule(side);
         NotifyLocalExResourceDeltaIfNeeded(target, amount);
         Debug.Log($"[Effect] AddExResource delta:{amount} target:{target} side:{side}");
+
+        // 効果で EX を減らす場合は「除外」として監視を保留（呼び出し側または遅延 Flush で解決）
+        if (amount < 0)
+        {
+            EnqueueExResourceRemoved(target, -amount);
+            StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
+        }
     }
 
     /// <summary>
@@ -3491,10 +3498,19 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         PlayerType targetPlayer = ResolveAddExResourceTargetPlayer(ownerType, effect.target);
+        Gundam2024RuleScript.PlayerState beforeState = targetPlayer == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int beforeEx = beforeState != null ? beforeState.exResource : 0;
         ApplyCardEffectExResourceDelta(targetPlayer, amount);
+        Gundam2024RuleScript.PlayerState afterState = targetPlayer == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int afterEx = afterState != null ? afterState.exResource : 0;
         Debug.Log(
-            $"[Effect] AddExResource x{amount} to:{targetPlayer} "
-            + $"by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+            $"[Effect] AddExResource requested:{amount} actual:+{afterEx - beforeEx} "
+            + $"(before:{beforeEx} after:{afterEx} max:{gundamRule.MaxExResource}) "
+            + $"to:{targetPlayer} by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
     }
 
     private static PlayerType ResolveAddExResourceTargetPlayer(PlayerType ownerType, TargetType target)
@@ -4252,6 +4268,9 @@ public partial class BattleGameMain : MonoBehaviour
         NotifyAllyUnitDeployed(ownerType, sourceCard, () => watchFinished = true);
         yield return new WaitUntil(() => watchFinished);
 
+        // 配備コストで EX を使っていた場合、カード解決後にキャリバーン等の監視を解決
+        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+
         RefreshAllFieldOwnerTurnPassives();
     }
 
@@ -4417,7 +4436,11 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     TriggerOnLinkEffects(target, pilotCard, ownerType, () =>
                     {
-                        TriggerOnPlayedEffects(pilotCard, ownerType, RefreshAllHandsConditionalOnHandAuto);
+                        TriggerOnPlayedEffects(pilotCard, ownerType, () =>
+                        {
+                            RefreshAllHandsConditionalOnHandAuto();
+                            StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
+                        });
                     });
                 });
                 SyncResourceViewsFromRule(ownerSide);
@@ -14675,6 +14698,8 @@ public partial class BattleGameMain : MonoBehaviour
         // OK 後: 保留していた破壊時 Look／手札回収を実行
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+        // EX 支払い後のキャリバーン等は、コマンド効果解決後に出す
+        yield return FlushPendingExResourceRemovedWatchesCoroutine();
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
         FinalizeOnActionSourceCard(command, side);
         List<CardController> unitTargetsForEvalLog = BuildOnActionUnitTargetListAfterApply(resolvedBeforeApply);
@@ -14865,6 +14890,7 @@ public partial class BattleGameMain : MonoBehaviour
         // OK 後: 保留していた破壊時 Look／手札回収を実行し、完了まで待機
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+        yield return FlushPendingExResourceRemovedWatchesCoroutine();
 
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
         FinalizeOnActionSourceCard(command, side);
@@ -15059,6 +15085,7 @@ public partial class BattleGameMain : MonoBehaviour
 
                 if (cancelled)
                 {
+                    ClearPendingExResourceRemovedForSide(side);
                     if (costWasPaid && source?.Data != null && gundamRule != null)
                     {
                         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
@@ -15078,28 +15105,49 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
-                if (trashHandCardAfter)
-                {
-                    int sourceCardId = source != null && source.Data != null ? source.Data.id : 0;
-                    CardData sourceData = source != null ? source.Data : null;
-                    List<EffectData> deferredMountEffects = CollectMountSelfFromTrashAsPilotEffects(
-                        timed != null ? timed.GetResolvedEffects() : null);
-                    FinalizeOnMainSourceCard(source, side);
-                    if (deferredMountEffects.Count > 0 && sourceCardId > 0)
-                    {
-                        TryExecuteDeferredMountSelfFromTrashChain(
-                            side,
-                            sourceCardId,
-                            sourceData,
-                            deferredMountEffects,
-                            0,
-                            () => TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone));
-                        return;
-                    }
-                }
-
-                TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
+                StartCoroutine(CoFinishOnMainBlockAfterExRemovedWatch(
+                    side,
+                    source,
+                    blocks,
+                    blockIndex,
+                    trashHandCardAfter,
+                    timed,
+                    onDone));
             });
+    }
+
+    private IEnumerator CoFinishOnMainBlockAfterExRemovedWatch(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        int blockIndex,
+        bool trashHandCardAfter,
+        TimedEffectData timed,
+        System.Action onDone)
+    {
+        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+
+        if (trashHandCardAfter)
+        {
+            int sourceCardId = source != null && source.Data != null ? source.Data.id : 0;
+            CardData sourceData = source != null ? source.Data : null;
+            List<EffectData> deferredMountEffects = CollectMountSelfFromTrashAsPilotEffects(
+                timed != null ? timed.GetResolvedEffects() : null);
+            FinalizeOnMainSourceCard(source, side);
+            if (deferredMountEffects.Count > 0 && sourceCardId > 0)
+            {
+                TryExecuteDeferredMountSelfFromTrashChain(
+                    side,
+                    sourceCardId,
+                    sourceData,
+                    deferredMountEffects,
+                    0,
+                    () => TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone));
+                yield break;
+            }
+        }
+
+        TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
     }
 
     private EffectActivationContext BuildOnMainChainActivationContext(PlayerType side, CardController source)

@@ -273,6 +273,46 @@
                     "observedFeatureIds": [18]
                 }
             ]
+        },
+        {
+            "id": 152,
+            "gcgOfficialId": "",
+            "cardName": "Gundam Calibarn",
+            "cost": 7,
+            "level": 8,
+            "power": 7,
+            "hp": 5,
+            "imageName": "Gundam Calibarn",
+            "version": 5,
+            "sourceType": 1,
+            "color": 1,
+            "type": 0,
+            "featureIds": [1, 23],
+            "linkPilotIdIds": [5],
+            "isBlocker": false,
+            "isDeployTurnAttack": false,
+            "isNotDirectAttack": false,
+            "isShieldToken": false,
+            "isRepair": false,
+            "repairAmount": 0,
+            "notUsedOnline": false,
+            "cannotMountPilot": false,
+            "timedBlocks": [
+                {
+                    "timing": 24,
+                    "effectsName": "OnExRemoved_OptionalBuffAlly_IncomingDamageReduction3_UntilEOT",
+                    "oncePerTurn": false,
+                    "ownerTurn": false,
+                    "battleDamageDestroy": false
+                },
+                {
+                    "timing": 0,
+                    "effectsName": "AddExResource3_Self",
+                    "oncePerTurn": false,
+                    "ownerTurn": false,
+                    "battleDamageDestroy": false
+                }
+            ]
         }
     ]
 }

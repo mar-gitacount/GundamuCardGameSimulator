@@ -41,7 +41,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        AfterLocalResourceChanged(ToRuleSide(side));
+        AfterLocalResourceConsumed(ToRuleSide(side), exToUse);
         return true;
     }
 

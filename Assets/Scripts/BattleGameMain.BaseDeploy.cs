@@ -197,7 +197,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        AfterLocalResourceChanged(side);
+        AfterLocalResourceConsumed(side, exToUse);
         return true;
     }
 
@@ -352,9 +352,25 @@ public partial class BattleGameMain
 
         if (triggerOnPlayed)
         {
-            TriggerOnPlayedEffects(cardController, ownerType, RefreshAllHandsConditionalOnHandAuto);
+            TriggerOnPlayedEffects(cardController, ownerType, () =>
+            {
+                RefreshAllHandsConditionalOnHandAuto();
+                ContinueBaseDeployAfterOnPlayed(cardController, ownerType, ownerRule, replacingBaseLayer);
+            });
+            return true;
         }
 
+        ContinueBaseDeployAfterOnPlayed(cardController, ownerType, ownerRule, replacingBaseLayer);
+        return true;
+    }
+
+    private void ContinueBaseDeployAfterOnPlayed(
+        CardController cardController,
+        PlayerType ownerType,
+        CardGameRule ownerRule,
+        bool replacingBaseLayer)
+    {
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
         int shieldZoneBeforeDeployEffects = ownerRule.GetShieldZoneCardCount();
         TriggerBaseDeployedEffects(cardController, ownerType, replacingBaseLayer);
 
@@ -379,7 +395,7 @@ public partial class BattleGameMain
         }
 
         NotifyLocalDeployBaseSynced(cardController, ownerType);
-        return true;
+        StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
     }
 
     private List<TrashExileCandidate> CollectTrashDeployBaseCandidates(CardGameRule trashRule, EffectData effect)
