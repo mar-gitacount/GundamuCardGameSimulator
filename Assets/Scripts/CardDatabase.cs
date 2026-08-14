@@ -96,6 +96,7 @@ public class CardDatabase : MonoBehaviour
         boosterSet = (int)card.boosterSet,
         starterSet = (int)card.starterSet,
         eternalBoosterSet = (int)card.eternalBoosterSet,
+        sourceTitle = (int)card.sourceTitle,
         color = (int)card.color, // カードの色を追加
         type = (int)card.type,
         featureIds = CardFeatureRegistry.CollectIds(card.features),
@@ -156,6 +157,7 @@ CardData ConvertToCardData(CardJson json)
     card.boosterSet = (BoosterProductSet)json.boosterSet;
     card.starterSet = (StarterProductSet)json.starterSet;
     card.eternalBoosterSet = (EternalBoosterProductSet)json.eternalBoosterSet;
+    card.sourceTitle = (CardSourceTitle)json.sourceTitle;
     card.color = (CardColor)json.color; // カードの色を追加
     card.type = (Type)json.type;
     card.isBlocker = json.isBlocker;

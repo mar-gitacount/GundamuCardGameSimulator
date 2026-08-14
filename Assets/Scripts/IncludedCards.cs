@@ -28,6 +28,14 @@ public class IncludedCards : MonoBehaviour
     private TMP_Text _boosterLabel;
     private TMP_Text _starterLabel;
     private TMP_Text _eternalLabel;
+    private GameObject _sourceTitleRoot;
+    private GameObject _sourceTitleListRoot;
+    private TMP_Text _sourceTitleHeaderLabel;
+    private TMP_Text _sourceTitleHintLabel;
+    private TMP_Text _sourceTitleChevron;
+    private readonly System.Collections.Generic.List<Toggle> _sourceTitleToggles =
+        new System.Collections.Generic.List<Toggle>(24);
+    private bool _sourceTitleExpanded;
 
     void Awake()
     {
@@ -76,7 +84,7 @@ public class IncludedCards : MonoBehaviour
         return result;
     }
 
-    /// <summary>検索クリア用。折りたたみ中のトグル／作品プルダウンをすべて解除する。</summary>
+    /// <summary>検索クリア用。作品プルダウンと複数選択を解除する（Dropdown 内部トグルは触らない）。</summary>
     public void ClearAllToggles()
     {
         if (toggleParent != null)
@@ -85,14 +93,30 @@ public class IncludedCards : MonoBehaviour
             for (int i = 0; i < toggles.Length; i++)
             {
                 Toggle toggle = toggles[i];
-                if (toggle != null)
+                if (toggle == null)
                 {
-                    toggle.isOn = false;
+                    continue;
+                }
+
+                // TMP_Dropdown のテンプレート内トグルは除外
+                if (toggle.GetComponentInParent<TMP_Dropdown>() != null
+                    && toggle.GetComponent<SourceTitleToggleTag>() == null
+                    && toggle.GetComponent<ToggleDatail>() == null)
+                {
+                    continue;
+                }
+
+                if (toggle.GetComponent<ToggleDatail>() != null
+                    || toggle.GetComponent<SourceTitleToggleTag>() != null)
+                {
+                    toggle.SetIsOnWithoutNotify(false);
                 }
             }
         }
 
         ClearProductSetDropdowns();
+        ClearSourceTitleSelections();
+        RefreshSourceTitleHeaderSummary();
     }
 
     private void ClearProductSetDropdowns()
@@ -129,6 +153,7 @@ public class IncludedCards : MonoBehaviour
         }
 
         RefreshProductSetDropdownLocale();
+        RefreshSourceTitleHeaderSummary();
     }
 
     private void RefreshProductSetDropdownLocale()
@@ -188,8 +213,23 @@ public class IncludedCards : MonoBehaviour
         }
 
         List<CardData> filtered = ApplyProductSetDropdownFilters(cards);
+        // 作品タイトルは複数選択 OR。ブースター等の結果に AND で重ねる。
+        filtered = ApplySourceTitleMultiSelectFilters(filtered);
+
         List<Toggle> onToggles = GetOnToggles();
-        if (onToggles.Count == 0)
+        // 作品タイトル用トグルは ToggleDatail を持たないので色・旧フィルターと分離する
+        int filterToggleCount = 0;
+        for (int i = 0; i < onToggles.Count; i++)
+        {
+            if (onToggles[i] != null
+                && onToggles[i].GetComponent<SourceTitleToggleTag>() == null
+                && onToggles[i].GetComponent<ToggleDatail>() != null)
+            {
+                filterToggleCount++;
+            }
+        }
+
+        if (filterToggleCount == 0)
         {
             return filtered;
         }
@@ -199,6 +239,11 @@ public class IncludedCards : MonoBehaviour
 
         foreach (var toggle in onToggles)
         {
+            if (toggle == null || toggle.GetComponent<SourceTitleToggleTag>() != null)
+            {
+                continue;
+            }
+
             ToggleDatail detail = toggle.GetComponent<ToggleDatail>();
             if (detail == null)
             {
@@ -254,6 +299,52 @@ public class IncludedCards : MonoBehaviour
         }
 
         return filtered.FindAll(finalPredicate);
+    }
+
+    private List<CardData> ApplySourceTitleMultiSelectFilters(List<CardData> cards)
+    {
+        List<CardSourceTitle> selected = GetSelectedSourceTitles();
+        if (selected.Count == 0)
+        {
+            return cards;
+        }
+
+        return cards.FindAll(card => CardSourceTitleNames.MatchesAny(card, selected));
+    }
+
+    private List<CardSourceTitle> GetSelectedSourceTitles()
+    {
+        var selected = new List<CardSourceTitle>();
+        for (int i = 0; i < _sourceTitleToggles.Count; i++)
+        {
+            Toggle toggle = _sourceTitleToggles[i];
+            if (toggle == null || !toggle.isOn)
+            {
+                continue;
+            }
+
+            SourceTitleToggleTag tag = toggle.GetComponent<SourceTitleToggleTag>();
+            if (tag == null || tag.title == CardSourceTitle.None)
+            {
+                continue;
+            }
+
+            selected.Add(tag.title);
+        }
+
+        return selected;
+    }
+
+    private void ClearSourceTitleSelections()
+    {
+        for (int i = 0; i < _sourceTitleToggles.Count; i++)
+        {
+            Toggle toggle = _sourceTitleToggles[i];
+            if (toggle != null)
+            {
+                toggle.SetIsOnWithoutNotify(false);
+            }
+        }
     }
 
     private List<CardData> ApplyProductSetDropdownFilters(List<CardData> cards)
@@ -403,10 +494,281 @@ public class IncludedCards : MonoBehaviour
             CardProductSetNames.BuildEternalDropdownOptions(GameLocale.IsJapanese),
             out _eternalDropdown);
 
+        CreateSourceTitleMultiSelect();
+
         Canvas.ForceUpdateCanvases();
         if (toggleParent is RectTransform parentRt)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
+        }
+    }
+
+    /// <summary>Source Title 複数選択（作品 OR 検索）。480幅内の折りたたみリスト。</summary>
+    private void CreateSourceTitleMultiSelect()
+    {
+        _sourceTitleToggles.Clear();
+        _sourceTitleExpanded = false;
+
+        _sourceTitleRoot = new GameObject(
+            "SourceTitleMultiSelect",
+            typeof(RectTransform),
+            typeof(LayoutElement),
+            typeof(VerticalLayoutGroup));
+        _sourceTitleRoot.transform.SetParent(toggleParent, false);
+
+        LayoutElement rootLayout = _sourceTitleRoot.GetComponent<LayoutElement>();
+        rootLayout.minWidth = ProductDropdownInnerWidth;
+        rootLayout.preferredWidth = ProductDropdownInnerWidth;
+        rootLayout.flexibleWidth = 0f;
+        rootLayout.minHeight = 44f;
+        rootLayout.preferredHeight = 44f;
+
+        VerticalLayoutGroup rootVlg = _sourceTitleRoot.GetComponent<VerticalLayoutGroup>();
+        rootVlg.spacing = 4f;
+        rootVlg.childAlignment = TextAnchor.UpperCenter;
+        rootVlg.childControlWidth = true;
+        rootVlg.childControlHeight = true;
+        rootVlg.childForceExpandWidth = true;
+        rootVlg.childForceExpandHeight = false;
+        rootVlg.padding = new RectOffset(0, 0, 0, 0);
+
+        // ヘッダー（開閉）
+        GameObject header = new GameObject(
+            "Header",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Button),
+            typeof(LayoutElement));
+        header.transform.SetParent(_sourceTitleRoot.transform, false);
+        LayoutElement headerLayout = header.GetComponent<LayoutElement>();
+        headerLayout.minHeight = 44f;
+        headerLayout.preferredHeight = 44f;
+        headerLayout.preferredWidth = ProductDropdownInnerWidth;
+        header.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.95f);
+
+        GameObject headerLabelGo = new GameObject("Title", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        headerLabelGo.transform.SetParent(header.transform, false);
+        RectTransform headerLabelRt = headerLabelGo.GetComponent<RectTransform>();
+        headerLabelRt.anchorMin = new Vector2(0f, 0.45f);
+        headerLabelRt.anchorMax = new Vector2(1f, 1f);
+        headerLabelRt.offsetMin = new Vector2(12f, 0f);
+        headerLabelRt.offsetMax = new Vector2(-36f, -2f);
+        _sourceTitleHeaderLabel = headerLabelGo.GetComponent<TextMeshProUGUI>();
+        _sourceTitleHeaderLabel.fontSize = 16f;
+        _sourceTitleHeaderLabel.color = Color.black;
+        _sourceTitleHeaderLabel.alignment = TextAlignmentOptions.BottomLeft;
+        _sourceTitleHeaderLabel.enableWordWrapping = false;
+        _sourceTitleHeaderLabel.overflowMode = TextOverflowModes.Ellipsis;
+        _sourceTitleHeaderLabel.raycastTarget = false;
+
+        GameObject hintGo = new GameObject("Hint", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        hintGo.transform.SetParent(header.transform, false);
+        RectTransform hintRt = hintGo.GetComponent<RectTransform>();
+        hintRt.anchorMin = new Vector2(0f, 0f);
+        hintRt.anchorMax = new Vector2(1f, 0.5f);
+        hintRt.offsetMin = new Vector2(12f, 2f);
+        hintRt.offsetMax = new Vector2(-36f, 0f);
+        _sourceTitleHintLabel = hintGo.GetComponent<TextMeshProUGUI>();
+        _sourceTitleHintLabel.fontSize = 12f;
+        _sourceTitleHintLabel.color = new Color(0.25f, 0.45f, 0.85f, 1f);
+        _sourceTitleHintLabel.alignment = TextAlignmentOptions.TopLeft;
+        _sourceTitleHintLabel.enableWordWrapping = false;
+        _sourceTitleHintLabel.raycastTarget = false;
+
+        GameObject chevronGo = new GameObject("Chevron", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        chevronGo.transform.SetParent(header.transform, false);
+        RectTransform chevronRt = chevronGo.GetComponent<RectTransform>();
+        chevronRt.anchorMin = new Vector2(1f, 0f);
+        chevronRt.anchorMax = new Vector2(1f, 1f);
+        chevronRt.pivot = new Vector2(1f, 0.5f);
+        chevronRt.sizeDelta = new Vector2(28f, 0f);
+        _sourceTitleChevron = chevronGo.GetComponent<TextMeshProUGUI>();
+        _sourceTitleChevron.fontSize = 14f;
+        _sourceTitleChevron.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+        _sourceTitleChevron.alignment = TextAlignmentOptions.Center;
+        _sourceTitleChevron.raycastTarget = false;
+        _sourceTitleChevron.text = "▼";
+
+        header.GetComponent<Button>().onClick.AddListener(ToggleSourceTitleExpanded);
+
+        // リスト本体
+        _sourceTitleListRoot = new GameObject(
+            "List",
+            typeof(RectTransform),
+            typeof(LayoutElement),
+            typeof(VerticalLayoutGroup),
+            typeof(ContentSizeFitter));
+        _sourceTitleListRoot.transform.SetParent(_sourceTitleRoot.transform, false);
+        LayoutElement listLayout = _sourceTitleListRoot.GetComponent<LayoutElement>();
+        listLayout.preferredWidth = ProductDropdownInnerWidth;
+        listLayout.minWidth = ProductDropdownInnerWidth;
+        listLayout.flexibleWidth = 0f;
+        ContentSizeFitter listFitter = _sourceTitleListRoot.GetComponent<ContentSizeFitter>();
+        listFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        listFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        VerticalLayoutGroup listVlg = _sourceTitleListRoot.GetComponent<VerticalLayoutGroup>();
+        listVlg.spacing = 4f;
+        listVlg.padding = new RectOffset(0, 0, 0, 4);
+        listVlg.childAlignment = TextAnchor.UpperCenter;
+        listVlg.childControlWidth = true;
+        listVlg.childControlHeight = true;
+        listVlg.childForceExpandWidth = true;
+        listVlg.childForceExpandHeight = false;
+
+        List<CardSourceTitle> titles = CardSourceTitleNames.GetSelectableTitles();
+        for (int i = 0; i < titles.Count; i++)
+        {
+            CreateSourceTitleItem(titles[i]);
+        }
+
+        ApplyDropdownLabel(_sourceTitleHeaderLabel, "作品タイトル", "Source Title");
+        ApplyDropdownLabel(_sourceTitleHintLabel, "複数選択可", "* Multiple Selection");
+        GameLocale.ApplyFont(_sourceTitleHeaderLabel);
+        GameLocale.ApplyFont(_sourceTitleHintLabel);
+        GameLocale.ApplyFont(_sourceTitleChevron);
+
+        _sourceTitleListRoot.SetActive(false);
+        RefreshSourceTitleHeaderSummary();
+        RefreshSourceTitleRootHeight();
+    }
+
+    private void CreateSourceTitleItem(CardSourceTitle title)
+    {
+        GameObject item = new GameObject(
+            "SourceTitle_" + title,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Toggle),
+            typeof(LayoutElement),
+            typeof(SourceTitleToggleTag));
+        item.transform.SetParent(_sourceTitleListRoot.transform, false);
+
+        LayoutElement itemLayout = item.GetComponent<LayoutElement>();
+        itemLayout.minHeight = 34f;
+        itemLayout.preferredHeight = 34f;
+        itemLayout.preferredWidth = ProductDropdownInnerWidth;
+        itemLayout.flexibleWidth = 0f;
+
+        Image bg = item.GetComponent<Image>();
+        bg.color = new Color(0.88f, 0.88f, 0.88f, 1f);
+
+        SourceTitleToggleTag tag = item.GetComponent<SourceTitleToggleTag>();
+        tag.title = title;
+
+        Toggle toggle = item.GetComponent<Toggle>();
+        toggle.isOn = false;
+        toggle.targetGraphic = bg;
+
+        GameObject checkGo = new GameObject("Check", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        checkGo.transform.SetParent(item.transform, false);
+        RectTransform checkRt = checkGo.GetComponent<RectTransform>();
+        checkRt.anchorMin = new Vector2(0f, 0.5f);
+        checkRt.anchorMax = new Vector2(0f, 0.5f);
+        checkRt.sizeDelta = new Vector2(18f, 18f);
+        checkRt.anchoredPosition = new Vector2(16f, 0f);
+        Image checkImage = checkGo.GetComponent<Image>();
+        checkImage.color = new Color(0.2f, 0.55f, 1f, 1f);
+        toggle.graphic = checkImage;
+
+        GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        labelGo.transform.SetParent(item.transform, false);
+        RectTransform labelRt = labelGo.GetComponent<RectTransform>();
+        labelRt.anchorMin = Vector2.zero;
+        labelRt.anchorMax = Vector2.one;
+        labelRt.offsetMin = new Vector2(36f, 2f);
+        labelRt.offsetMax = new Vector2(-8f, -2f);
+        TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
+        label.text = CardSourceTitleNames.GetDisplay(title);
+        label.fontSize = 13f;
+        label.color = Color.black;
+        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.enableWordWrapping = false;
+        label.overflowMode = TextOverflowModes.Ellipsis;
+        label.raycastTarget = false;
+        GameLocale.ApplyFont(label);
+
+        toggle.onValueChanged.AddListener(_ => RefreshSourceTitleHeaderSummary());
+
+        _sourceTitleToggles.Add(toggle);
+    }
+
+    private void ToggleSourceTitleExpanded()
+    {
+        _sourceTitleExpanded = !_sourceTitleExpanded;
+        if (_sourceTitleListRoot != null)
+        {
+            _sourceTitleListRoot.SetActive(_sourceTitleExpanded);
+        }
+
+        if (_sourceTitleChevron != null)
+        {
+            _sourceTitleChevron.text = _sourceTitleExpanded ? "▲" : "▼";
+        }
+
+        RefreshSourceTitleRootHeight();
+        if (toggleParent is RectTransform parentRt)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
+        }
+    }
+
+    private void RefreshSourceTitleRootHeight()
+    {
+        if (_sourceTitleRoot == null)
+        {
+            return;
+        }
+
+        LayoutElement rootLayout = _sourceTitleRoot.GetComponent<LayoutElement>();
+        if (rootLayout == null)
+        {
+            return;
+        }
+
+        float height = 44f;
+        if (_sourceTitleExpanded && _sourceTitleListRoot != null)
+        {
+            int count = _sourceTitleToggles.Count;
+            height += 4f + count * 38f;
+        }
+
+        rootLayout.minHeight = height;
+        rootLayout.preferredHeight = height;
+    }
+
+    private void RefreshSourceTitleHeaderSummary()
+    {
+        if (_sourceTitleHeaderLabel == null)
+        {
+            return;
+        }
+
+        List<CardSourceTitle> selected = GetSelectedSourceTitles();
+        string baseJa = "作品タイトル";
+        string baseEn = "Source Title";
+        if (selected.Count == 0)
+        {
+            ApplyDropdownLabel(_sourceTitleHeaderLabel, baseJa + "  (-)", baseEn + "  (-)");
+        }
+        else if (selected.Count == 1)
+        {
+            string name = CardSourceTitleNames.GetDisplay(selected[0]);
+            ApplyDropdownLabel(_sourceTitleHeaderLabel, baseJa + "  (" + name + ")", baseEn + "  (" + name + ")");
+        }
+        else
+        {
+            string name = CardSourceTitleNames.GetDisplay(selected[0]);
+            ApplyDropdownLabel(
+                _sourceTitleHeaderLabel,
+                baseJa + "  (" + name + " +" + (selected.Count - 1) + ")",
+                baseEn + "  (" + name + " +" + (selected.Count - 1) + ")");
+        }
+
+        if (_sourceTitleHintLabel != null)
+        {
+            ApplyDropdownLabel(_sourceTitleHintLabel, "複数選択可", "* Multiple Selection");
         }
     }
 

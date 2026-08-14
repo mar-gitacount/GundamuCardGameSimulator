@@ -132,6 +132,8 @@ public class ScrollBottomChecker : MonoBehaviour
             return;
         }
 
+        HideAdvancedSearchSection();
+
         TMP_Text[] tmps = Searchcanvas.GetComponentsInChildren<TMP_Text>(true);
         for (int i = 0; i < tmps.Length; i++)
         {
@@ -167,6 +169,81 @@ public class ScrollBottomChecker : MonoBehaviour
         }
 
         ApplyAllIncludedCardLocale();
+    }
+
+    /// <summary>中身のない詳細検索（Advanced Search）見出しとその展開先を非表示にする。</summary>
+    private void HideAdvancedSearchSection()
+    {
+        if (Searchcanvas == null)
+        {
+            return;
+        }
+
+        // TMP「詳細検索 / Advanced Search」を持つボタンを非表示
+        TMP_Text[] tmps = Searchcanvas.GetComponentsInChildren<TMP_Text>(true);
+        for (int i = 0; i < tmps.Length; i++)
+        {
+            TMP_Text tmp = tmps[i];
+            if (tmp == null)
+            {
+                continue;
+            }
+
+            string label = NormalizeUiText(tmp.text);
+            if (label != "詳細検索"
+                && !label.Equals("Advanced Search", System.StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Button button = tmp.GetComponentInParent<Button>();
+            GameObject hideRoot = button != null ? button.gameObject : tmp.gameObject;
+            if (hideRoot.activeSelf)
+            {
+                hideRoot.SetActive(false);
+            }
+        }
+
+        // Legacy Text 版の見出しも同様
+        Text[] legacyTexts = Searchcanvas.GetComponentsInChildren<Text>(true);
+        for (int i = 0; i < legacyTexts.Length; i++)
+        {
+            Text legacy = legacyTexts[i];
+            if (legacy == null)
+            {
+                continue;
+            }
+
+            string label = NormalizeUiText(legacy.text);
+            if (label != "詳細検索"
+                && !label.Equals("Advanced Search", System.StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Button button = legacy.GetComponentInParent<Button>();
+            GameObject hideRoot = button != null ? button.gameObject : legacy.gameObject;
+            if (hideRoot.activeSelf)
+            {
+                hideRoot.SetActive(false);
+            }
+        }
+
+        // 詳細検索の展開先
+        Transform[] transforms = Searchcanvas.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            Transform t = transforms[i];
+            if (t == null || t.name != "IncludeObject (2)")
+            {
+                continue;
+            }
+
+            if (t.gameObject.activeSelf)
+            {
+                t.gameObject.SetActive(false);
+            }
+        }
     }
 
     private static void ApplySearchLabel(TMP_Text tmp)
