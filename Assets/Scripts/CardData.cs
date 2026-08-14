@@ -29,6 +29,8 @@ public class CardData : ScriptableObject
     public StarterProductSet starterSet;
     [Tooltip("productLine が Eternal Booster のとき設定する。")]
     public EternalBoosterProductSet eternalBoosterSet;
+    [Tooltip("作品（シリーズ）タイトル。")]
+    public CardSourceTitle sourceTitle;
 
     public FilterType filterType;
     public CardColor color;
@@ -142,6 +144,7 @@ public class CardJson
     public int boosterSet;
     public int starterSet;
     public int eternalBoosterSet;
+    public int sourceTitle;
     public int color; // カードの色を追加
     public int type;
     public int[] featureIds;

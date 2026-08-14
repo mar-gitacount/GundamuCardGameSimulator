@@ -27,6 +27,7 @@ MonoBehaviour:
   boosterSet: 0
   starterSet: 0
   eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 6
   type: 0

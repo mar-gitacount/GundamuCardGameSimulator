@@ -16,7 +16,8 @@ public class CardDataEditor : Editor
             "productLine",
             "boosterSet",
             "starterSet",
-            "eternalBoosterSet");
+            "eternalBoosterSet",
+            "sourceTitle");
 
         EditorGUILayout.Space(8f);
         EditorGUILayout.LabelField("収録セット（プルダウン）", EditorStyles.boldLabel);
@@ -25,6 +26,7 @@ public class CardDataEditor : Editor
         SerializedProperty boosterSet = serializedObject.FindProperty("boosterSet");
         SerializedProperty starterSet = serializedObject.FindProperty("starterSet");
         SerializedProperty eternalSet = serializedObject.FindProperty("eternalBoosterSet");
+        SerializedProperty sourceTitle = serializedObject.FindProperty("sourceTitle");
 
         EditorGUILayout.PropertyField(productLine);
 
@@ -44,6 +46,9 @@ public class CardDataEditor : Editor
                 EditorGUILayout.HelpBox("収録ラインを選ぶと、セット名プルダウンが表示されます。", MessageType.Info);
                 break;
         }
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.PropertyField(sourceTitle, new GUIContent("作品タイトル（Source Title）"));
 
         if (serializedObject.ApplyModifiedProperties())
         {
