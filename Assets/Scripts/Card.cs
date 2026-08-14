@@ -96,9 +96,47 @@ public class Card : MonoBehaviour
             DeckEditPanel.pivot = new Vector2(0.5f, 1f);
             DeckEditPanel.sizeDelta = new Vector2(0, 100);
 
-            // ?テストコード
-            // DeckSettinObject.Instance.cardObj(gameObject);
-            // ?
+            // 1枚以上あるカードならサムネ候補にできる
+            Button setThumbBtn = FilterPanel.gameObject.CreateChildButton("サムネにする");
+            RectTransform thumbRt = setThumbBtn.GetComponent<RectTransform>();
+            thumbRt.anchorMin = new Vector2(0.5f, 0f);
+            thumbRt.anchorMax = new Vector2(0.5f, 0f);
+            thumbRt.pivot = new Vector2(0.5f, 0f);
+            thumbRt.sizeDelta = new Vector2(220f, 48f);
+            thumbRt.anchoredPosition = new Vector2(0f, 28f);
+            Image thumbBtnImage = setThumbBtn.GetComponent<Image>();
+            if (thumbBtnImage != null && thumbBtnImage.sprite == null)
+            {
+                Texture2D tex = Texture2D.whiteTexture;
+                thumbBtnImage.sprite = Sprite.Create(
+                    tex,
+                    new Rect(0f, 0f, tex.width, tex.height),
+                    new Vector2(0.5f, 0.5f));
+            }
+
+            TextMeshProUGUI thumbLabel = setThumbBtn.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (thumbLabel != null)
+            {
+                thumbLabel.SetLocalizedText("サムネにする", "Set as thumbnail");
+                thumbLabel.fontSize = 20f;
+            }
+
+            int capturedId = CardId;
+            setThumbBtn.onClick.AddListener(() =>
+            {
+                if (DeckSettinObject.Instance == null)
+                {
+                    return;
+                }
+
+                if (DeckSettinObject.Instance.CardCount(capturedId) <= 0)
+                {
+                    Debug.LogWarning("[Deck] 枚数0のカードはサムネにできません。");
+                    return;
+                }
+
+                DeckSettinObject.Instance.SetThumbnailCardId(capturedId);
+            });
         }
         // 画像のコピーを作成して、フィルターパネルの子オブジェクトとして配置する
         copy = Instantiate(gameObject, canvas.transform);
@@ -109,6 +147,8 @@ public class Card : MonoBehaviour
         CardCopyRect.anchorMax = new Vector2(0.5f, 0.5f);
         CardCopyRect.pivot = new Vector2(0.5f, 0.5f);
         CardCopyRect.sizeDelta = new Vector2(400, 600);
+
+        PlaceDetailCloseButtonAboveCard(FilterPanel, CardCopyRect);
         return;
        
         
@@ -140,6 +180,67 @@ public class Card : MonoBehaviour
         // layout.preferredWidth = 200;
         // layout.preferredHeight = 300;
 
+    }
+
+    /// <summary>詳細表示の Close を拡大カードの少し上に置く。</summary>
+    private static void PlaceDetailCloseButtonAboveCard(RectTransform filterPanel, RectTransform cardRt)
+    {
+        if (filterPanel == null || cardRt == null)
+        {
+            return;
+        }
+
+        RectTransform closeRt = FindDetailCloseButton(filterPanel);
+        if (closeRt == null)
+        {
+            return;
+        }
+
+        const float gap = 12f;
+        const float closeWidth = 160f;
+        const float closeHeight = 40f;
+        float cardTop = cardRt.sizeDelta.y * 0.5f;
+
+        closeRt.SetParent(filterPanel, false);
+        closeRt.anchorMin = new Vector2(0.5f, 0.5f);
+        closeRt.anchorMax = new Vector2(0.5f, 0.5f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.sizeDelta = new Vector2(closeWidth, closeHeight);
+        closeRt.anchoredPosition = new Vector2(0f, cardTop + gap);
+        closeRt.SetAsLastSibling();
+    }
+
+    private static RectTransform FindDetailCloseButton(RectTransform filterPanel)
+    {
+        Transform named = filterPanel.Find("Button");
+        if (named != null)
+        {
+            return named as RectTransform;
+        }
+
+        Button[] buttons = filterPanel.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            Button btn = buttons[i];
+            if (btn == null)
+            {
+                continue;
+            }
+
+            string n = btn.gameObject.name;
+            if (n == "Button" || n == "Close" || n == "CloseButton")
+            {
+                return btn.GetComponent<RectTransform>();
+            }
+
+            TextMeshProUGUI label = btn.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (label != null && label.text != null && label.text.IndexOf("Close", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return btn.GetComponent<RectTransform>();
+            }
+        }
+
+        return null;
     }
 
     /// <summary>デッキ編集プレビュー複製時に、誤って OnDestroy 連鎖しないようセッション参照を外す。</summary>

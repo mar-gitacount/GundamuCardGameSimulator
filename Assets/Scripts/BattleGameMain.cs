@@ -1445,10 +1445,16 @@ public partial class BattleGameMain : MonoBehaviour
 
         // クリック時にフィルターパネルを表示する処理
         FilterSetParentanvas = GetComponentInParent<Canvas>().rootCanvas;
+        RectTransform boardRoot = ResolveBattleBoardRoot();
+        Transform filterParent = boardRoot != null
+            ? boardRoot
+            : FilterSetParentanvas.transform;
 
-        GameObject FilterPanel = Instantiate(FilterPanelPrefab, FilterSetParentanvas.transform);
-        
-        FilterPanel.SetFullSize(); // UIを親要素いっぱいに広げる（Stretch設定）
+        GameObject FilterPanel = Instantiate(FilterPanelPrefab, filterParent);
+        ApplyCardFilterPanelSize(
+            FilterPanel,
+            boardRoot != null ? boardRoot : FilterSetParentanvas.GetComponent<RectTransform>());
+        GameObject filterContent = CreateCardFilterScrollContent(FilterPanel);
 
         // GameObject imageOnlyObj = new GameObject("CopyImage", typeof(RectTransform), typeof(UnityEngine.UI.Image));
         // imageOnlyObj.transform.SetParent(FilterPanel.transform, false);
@@ -1458,12 +1464,27 @@ public partial class BattleGameMain : MonoBehaviour
         
         
         // targetImg.sprite = sourceImg.sprite; 
-        GameObject copy = FilterPanel.CreateChildImageFrom(cardController.gameObject);
+        GameObject copy = filterContent.CreateChildImageFrom(cardController.gameObject);
+        RectTransform copyRt = copy.GetComponent<RectTransform>();
+        if (copyRt != null)
+        {
+            copyRt.sizeDelta = new Vector2(120f, 168f);
+        }
+
+        LayoutElement copyLayout = copy.GetComponent<LayoutElement>();
+        if (copyLayout == null)
+        {
+            copyLayout = copy.AddComponent<LayoutElement>();
+        }
+
+        copyLayout.preferredWidth = 120f;
+        copyLayout.preferredHeight = 168f;
+        copyLayout.minHeight = 120f;
         FilterPanel.SetActive(true);
 
         if (isOnAnyDeployField && cardController.Data != null)
         {
-            TextMeshProUGUI battleStatText = FilterPanel.CreateChildTextCustom("BattleStatText", UIAnchor.TopCenter, 320, 44);
+            TextMeshProUGUI battleStatText = filterContent.CreateChildTextCustom("BattleStatText", UIAnchor.TopCenter, 320, 44);
             battleStatText.text = $"AP:{cardController.CurrentPower}  HP:{cardController.CurrentHp}";
             battleStatText.fontSize = 28;
             battleStatText.color = Color.black;
@@ -1473,7 +1494,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (cardController.Data.IsUnitLike() && cardController.MountedPilot != null)
             {
-                GameObject pilotCopy = FilterPanel.CreateChildImageFrom(cardController.MountedPilot.gameObject);
+                GameObject pilotCopy = filterContent.CreateChildImageFrom(cardController.MountedPilot.gameObject);
                 RectTransform pilotCopyRt = pilotCopy.GetComponent<RectTransform>();
                 if (pilotCopyRt != null)
                 {
@@ -1484,11 +1505,10 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        // どのケースでも閉じられるようにする
+        // close は 480×800 枠の下端に固定（スクロール外）
         var closeButton = FilterPanel.CreateChildButton("close");
         RectTransform closeBtnRect = closeButton.GetComponent<RectTransform>();
-        closeBtnRect.sizeDelta = new Vector2(140, 44);
-        closeBtnRect.anchoredPosition = new Vector2(0, -130);
+        PinFilterCloseButton(closeBtnRect);
         closeButton.onClick.AddListener(() => Destroy(FilterPanel));
     
         // 場のカードはトラッシュ送り操作を可能にする。
@@ -1527,7 +1547,7 @@ public partial class BattleGameMain : MonoBehaviour
                             ? $"Attack Shield (deal {cardController.CurrentPower} to Base/EX)"
                             : "Attack Shield (break 1)";
 
-                    var shieldAttackBtn = FilterPanel.CreateChildButton(shieldLabel);
+                    var shieldAttackBtn = filterContent.CreateChildButton(shieldLabel);
                     RectTransform shieldRect = shieldAttackBtn.GetComponent<RectTransform>();
                     shieldRect.sizeDelta = new Vector2(320, 50);
                     shieldRect.anchoredPosition = new Vector2(0, -10);
@@ -1538,7 +1558,7 @@ public partial class BattleGameMain : MonoBehaviour
                     });
                 }
 
-                var unitAttackBtn = FilterPanel.CreateChildButton(
+                var unitAttackBtn = filterContent.CreateChildButton(
                     HasForcedEnemyAttackTarget(ownerType, cardController)
                         ? "Attack Unit (forced target)"
                         : cardController.HasAttackActiveEnemyAbility()
@@ -1556,16 +1576,16 @@ public partial class BattleGameMain : MonoBehaviour
                     Destroy(FilterPanel);
                 });
 
-                closeBtnRect.anchoredPosition = new Vector2(0, -200);
+                PinFilterCloseButton(closeBtnRect);
             }
 
             float fieldActionY = canShowUnitAttackMenu ? -130f : -70f;
-            if (TryAddOnRestSelfActivateButton(FilterPanel, cardController, ownerType, fieldActionY))
+            if (TryAddOnRestSelfActivateButton(filterContent, cardController, ownerType, fieldActionY))
             {
                 fieldActionY -= 60f;
             }
 
-            if (TryAddOnMainEffectApplyButton(FilterPanel, cardController, ownerType, fieldActionY))
+            if (TryAddOnMainEffectApplyButton(filterContent, cardController, ownerType, fieldActionY))
             {
                 fieldActionY -= 60f;
             }
@@ -1574,13 +1594,13 @@ public partial class BattleGameMain : MonoBehaviour
             if (IsTestPlayBattle())
             {
                 fieldActionY = EmbedTestPlayFieldStatCounters(
-                    FilterPanel,
+                    filterContent,
                     cardController,
                     isInBaseSlot,
                     fieldActionY);
             }
 
-            var trashButton = FilterPanel.CreateChildButton("send to trash");
+            var trashButton = filterContent.CreateChildButton("send to trash");
             RectTransform trashBtnRect = trashButton.GetComponent<RectTransform>();
             trashBtnRect.sizeDelta = new Vector2(180, 50);
             trashBtnRect.anchoredPosition = new Vector2(0, fieldActionY);
@@ -1594,7 +1614,7 @@ public partial class BattleGameMain : MonoBehaviour
             fieldActionY -= 60f;
             if (IsTestPlayBattle())
             {
-                var exileButton = FilterPanel.CreateChildButton(
+                var exileButton = filterContent.CreateChildButton(
                     GameLocale.T("除外する", "Exile"));
                 RectTransform exileBtnRect = exileButton.GetComponent<RectTransform>();
                 exileBtnRect.sizeDelta = new Vector2(180, 50);
@@ -1610,13 +1630,13 @@ public partial class BattleGameMain : MonoBehaviour
             if (IsTestPlayBattle())
             {
                 fieldActionY = EmbedTestPlayFieldUnitExtraActions(
-                    FilterPanel,
+                    filterContent,
                     cardController,
                     ownerType,
                     fieldActionY);
             }
 
-            closeBtnRect.anchoredPosition = new Vector2(0, fieldActionY - 20f);
+            PinFilterCloseButton(closeBtnRect);
             return;
         }
 
@@ -1626,7 +1646,7 @@ public partial class BattleGameMain : MonoBehaviour
             if (IsTestPlayBattle())
             {
                 TryEmbedTestPlayShieldMenu(
-                    FilterPanel,
+                    filterContent,
                     cardController,
                     ownerType,
                     ownerRule,
@@ -1634,9 +1654,9 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            if (TryAddOnRestSelfActivateButton(FilterPanel, cardController, ownerType, -10f))
+            if (TryAddOnRestSelfActivateButton(filterContent, cardController, ownerType, -10f))
             {
-                closeBtnRect.anchoredPosition = new Vector2(0, -80f);
+                PinFilterCloseButton(closeBtnRect);
             }
             return;
         }
@@ -1660,13 +1680,13 @@ public partial class BattleGameMain : MonoBehaviour
         if (CanDeployShieldFromHand(cardController))
         {
             float shieldActionY = -10f;
-            if (TryAddOnMainEffectApplyButton(FilterPanel, cardController, ownerType, shieldActionY))
+            if (TryAddOnMainEffectApplyButton(filterContent, cardController, ownerType, shieldActionY))
             {
                 shieldActionY -= 60f;
-                closeBtnRect.anchoredPosition = new Vector2(0, shieldActionY - 70f);
+                PinFilterCloseButton(closeBtnRect);
             }
 
-            var deployShieldBtn = FilterPanel.CreateChildButton("Deploy Shield");
+            var deployShieldBtn = filterContent.CreateChildButton("Deploy Shield");
             RectTransform shieldBtnRect = deployShieldBtn.GetComponent<RectTransform>();
             shieldBtnRect.sizeDelta = new Vector2(240, 50);
             shieldBtnRect.anchoredPosition = new Vector2(0, shieldActionY);
@@ -1685,16 +1705,16 @@ public partial class BattleGameMain : MonoBehaviour
         int currentLevel = ownerState.TotalLevel;
 
         float handActionY = -10f;
-        if (TryAddOnMainEffectApplyButton(FilterPanel, cardController, ownerType, handActionY))
+        if (TryAddOnMainEffectApplyButton(filterContent, cardController, ownerType, handActionY))
         {
             handActionY -= 60f;
-            closeBtnRect.anchoredPosition = new Vector2(0, handActionY - 70f);
+            PinFilterCloseButton(closeBtnRect);
         }
 
         if (IsTestPlayBattle())
         {
             TryEmbedTestPlayFreeHandDeployUi(
-                FilterPanel,
+                filterContent,
                 cardController,
                 ownerType,
                 ownerRule,
@@ -1741,17 +1761,17 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (isCommandPilot)
             {
-                Button mountBtn = FilterPanel.CreateChildButton(
+                Button mountBtn = filterContent.CreateChildButton(
                     GameLocale.T("搭乗する（パイロット）", "Mount (Pilot)"));
                 RectTransform mountRt = mountBtn.GetComponent<RectTransform>();
                 mountRt.sizeDelta = new Vector2(280f, 50f);
                 mountRt.anchoredPosition = new Vector2(0f, handActionY);
-                closeBtnRect.anchoredPosition = new Vector2(0, handActionY - 70f);
+                PinFilterCloseButton(closeBtnRect);
 
                 mountBtn.onClick.AddListener(() =>
                 {
                     ShowPilotMountResourcePaymentThenTargets(
-                        FilterPanel,
+                        filterContent,
                         cardController,
                         ownerType,
                         ownerSide,
@@ -1761,7 +1781,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             ShowPilotMountResourcePaymentThenTargets(
-                FilterPanel,
+                filterContent,
                 cardController,
                 ownerType,
                 ownerSide,
@@ -1777,9 +1797,9 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         // 配備前に通常／EXリソースを選択して支払う
-        closeBtnRect.anchoredPosition = new Vector2(0f, handActionY - 320f);
+        PinFilterCloseButton(closeBtnRect);
         EmbedResourcePaymentUI(
-            FilterPanel,
+            filterContent,
             ownerType,
             cost,
             cardController.CurrentLevel,
@@ -1807,6 +1827,143 @@ public partial class BattleGameMain : MonoBehaviour
             () => Destroy(FilterPanel));
         return;
     }
+
+    private const float CardFilterContentWidth = 480f;
+    private const float CardFilterContentHeight = 800f;
+
+    /// <summary>カード操作フィルターを 480×800 で盤面中央に置く。画面より大きい場合は収める。</summary>
+    private static void ApplyCardFilterPanelSize(GameObject panel, RectTransform fitParent)
+    {
+        if (panel == null)
+        {
+            return;
+        }
+
+        RectTransform rt = panel.GetComponent<RectTransform>();
+        if (rt == null)
+        {
+            return;
+        }
+
+        if (fitParent != null)
+        {
+            rt.SetParent(fitParent, false);
+        }
+
+        float parentW = fitParent != null && fitParent.rect.width > 1f
+            ? fitParent.rect.width
+            : CardFilterContentWidth;
+        float parentH = fitParent != null && fitParent.rect.height > 1f
+            ? fitParent.rect.height
+            : CardFilterContentHeight;
+        float w = Mathf.Min(CardFilterContentWidth, parentW);
+        float h = Mathf.Min(CardFilterContentHeight, parentH);
+
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(w, h);
+        rt.anchoredPosition = Vector2.zero;
+        rt.localScale = Vector3.one;
+        rt.SetAsLastSibling();
+    }
+
+    /// <summary>close 以外の操作 UI を 480×800 内で縦スクロールできるようにする。</summary>
+    private static GameObject CreateCardFilterScrollContent(GameObject panel)
+    {
+        if (panel.GetComponent<RectMask2D>() == null)
+        {
+            panel.AddComponent<RectMask2D>();
+        }
+
+        GameObject scrollGo = new GameObject(
+            "FilterScroll",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(ScrollRect),
+            typeof(RectMask2D));
+        scrollGo.transform.SetParent(panel.transform, false);
+        Image scrollBg = scrollGo.GetComponent<Image>();
+        scrollBg.color = new Color(0f, 0f, 0f, 0.01f);
+        scrollBg.raycastTarget = true;
+
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchorMin = Vector2.zero;
+        scrollRt.anchorMax = Vector2.one;
+        scrollRt.offsetMin = new Vector2(0f, 56f);
+        scrollRt.offsetMax = Vector2.zero;
+
+        GameObject viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+        viewport.transform.SetParent(scrollGo.transform, false);
+        RectTransform viewRt = viewport.GetComponent<RectTransform>();
+        viewRt.anchorMin = Vector2.zero;
+        viewRt.anchorMax = Vector2.one;
+        viewRt.offsetMin = Vector2.zero;
+        viewRt.offsetMax = Vector2.zero;
+
+        GameObject content = new GameObject(
+            "Content",
+            typeof(RectTransform),
+            typeof(VerticalLayoutGroup),
+            typeof(ContentSizeFitter));
+        content.transform.SetParent(viewport.transform, false);
+        RectTransform contentRt = content.GetComponent<RectTransform>();
+        contentRt.anchorMin = new Vector2(0f, 1f);
+        contentRt.anchorMax = new Vector2(1f, 1f);
+        contentRt.pivot = new Vector2(0.5f, 1f);
+        contentRt.anchoredPosition = Vector2.zero;
+        contentRt.sizeDelta = Vector2.zero;
+
+        VerticalLayoutGroup layout = content.GetComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(12, 12, 12, 12);
+        layout.spacing = 8f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        ContentSizeFitter fitter = content.GetComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        sr.viewport = viewRt;
+        sr.content = contentRt;
+        sr.horizontal = false;
+        sr.vertical = true;
+        sr.movementType = ScrollRect.MovementType.Clamped;
+        sr.scrollSensitivity = 24f;
+
+        return content;
+    }
+
+    /// <summary>close をフィルター枠の下端中央に固定する。</summary>
+    private static void PinFilterCloseButton(RectTransform closeRt)
+    {
+        if (closeRt == null)
+        {
+            return;
+        }
+
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.sizeDelta = new Vector2(140f, 44f);
+        closeRt.anchoredPosition = new Vector2(0f, 8f);
+        closeRt.SetAsLastSibling();
+    }
+
+    /// <summary>カード操作フィルターを破棄する。</summary>
+    private static void DestroyCardFilterOverlay(GameObject panel)
+    {
+        if (panel != null)
+        {
+            Destroy(panel);
+        }
+    }
+
     //! 以下の関数もCardGameRuleに移す予定。
     void CardAddtoHand(CardGameRule targetRule, PlayerType targetType)
     {
@@ -4447,7 +4604,7 @@ public partial class BattleGameMain : MonoBehaviour
                 ClearEmbeddedResourcePaymentUi(filterPanel);
                 ShowPilotMountTargetButtons(filterPanel, pilotCard, ownerType, ownerSide, cost, exToUse);
             },
-            () => Destroy(filterPanel));
+            () => DestroyCardFilterOverlay(filterPanel));
     }
 
     private void ShowPilotMountExConfirmThenTargets(
@@ -4561,7 +4718,7 @@ public partial class BattleGameMain : MonoBehaviour
                     });
                 });
                 SyncResourceViewsFromRule(ownerSide);
-                Destroy(filterPanel);
+                DestroyCardFilterOverlay(filterPanel);
             });
         }
     }
@@ -15153,7 +15310,7 @@ public partial class BattleGameMain : MonoBehaviour
         CardController source = cardController;
         mainBtn.onClick.AddListener(() =>
         {
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
             TryExecuteOnMainCard(ownerType, source, null);
         });
         return true;
@@ -15184,7 +15341,7 @@ public partial class BattleGameMain : MonoBehaviour
         restBtn.onClick.AddListener(() =>
         {
             TryActivateOnRestBySelf(ownerType, source);
-            Destroy(filterPanel);
+            DestroyCardFilterOverlay(filterPanel);
         });
         return true;
     }

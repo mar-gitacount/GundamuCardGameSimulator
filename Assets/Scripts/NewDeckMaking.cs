@@ -36,9 +36,10 @@ public class NewDeckMaking : MonoBehaviour
     {
         NewDeckButton.onClick.AddListener(newDeckButtonClicked);
         
-        DeckEditButton.onClick.AddListener(newDeckButtonClicked);
+        DeckEditButton.onClick.AddListener(EditSelectedDeckClicked);
         DeckSettinObject.Instance.isDeckEditing = false;
         DeckMakeButton.onClick.AddListener(DeckMakeButtonClicked);
+        RefreshDeckMakeButtonInteractable();
         DeckDeleteButton.onClick.AddListener(DeleteexecutionJsonFileToUseDeckSeetinObject);
         DeckCopyButton.onClick.AddListener(DeckCopyButtonClicked);
         ButtleButton.onClick.AddListener(ButtleButtonClicked);
@@ -115,6 +116,243 @@ public class NewDeckMaking : MonoBehaviour
     }
 
     private GameObject _notUsedOnlineAlertRoot;
+    private GameObject _saveConfirmRoot;
+
+    private void DeckMakeButtonClicked()
+    {
+        if (DeckSettinObject.Instance == null || !DeckSettinObject.Instance.isDeckEditing)
+        {
+            return;
+        }
+
+        ShowSaveEditsConfirm();
+    }
+
+    /// <summary>Deck Make は編集中だけ押せる。</summary>
+    private void RefreshDeckMakeButtonInteractable()
+    {
+        if (DeckMakeButton == null)
+        {
+            return;
+        }
+
+        bool editing = DeckSettinObject.Instance != null && DeckSettinObject.Instance.isDeckEditing;
+        DeckMakeButton.interactable = editing;
+    }
+
+    /// <summary>編集を保存するか確認し、OK なら保存してデッキ一覧へ戻る。</summary>
+    private void ShowSaveEditsConfirm()
+    {
+        ShowTwoButtonConfirm(
+            "編集を保存しますか？",
+            "Save your edits?",
+            "OK",
+            "OK",
+            "キャンセル",
+            "Cancel",
+            () => StartCoroutine(SaveEditsAndReturnToListCoroutine()),
+            null);
+    }
+
+    /// <summary>Cancel 押下。差分があれば適用確認、なければ一覧へ戻る。</summary>
+    private void TryCancelDeckEdit()
+    {
+        string currentTitle = DeckTitleInputField != null ? DeckTitleInputField.text : string.Empty;
+        if (DeckSettinObject.Instance != null
+            && DeckSettinObject.Instance.HasChangesFromEditBaseline(currentTitle))
+        {
+            ShowTwoButtonConfirm(
+                "変更がありますが、変更しますか？",
+                "You have changes. Apply them?",
+                "OK",
+                "OK",
+                "No",
+                "No",
+                () => StartCoroutine(SaveEditsAndReturnToListCoroutine()),
+                () => StartCoroutine(DiscardEditsAndReturnToListCoroutine()));
+            return;
+        }
+
+        ReturnToDeckListAfterEdit();
+    }
+
+    private void ShowTwoButtonConfirm(
+        string promptJa,
+        string promptEn,
+        string okJa,
+        string okEn,
+        string noJa,
+        string noEn,
+        UnityEngine.Events.UnityAction onOk,
+        UnityEngine.Events.UnityAction onNo)
+    {
+        CloseSaveEditsConfirm();
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null)
+        {
+            canvas = FindObjectOfType<Canvas>();
+        }
+
+        if (canvas == null)
+        {
+            Debug.LogWarning("[Deck] Canvas not found for confirm.");
+            return;
+        }
+
+        _saveConfirmRoot = new GameObject(
+            "DeckEditConfirm",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        _saveConfirmRoot.transform.SetParent(canvas.transform, false);
+        _saveConfirmRoot.transform.SetAsLastSibling();
+        _saveConfirmRoot.SetFullSize();
+
+        Image dim = _saveConfirmRoot.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.65f);
+        dim.raycastTarget = true;
+
+        GameObject panel = _saveConfirmRoot.CreateChildPanelCustom("ConfirmPanel", UIAnchor.FullSize, 360, 200);
+        Image panelImage = panel.GetComponent<Image>();
+        if (panelImage != null)
+        {
+            panelImage.color = new Color(0.16f, 0.16f, 0.18f, 0.96f);
+        }
+
+        RectTransform panelRt = panel.GetComponent<RectTransform>();
+        panelRt.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRt.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRt.pivot = new Vector2(0.5f, 0.5f);
+        panelRt.sizeDelta = new Vector2(360f, 220f);
+        panelRt.anchoredPosition = Vector2.zero;
+
+        TextMeshProUGUI prompt = panel.CreateChildTextCustom("ConfirmPrompt", UIAnchor.TopCenter, 320, 90);
+        prompt.SetLocalizedText(promptJa, promptEn);
+        prompt.fontSize = 20;
+        prompt.fontStyle = FontStyles.Bold;
+        prompt.alignment = TextAlignmentOptions.Center;
+        prompt.enableWordWrapping = true;
+        prompt.color = Color.white;
+        RectTransform promptRt = prompt.GetComponent<RectTransform>();
+        promptRt.anchoredPosition = new Vector2(0f, -24f);
+
+        Button okBtn = panel.CreateChildButton(GameLocale.T(okJa, okEn));
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(130f, 44f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = new Vector2(-80f, 24f);
+        TextMeshProUGUI okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (okLabel != null)
+        {
+            okLabel.SetLocalizedText(okJa, okEn);
+        }
+
+        okBtn.onClick.AddListener(() =>
+        {
+            CloseSaveEditsConfirm();
+            onOk?.Invoke();
+        });
+
+        Button noBtn = panel.CreateChildButton(GameLocale.T(noJa, noEn));
+        RectTransform noRt = noBtn.GetComponent<RectTransform>();
+        noRt.sizeDelta = new Vector2(130f, 44f);
+        noRt.anchorMin = new Vector2(0.5f, 0f);
+        noRt.anchorMax = new Vector2(0.5f, 0f);
+        noRt.pivot = new Vector2(0.5f, 0f);
+        noRt.anchoredPosition = new Vector2(80f, 24f);
+        TextMeshProUGUI noLabel = noBtn.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (noLabel != null)
+        {
+            noLabel.SetLocalizedText(noJa, noEn);
+        }
+
+        noBtn.onClick.AddListener(() =>
+        {
+            CloseSaveEditsConfirm();
+            if (onNo != null)
+            {
+                onNo.Invoke();
+            }
+        });
+    }
+
+    private void CloseSaveEditsConfirm()
+    {
+        if (_saveConfirmRoot != null)
+        {
+            Destroy(_saveConfirmRoot);
+            _saveConfirmRoot = null;
+        }
+    }
+
+    private IEnumerator SaveEditsAndReturnToListCoroutine()
+    {
+        if (DeckSettinObject.Instance != null)
+        {
+            yield return DeckSettinObject.Instance.SaveCurrentDeckCoroutine();
+        }
+
+        ReturnToDeckListAfterEdit();
+    }
+
+    private IEnumerator DiscardEditsAndReturnToListCoroutine()
+    {
+        if (DeckSettinObject.Instance != null)
+        {
+            string restoredTitle = DeckSettinObject.Instance.RestoreEditBaseline();
+            if (DeckTitleInputField != null)
+            {
+                DeckTitleInputField.text = restoredTitle;
+            }
+
+            if (DeckSettinObject.Instance.HasEditBaselineStorageKey())
+            {
+                yield return DeckSettinObject.Instance.SaveCurrentDeckCoroutine();
+            }
+        }
+
+        ReturnToDeckListAfterEdit();
+    }
+
+    /// <summary>編集画面を閉じてデッキ一覧へ戻す。</summary>
+    private void ReturnToDeckListAfterEdit()
+    {
+        if (DeckSettinObject.Instance != null)
+        {
+            DeckSettinObject.Instance.isDeckEditing = false;
+            DeckSettinObject.Instance.HideDeckEditCountUi();
+            DeckSettinObject.Instance.HideDeckActionButtons();
+            DeckSettinObject.Instance.ClearDeckList();
+            DeckSettinObject.Instance.ShowFileList();
+        }
+
+        if (DeckEditPanel != null)
+        {
+            DeckEditPanel.gameObject.SetActive(false);
+        }
+
+        if (DeckListPanel != null)
+        {
+            DeckListPanel.gameObject.SetActive(true);
+        }
+
+        if (NewDeckText != null)
+        {
+            NewDeckText.SetLocalizedText("NewDeck", "New Deck");
+        }
+
+        if (DeckTitleInputField != null)
+        {
+            DeckTitleInputField.text = "";
+            DeckTitleInputField.gameObject.SetActive(false);
+        }
+
+        Debug.Log("デッキを保存し、一覧画面に戻りました。");
+        RefreshDeckMakeButtonInteractable();
+    }
 
     private void ShowNotUsedOnlineAlert(List<CardData> bannedCards)
     {
@@ -223,63 +461,81 @@ public class NewDeckMaking : MonoBehaviour
 
     private void EnsureOnlineBattleButton()
     {
-        if (OnlineBattleButton != null || ButtleButton == null)
+        if (ButtleButton == null)
         {
             return;
         }
 
-        GameObject clone = Instantiate(ButtleButton.gameObject, ButtleButton.transform.parent);
-        clone.name = "OnlineBattleButton";
-
-        OnlineBattleButton = clone.GetComponent<Button>();
         if (OnlineBattleButton == null)
         {
-            OnlineBattleButton = clone.AddComponent<Button>();
+            GameObject clone = Instantiate(ButtleButton.gameObject, ButtleButton.transform.parent);
+            clone.name = "OnlineBattleButton";
+            OnlineBattleButton = clone.GetComponent<Button>();
+            if (OnlineBattleButton == null)
+            {
+                OnlineBattleButton = clone.AddComponent<Button>();
+            }
+
+            TextMeshProUGUI label = clone.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (label != null)
+            {
+                label.text = "Online Battle";
+            }
         }
 
-        RectTransform cloneRect = clone.GetComponent<RectTransform>();
-        RectTransform battleRect = ButtleButton.GetComponent<RectTransform>();
-        if (cloneRect != null && battleRect != null)
-        {
-            cloneRect.anchoredPosition = battleRect.anchoredPosition + new Vector2(0f, -56f);
-        }
-
-        TextMeshProUGUI label = clone.GetComponentInChildren<TextMeshProUGUI>(true);
-        if (label != null)
-        {
-            label.text = "Online Battle";
-        }
+        // Battle(-450) の直下 → -550
+        PlaceDeckMenuButtonAtY(OnlineBattleButton, ButtleButton, -550f);
     }
 
     private void EnsureTestPlayButton()
     {
-        if (TestPlayButton != null || ButtleButton == null)
+        if (ButtleButton == null)
         {
             return;
         }
 
-        Button source = OnlineBattleButton != null ? OnlineBattleButton : ButtleButton;
-        GameObject clone = Instantiate(source.gameObject, ButtleButton.transform.parent);
-        clone.name = "TestPlayButton";
-
-        TestPlayButton = clone.GetComponent<Button>();
         if (TestPlayButton == null)
         {
-            TestPlayButton = clone.AddComponent<Button>();
+            GameObject clone = Instantiate(ButtleButton.gameObject, ButtleButton.transform.parent);
+            clone.name = "TestPlayButton";
+            TestPlayButton = clone.GetComponent<Button>();
+            if (TestPlayButton == null)
+            {
+                TestPlayButton = clone.AddComponent<Button>();
+            }
+
+            TextMeshProUGUI label = clone.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (label != null)
+            {
+                label.SetLocalizedText("TestPlay", "TestPlay");
+            }
         }
 
-        RectTransform cloneRect = clone.GetComponent<RectTransform>();
-        RectTransform sourceRect = source.GetComponent<RectTransform>();
-        if (cloneRect != null && sourceRect != null)
+        // Online Battle(-550) の直下 → -650
+        PlaceDeckMenuButtonAtY(TestPlayButton, ButtleButton, -650f);
+    }
+
+    /// <summary>デッキ操作ボタンを Battle と同じアンカーで指定 Y に置く。</summary>
+    private static void PlaceDeckMenuButtonAtY(Button target, Button battleButton, float anchoredY)
+    {
+        if (target == null || battleButton == null)
         {
-            cloneRect.anchoredPosition = sourceRect.anchoredPosition + new Vector2(0f, -56f);
+            return;
         }
 
-        TextMeshProUGUI label = clone.GetComponentInChildren<TextMeshProUGUI>(true);
-        if (label != null)
+        RectTransform targetRt = target.GetComponent<RectTransform>();
+        RectTransform battleRt = battleButton.GetComponent<RectTransform>();
+        if (targetRt == null || battleRt == null)
         {
-            label.SetLocalizedText("TestPlay", "TestPlay");
+            return;
         }
+
+        targetRt.anchorMin = battleRt.anchorMin;
+        targetRt.anchorMax = battleRt.anchorMax;
+        targetRt.pivot = battleRt.pivot;
+        targetRt.sizeDelta = battleRt.sizeDelta;
+        targetRt.anchoredPosition = new Vector2(battleRt.anchoredPosition.x, anchoredY);
+        targetRt.localScale = battleRt.localScale;
     }
 
     private void DeleteexecutionJsonFileToUseDeckSeetinObject()
@@ -298,65 +554,75 @@ public class NewDeckMaking : MonoBehaviour
     }
     private void newDeckButtonClicked()
     {
-        
-        if(DeckSettinObject.Instance.isDeckEditing)
+        if (DeckSettinObject.Instance.isDeckEditing)
         {
-            DeckSettinObject.Instance.isDeckEditing = false;
-            DeckEditPanel.gameObject.SetActive(false);
-            DeckListPanel.gameObject.SetActive(true);
-           
-            // DeckSettinObject.Instance.ShowFileList();
-            Debug.Log("デッキ編集モードを終了してデッキリストに戻ります。");
-            NewDeckText.text = "NewDeck";
-
-            // デッキリストを空にする
-            DeckSettinObject.Instance.ClearDeckList();
-            // デッキリストを再表示する
-            DeckSettinObject.Instance.ShowFileList();
-            DeckSettinObject.Instance.HideDeckEditCountUi();
-            DeckSettinObject.Instance.HideDeckActionButtons();
-            DeckTitleInputField.text = "";
-            DeckTitleInputField.gameObject.SetActive(false);
-        }
-        else
-        {
-            DeckSettinObject.Instance.isDeckEditing = true;
-            NewDeckText.text = "Editing Now ..";
-            DeckListPanel.gameObject.SetActive(false);
-            DeckTitleInputField.gameObject.SetActive(true);
-            DeckSettinObject.Instance.EnsureDeckEditUiVisible();
-
-            DeckEditPanel.gameObject.SetActive(true);
-            DeckEditPanel editPanel = DeckEditPanel.GetComponent<DeckEditPanel>();
-            editPanel.LoadDeckToEditPanel();
-            DeckSettinObject.Instance.RefreshDeckEditCountDisplays();
+            TryCancelDeckEdit();
             return;
-
-
         }
-        Debug.Log($"ボタン:{DeckSettinObject.Instance.isDeckEditing}");
-        
-        
-        // DeckListPanel.gameObject.SetActive(false);
+
+        // 新規作成。選択中の既存デッキパスを残すと保存時に上書きしてしまう。
+        BeginDeckEdit(asNewDeck: true);
     }
 
-
-    private void DeckMakeButtonClicked()
+    private void EditSelectedDeckClicked()
     {
-        DeckSettinObject.Instance.CardDataToJson();
-        return;
-        Debug.Log("デッキ作成ボタンがクリックされました。");
-        string path = Application.persistentDataPath;
-        // ここでデッキデータをJSONに変換して保存する処理を実装します。
-        string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        if (DeckSettinObject.Instance != null && DeckSettinObject.Instance.isDeckEditing)
+        {
+            return;
+        }
 
-        // 2. ファイル名を作成
-        string fileName = "Deck_" + timestamp + ".json";
+        BeginDeckEdit(asNewDeck: false);
+    }
 
-        // 3. 保存先のフルパスを作成
-        string fullPath = Path.Combine(Application.persistentDataPath, fileName);
+    private void BeginDeckEdit(bool asNewDeck)
+    {
+        if (DeckSettinObject.Instance == null)
+        {
+            return;
+        }
 
-        // 確認用ログ
-        Debug.Log("保存パス: " + fullPath);
+        if (asNewDeck)
+        {
+            DeckSettinObject.Instance.BeginNewEmptyDeck();
+            if (DeckTitleInputField != null)
+            {
+                DeckTitleInputField.text = string.Empty;
+            }
+        }
+
+        DeckSettinObject.Instance.isDeckEditing = true;
+        if (NewDeckText != null)
+        {
+            NewDeckText.SetLocalizedText("キャンセル", "Cancel");
+        }
+
+        if (DeckListPanel != null)
+        {
+            DeckListPanel.gameObject.SetActive(false);
+        }
+
+        if (DeckTitleInputField != null)
+        {
+            DeckTitleInputField.gameObject.SetActive(true);
+        }
+
+        DeckSettinObject.Instance.EnsureDeckEditUiVisible();
+
+        if (DeckEditPanel != null)
+        {
+            DeckEditPanel.gameObject.SetActive(true);
+            DeckEditPanel editPanel = DeckEditPanel.GetComponent<DeckEditPanel>();
+            if (editPanel != null)
+            {
+                editPanel.LoadDeckToEditPanel();
+            }
+        }
+
+        DeckSettinObject.Instance.RefreshDeckEditCountDisplays();
+        DeckSettinObject.Instance.RefreshThumbnailFrames();
+        string startTitle = DeckTitleInputField != null ? DeckTitleInputField.text : string.Empty;
+        DeckSettinObject.Instance.CaptureEditBaseline(startTitle);
+        RefreshDeckMakeButtonInteractable();
+        Debug.Log($"ボタン:{DeckSettinObject.Instance.isDeckEditing} newDeck:{asNewDeck}");
     }
 }

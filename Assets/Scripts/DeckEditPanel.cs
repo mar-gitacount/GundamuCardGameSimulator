@@ -59,6 +59,7 @@ public class DeckEditPanel : MonoBehaviour
         if (DeckSettinObject.Instance != null)
         {
             DeckSettinObject.Instance.RefreshDeckEditCountDisplays();
+            DeckSettinObject.Instance.RefreshThumbnailFrames();
         }
 
         Debug.Log("DeckEditPanel LoadDeckToEditPanel: デッキ編集パネルにデータをロードします。");
