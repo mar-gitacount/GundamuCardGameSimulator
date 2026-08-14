@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: CardSetData 2
   m_EditorClassIdentifier: 
   setId: 3
-  setName: StealRequiem
+  setName: Steal Requiem
   description: 
   price: 0
   isReleased: 0

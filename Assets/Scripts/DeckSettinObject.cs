@@ -1243,6 +1243,7 @@ public void DeleteJsonFile()
 
         Debug.Log($"[Deck] 削除完了: {storageKey}");
         deckPathName = string.Empty;
+        HideDeckActionButtons();
         ClearDeckList();
         yield return ShowFileListCoroutine();
     }

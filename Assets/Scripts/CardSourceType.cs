@@ -7,7 +7,8 @@ public enum CardSourceType
     Booster = 1,
     Starter = 2,
     Promo = 3,
-    Event = 4
+    Event = 4,
+    EternalBooster = 5,
 }
 public enum CardSOurceTypeNumber
 {
@@ -15,7 +16,8 @@ public enum CardSOurceTypeNumber
     Booster = 1,
     Starter = 2,
     Promo = 3,
-    Event = 4
+    Event = 4,
+    EternalBooster = 5
 }
 
 public enum CardColor{

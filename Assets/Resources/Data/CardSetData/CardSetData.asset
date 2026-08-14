@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: CardSetData
   m_EditorClassIdentifier: 
   setId: 1
-  setName: NewTyperising
+  setName: NewType Rising
   description: 
   price: 1
   isReleased: 0
