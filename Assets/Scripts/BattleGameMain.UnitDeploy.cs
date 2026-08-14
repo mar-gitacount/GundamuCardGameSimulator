@@ -65,16 +65,16 @@ public partial class BattleGameMain
     {
         if (effect == null)
         {
-            return "手札から配備するユニットを選択";
+            return GameLocale.T("手札から配備するユニットを選択", "Choose a Unit from hand to deploy");
         }
 
         string detail = effect.FormatTargetUnitFilterDescription();
         if (!string.IsNullOrEmpty(detail))
         {
-            return $"手札から配備（{detail}）";
+            return GameLocale.T($"手札から配備（{detail}）", $"Deploy from hand ({detail})");
         }
 
-        return "手札から配備するユニットを選択";
+        return GameLocale.T("手札から配備するユニットを選択", "Choose a Unit from hand to deploy");
     }
 
     private List<TrashExileCandidate> CollectTrashDeployCandidates(CardGameRule trashRule, EffectData effect)
@@ -643,7 +643,7 @@ public partial class BattleGameMain
             }
         }
 
-        Button cancel = root.CreateChildButton("キャンセル");
+        Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
         RectTransform cancelRt = cancel.GetComponent<RectTransform>();
         cancelRt.sizeDelta = new Vector2(160f, 44f);
         cancelRt.anchorMin = new Vector2(0.5f, 0f);
@@ -750,7 +750,9 @@ public partial class BattleGameMain
             dim.raycastTarget = true;
 
             TextMeshProUGUI title = root.CreateChildTextCustom("DeployTrashTitle", UIAnchor.TopCenter, 760, 48);
-            title.text = $"トラッシュから配備 ({remaining}枚)";
+            title.SetLocalizedText(
+                $"トラッシュから配備 ({remaining}枚)",
+                $"Deploy from Trash ({remaining} left)");
             title.fontSize = 26;
             title.fontStyle = FontStyles.Bold;
             title.color = Color.white;
@@ -816,7 +818,7 @@ public partial class BattleGameMain
                 }
             }
 
-            Button skip = root.CreateChildButton("スキップ");
+            Button skip = root.CreateChildButton(GameLocale.T("スキップ", "Skip"));
             RectTransform skipRt = skip.GetComponent<RectTransform>();
             skipRt.sizeDelta = new Vector2(160f, 44f);
             skipRt.anchorMin = new Vector2(0.5f, 0f);

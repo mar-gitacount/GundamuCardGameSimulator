@@ -402,7 +402,9 @@ public class DeckSettinObject : MonoBehaviour
 
         ApplyDeckTotalCountLabelLayout();
         _deckTotalCountLabelRoot.SetActive(true);
-        label.text = $"デッキ合計: {GetDeckTotalCardCount()}枚";
+        label.SetLocalizedText(
+            $"デッキ合計: {GetDeckTotalCardCount()}枚",
+            $"Deck total: {GetDeckTotalCardCount()} cards");
     }
 
     private void ApplyDeckTotalCountLabelLayout()

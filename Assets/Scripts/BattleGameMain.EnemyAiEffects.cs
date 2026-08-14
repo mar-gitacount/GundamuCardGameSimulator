@@ -1112,7 +1112,7 @@ public partial class BattleGameMain
             command,
             null,
             previewTargets,
-            "敵 — コマンド（OnMain）");
+            GameLocale.T("敵 — コマンド（OnMain）", "Enemy — Command (OnMain)"));
         TryExecuteOnMainCard(PlayerType.Enemy, command, null);
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
@@ -1343,7 +1343,7 @@ public partial class BattleGameMain
             command,
             attackingUnitInAttackFlow,
             previewTargets,
-            "敵 — コマンド（OnAction）");
+            GameLocale.T("敵 — コマンド（OnAction）", "Enemy — Command (OnAction)"));
 
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
         Gundam2024RuleScript.PlayerState payState = GetRuleState(ruleSide);

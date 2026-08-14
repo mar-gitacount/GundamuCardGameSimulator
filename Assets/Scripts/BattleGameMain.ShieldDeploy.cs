@@ -796,25 +796,37 @@ public partial class BattleGameMain
         string timingLabel = timing switch
         {
             EffectTiming.OnRest => "OnRest",
-            EffectTiming.OnBaseDeployed => "配備効果",
-            EffectTiming.OnShieldDeployed => "シールド配備",
-            EffectTiming.OnBurst => "バースト",
-            _ => "効果",
+            EffectTiming.OnBaseDeployed => GameLocale.T("配備効果", "Deploy effect"),
+            EffectTiming.OnShieldDeployed => GameLocale.T("シールド配備", "Shield deploy"),
+            EffectTiming.OnBurst => GameLocale.T("バースト", "Burst"),
+            _ => GameLocale.T("効果", "Effect"),
         };
         string title = manualPickTotal > 1
-            ? $"{timingLabel} {manualPickIndex}/{manualPickTotal} — 対象を選択"
-            : $"{timingLabel} — 対象を選択";
+            ? GameLocale.T(
+                $"{timingLabel} {manualPickIndex}/{manualPickTotal} — 対象を選択",
+                $"{timingLabel} {manualPickIndex}/{manualPickTotal} — Select a target")
+            : GameLocale.T(
+                $"{timingLabel} — 対象を選択",
+                $"{timingLabel} — Select a target");
         string summary = effect != null
             ? $"{cardLabel}：{effect.FormatEffectSelectionSummary()}"
             : cardLabel;
         string titleForEffect = effect != null && effect.type == EffectType.Bounce
             ? (manualPickTotal > 1
-                ? $"バウンス {manualPickIndex}/{manualPickTotal} — 手札に戻すユニット"
-                : "バウンス — 手札に戻すユニットを選択")
+                ? GameLocale.T(
+                    $"バウンス {manualPickIndex}/{manualPickTotal} — 手札に戻すユニット",
+                    $"Bounce {manualPickIndex}/{manualPickTotal} — Unit to return to hand")
+                : GameLocale.T(
+                    "バウンス — 手札に戻すユニットを選択",
+                    "Bounce — Choose a Unit to return to hand"))
             : effect != null && effect.type == EffectType.Rest
                 ? (manualPickTotal > 1
-                    ? $"REST {manualPickIndex}/{manualPickTotal} — 対象ユニット"
-                    : "REST — 対象ユニットを選択")
+                    ? GameLocale.T(
+                        $"REST {manualPickIndex}/{manualPickTotal} — 対象ユニット",
+                        $"REST {manualPickIndex}/{manualPickTotal} — Target Unit")
+                    : GameLocale.T(
+                        "REST — 対象ユニットを選択",
+                        "REST — Choose a Unit"))
                 : title;
 
         yield return WaitForPlayerBurstTargetSelectionCoroutine(

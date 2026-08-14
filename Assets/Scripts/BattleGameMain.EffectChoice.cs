@@ -856,15 +856,17 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("TrashToHandTitle", UIAnchor.TopCenter, 780, 48);
-        title.text = "トラッシュから手札に加える";
+        title.SetLocalizedText("トラッシュから手札に加える", "Add from Trash to hand");
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
 
-        string sourceName = sourceCard?.Data?.cardName ?? "このカード";
+        string sourceName = sourceCard?.Data?.cardName ?? GameLocale.T("このカード", "this card");
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("TrashToHandSubtitle", UIAnchor.TopCenter, 780, 40);
-        subtitle.text = $"{sourceName}: {filterLabel} を選んで OK";
+        subtitle.SetLocalizedText(
+            $"{sourceName}: {filterLabel} を選んで OK",
+            $"{sourceName}: choose {filterLabel}, then OK");
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
@@ -993,7 +995,7 @@ public partial class BattleGameMain
     {
         if (effect == null)
         {
-            return "カード";
+            return GameLocale.T("カード", "card");
         }
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder();
@@ -1023,6 +1025,6 @@ public partial class BattleGameMain
             sb.Append(featureLabel);
         }
 
-        return sb.Length > 0 ? sb.ToString() : "カード";
+        return sb.Length > 0 ? sb.ToString() : GameLocale.T("カード", "card");
     }
 }

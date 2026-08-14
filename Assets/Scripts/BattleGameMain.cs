@@ -1656,7 +1656,8 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (isCommandPilot)
             {
-                Button mountBtn = FilterPanel.CreateChildButton("搭乗する（パイロット）");
+                Button mountBtn = FilterPanel.CreateChildButton(
+                    GameLocale.T("搭乗する（パイロット）", "Mount (Pilot)"));
                 RectTransform mountRt = mountBtn.GetComponent<RectTransform>();
                 mountRt.sizeDelta = new Vector2(280f, 50f);
                 mountRt.anchoredPosition = new Vector2(0f, handActionY);
@@ -4381,7 +4382,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TextMeshProUGUI title = filterPanel.CreateChildTextCustom("PilotTargetTitle", UIAnchor.TopCenter, 460, 40);
-        title.text = "搭乗先ユニットを選択";
+        title.SetLocalizedText("搭乗先ユニットを選択", "Select Unit to mount");
         title.fontSize = 22;
         title.alignment = TextAlignmentOptions.Center;
         title.color = Color.black;
@@ -8624,7 +8625,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TextMeshProUGUI attackerLabel = root.CreateChildTextCustom("AttackerLabel", UIAnchor.TopCenter, 240, 28);
-        attackerLabel.text = "攻撃元";
+        attackerLabel.SetLocalizedText("攻撃元", "Attacker");
         attackerLabel.fontSize = 18;
         attackerLabel.color = Color.white;
         attackerLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
@@ -8846,14 +8847,16 @@ public partial class BattleGameMain : MonoBehaviour
             && declaredAttackTargetForDisplay.Data != null
                 ? declaredAttackTargetForDisplay
                 : ResolveAttackFlowDefenderForPreview();
-        string shieldFallback = attackFlowStrikeKind == AttackFlowStrikeKind.Shield ? "シールド" : null;
+        string shieldFallback = attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+            ? GameLocale.T("シールド", "Shield")
+            : null;
         if (matchupAttacker != null && matchupAttacker.Data != null)
         {
             AppendAttackMatchupPreviewAboveBottomButtons(
                 root,
                 matchupAttacker,
                 matchupDefender,
-                "バトル予定（誰が誰に攻撃）",
+                GameLocale.T("バトル予定（誰が誰に攻撃）", "Battle preview (who attacks whom)"),
                 shieldFallback);
             Debug.Log(
                 $"[BlockPanelMatchup] attacker:{matchupAttacker.Data.cardName} "
@@ -10582,9 +10585,20 @@ public partial class BattleGameMain : MonoBehaviour
                 UIAnchor.BottomCenter,
                 100,
                 28);
-            statLabel.text = effect != null && effect.type == EffectType.GrantAttackFlag
-                ? $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp} 攻撃:{(candidate.AttackFlgState == AttackFlg.True ? "可" : "不可")}"
-                : $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp}";
+            if (effect != null && effect.type == EffectType.GrantAttackFlag)
+            {
+                string atk = candidate.AttackFlgState == AttackFlg.True
+                    ? GameLocale.T("可", "ON")
+                    : GameLocale.T("不可", "OFF");
+                statLabel.SetLocalizedText(
+                    $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp} 攻撃:{atk}",
+                    $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp} Atk:{atk}");
+            }
+            else
+            {
+                statLabel.text = $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp}";
+            }
+
             statLabel.fontSize = 14;
             statLabel.color = Color.white;
             statLabel.alignment = TextAlignmentOptions.Center;
@@ -10611,7 +10625,7 @@ public partial class BattleGameMain : MonoBehaviour
             });
         }
 
-        Button cancel = root.CreateChildButton("キャンセル");
+        Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
         RectTransform cancelRt = cancel.GetComponent<RectTransform>();
         cancelRt.sizeDelta = new Vector2(160f, 44f);
         cancelRt.anchorMin = new Vector2(0.5f, 0f);
@@ -10675,9 +10689,19 @@ public partial class BattleGameMain : MonoBehaviour
         {
             TextMeshProUGUI summary = root.CreateChildTextCustom("ManualMultiUnitTargetSummary", UIAnchor.TopCenter, 720, 32);
             string rangeLabel = effect.FormatSelectCountRangeLabel();
-            summary.text = string.IsNullOrEmpty(rangeLabel)
-                ? "カードをタップで選択（赤＝対象）→ OK で確定"
-                : $"カードをタップで選択（赤＝対象）{rangeLabel} → OK で確定";
+            if (string.IsNullOrEmpty(rangeLabel))
+            {
+                summary.SetLocalizedText(
+                    "カードをタップで選択（赤＝対象）→ OK で確定",
+                    "Tap cards to select (red = selected) → OK to confirm");
+            }
+            else
+            {
+                summary.SetLocalizedText(
+                    $"カードをタップで選択（赤＝対象）{rangeLabel} → OK で確定",
+                    $"Tap cards to select (red = selected){rangeLabel} → OK to confirm");
+            }
+
             summary.color = new Color(0.9f, 0.9f, 0.9f);
             summary.fontSize = 18;
             summary.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
@@ -10813,7 +10837,7 @@ public partial class BattleGameMain : MonoBehaviour
             CloseWithSelection(new List<CardController>(selected));
         });
 
-        Button cancel = root.CreateChildButton("キャンセル");
+        Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
         RectTransform cancelRt = cancel.GetComponent<RectTransform>();
         cancelRt.sizeDelta = new Vector2(160f, 44f);
         cancelRt.anchorMin = new Vector2(0.5f, 0f);
@@ -14430,8 +14454,10 @@ public partial class BattleGameMain : MonoBehaviour
                     matchupAttacker,
                     matchupDefender,
                     matchupY,
-                    "バトル予定",
-                    attackFlowStrikeKind == AttackFlowStrikeKind.Shield ? "シールド" : null);
+                    GameLocale.T("バトル予定", "Battle Preview"),
+                    attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+                        ? GameLocale.T("シールド", "Shield")
+                        : null);
             }
         }
         else if (attackingUnitInAttackFlow != null
@@ -14445,8 +14471,10 @@ public partial class BattleGameMain : MonoBehaviour
                 attackingUnitInAttackFlow,
                 ResolveAttackFlowDefenderForPreview(),
                 -120f,
-                "バトル予定",
-                attackFlowStrikeKind == AttackFlowStrikeKind.Shield ? "シールド" : null);
+                GameLocale.T("バトル予定", "Battle Preview"),
+                attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+                    ? GameLocale.T("シールド", "Shield")
+                    : null);
         }
 
         void finishUi(ActionStepPassKind passKind)
@@ -14723,7 +14751,7 @@ public partial class BattleGameMain : MonoBehaviour
             command,
             attackingUnitInAttackFlow,
             resolvedBeforeApply,
-            "コマンド発動");
+            GameLocale.T("コマンド発動", "Command activated"));
 
         bool paymentOk = false;
         int exToUse = 0;
@@ -14896,7 +14924,7 @@ public partial class BattleGameMain : MonoBehaviour
             command,
             attackingUnitInAttackFlow,
             new List<CardController> { picked },
-            "コマンド発動");
+            GameLocale.T("コマンド発動", "Command activated"));
 
         bool paymentOk = false;
         int exToUse = 0;
@@ -15019,7 +15047,8 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        Button restBtn = filterPanel.CreateChildButton("レストして効果発動");
+        Button restBtn = filterPanel.CreateChildButton(
+            GameLocale.T("レストして効果発動", "Rest to activate effect"));
         RectTransform restRt = restBtn.GetComponent<RectTransform>();
         restRt.sizeDelta = new Vector2(320f, 50f);
         restRt.anchoredPosition = new Vector2(0f, anchoredY);
@@ -15077,7 +15106,7 @@ public partial class BattleGameMain : MonoBehaviour
             source,
             null,
             null,
-            "コマンド発動");
+            GameLocale.T("コマンド発動", "Command activated"));
 
         yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
             source,
@@ -15554,41 +15583,55 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (effect == null)
         {
-            return "対象を選択";
+            return GameLocale.T("対象を選択", "Select a target");
         }
 
         bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
+        string attackName = isAttackContext ? attackingUnitInAttackFlow.Data.cardName : string.Empty;
         if (effect.type == EffectType.Bounce)
         {
             return isAttackContext
-                ? $"バウンス — 手札に戻すユニットを選択（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : "バウンス — 手札に戻すユニットを選択";
+                ? GameLocale.T(
+                    $"バウンス — 手札に戻すユニットを選択（{attackName} 攻撃中）",
+                    $"Bounce — Choose a Unit to return to hand ({attackName} attacking)")
+                : GameLocale.T(
+                    "バウンス — 手札に戻すユニットを選択",
+                    "Bounce — Choose a Unit to return to hand");
         }
 
         if (effect.type == EffectType.Rest)
         {
             return isAttackContext
-                ? $"REST — 対象ユニットを選択（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : "REST — 対象ユニットを選択";
+                ? GameLocale.T(
+                    $"REST — 対象ユニットを選択（{attackName} 攻撃中）",
+                    $"REST — Choose a Unit ({attackName} attacking)")
+                : GameLocale.T("REST — 対象ユニットを選択", "REST — Choose a Unit");
         }
 
         if (effect.type == EffectType.Activate)
         {
-            string blockerHint = effect.filterTargetIsBlocker ? "（ブロッカー・RESTのみ）" : "（RESTのみ）";
+            string blockerHintJa = effect.filterTargetIsBlocker ? "（ブロッカー・RESTのみ）" : "（RESTのみ）";
+            string blockerHintEn = effect.filterTargetIsBlocker ? " (Blocker, REST only)" : " (REST only)";
             return isAttackContext
-                ? $"ACTIVE化 — 対象ユニットを選択{blockerHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : $"ACTIVE化 — 対象ユニットを選択{blockerHint}";
+                ? GameLocale.T(
+                    $"ACTIVE化 — 対象ユニットを選択{blockerHintJa}（{attackName} 攻撃中）",
+                    $"Activate — Choose a Unit{blockerHintEn} ({attackName} attacking)")
+                : GameLocale.T(
+                    $"ACTIVE化 — 対象ユニットを選択{blockerHintJa}",
+                    $"Activate — Choose a Unit{blockerHintEn}");
         }
 
         if (effect.type == EffectType.MarkObservedUnit)
         {
-            return $"監視対象ユニットを選択{effect.FormatSelectCountRangeLabel()}";
+            return GameLocale.T(
+                $"監視対象ユニットを選択{effect.FormatSelectCountRangeLabel()}",
+                $"Choose unit(s) to observe{effect.FormatSelectCountRangeLabel()}");
         }
 
         if (effect.type == EffectType.EffectBattle)
         {
             return isAttackContext
-                ? $"Effect Battle — Choose an enemy Unit ({attackingUnitInAttackFlow.Data.cardName})"
+                ? $"Effect Battle — Choose an enemy Unit ({attackName})"
                 : "Effect Battle — Choose an enemy Unit (No Rest)";
         }
 
@@ -15596,87 +15639,117 @@ public partial class BattleGameMain : MonoBehaviour
         {
             string nameHint = string.IsNullOrWhiteSpace(effect.targetCardNameContains)
                 ? string.Empty
-                : $"（名前に「{effect.targetCardNameContains.Trim()}」）";
-            return $"《先制攻撃》付与 — 味方ユニットを選択{nameHint}";
+                : GameLocale.T(
+                    $"（名前に「{effect.targetCardNameContains.Trim()}」）",
+                    $" (name contains \"{effect.targetCardNameContains.Trim()}\")");
+            return GameLocale.T(
+                $"《先制攻撃》付与 — 味方ユニットを選択{nameHint}",
+                $"Grant <First Strike> — Choose an ally Unit{nameHint}");
         }
 
         if (effect.type == EffectType.GrantBreach)
         {
             int amount = effect.value > 0 ? effect.value : 0;
-            string lackHint = effect.requireTargetLacksBreach ? "（《突破》持ち不可）" : string.Empty;
-            return $"《突破{amount}》付与 — 味方ユニットを選択{lackHint}";
+            string lackHint = effect.requireTargetLacksBreach
+                ? GameLocale.T("（《突破》持ち不可）", " (cannot already have Breach)")
+                : string.Empty;
+            return GameLocale.T(
+                $"《突破{amount}》付与 — 味方ユニットを選択{lackHint}",
+                $"Grant <Breach {amount}> — Choose an ally Unit{lackHint}");
         }
 
         if (effect.type == EffectType.GrantAttackFlag)
         {
             string featureLabel = effect.FormatTargetFeaturesLabel("/");
             string typeLabel = effect.filterByTargetCardType ? effect.targetCardType.ToString() : string.Empty;
-            string filterHint = string.IsNullOrEmpty(featureLabel)
-                ? string.Empty
-                : $"（{featureLabel}";
-            if (!string.IsNullOrEmpty(typeLabel))
+            string filterHintJa;
+            string filterHintEn;
+            if (string.IsNullOrEmpty(featureLabel) && string.IsNullOrEmpty(typeLabel))
             {
-                filterHint += string.IsNullOrEmpty(filterHint) ? $"（{typeLabel}" : $"・{typeLabel}";
-            }
-
-            if (!string.IsNullOrEmpty(filterHint))
-            {
-                filterHint += "・AttackFlg=OFF のみ）";
+                filterHintJa = "（AttackFlg=OFF のユニットのみ）";
+                filterHintEn = " (AttackFlg=OFF units only)";
             }
             else
             {
-                filterHint = "（AttackFlg=OFF のユニットのみ）";
+                string mid = featureLabel;
+                if (!string.IsNullOrEmpty(typeLabel))
+                {
+                    mid = string.IsNullOrEmpty(mid) ? typeLabel : $"{mid}・{typeLabel}";
+                }
+
+                filterHintJa = $"（{mid}・AttackFlg=OFF のみ）";
+                filterHintEn = $" ({mid}, AttackFlg=OFF only)";
             }
 
             return isAttackContext
-                ? $"アタック可能にする味方ユニットを選択{filterHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : $"アタック可能にする味方ユニットを選択{filterHint}";
+                ? GameLocale.T(
+                    $"アタック可能にする味方ユニットを選択{filterHintJa}（{attackName} 攻撃中）",
+                    $"Choose an ally Unit to enable Attack{filterHintEn} ({attackName} attacking)")
+                : GameLocale.T(
+                    $"アタック可能にする味方ユニットを選択{filterHintJa}",
+                    $"Choose an ally Unit to enable Attack{filterHintEn}");
         }
 
         if (effect.IsAttackActiveEnemyAllyGrant())
         {
             string featureLabel = effect.FormatTargetFeaturesLabel("/");
-            string attackFilter = effect.HasAttackActiveEnemyTargetStatFilter()
+            string attackFilterJa = effect.HasAttackActiveEnemyTargetStatFilter()
                 ? effect.FormatAttackActiveEnemyTargetStatDescription()
                 : "ACTIVE敵";
-            string filterHint = string.IsNullOrEmpty(featureLabel)
-                ? string.Empty
-                : $"（{featureLabel}）";
+            string attackFilterEn = effect.HasAttackActiveEnemyTargetStatFilter()
+                ? effect.FormatAttackActiveEnemyTargetStatDescription()
+                : "ACTIVE enemy";
+            string filterHintJa = string.IsNullOrEmpty(featureLabel) ? string.Empty : $"（{featureLabel}）";
+            string filterHintEn = string.IsNullOrEmpty(featureLabel) ? string.Empty : $" ({featureLabel})";
             return isAttackContext
-                ? $"アクティブ攻撃（{attackFilter}）を付与する味方を選択{filterHint}（{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : $"アクティブ攻撃（{attackFilter}）を付与する味方を選択{filterHint}";
+                ? GameLocale.T(
+                    $"アクティブ攻撃（{attackFilterJa}）を付与する味方を選択{filterHintJa}（{attackName} 攻撃中）",
+                    $"Choose an ally to grant Active Attack ({attackFilterEn}){filterHintEn} ({attackName} attacking)")
+                : GameLocale.T(
+                    $"アクティブ攻撃（{attackFilterJa}）を付与する味方を選択{filterHintJa}",
+                    $"Choose an ally to grant Active Attack ({attackFilterEn}){filterHintEn}");
         }
 
         if (effect.type == EffectType.Damage && effect.selectionMode.IsMultipleUnitPickMode())
         {
             if (effect.target.IsOpponentUnitTarget())
             {
-                return "相手ユニットを選択（1ダメージ）";
+                return GameLocale.T("相手ユニットを選択（1ダメージ）", "Choose an opponent Unit (1 damage)");
             }
 
             if (effect.target.IsAllyUnitPickTarget())
             {
-                return "自分のユニットを選択（1ダメージ）";
+                return GameLocale.T("自分のユニットを選択（1ダメージ）", "Choose one of your Units (1 damage)");
             }
         }
 
         if (effect.target == TargetType.AllyUnit)
         {
             return isAttackContext
-                ? $"味方ユニット1体を選択（自身または他ユニット・{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : "味方ユニット1体を選択（自身または他ユニット）";
+                ? GameLocale.T(
+                    $"味方ユニット1体を選択（自身または他ユニット・{attackName} 攻撃中）",
+                    $"Choose 1 ally Unit (self or another · {attackName} attacking)")
+                : GameLocale.T(
+                    "味方ユニット1体を選択（自身または他ユニット）",
+                    "Choose 1 ally Unit (self or another)");
         }
 
         if (effect.target == TargetType.AllyOtherUnit)
         {
             return isAttackContext
-                ? $"味方ユニット1体を選択（自身以外・{attackingUnitInAttackFlow.Data.cardName} 攻撃中）"
-                : "味方ユニット1体を選択（自身以外）";
+                ? GameLocale.T(
+                    $"味方ユニット1体を選択（自身以外・{attackName} 攻撃中）",
+                    $"Choose 1 ally Unit (not self · {attackName} attacking)")
+                : GameLocale.T(
+                    "味方ユニット1体を選択（自身以外）",
+                    "Choose 1 ally Unit (not self)");
         }
 
         return isAttackContext
-            ? $"OnAction — 対象を選択（攻撃中: {attackingUnitInAttackFlow.Data.cardName}）"
-            : "OnAction — 対象を選択";
+            ? GameLocale.T(
+                $"OnAction — 対象を選択（攻撃中: {attackName}）",
+                $"OnAction — Select a target (attacking: {attackName})")
+            : GameLocale.T("OnAction — 対象を選択", "OnAction — Select a target");
     }
 
     private static bool IsValidAllyUnitSelfTarget(

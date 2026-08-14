@@ -534,15 +534,15 @@ public partial class BattleGameMain
         List<OnMainExecutableBlock> blocks = CollectExecutableOnMainBlocks(ownerType, source);
         if (blocks.Count == 0)
         {
-            return "効果発動";
+            return GameLocale.T("効果発動", "Activate effect");
         }
 
         int cost = GetOnMainActivationCost(source, blocks[0].Timed, ownerType);
         if (cost > 0)
         {
-            return $"効果発動 ({cost})";
+            return GameLocale.T($"効果発動 ({cost})", $"Activate effect ({cost})");
         }
 
-        return "メイン効果を発動";
+        return GameLocale.T("メイン効果を発動", "Activate Main effect");
     }
 }

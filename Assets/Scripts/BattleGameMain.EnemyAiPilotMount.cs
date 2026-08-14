@@ -31,7 +31,7 @@ public partial class BattleGameMain
                 pilot,
                 null,
                 hosts,
-                "敵 — パイロット搭乗");
+                GameLocale.T("敵 — パイロット搭乗", "Enemy — Pilot mount"));
         }
 
         if (mounted > 0)

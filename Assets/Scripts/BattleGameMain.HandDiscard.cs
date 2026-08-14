@@ -352,13 +352,20 @@ public partial class BattleGameMain
     private static string FormatHandDiscardSelectionTitle(EffectData effect, CardController source)
     {
         int count = effect != null && effect.value > 0 ? effect.value : 1;
-        string revealHint = effect != null && effect.revealDiscardedToOpponent
+        string revealHintJa = effect != null && effect.revealDiscardedToOpponent
             ? "（相手に公開）"
+            : string.Empty;
+        string revealHintEn = effect != null && effect.revealDiscardedToOpponent
+            ? " (reveal to opponent)"
             : string.Empty;
         string sourceName = source != null && source.Data != null ? source.Data.cardName : string.Empty;
         return string.IsNullOrEmpty(sourceName)
-            ? $"手札から{count}枚をトラッシュに捨てる{revealHint}"
-            : $"手札から{count}枚をトラッシュに捨てる{revealHint} — {sourceName}";
+            ? GameLocale.T(
+                $"手札から{count}枚をトラッシュに捨てる{revealHintJa}",
+                $"Discard {count} card(s) from hand to Trash{revealHintEn}")
+            : GameLocale.T(
+                $"手札から{count}枚をトラッシュに捨てる{revealHintJa} — {sourceName}",
+                $"Discard {count} card(s) from hand to Trash{revealHintEn} — {sourceName}");
     }
 
     private IEnumerator ShowHandDiscardRevealPanelCoroutine(
@@ -397,11 +404,13 @@ public partial class BattleGameMain
         {
             title.text = revealTitle;
         }
+        else if (isOpponentView)
+        {
+            title.SetLocalizedText("相手が手札から捨てたカード（公開）", "Opponent discarded from hand (revealed)");
+        }
         else
         {
-            title.text = isOpponentView
-                ? "相手が手札から捨てたカード（公開）"
-                : "捨てたカードを相手に公開";
+            title.SetLocalizedText("捨てたカードを相手に公開", "Reveal discarded card to opponent");
         }
 
         title.color = Color.white;
