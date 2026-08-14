@@ -137,6 +137,12 @@
             "featureKey": "Shrike_Team",
             "displayName": "シュラク隊",
             "description": ""
+        },
+        {
+            "id": 23,
+            "featureKey": "Academy",
+            "displayName": "学園",
+            "description": ""
         }
     ]
 }

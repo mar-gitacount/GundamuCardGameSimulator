@@ -1110,6 +1110,10 @@ public partial class BattleGameMain
         state.resource = Mathf.Max(0, resource);
 
         state.exResource = Mathf.Max(0, exResource);
+        if (gundamRule != null)
+        {
+            state.exResource = Mathf.Min(gundamRule.MaxExResource, state.exResource);
+        }
 
         state.level = Mathf.Max(0, level);
 

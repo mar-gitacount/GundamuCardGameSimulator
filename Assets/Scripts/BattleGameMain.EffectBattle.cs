@@ -60,13 +60,17 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("OptionalEffectTitle", UIAnchor.TopCenter, 760, 48);
-        title.text = effect != null && effect.type == EffectType.EffectBattle
+            title.text = effect != null && effect.type == EffectType.EffectBattle
             ? "Start Effect Battle?"
             : effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot
                 ? "Set this Pilot from Trash?"
                 : effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
                     ? "捨てた〔必殺技〕の【メイン】を発動しますか？"
-                    : "Activate this effect?";
+                    : effect != null
+                      && effect.type == EffectType.Buff
+                      && effect.statTarget == EffectStatTarget.IncomingDamageReduction
+                        ? "味方ユニット1体にダメージ軽減を付与しますか？"
+                        : "Activate this effect?";
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
