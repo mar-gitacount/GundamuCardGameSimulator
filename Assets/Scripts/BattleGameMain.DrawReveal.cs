@@ -88,15 +88,23 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("DrawRevealTitle", UIAnchor.TopCenter, 720, 48);
-        title.text = drawnCards.Count == 1
-            ? "引いたカード"
-            : $"引いたカード（{drawnCards.Count}枚）";
+        if (drawnCards.Count == 1)
+        {
+            title.SetLocalizedText("引いたカード", "Drawn card");
+        }
+        else
+        {
+            title.SetLocalizedText(
+                $"引いたカード（{drawnCards.Count}枚）",
+                $"Drawn cards ({drawnCards.Count})");
+        }
+
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
         TextMeshProUGUI hint = root.CreateChildTextCustom("DrawRevealHint", UIAnchor.TopCenter, 720, 32);
-        hint.text = "確認したら OK を押してください";
+        hint.SetLocalizedText("確認したら OK を押してください", "Press OK when ready");
         hint.color = new Color(0.85f, 0.9f, 1f);
         hint.fontSize = 18;
         hint.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -62f);

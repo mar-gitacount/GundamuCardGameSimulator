@@ -85,7 +85,9 @@ public partial class BattleGameMain
 
     private static string FormatLookDeckOwnerLabel(PlayerType deckOwner)
     {
-        return deckOwner == PlayerType.Player ? "Your" : "Opponent";
+        return deckOwner == PlayerType.Player
+            ? GameLocale.T("あなた", "Your")
+            : GameLocale.T("相手", "Opponent");
     }
 
     private static PlayerType ResolveHandOwnerForLookEffect(PlayerType effectOwner, TargetType target)
@@ -539,7 +541,7 @@ public partial class BattleGameMain
         string featureLabel = effect.FormatTargetFeaturesLabel();
         if (string.IsNullOrEmpty(featureLabel))
         {
-            featureLabel = "未指定";
+            featureLabel = GameLocale.T("未指定", "Any");
         }
 
         string typeLabel = effect.filterByTargetCardType
@@ -569,18 +571,28 @@ public partial class BattleGameMain
             ShowLookDeckViewOnlyPopup(
                 context,
                 onComplete,
-                $"条件「{filterLabel}」に合うカードはありませんでした");
+                GameLocale.T(
+                    $"条件「{filterLabel}」に合うカードはありませんでした",
+                    $"No cards matched filter \"{filterLabel}\""));
             return;
         }
 
         string subtitle = effect.revealDiscardedToOpponent
-            ? $"条件に合うカードを1枚選んで OK（相手に公開して手札へ）— {filterLabel}"
-            : $"条件に合うカードを1枚選んで OK（手札へ）— {filterLabel}";
+            ? GameLocale.T(
+                $"条件に合うカードを1枚選んで OK（相手に公開して手札へ）— {filterLabel}",
+                $"Choose 1 matching card, then OK (reveal to opponent, add to hand) — {filterLabel}")
+            : GameLocale.T(
+                $"条件に合うカードを1枚選んで OK（手札へ）— {filterLabel}",
+                $"Choose 1 matching card, then OK (add to hand) — {filterLabel}");
         if (pickCount > 1)
         {
             subtitle = effect.revealDiscardedToOpponent
-                ? $"手札に加えるカードを選び OK（最大{pickCount}枚・相手に公開）— {filterLabel}"
-                : $"手札に加えるカードを選び OK（最大{pickCount}枚）— {filterLabel}";
+                ? GameLocale.T(
+                    $"手札に加えるカードを選び OK（最大{pickCount}枚・相手に公開）— {filterLabel}",
+                    $"Choose cards to add to hand, then OK (up to {pickCount}, reveal) — {filterLabel}")
+                : GameLocale.T(
+                    $"手札に加えるカードを選び OK（最大{pickCount}枚）— {filterLabel}",
+                    $"Choose cards to add to hand, then OK (up to {pickCount}) — {filterLabel}");
         }
 
         ShowLookDeckPickToHandPopup(
@@ -639,8 +651,12 @@ public partial class BattleGameMain
             }
 
             string revealTitle = handOwner == PlayerType.Enemy
-                ? "相手が山札から手札に加えたカード（公開）"
-                : "山札から手札に加えたカードを相手に公開";
+                ? GameLocale.T(
+                    "相手が山札から手札に加えたカード（公開）",
+                    "Opponent added a card from deck to hand (revealed)")
+                : GameLocale.T(
+                    "山札から手札に加えたカードを相手に公開",
+                    "Reveal card added from deck to hand");
             yield return WaitForHandDiscardRevealAcknowledgedCoroutine(
                 cardId,
                 cardName,
@@ -900,15 +916,25 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("DispositionTitle", UIAnchor.TopCenter, 720, 56);
-        title.text = remainderCount <= 1
-            ? "Choose where to place the looked card"
-            : $"Choose where to place the remaining {remainderCount} cards";
+        if (remainderCount <= 1)
+        {
+            title.SetLocalizedText(
+                "見たカードの置き場所を選んでください",
+                "Choose where to place the looked card");
+        }
+        else
+        {
+            title.SetLocalizedText(
+                $"残りの{remainderCount}枚の置き場所を選んでください",
+                $"Choose where to place the remaining {remainderCount} cards");
+        }
+
         title.fontSize = 24;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -80f);
 
         TextMeshProUGUI sub = root.CreateChildTextCustom("DispositionSubtitle", UIAnchor.TopCenter, 700, 40);
-        sub.text = $"Deck: {context.DeckLabel}";
+        sub.SetLocalizedText($"山札: {context.DeckLabel}", $"Deck: {context.DeckLabel}");
         sub.fontSize = 18;
         sub.color = new Color(0.85f, 0.9f, 1f, 1f);
         sub.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -130f);
@@ -930,7 +956,7 @@ public partial class BattleGameMain
         TextMeshProUGUI topLabel = topBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (topLabel != null)
         {
-            topLabel.text = "Put on top of deck";
+            topLabel.SetLocalizedText("山札の上に戻す", "Put on top of deck");
         }
 
         topBtn.onClick.AddListener(() => CloseAndChoose(LookedRemainderDispositionChoice.ReturnToDeckTop));
@@ -946,9 +972,16 @@ public partial class BattleGameMain
         if (bottomLabel != null)
         {
             // 1枚ならランダム順は意味がない
-            bottomLabel.text = remainderCount <= 1
-                ? "Put on bottom of deck"
-                : "Put on bottom of deck (random order)";
+            if (remainderCount <= 1)
+            {
+                bottomLabel.SetLocalizedText("山札の下に置く", "Put on bottom of deck");
+            }
+            else
+            {
+                bottomLabel.SetLocalizedText(
+                    "山札の下に置く（順番ランダム）",
+                    "Put on bottom of deck (random order)");
+            }
         }
 
         bottomBtn.onClick.AddListener(() => CloseAndChoose(LookedRemainderDispositionChoice.ShuffleToDeckBottom));
@@ -984,8 +1017,12 @@ public partial class BattleGameMain
         {
             string featureLabel = addEffect?.FormatTargetFeaturesLabel();
             subtitle = string.IsNullOrEmpty(featureLabel)
-                ? $"見たカードから{pickCount}枚選んで手札に加えられます"
-                : $"特性「{featureLabel}」のカードを{pickCount}枚選んで手札に加えられます";
+                ? GameLocale.T(
+                    $"見たカードから{pickCount}枚選んで手札に加えられます",
+                    $"Choose up to {pickCount} looked card(s) to add to hand")
+                : GameLocale.T(
+                    $"特性「{featureLabel}」のカードを{pickCount}枚選んで手札に加えられます",
+                    $"Choose up to {pickCount} card(s) with trait \"{featureLabel}\" to add to hand");
         }
 
         ShowLookDeckPopupCore(
@@ -1043,9 +1080,19 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("LookDeckTitle", UIAnchor.TopCenter, 720, 52);
-        title.text = selectionMode
-            ? $"Look at deck — {context.DeckLabel} (top {context.RequestedLookCount})"
-            : $"Look at deck ({context.DeckLabel} · {context.Entries.Count} of top {context.RequestedLookCount})";
+        if (selectionMode)
+        {
+            title.SetLocalizedText(
+                $"山札を見る — {context.DeckLabel}（上から{context.RequestedLookCount}枚）",
+                $"Look at deck — {context.DeckLabel} (top {context.RequestedLookCount})");
+        }
+        else
+        {
+            title.SetLocalizedText(
+                $"山札を見る（{context.DeckLabel} · 上から{context.RequestedLookCount}枚中{context.Entries.Count}枚）",
+                $"Look at deck ({context.DeckLabel} · {context.Entries.Count} of top {context.RequestedLookCount})");
+        }
+
         title.fontSize = 24;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);

@@ -57,15 +57,29 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("DiscardZoneTitle", UIAnchor.TopCenter, 560, 48);
-        title.text = showingExile ? "除外（EXILE）一覧" : "トラッシュ一覧";
+        if (showingExile)
+        {
+            title.SetLocalizedText("除外（EXILE）一覧", "Exile list");
+        }
+        else
+        {
+            title.SetLocalizedText("トラッシュ一覧", "Trash list");
+        }
+
         title.fontSize = 28;
         title.color = showingExile ? new Color(0.85f, 0.78f, 1f, 1f) : Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("DiscardZoneSubtitle", UIAnchor.TopCenter, 560, 32);
-        subtitle.text = showingExile
-            ? "除外ゾーンのカード（ゲームから除外）"
-            : "トラッシュのカード";
+        if (showingExile)
+        {
+            subtitle.SetLocalizedText("除外ゾーンのカード（ゲームから除外）", "Cards in Exile (removed from the game)");
+        }
+        else
+        {
+            subtitle.SetLocalizedText("トラッシュのカード", "Cards in Trash");
+        }
+
         subtitle.fontSize = 16;
         subtitle.color = new Color(0.85f, 0.9f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
@@ -82,7 +96,15 @@ public partial class BattleGameMain
             if (ids.Count == 0)
             {
                 TextMeshProUGUI empty = content.gameObject.CreateChildTextCustom("EmptyDiscardZone", UIAnchor.TopCenter, 480, 40);
-                empty.text = showingExile ? "（除外ゾーンは空です）" : "（トラッシュは空です）";
+                if (showingExile)
+                {
+                    empty.SetLocalizedText("（除外ゾーンは空です）", "(Exile is empty)");
+                }
+                else
+                {
+                    empty.SetLocalizedText("（トラッシュは空です）", "(Trash is empty)");
+                }
+
                 empty.fontSize = 22;
                 empty.color = new Color(0.9f, 0.9f, 0.9f, 1f);
                 empty.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
@@ -785,7 +807,7 @@ public partial class BattleGameMain
             : (string.IsNullOrEmpty(typeLabel) ? featureLabel : $"{typeLabel}・{featureLabel}");
         if (string.IsNullOrEmpty(filterLabel))
         {
-            filterLabel = "カード";
+            filterLabel = GameLocale.T("カード", "card");
         }
 
         DestroyActiveOnActionPopupIfAny();
@@ -804,17 +826,27 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("ObservedTrashToHandTitle", UIAnchor.TopCenter, 780, 48);
-        title.text = "トラッシュに送ったカードから手札に加える";
+        title.SetLocalizedText("トラッシュに送ったカードから手札に加える", "Add to hand from cards sent to Trash");
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
 
-        string sourceName = sourceCard?.Data?.cardName ?? "このカード";
+        string sourceName = sourceCard?.Data?.cardName ?? GameLocale.T("このカード", "this card");
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("ObservedTrashToHandSubtitle", UIAnchor.TopCenter, 780, 40);
-        subtitle.text = selectable.Count > 0
-            ? $"{sourceName} の効果でトラッシュに送った3枚から {filterLabel} を選択して OK"
-            : $"{sourceName} の効果でトラッシュに送った3枚に対象となる {filterLabel} はありません";
+        if (selectable.Count > 0)
+        {
+            subtitle.SetLocalizedText(
+                $"{sourceName} の効果でトラッシュに送った3枚から {filterLabel} を選択して OK",
+                $"{sourceName}: choose {filterLabel} from the 3 cards sent to Trash, then OK");
+        }
+        else
+        {
+            subtitle.SetLocalizedText(
+                $"{sourceName} の効果でトラッシュに送った3枚に対象となる {filterLabel} はありません",
+                $"{sourceName}: none of the 3 cards sent to Trash match {filterLabel}");
+        }
+
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);

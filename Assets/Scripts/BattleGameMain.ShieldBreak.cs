@@ -656,7 +656,9 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         int count = takenCards.Count;
-        string ownerLabel = shieldOwner == PlayerType.Player ? "プレイヤー" : "エネミー";
+        string ownerLabel = shieldOwner == PlayerType.Player
+            ? GameLocale.T("プレイヤー", "Player")
+            : GameLocale.T("エネミー", "Enemy");
         bool anyBurst = false;
         for (int i = 0; i < count; i++)
         {
@@ -671,13 +673,23 @@ public partial class BattleGameMain
         bool hasOrderBurst = layout != null && layout.OrderedBurstZoneIndices.Count > 0;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("ShieldBreakTitle", UIAnchor.TopCenter, 760, 44);
-        title.text = suppressSelectionMode
-            ? "シールド破壊（制圧）"
-            : simultaneousReveal && count > 1
-                ? "シールド破壊（制圧）"
-                : count > 1
-                    ? "シールド破壊（同時）"
-                    : "シールド破壊";
+        if (suppressSelectionMode)
+        {
+            title.SetLocalizedText("シールド破壊（制圧）", "Shield Destroyed (Breach)");
+        }
+        else if (simultaneousReveal && count > 1)
+        {
+            title.SetLocalizedText("シールド破壊（制圧）", "Shield Destroyed (Breach)");
+        }
+        else if (count > 1)
+        {
+            title.SetLocalizedText("シールド破壊（同時）", "Shield Destroyed (Simultaneous)");
+        }
+        else
+        {
+            title.SetLocalizedText("シールド破壊", "Shield Destroyed");
+        }
+
         title.fontSize = 26;
         title.color = Color.white;
         title.alignment = TextAlignmentOptions.Center;
@@ -688,26 +700,47 @@ public partial class BattleGameMain
         {
             if (hasBasePick && hasOrderBurst)
             {
-                sub.text = $"{ownerLabel}のシールド{count}枚：ベースは1枚だけ配備（他は破棄）、その他バーストは順番を指定";
+                sub.SetLocalizedText(
+                    $"{ownerLabel}のシールド{count}枚：ベースは1枚だけ配備（他は破棄）、その他バーストは順番を指定",
+                    $"{ownerLabel}'s {count} Shields: deploy 1 Base (discard the rest), then order remaining Bursts");
             }
             else if (hasBasePick)
             {
                 sub.text = layout.BaseDeployBurstZoneIndices.Count >= 2
-                    ? $"{ownerLabel}のベース{count}枚：配備する1枚を選んでください（もう1枚は破棄）"
-                    : $"{ownerLabel}のベースが制圧で破壊されます";
+                    ? GameLocale.T(
+                        $"{ownerLabel}のベース{count}枚：配備する1枚を選んでください（もう1枚は破棄）",
+                        $"{ownerLabel}'s {count} Bases: choose 1 to deploy (the other is discarded)")
+                    : GameLocale.T(
+                        $"{ownerLabel}のベースが制圧で破壊されます",
+                        $"{ownerLabel}'s Base is destroyed by Breach");
             }
             else
             {
-                sub.text = $"{ownerLabel}のシールド{count}枚：バーストを解決する順にタップ（①→②）";
+                sub.SetLocalizedText(
+                    $"{ownerLabel}のシールド{count}枚：バーストを解決する順にタップ（①→②）",
+                    $"{ownerLabel}'s {count} Shields: tap Bursts in resolution order (1→2)");
             }
         }
         else
         {
-            sub.text = simultaneousReveal && count > 1
-                ? $"{ownerLabel}のシールド{count}枚が制圧で破壊されます"
-                : count > 1
-                    ? $"{ownerLabel}のシールド{count}枚が破壊されました"
-                    : $"{ownerLabel}のシールド1枚が破壊されました";
+            if (simultaneousReveal && count > 1)
+            {
+                sub.SetLocalizedText(
+                    $"{ownerLabel}のシールド{count}枚が制圧で破壊されます",
+                    $"{ownerLabel}'s {count} Shields are destroyed by Breach");
+            }
+            else if (count > 1)
+            {
+                sub.SetLocalizedText(
+                    $"{ownerLabel}のシールド{count}枚が破壊されました",
+                    $"{ownerLabel}'s {count} Shields were destroyed");
+            }
+            else
+            {
+                sub.SetLocalizedText(
+                    $"{ownerLabel}のシールド1枚が破壊されました",
+                    $"{ownerLabel}'s Shield was destroyed");
+            }
         }
 
         sub.fontSize = 17;
@@ -718,7 +751,7 @@ public partial class BattleGameMain
         if (anyBurst && !suppressSelectionMode)
         {
             TextMeshProUGUI burstBanner = root.CreateChildTextCustom("ShieldBurstBanner", UIAnchor.TopCenter, 640, 28);
-            burstBanner.text = "【バースト】あり（OK 後に解決）";
+            burstBanner.SetLocalizedText("【バースト】あり（OK 後に解決）", "[Burst] present (resolve after OK)");
             burstBanner.fontSize = 18;
             burstBanner.color = new Color(1f, 0.85f, 0.45f, 1f);
             burstBanner.alignment = TextAlignmentOptions.Center;
@@ -744,11 +777,11 @@ public partial class BattleGameMain
             bool isOrderBurst = layout != null && IsZoneIndexInList(layout.OrderedBurstZoneIndices, zoneIndex);
             bool hasBurst = ShouldResolveShieldBurst(taken.Data);
             string roleSuffix = isBasePick
-                ? "\n【ベース】"
+                ? GameLocale.T("\n【ベース】", "\n[Base]")
                 : isOrderBurst
-                    ? "\n【バースト順】"
+                    ? GameLocale.T("\n【バースト順】", "\n[Burst order]")
                     : hasBurst
-                        ? "\n【バースト】"
+                        ? GameLocale.T("\n【バースト】", "\n[Burst]")
                         : string.Empty;
             string caption = taken.Data.cardName + roleSuffix;
             Color captionColor = isBasePick
@@ -789,13 +822,34 @@ public partial class BattleGameMain
         }
 
         TextMeshProUGUI hint = root.CreateChildTextCustom("ShieldBreakHint", UIAnchor.TopCenter, 760, 44);
-        hint.text = suppressSelectionMode
-            ? hasBasePick && hasOrderBurst
-                ? "ベースを1枚タップで配備指定、バーストカードは順番タップ → OK"
-                : hasBasePick
-                    ? "配備するベースを1枚選び OK（選ばないベースは破棄）"
-                    : "バーストするカードを順にタップ（再タップで取り消し）→ OK → カードごとに敵ユニットを選択"
-            : "破壊されるカードを確認し、OK で続行（バーストは OK 後、カードごとに敵ユニットを選択）";
+        if (suppressSelectionMode)
+        {
+            if (hasBasePick && hasOrderBurst)
+            {
+                hint.SetLocalizedText(
+                    "ベースを1枚タップで配備指定、バーストカードは順番タップ → OK",
+                    "Tap 1 Base to deploy, tap Burst cards in order → OK");
+            }
+            else if (hasBasePick)
+            {
+                hint.SetLocalizedText(
+                    "配備するベースを1枚選び OK（選ばないベースは破棄）",
+                    "Choose 1 Base to deploy, then OK (unselected Bases are discarded)");
+            }
+            else
+            {
+                hint.SetLocalizedText(
+                    "バーストするカードを順にタップ（再タップで取り消し）→ OK → カードごとに敵ユニットを選択",
+                    "Tap Burst cards in order (tap again to undo) → OK → choose enemy Units per card");
+            }
+        }
+        else
+        {
+            hint.SetLocalizedText(
+                "破壊されるカードを確認し、OK で続行（バーストは OK 後、カードごとに敵ユニットを選択）",
+                "Review destroyed cards, then OK (Bursts resolve after OK; choose enemy Units per card)");
+        }
+
         hint.fontSize = 15;
         hint.color = new Color(0.8f, 0.85f, 0.9f, 1f);
         hint.alignment = TextAlignmentOptions.Center;
@@ -948,7 +1002,7 @@ public partial class BattleGameMain
                             UIAnchor.TopCenter,
                             120,
                             22);
-                        label.text = "配備";
+                        label.SetLocalizedText("配備", "Deploy");
                         label.fontSize = 14;
                         label.color = new Color(0.45f, 0.95f, 1f, 1f);
                         label.alignment = TextAlignmentOptions.Center;

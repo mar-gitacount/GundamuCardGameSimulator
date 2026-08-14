@@ -202,7 +202,9 @@ public partial class BattleGameMain
         int magnitude,
         System.Action onContinue)
     {
-        string sideLabel = effect.target == TargetType.EnemyAllUnits ? "相手" : "自分";
+        string sideLabel = effect.target == TargetType.EnemyAllUnits
+            ? GameLocale.T("相手", "Opponent")
+            : GameLocale.T("自分", "Your");
         GameObject root = BuildFieldDamagePreviewPanel(sideLabel, targets, magnitude, sourceCard);
         if (root == null)
         {
@@ -266,9 +268,19 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("FieldDamageTitle", UIAnchor.TopCenter, 760, 48);
-        title.text = targets != null && targets.Count > 0
-            ? $"{sideLabel}フィールドへ {magnitude} ダメージ"
-            : $"{sideLabel}フィールドにダメージ対象なし";
+        if (targets != null && targets.Count > 0)
+        {
+            title.SetLocalizedText(
+                $"{sideLabel}フィールドへ {magnitude} ダメージ",
+                $"{magnitude} damage to {sideLabel} field");
+        }
+        else
+        {
+            title.SetLocalizedText(
+                $"{sideLabel}フィールドにダメージ対象なし",
+                $"No damage targets on {sideLabel} field");
+        }
+
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
@@ -277,16 +289,26 @@ public partial class BattleGameMain
 
         string sourceName = sourceCard?.Data?.cardName ?? "?";
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("FieldDamageSubtitle", UIAnchor.TopCenter, 760, 36);
-        subtitle.text = targets != null && targets.Count > 0
-            ? $"{sourceName} の効果 — 対象 {targets.Count} 体（各 {magnitude} ダメージ）"
-            : $"{sourceName} の効果 — ユニットがいないためダメージは入りません";
+        if (targets != null && targets.Count > 0)
+        {
+            subtitle.SetLocalizedText(
+                $"{sourceName} の効果 — 対象 {targets.Count} 体（各 {magnitude} ダメージ）",
+                $"{sourceName}'s effect — {targets.Count} target(s) ({magnitude} damage each)");
+        }
+        else
+        {
+            subtitle.SetLocalizedText(
+                $"{sourceName} の効果 — ユニットがいないためダメージは入りません",
+                $"{sourceName}'s effect — no Units, so no damage is dealt");
+        }
+
         subtitle.fontSize = 18;
         subtitle.color = new Color(0.88f, 0.92f, 1f, 1f);
         subtitle.alignment = TextAlignmentOptions.Center;
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
 
         TextMeshProUGUI hint = root.CreateChildTextCustom("FieldDamageHint", UIAnchor.TopCenter, 760, 28);
-        hint.text = "対象カードを確認して OK でダメージを適用";
+        hint.SetLocalizedText("対象カードを確認して OK でダメージを適用", "Review targets, then OK to apply damage");
         hint.fontSize = 15;
         hint.color = new Color(0.75f, 0.8f, 0.85f, 1f);
         hint.alignment = TextAlignmentOptions.Center;
@@ -367,8 +389,11 @@ public partial class BattleGameMain
         detailRt.pivot = new Vector2(0f, 0.5f);
         detailRt.anchoredPosition = new Vector2(MillToTrashCardPreviewWidth + 24f, 0f);
         int hpAfter = Mathf.Max(0, currentHp - damageAmount);
-        detail.text = FormatMillToTrashCardDetailText(data, orderIndex)
-            + $"\n現在HP {currentHp} → {hpAfter}（-{damageAmount}）";
+        detail.SetLocalizedText(
+            FormatMillToTrashCardDetailText(data, orderIndex)
+            + $"\n現在HP {currentHp} → {hpAfter}（-{damageAmount}）",
+            FormatMillToTrashCardDetailText(data, orderIndex)
+            + $"\nCurrent HP {currentHp} → {hpAfter} (-{damageAmount})");
         detail.fontSize = 16;
         detail.color = Color.white;
         detail.alignment = TextAlignmentOptions.TopLeft;
@@ -533,9 +558,15 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("MillTitle", UIAnchor.TopCenter, 760, 48);
-        title.text = milledCards.Count == 1
-            ? "This card to trash"
-            : "These cards to trash";
+        if (milledCards.Count == 1)
+        {
+            title.SetLocalizedText("このカードをトラッシュへ", "This card to trash");
+        }
+        else
+        {
+            title.SetLocalizedText("これらのカードをトラッシュへ", "These cards to trash");
+        }
+
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
@@ -543,16 +574,26 @@ public partial class BattleGameMain
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
 
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("MillSubtitle", UIAnchor.TopCenter, 760, 36);
-        subtitle.text = milledCards.Count == 1
-            ? $"このカードをトラッシュに置きました（{deckLabel}の山札）"
-            : $"{milledCards.Count}枚をトラッシュに置きました（{deckLabel}の山札）";
+        if (milledCards.Count == 1)
+        {
+            subtitle.SetLocalizedText(
+                $"このカードをトラッシュに置きました（{deckLabel}の山札）",
+                $"Sent this card to trash ({deckLabel}'s deck)");
+        }
+        else
+        {
+            subtitle.SetLocalizedText(
+                $"{milledCards.Count}枚をトラッシュに置きました（{deckLabel}の山札）",
+                $"Sent {milledCards.Count} cards to trash ({deckLabel}'s deck)");
+        }
+
         subtitle.fontSize = 18;
         subtitle.color = new Color(0.88f, 0.92f, 1f, 1f);
         subtitle.alignment = TextAlignmentOptions.Center;
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
 
         TextMeshProUGUI hint = root.CreateChildTextCustom("MillHint", UIAnchor.TopCenter, 760, 28);
-        hint.text = "カード内容を確認して OK で続行";
+        hint.SetLocalizedText("カード内容を確認して OK で続行", "Review the cards, then OK to continue");
         hint.fontSize = 15;
         hint.color = new Color(0.75f, 0.8f, 0.85f, 1f);
         hint.alignment = TextAlignmentOptions.Center;
@@ -701,7 +742,7 @@ public partial class BattleGameMain
     {
         if (data?.features == null || data.features.Count == 0)
         {
-            return "（なし）";
+            return GameLocale.T("（なし）", "(none)");
         }
 
         StringBuilder sb = new StringBuilder();

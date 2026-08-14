@@ -612,7 +612,9 @@ public partial class BattleGameMain
             TextMeshProUGUI hint = hintTransform.GetComponent<TextMeshProUGUI>();
             if (hint != null)
             {
-                hint.text = "破壊されたシールドです。OKで閉じたあと、相手のバースト処理完了まで待機します。";
+                hint.SetLocalizedText(
+                    "破壊されたシールドです。OKで閉じたあと、相手のバースト処理完了まで待機します。",
+                    "Destroyed Shield. After OK, wait until the opponent finishes Burst resolution.");
             }
         }
 
@@ -622,7 +624,7 @@ public partial class BattleGameMain
             TextMeshProUGUI burstBanner = burstBannerTransform.GetComponent<TextMeshProUGUI>();
             if (burstBanner != null)
             {
-                burstBanner.text = "【バースト】あり（相手が解決）";
+                burstBanner.SetLocalizedText("【バースト】あり（相手が解決）", "[Burst] present (opponent resolves)");
             }
         }
 
@@ -724,14 +726,16 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("ShieldBreakThinkTitle", UIAnchor.TopCenter, 720, 56);
-        title.text = "シールド破壊処理中";
+        title.SetLocalizedText("シールド破壊処理中", "Resolving Shield destruction");
         title.color = new Color(1f, 0.95f, 0.2f, 1f);
         title.fontSize = 26;
         title.alignment = TextAlignmentOptions.Center;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
 
         TextMeshProUGUI sub = root.CreateChildTextCustom("ShieldBreakThinkSub", UIAnchor.TopCenter, 720, 40);
-        sub.text = "相手のシールド破壊・バースト処理を待っています…";
+        sub.SetLocalizedText(
+            "相手のシールド破壊・バースト処理を待っています…",
+            "Waiting for opponent's Shield destruction / Burst...");
         sub.color = Color.white;
         sub.fontSize = 18;
         sub.alignment = TextAlignmentOptions.Center;

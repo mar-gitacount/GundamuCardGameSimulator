@@ -47,7 +47,7 @@ public partial class BattleGameMain
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -22f);
 
         TextMeshProUGUI hint = root.CreateChildTextCustom("AckHint", UIAnchor.TopCenter, 760, 28);
-        hint.text = "内容を確認して OK で続行";
+        hint.SetLocalizedText("内容を確認して OK で続行", "Review, then press OK to continue");
         hint.fontSize = 16;
         hint.color = new Color(0.85f, 0.9f, 1f, 1f);
         hint.alignment = TextAlignmentOptions.Center;
@@ -55,7 +55,9 @@ public partial class BattleGameMain
 
         bool showAttack = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
         float cmdX = showAttack ? 70f : 0f;
-        string playedLabel = command.Data.IsCommand() ? "発動コマンド" : "配備ユニット";
+        string playedLabel = command.Data.IsCommand()
+            ? GameLocale.T("発動コマンド", "Command played")
+            : GameLocale.T("配備ユニット", "Unit deployed");
         AppendNonInteractiveCardPreview(root, command, playedLabel, new Vector2(cmdX, -100f));
 
         if (showAttack)
@@ -63,7 +65,7 @@ public partial class BattleGameMain
             AppendNonInteractiveCardPreview(
                 root,
                 attackingUnitInAttackFlow,
-                "攻撃中",
+                GameLocale.T("攻撃中", "Attacking"),
                 new Vector2(-170f, -100f),
                 new Color(1f, 0.45f, 0.45f, 1f));
         }
@@ -71,7 +73,7 @@ public partial class BattleGameMain
         if (targetCards != null && targetCards.Count > 0)
         {
             TextMeshProUGUI tgtTitle = root.CreateChildTextCustom("TargetsTitle", UIAnchor.TopCenter, 240, 26);
-            tgtTitle.text = "→ 対象";
+            tgtTitle.SetLocalizedText("→ 対象", "→ Target(s)");
             tgtTitle.fontSize = 19;
             tgtTitle.color = Color.white;
             tgtTitle.alignment = TextAlignmentOptions.Center;
@@ -98,8 +100,9 @@ public partial class BattleGameMain
 
             if (targetCards.Count > shown)
             {
+                int extra = targetCards.Count - shown;
                 TextMeshProUGUI more = root.CreateChildTextCustom("MoreTargets", UIAnchor.TopCenter, 220, 22);
-                more.text = $"他 {targetCards.Count - shown} 件";
+                more.SetLocalizedText($"他 {extra} 件", $"+{extra} more");
                 more.fontSize = 14;
                 more.color = Color.gray;
                 more.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -470f);
@@ -108,7 +111,7 @@ public partial class BattleGameMain
         else
         {
             TextMeshProUGUI noTarget = root.CreateChildTextCustom("NoTargets", UIAnchor.TopCenter, 400, 24);
-            noTarget.text = "（対象ユニットなし / 全体効果）";
+            noTarget.SetLocalizedText("（対象ユニットなし / 全体効果）", "(No unit target / AoE)");
             noTarget.fontSize = 15;
             noTarget.color = Color.gray;
             noTarget.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -280f);
@@ -244,9 +247,14 @@ public partial class BattleGameMain
         CardController attacker,
         CardController defender,
         float anchoredYFromTop,
-        string headerText = "バトル予定",
+        string headerText = null,
         string defenderFallbackLabel = null)
     {
+        if (headerText == null)
+        {
+            headerText = GameLocale.T("バトル予定", "Battle Preview");
+        }
+
         return AppendAttackMatchupPreviewInternal(
             parent,
             attacker,
@@ -262,9 +270,14 @@ public partial class BattleGameMain
         GameObject parent,
         CardController attacker,
         CardController defender,
-        string headerText = "バトル予定",
+        string headerText = null,
         string defenderFallbackLabel = null)
     {
+        if (headerText == null)
+        {
+            headerText = GameLocale.T("バトル予定", "Battle Preview");
+        }
+
         // ボタン高さ〜48 + 余白。カード下端がボタン上に来るよう Bottom 基準で配置
         return AppendAttackMatchupPreviewInternal(
             parent,
@@ -324,7 +337,7 @@ public partial class BattleGameMain
         AppendNonInteractiveCardPreviewAtAnchor(
             parent,
             attacker,
-            "攻撃元",
+            GameLocale.T("攻撃元", "Attacker"),
             attackerPos,
             cardAnchor,
             new Color(1f, 0.45f, 0.45f, 1f));
@@ -340,8 +353,8 @@ public partial class BattleGameMain
         if (hasUnitDefender)
         {
             string defenderCaption = attackFlowBlockRedirectUnit != null && defender == attackFlowBlockRedirectUnit
-                ? "ブロック先"
-                : "攻撃先";
+                ? GameLocale.T("ブロック先", "Block target")
+                : GameLocale.T("攻撃先", "Attack target");
             AppendNonInteractiveCardPreviewAtAnchor(
                 parent,
                 defender,
@@ -353,7 +366,7 @@ public partial class BattleGameMain
         else if (showFallback)
         {
             TextMeshProUGUI shieldCap = parent.CreateChildTextCustom("ShieldCaption", cardAnchor, 160, 24);
-            shieldCap.text = "攻撃先";
+            shieldCap.SetLocalizedText("攻撃先", "Attack target");
             shieldCap.fontSize = 15;
             shieldCap.color = new Color(0.92f, 0.92f, 0.92f, 1f);
             shieldCap.alignment = TextAlignmentOptions.Center;
@@ -557,14 +570,18 @@ public partial class BattleGameMain
 
         bool showAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
         float commandCardX = showAttackContext ? 90f : 0f;
-        AppendNonInteractiveCardPreview(root, sourceCard, "発動カード", new Vector2(commandCardX, -88f));
+        AppendNonInteractiveCardPreview(
+            root,
+            sourceCard,
+            GameLocale.T("発動カード", "Card played"),
+            new Vector2(commandCardX, -88f));
 
         if (showAttackContext)
         {
             AppendNonInteractiveCardPreview(
                 root,
                 attackingUnitInAttackFlow,
-                "攻撃中",
+                GameLocale.T("攻撃中", "Attacking"),
                 new Vector2(-150f, -88f),
                 new Color(1f, 0.45f, 0.45f, 1f));
         }
@@ -576,7 +593,7 @@ public partial class BattleGameMain
         arrow.GetComponent<RectTransform>().anchoredPosition = new Vector2(commandCardX + 95f, -150f);
 
         TextMeshProUGUI targetLabel = root.CreateChildTextCustom("TargetLabel", UIAnchor.TopCenter, 320, 24);
-        targetLabel.text = "対象を選択";
+        targetLabel.SetLocalizedText("対象を選択", "Select a target");
         targetLabel.fontSize = 17;
         targetLabel.color = Color.white;
         targetLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -268f);
@@ -638,7 +655,7 @@ public partial class BattleGameMain
         System.Action onComplete)
     {
         GameObject root = BuildCommandUseAcknowledgementPanel(
-            "コマンド発動",
+            GameLocale.T("コマンド発動", "Command activated"),
             command,
             attackingUnitInAttackFlow,
             targetCards);

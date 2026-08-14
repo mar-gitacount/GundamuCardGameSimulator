@@ -81,25 +81,25 @@ public static class CardTypeExtensions
         return cardFeature?.displayName;
     }
 
-    /// <summary>Inspector / UI 向けの日本語ラベル。</summary>
+    /// <summary>Inspector / UI 向けの表示名（日英）。</summary>
     public static string GetDisplayName(Type cardType)
     {
         switch (cardType)
         {
             case Type.Unit:
-                return "ユニット";
+                return GameLocale.T("ユニット", "Unit");
             case Type.Pilot:
-                return "パイロット";
+                return GameLocale.T("パイロット", "Pilot");
             case Type.Command:
-                return "コマンド";
+                return GameLocale.T("コマンド", "Command");
             case Type.Base:
-                return "ベース";
+                return GameLocale.T("ベース", "Base");
             case Type.ExResource:
-                return "EXリソース";
+                return GameLocale.T("EXリソース", "EX Resource");
             case Type.UnitToken:
-                return "ユニットトークン";
+                return GameLocale.T("ユニットトークン", "Unit Token");
             case Type.CommandPilot:
-                return "コマンドパイロット";
+                return GameLocale.T("コマンドパイロット", "Command Pilot");
             default:
                 return cardType.ToString();
         }

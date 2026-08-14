@@ -1558,13 +1558,13 @@ public static class EffectDataExtensions
             if (effect.compareTargetStatToPriorChainPicked)
             {
                 sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
-                    .Append("直前選択")
+                    .Append(GameLocale.T("直前選択", "prior pick"))
                     .Append(FormatTargetUnitFilterStatLabel(statFilter));
             }
             else if (effect.compareTargetStatToSource)
             {
                 sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
-                    .Append("自")
+                    .Append(GameLocale.T("自", "self"))
                     .Append(FormatTargetUnitFilterStatLabel(statFilter));
             }
             else
@@ -1601,7 +1601,7 @@ public static class EffectDataExtensions
         if (effect.compareTargetStatToSource)
         {
             sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
-                .Append("自")
+                .Append(GameLocale.T("自", "self"))
                 .Append(FormatTargetUnitFilterStatLabel(statFilter));
         }
         else
@@ -1641,14 +1641,18 @@ public static class EffectDataExtensions
 
         string filter = effect.FormatTargetUnitFilterDescription();
         string statNote = effect.statTarget == EffectStatTarget.IncomingDamageReduction
-            ? " / ダメージ軽減"
+            ? GameLocale.T(" / ダメージ軽減", " / Damage reduction")
             : string.Empty;
         if (string.IsNullOrEmpty(filter))
         {
-            return $"{effect.type} / {effect.target} / 値:{effect.value}{statNote}";
+            return GameLocale.T(
+                $"{effect.type} / {effect.target} / 値:{effect.value}{statNote}",
+                $"{effect.type} / {effect.target} / Value:{effect.value}{statNote}");
         }
 
-        return $"{effect.type} / {effect.target} / 値:{effect.value}{statNote} / 条件:{filter}";
+        return GameLocale.T(
+            $"{effect.type} / {effect.target} / 値:{effect.value}{statNote} / 条件:{filter}",
+            $"{effect.type} / {effect.target} / Value:{effect.value}{statNote} / Filter:{filter}");
     }
 
     /// <summary>Look 直後に見た山札カードが effect の Feature／カード種類フィルタに合うか。</summary>
@@ -1748,15 +1752,15 @@ public static class EffectDataExtensions
         int max = effect.GetSelectMaxCount();
         if (min == max)
         {
-            return $"（{min}体）";
+            return GameLocale.T($"（{min}体）", $" ({min})");
         }
 
         if (max >= 9999)
         {
-            return $"（{min}体以上）";
+            return GameLocale.T($"（{min}体以上）", $" ({min}+)");
         }
 
-        return $"（{min}〜{max}体）";
+        return GameLocale.T($"（{min}〜{max}体）", $" ({min}–{max})");
     }
 
     /// <summary>バトルゾーンの手動選択候補がカード種類・AttackFlg 条件を満たすか。</summary>

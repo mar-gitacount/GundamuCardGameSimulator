@@ -230,7 +230,7 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("OrderTitle", UIAnchor.TopCenter, 780, 52);
-        title.text = "効果の解決順を選択";
+        title.SetLocalizedText("効果の解決順を選択", "Choose effect resolution order");
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
@@ -238,9 +238,19 @@ public partial class BattleGameMain
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -48f);
 
         TextMeshProUGUI hint = root.CreateChildTextCustom("OrderHint", UIAnchor.TopCenter, 780, 44);
-        hint.text = state.HasMandatory
-            ? "カードをタップして順番を付ける → OK（強制効果は必ず選択） / Clear でやり直し"
-            : "任意効果のみ：選ばずに OK／Skip 可。選ぶ場合はタップで順番 → Clear でやり直し";
+        if (state.HasMandatory)
+        {
+            hint.SetLocalizedText(
+                "カードをタップして順番を付ける → OK（強制効果は必ず選択） / Clear でやり直し",
+                "Tap cards to set order → OK (mandatory effects must be selected) / Clear to reset");
+        }
+        else
+        {
+            hint.SetLocalizedText(
+                "任意効果のみ：選ばずに OK／Skip 可。選ぶ場合はタップで順番 → Clear でやり直し",
+                "Optional only: OK/Skip with none selected, or tap to order → Clear to reset");
+        }
+
         hint.fontSize = 16;
         hint.color = new Color(0.85f, 0.9f, 1f, 1f);
         hint.alignment = TextAlignmentOptions.Center;
@@ -303,7 +313,9 @@ public partial class BattleGameMain
                 UIAnchor.TopCenter,
                 170,
                 24);
-            forceLabel.text = mandatory ? "強制" : "任意";
+            forceLabel.SetLocalizedText(
+                mandatory ? "強制" : "任意",
+                mandatory ? "Mandatory" : "Optional");
             forceLabel.fontSize = 14;
             forceLabel.color = mandatory
                 ? new Color(1f, 0.45f, 0.4f, 1f)

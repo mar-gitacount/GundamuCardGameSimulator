@@ -60,30 +60,59 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("OptionalEffectTitle", UIAnchor.TopCenter, 760, 48);
-            title.text = effect != null && effect.type == EffectType.EffectBattle
-            ? "Start Effect Battle?"
-            : effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot
-                ? "Set this Pilot from Trash?"
-                : effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
-                    ? "捨てた〔必殺技〕の【メイン】を発動しますか？"
-                    : effect != null
-                      && effect.type == EffectType.Buff
-                      && effect.statTarget == EffectStatTarget.IncomingDamageReduction
-                        ? "味方ユニット1体にダメージ軽減を付与しますか？"
-                        : "Activate this effect?";
+        if (effect != null && effect.type == EffectType.EffectBattle)
+        {
+            title.SetLocalizedText("エフェクトバトルを開始しますか？", "Start Effect Battle?");
+        }
+        else if (effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot)
+        {
+            title.SetLocalizedText("トラッシュからこのパイロットを搭乗させますか？", "Set this Pilot from Trash?");
+        }
+        else if (effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+        {
+            title.SetLocalizedText(
+                "捨てた〔必殺技〕の【メイン】を発動しますか？",
+                "Activate [Main] of the discarded (Special Move)?");
+        }
+        else if (effect != null
+            && effect.type == EffectType.Buff
+            && effect.statTarget == EffectStatTarget.IncomingDamageReduction)
+        {
+            title.SetLocalizedText(
+                "味方ユニット1体にダメージ軽減を付与しますか？",
+                "Grant damage reduction to 1 ally Unit?");
+        }
+        else
+        {
+            title.SetLocalizedText("この効果を発動しますか？", "Activate this effect?");
+        }
+
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -120f);
 
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("OptionalEffectSubtitle", UIAnchor.TopCenter, 760, 40);
-        subtitle.text = effect != null && effect.type == EffectType.EffectBattle
-            ? "No Rest / no attack cost. Deal battle damage with a chosen enemy Unit."
-            : effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot
-                ? "Choose an ally [MF] Unit with no Pilot."
-                : effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
-                    ? "コストなし。辞退もできます。"
-                    : string.Empty;
+        if (effect != null && effect.type == EffectType.EffectBattle)
+        {
+            subtitle.SetLocalizedText(
+                "レスト不要・攻撃コストなし。選んだ敵ユニットにバトルダメージを与えます。",
+                "No Rest / no attack cost. Deal battle damage with a chosen enemy Unit.");
+        }
+        else if (effect != null && effect.type == EffectType.MountSelfFromTrashAsPilot)
+        {
+            subtitle.SetLocalizedText(
+                "パイロット未搭乗の味方〔MF〕ユニットを選んでください。",
+                "Choose an ally [MF] Unit with no Pilot.");
+        }
+        else if (effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+        {
+            subtitle.SetLocalizedText("コストなし。辞退もできます。", "No cost. You may decline.");
+        }
+        else
+        {
+            subtitle.text = string.Empty;
+        }
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -170f);

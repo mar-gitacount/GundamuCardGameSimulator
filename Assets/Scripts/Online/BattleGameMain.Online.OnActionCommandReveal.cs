@@ -291,9 +291,11 @@ public partial class BattleGameMain
         if (targetUnitOrNull != null && targetUnitOrNull.Data != null)
         {
             TextMeshProUGUI targetLabel = root.CreateChildTextCustom("OnActionCommandRevealTarget", UIAnchor.TopCenter, 760, 32);
-            targetLabel.text =
+            targetLabel.SetLocalizedText(
                 $"対象: {targetUnitOrNull.Data.cardName}(id:{targetUnitOrNull.Data.id}) "
-                + $"AP:{targetUnitOrNull.CurrentPower} HP:{targetUnitOrNull.CurrentHp}";
+                + $"AP:{targetUnitOrNull.CurrentPower} HP:{targetUnitOrNull.CurrentHp}",
+                $"Target: {targetUnitOrNull.Data.cardName}(id:{targetUnitOrNull.Data.id}) "
+                + $"AP:{targetUnitOrNull.CurrentPower} HP:{targetUnitOrNull.CurrentHp}");
             targetLabel.color = new Color(1f, 0.75f, 0.75f);
             targetLabel.fontSize = 18;
             targetLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -248f);

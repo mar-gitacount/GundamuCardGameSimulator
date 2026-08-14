@@ -669,9 +669,17 @@ public partial class BattleGameMain
             dim.raycastTarget = true;
 
             TextMeshProUGUI title = root.CreateChildTextCustom("DeployBaseTrashTitle", UIAnchor.TopCenter, 760, 48);
-            title.text = remaining > 1
-                ? $"トラッシュからベースを配備 ({remaining}枚)"
-                : "トラッシュからベースを配備";
+            if (remaining > 1)
+            {
+                title.SetLocalizedText(
+                    $"トラッシュからベースを配備 ({remaining}枚)",
+                    $"Deploy Base from Trash ({remaining} left)");
+            }
+            else
+            {
+                title.SetLocalizedText("トラッシュからベースを配備", "Deploy Base from Trash");
+            }
+
             title.fontSize = 26;
             title.fontStyle = FontStyles.Bold;
             title.color = Color.white;

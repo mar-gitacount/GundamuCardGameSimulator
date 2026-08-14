@@ -481,7 +481,7 @@ public partial class BattleGameMain
             UIAnchor.TopCenter,
             720,
             44);
-        sub.text = "相手の効果解決を待っています…";
+        sub.SetLocalizedText("相手の効果解決を待っています…", "Waiting for opponent's effect resolution...");
         sub.color = Color.white;
         sub.fontSize = 18;
         sub.alignment = TextAlignmentOptions.Center;

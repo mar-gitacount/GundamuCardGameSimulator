@@ -41,7 +41,7 @@ public partial class BattleGameMain
                 unit,
                 null,
                 null,
-                "敵 — ユニット配備");
+                GameLocale.T("敵 — ユニット配備", "Enemy — Unit deploy"));
         }
 
         if (deployed > 0)
