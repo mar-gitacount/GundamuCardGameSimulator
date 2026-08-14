@@ -29,6 +29,8 @@ public class NewDeckMaking : MonoBehaviour
     [SerializeField] private Button OnlineBattleButton;
 
     [SerializeField] private Button TestPlayButton;
+
+    private TestPlayOpponentSelectPanel _testPlaySelectPanel;
     
 
     // Start is called before the first frame update
@@ -42,7 +44,6 @@ public class NewDeckMaking : MonoBehaviour
         RefreshDeckMakeButtonInteractable();
         DeckDeleteButton.onClick.AddListener(DeleteexecutionJsonFileToUseDeckSeetinObject);
         DeckCopyButton.onClick.AddListener(DeckCopyButtonClicked);
-        ButtleButton.onClick.AddListener(ButtleButtonClicked);
         EnsureOnlineBattleButton();
         if (OnlineBattleButton != null)
         {
@@ -54,6 +55,24 @@ public class NewDeckMaking : MonoBehaviour
         {
             TestPlayButton.onClick.AddListener(TestPlayButtonClicked);
         }
+
+        if (DeckSettinObject.Instance != null)
+        {
+            DeckSettinObject.Instance.TestPlayOpponentDeckChosen += OnTestPlayOpponentDeckChosen;
+        }
+
+        // AIBattle は開発中。クローン生成後に Coming Soon を重ねて無効化する。
+        ApplyAiBattleComingSoon();
+    }
+
+    private void OnDestroy()
+    {
+        if (DeckSettinObject.Instance != null)
+        {
+            DeckSettinObject.Instance.TestPlayOpponentDeckChosen -= OnTestPlayOpponentDeckChosen;
+        }
+
+        CloseTestPlayOpponentSelectUi();
     }
 
     // Update is called once per frame
@@ -64,8 +83,66 @@ public class NewDeckMaking : MonoBehaviour
 
     private void ButtleButtonClicked()
     {
+        // AIBattle は開発中のため未使用。有効化時に再接続する。
         DeckSettinObject.Instance.battleStart();
-        // Debug.Log($"バトル開始フラグ:{DeckSettinObject.Instance.BattleStartFlag}");
+    }
+
+    /// <summary>Battle を AIBattle 表示にし、Coming Soon 透かしで押下不可にする。</summary>
+    private void ApplyAiBattleComingSoon()
+    {
+        if (ButtleButton == null)
+        {
+            return;
+        }
+
+        ButtleButton.gameObject.name = "AIBattleButton";
+        ButtleButton.interactable = false;
+        ButtleButton.onClick.RemoveAllListeners();
+
+        TextMeshProUGUI label = ButtleButton.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (label != null && label.transform.parent == ButtleButton.transform)
+        {
+            label.SetLocalizedText("AIBattle", "AIBattle");
+        }
+
+        Transform existing = ButtleButton.transform.Find("ComingSoonOverlay");
+        if (existing != null)
+        {
+            existing.gameObject.SetActive(true);
+            return;
+        }
+
+        GameObject overlay = new GameObject(
+            "ComingSoonOverlay",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        overlay.transform.SetParent(ButtleButton.transform, false);
+        overlay.SetFullSize();
+        overlay.transform.SetAsLastSibling();
+
+        Image dim = overlay.GetComponent<Image>();
+        dim.color = new Color(0.08f, 0.08f, 0.1f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI watermark = overlay.CreateChildTextCustom(
+            "ComingSoonLabel",
+            UIAnchor.FullStretch,
+            0,
+            0);
+        watermark.raycastTarget = false;
+        watermark.alignment = TextAlignmentOptions.Center;
+        watermark.fontStyle = FontStyles.Bold;
+        watermark.fontSize = 18f;
+        watermark.color = new Color(1f, 1f, 1f, 0.82f);
+        watermark.enableWordWrapping = false;
+        watermark.overflowMode = TextOverflowModes.Overflow;
+        watermark.SetLocalizedText("Coming Soon", "Coming Soon");
+
+        RectTransform markRt = watermark.rectTransform;
+        markRt.offsetMin = Vector2.zero;
+        markRt.offsetMax = Vector2.zero;
+        markRt.localEulerAngles = new Vector3(0f, 0f, -22f);
     }
 
     private void OnlineBattleButtonClicked()
@@ -112,7 +189,100 @@ public class NewDeckMaking : MonoBehaviour
 
         // AI バトルの BattoleStartFlag とは別。敵デッキ選択待ちにする。
         deckSettings.ClearBattleStartFlag();
+        deckSettings.HideDeckActionButtons();
         TestPlayMatchState.BeginEnemyDeckPick();
+        ShowTestPlayOpponentSelectUi();
+    }
+
+    private void ShowTestPlayOpponentSelectUi()
+    {
+        DeckSettinObject deckSettings = DeckSettinObject.Instance;
+        if (deckSettings == null)
+        {
+            return;
+        }
+
+        RectTransform board = ResolveTestPlaySelectBoard();
+        if (board == null)
+        {
+            Debug.LogWarning("[TestPlay] 選択 UI の親盤面が見つかりません。");
+            return;
+        }
+
+        if (_testPlaySelectPanel == null)
+        {
+            _testPlaySelectPanel = new TestPlayOpponentSelectPanel();
+        }
+
+        _testPlaySelectPanel.Show(
+            board,
+            deckSettings.CaptureCurrentPlayerDeckPick(),
+            OnTestPlaySelectOk,
+            OnTestPlaySelectCancel);
+    }
+
+    private RectTransform ResolveTestPlaySelectBoard()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas != null)
+        {
+            canvas = canvas.rootCanvas;
+        }
+
+        if (canvas == null)
+        {
+            canvas = FindObjectOfType<Canvas>();
+        }
+
+        return canvas != null ? canvas.GetComponent<RectTransform>() : null;
+    }
+
+    private void OnTestPlayOpponentDeckChosen(DeckSaveData data, DeckStorageEntry entry, string storageKey)
+    {
+        if (_testPlaySelectPanel == null || !_testPlaySelectPanel.IsOpen)
+        {
+            ShowTestPlayOpponentSelectUi();
+        }
+
+        if (_testPlaySelectPanel == null)
+        {
+            return;
+        }
+
+        _testPlaySelectPanel.AssignDeckFromList(TestPlayDeckPick.FromSaveData(data, entry, storageKey));
+    }
+
+    private void OnTestPlaySelectOk()
+    {
+        DeckSettinObject deckSettings = DeckSettinObject.Instance;
+        if (deckSettings == null || _testPlaySelectPanel == null)
+        {
+            return;
+        }
+
+        TestPlayDeckPick player = _testPlaySelectPanel.PlayerPick;
+        TestPlayDeckPick enemy = _testPlaySelectPanel.EnemyPick;
+        CloseTestPlayOpponentSelectUi();
+        deckSettings.ApplyTestPlayDecksAndStart(player, enemy);
+    }
+
+    private void OnTestPlaySelectCancel()
+    {
+        if (DeckSettinObject.Instance != null)
+        {
+            DeckSettinObject.Instance.ClearTestPlayBattleObjects();
+        }
+
+        CloseTestPlayOpponentSelectUi();
+    }
+
+    private void CloseTestPlayOpponentSelectUi()
+    {
+        if (_testPlaySelectPanel != null)
+        {
+            _testPlaySelectPanel.Close();
+            _testPlaySelectPanel = null;
+        }
     }
 
     private GameObject _notUsedOnlineAlertRoot;

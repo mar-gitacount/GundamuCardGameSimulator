@@ -12,6 +12,9 @@ using System.Threading.Tasks;
 public class DeckSettinObject : MonoBehaviour
 {
     public static DeckSettinObject Instance;
+
+    /// <summary>TestPlay 相手選択中に一覧のデッキが押された。</summary>
+    public event Action<DeckSaveData, DeckStorageEntry, string> TestPlayOpponentDeckChosen;
     public bool isDeckEditing;
     private Dictionary<int, int> cardData = new Dictionary<int, int>();
     [SerializeField] private GameObject DeckEditNowpanel;
@@ -172,6 +175,75 @@ public class DeckSettinObject : MonoBehaviour
         return cardData != null && cardData.Count > 0;
     }
 
+    /// <summary>カード画像スプライト（デッキ UI 共用）。</summary>
+    public static Sprite ResolveDeckCardSprite(int cardId)
+    {
+        return ResolveCardSprite(cardId);
+    }
+
+    /// <summary>現在選択中の自分デッキを TestPlay UI 用に写す。</summary>
+    public TestPlayDeckPick CaptureCurrentPlayerDeckPick()
+    {
+        if (!HasSelectedPlayerDeck())
+        {
+            return null;
+        }
+
+        TestPlayDeckPick pick = new TestPlayDeckPick();
+        pick.StorageKey = deckPathName;
+        pick.Title = GetSelectedDeckDisplayName();
+        pick.Cards = TestPlayDeckPick.CopyCards(cardData);
+        pick.ThumbnailId = DeckStorageService.ResolveThumbnailId(pick.Cards, _thumbnailCardId);
+        pick.Thumbnail = ResolveCardSprite(pick.ThumbnailId);
+        pick.TotalCount = TestPlayDeckPick.CountCards(pick.Cards);
+        return pick;
+    }
+
+    /// <summary>選択スナップショットを反映して TestPlay を開始する。</summary>
+    public void ApplyTestPlayDecksAndStart(TestPlayDeckPick player, TestPlayDeckPick enemy)
+    {
+        if (player == null || enemy == null)
+        {
+            Debug.LogWarning("[TestPlay] 自分と相手のデッキが揃っていません。");
+            return;
+        }
+
+        cardData.Clear();
+        foreach (KeyValuePair<int, int> pair in player.Cards)
+        {
+            cardData[pair.Key] = pair.Value;
+        }
+
+        _thumbnailCardId = player.ThumbnailId;
+        if (!string.IsNullOrEmpty(player.StorageKey))
+        {
+            deckPathName = player.StorageKey;
+        }
+
+        if (DeckTitleInputField != null)
+        {
+            DeckTitleInputField.text = player.Title ?? string.Empty;
+        }
+
+        enemyCardData.Clear();
+        foreach (KeyValuePair<int, int> pair in enemy.Cards)
+        {
+            enemyCardData[pair.Key] = pair.Value;
+        }
+
+        HideDeckActionButtons();
+        TestPlayMatchState.Begin();
+        EnterBattleFromMenu();
+    }
+
+    /// <summary>TestPlay 用の対戦選択状態を破棄する。</summary>
+    public void ClearTestPlayBattleObjects()
+    {
+        enemyCardData.Clear();
+        BattoleStartFlag = false;
+        TestPlayMatchState.Clear();
+    }
+
     /// <summary>選択中デッキ内のオンライン不可（notUsedOnline）カード一覧。</summary>
     public List<CardData> CollectNotUsedOnlineCardsInSelectedDeck()
     {
@@ -318,6 +390,21 @@ public class DeckSettinObject : MonoBehaviour
     public void HideDeckActionButtons()
     {
         SetDeckinfoPanelVisible(false);
+    }
+
+    /// <summary>ホームの 480×800 盤面 Rect。</summary>
+    public RectTransform GetHomeBoardRect()
+    {
+        if (DeckinfoPanel != null)
+        {
+            RectTransform panelRt = DeckinfoPanel.GetComponent<RectTransform>();
+            if (panelRt != null && panelRt.parent is RectTransform boardRt)
+            {
+                return boardRt;
+            }
+        }
+
+        return null;
     }
 
     private void SetDeckinfoPanelVisible(bool visible)
@@ -1695,24 +1782,17 @@ public void ShowFileList()
     btn.onClick.RemoveAllListeners();
     btn.onClick.AddListener(() => {
         Debug.Log(cardObj.name + " がクリックされました！");
-        deckPathName = captureKey;
         Debug.Log($"エネミーフラグ:{BattoleStartFlag} testPlayPick:{TestPlayMatchState.IsAwaitingEnemyDeckPick}");
 
-        // TestPlay: プレイヤーデッキ選択済み → TestPlay ボタン → このクリックが敵デッキ
+        // TestPlay: 一覧タップは開始せず、選択 UI へ渡す
         if (TestPlayMatchState.IsAwaitingEnemyDeckPick)
         {
-            Debug.Log("[TestPlay] 選択デッキをエネミーデッキに入れ、TestPlay を開始します。");
-            enemyCardData.Clear();
-            foreach (var card in data.cards)
-            {
-                Debug.Log($"エネミーデッキに入れるカードID: {card.id}, 枚数: {card.count}");
-                enemyCardData[card.id] = card.count;
-            }
-
-            TestPlayMatchState.Begin();
-            EnterBattleFromMenu();
+            Debug.Log("[TestPlay] 選択デッキを相手候補として UI に渡します。");
+            TestPlayOpponentDeckChosen?.Invoke(data, entry, captureKey);
             return;
         }
+
+        deckPathName = captureKey;
 
         if(BattoleStartFlag)
         {
