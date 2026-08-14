@@ -364,6 +364,9 @@ public class Gundam2024RuleScript
         return false;
     }
 
+    /// <summary>通常リソース（レベル）の上限（Config.maxLevel）。</summary>
+    public int MaxLevel => Mathf.Max(0, Config.maxLevel);
+
     /// <summary>EXリソースの上限（Config.maxExResource）。</summary>
     public int MaxExResource => Mathf.Max(0, Config.maxExResource);
 

@@ -453,8 +453,18 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
         _lastDisplayedPower = power;
         _lastDisplayedHp = hp;
-        _battleStatText.text =
-            $"AP <color=#FFD54F>{power}</color>  HP <color=#80CBC4>{hp}</color>";
+        int turnAp = GetPowerModifierSumByDuration(EffectDuration.UntilEndOfTurn);
+        if (turnAp != 0)
+        {
+            string turnSign = turnAp > 0 ? "+" : string.Empty;
+            _battleStatText.text =
+                $"AP <color=#FFD54F>{power}</color><color=#FFAB91>({turnSign}{turnAp}T)</color>  HP <color=#80CBC4>{hp}</color>";
+        }
+        else
+        {
+            _battleStatText.text =
+                $"AP <color=#FFD54F>{power}</color>  HP <color=#80CBC4>{hp}</color>";
+        }
     }
 
     private void BringBattleStatOverlayToFront()
@@ -1068,6 +1078,21 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         for (int i = 0; i < modifiers.Count; i++)
         {
             sum += modifiers[i].value;
+        }
+
+        return sum;
+    }
+
+    /// <summary>指定 Duration の AP（パワー）補正合計。</summary>
+    public int GetPowerModifierSumByDuration(EffectDuration duration)
+    {
+        int sum = 0;
+        for (int i = 0; i < powerModifiers.Count; i++)
+        {
+            if (powerModifiers[i].duration == duration)
+            {
+                sum += powerModifiers[i].value;
+            }
         }
 
         return sum;

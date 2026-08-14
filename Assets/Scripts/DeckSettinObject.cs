@@ -198,6 +198,7 @@ public class DeckSettinObject : MonoBehaviour
     {
         return BattoleStartFlag;
     }
+
     // デッキパネル内のカードを保存（ゲスト=ローカル JSON / ログイン=Cloud Save）
     public void SaveDeckToJson(Dictionary<int, int> cardData)
     {
@@ -940,6 +941,7 @@ public List<string> GetSaveFileNames()
 public void battleStart()
 {
     // 現在の値が true なら false、false なら true に入れ替える
+    TestPlayMatchState.Clear();
     BattoleStartFlag = !BattoleStartFlag;
     
     Debug.Log($"バトル開始フラグ:{BattoleStartFlag}");
@@ -989,6 +991,7 @@ public void battleStart()
     public void ReturnToMainMenuFromBattle()
     {
         BattoleStartFlag = false;
+        TestPlayMatchState.Clear();
         EosOnlineMatchState.Clear();
         BattleGameMain battle = ResolveBattleMain();
         if (battle != null)
@@ -1126,7 +1129,24 @@ public void ShowFileList()
     btn.onClick.AddListener(() => {
         Debug.Log(cardObj.name + " がクリックされました！");
         deckPathName = captureKey;
-        Debug.Log($"エネミーフラグ:{BattoleStartFlag}");
+        Debug.Log($"エネミーフラグ:{BattoleStartFlag} testPlayPick:{TestPlayMatchState.IsAwaitingEnemyDeckPick}");
+
+        // TestPlay: プレイヤーデッキ選択済み → TestPlay ボタン → このクリックが敵デッキ
+        if (TestPlayMatchState.IsAwaitingEnemyDeckPick)
+        {
+            Debug.Log("[TestPlay] 選択デッキをエネミーデッキに入れ、TestPlay を開始します。");
+            enemyCardData.Clear();
+            foreach (var card in data.cards)
+            {
+                Debug.Log($"エネミーデッキに入れるカードID: {card.id}, 枚数: {card.count}");
+                enemyCardData[card.id] = card.count;
+            }
+
+            TestPlayMatchState.Begin();
+            EnterBattleFromMenu();
+            return;
+        }
+
         if(BattoleStartFlag)
         {
             Debug.Log("バトル開始フラグが立っているため、クリックされたデッキをエネミーデッキに入れます。");

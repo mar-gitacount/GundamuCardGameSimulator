@@ -75,6 +75,12 @@ public partial class BattleGameMain
         {
             subtitle.SetLocalizedText("除外ゾーンのカード（ゲームから除外）", "Cards in Exile (removed from the game)");
         }
+        else if (IsTestPlayBattle())
+        {
+            subtitle.SetLocalizedText(
+                "カードを選んで手札・山札・配備へ移動できます",
+                "Select a card to move to hand, deck, or play");
+        }
         else
         {
             subtitle.SetLocalizedText("トラッシュのカード", "Cards in Trash");
@@ -124,7 +130,27 @@ public partial class BattleGameMain
                     CardController cc = go.GetComponent<CardController>();
                     if (cc != null)
                     {
-                        cc.SetUp(data, _ => { });
+                        int capturedIndex = i;
+                        int capturedId = id;
+                        CardData capturedData = data;
+                        bool testPlayTrash = IsTestPlayBattle() && !showingExile;
+                        cc.SetUp(capturedData, clicked =>
+                        {
+                            if (!testPlayTrash)
+                            {
+                                return;
+                            }
+
+                            PlayerType ownerType = rule == enemyCardGameRule
+                                ? PlayerType.Enemy
+                                : PlayerType.Player;
+                            OpenTestPlayTrashCardMenu(
+                                rule,
+                                ownerType,
+                                capturedIndex,
+                                capturedId,
+                                capturedData);
+                        });
                         go.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
                     }
                 }

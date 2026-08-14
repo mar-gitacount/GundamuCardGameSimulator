@@ -253,7 +253,9 @@ public partial class BattleGameMain
     {
         battleOpponent = IsOnlineBattle()
             ? (IBattleOpponent)new NetworkBattleOpponent()
-            : new CpuBattleOpponent();
+            : IsTestPlayBattle()
+                ? (IBattleOpponent)new TestPlayBattleOpponent()
+                : new CpuBattleOpponent();
 
         RegisterNetworkBattleHooksIfNeeded();
     }
