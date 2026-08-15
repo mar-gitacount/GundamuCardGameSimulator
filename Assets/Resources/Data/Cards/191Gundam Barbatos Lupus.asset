@@ -15,27 +15,43 @@ MonoBehaviour:
   id: 191
   gcgOfficialId: 
   cardName: Gundam Barbatos Lupus
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
-  imageName: {fileID: -7947937088467520684, guid: 7391d39123abea642a824ba38a7af03f, type: 3}
+  cost: 6
+  level: 7
+  power: 5
+  hp: 5
+  imageName: {fileID: 21300000, guid: eb53a68232034b7eaad052a6ca2c2528, type: 3}
   image: {fileID: 0}
-  version: 5
+  version: 3
   sourceType: 1
   productLine: 1
-  boosterSet: 5
+  boosterSet: 3
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 16
   filterType: 0
   color: 6
   type: 0
   attackFlg: 0
-  timedEffects: []
-  features: []
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Exile3_TekkadanOrTeiwaz_Unit_ThenDamage2_Enemy_OnMain
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
+  - {fileID: 11400000, guid: bd413e1e04b1425b9fe43d31098a94f3, type: 2}
   pilotIds: []
-  link: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: fdc8169e418f4bbbbe2337e1d8282762, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
@@ -44,5 +60,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0

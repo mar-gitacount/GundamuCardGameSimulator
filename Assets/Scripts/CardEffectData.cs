@@ -1049,6 +1049,14 @@ public class EffectData
     [Tooltip("true のとき《突破》を持たないユニットのみ対象（印刷＋付与の合算が 0）。")]
     public bool requireTargetLacksBreach;
 
+    [Tooltip("true のときパイロットがセットされていないユニットのみ対象。")]
+    public bool requireTargetHasNoPilot;
+
+    [Tooltip(
+        "true のとき OnAttack の攻撃対象限定効果を戦闘前ではなく、"
+        + "その攻撃で相手ユニットへバトルダメージを与えたあとに解決する（Exia Repair 等）。")]
+    public bool resolveAfterDealtBattleDamage;
+
     [Tooltip(
         "true のとき対象選択の前にプレイヤーへ実行可否を確認する。"
         + "OnAttack の Destroy 等では Cancel で効果全体をスキップし攻撃／アクションステップへ続行。"
@@ -1312,7 +1320,8 @@ public static class EffectDataExtensions
                 || effect.compareTargetStatToSource
                 || effect.compareTargetStatToPriorChainPicked
                 || !string.IsNullOrWhiteSpace(effect.targetCardNameContains)
-                || effect.requireTargetLacksBreach);
+                || effect.requireTargetLacksBreach
+                || effect.requireTargetHasNoPilot);
     }
 
     /// <summary>
@@ -1463,6 +1472,11 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.requireTargetHasNoPilot && unit.MountedPilot != null)
+        {
+            return false;
+        }
+
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
         if (statFilter == EffectTargetUnitFilterStat.Unset
             && (effect.compareTargetStatToSource || effect.compareTargetStatToPriorChainPicked))
@@ -1574,10 +1588,28 @@ public static class EffectDataExtensions
             }
         }
 
+        if (effect.requireTargetHasNoPilot)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("パイロット未セット", "no pilot"));
+        }
+
+        if (effect.requireTargetLacksBreach)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("突破なし", "no Breach"));
+        }
+
         return sb.ToString();
     }
-
-    /// <summary>AttackActiveEnemyUnit の攻撃対象ステータス条件のみを文言化（Feature は含めない）。</summary>
     public static string FormatAttackActiveEnemyTargetStatDescription(this EffectData effect)
     {
         if (effect == null || !effect.HasAttackActiveEnemyTargetStatFilter())

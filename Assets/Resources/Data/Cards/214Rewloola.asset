@@ -10,56 +10,50 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 192Gundam Flauros (Ryusei-Go)
+  m_Name: 214Rewloola
   m_EditorClassIdentifier: 
-  id: 192
+  id: 214
   gcgOfficialId: 
-  cardName: Gundam Flauros (Ryusei-Go)
-  cost: 4
-  level: 5
-  power: 5
-  hp: 3
-  imageName: {fileID: 6838179167926989869, guid: f7965f6d8de775041b67c4b0639689a6, type: 3}
+  cardName: Rewloola
+  cost: 2
+  level: 3
+  power: 0
+  hp: 5
+  imageName: {fileID: 21300000, guid: 2041f76156dd443ea5ab2c22544889aa, type: 3}
   image: {fileID: 0}
-  version: 5
-  sourceType: 1
-  productLine: 1
-  boosterSet: 5
-  starterSet: 0
+  version: 3
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 3
   eternalBoosterSet: 0
-  sourceTitle: 16
+  sourceTitle: 14
   filterType: 0
-  color: 6
-  type: 0
+  color: 0
+  type: 3
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 5
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: DestroyEnemyUnit_Lv2OrLess_SelectSingle
+    effectsName: DeployBase1_OnBurst
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
-  - timing: 3
+  - timing: 6
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: DestroyEnemyUnit_Lv2OrLess_SelectSingle
+    effectsName: AddShield1_ThenDamage1_EnemyAp5OrLess_OnBaseDeployed
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
-  - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
-  - {fileID: 11400000, guid: bd413e1e04b1425b9fe43d31098a94f3, type: 2}
+  - {fileID: 11400000, guid: aa2431a17f68b1240a0396adc328a405, type: 2}
+  - {fileID: 11400000, guid: 5a47f8b7e2c445e4b40e8767fd088d44, type: 2}
   pilotIds: []
-  link:
-  - pilotCardId: 0
-    linkPilotIds: []
-    linkPilotIdIds: 
-    pilotFeatures:
-    - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
-    pilotFeatureIds: 
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

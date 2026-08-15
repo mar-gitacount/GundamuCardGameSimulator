@@ -142,6 +142,8 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features: []
+  pilotIds:
+  - {fileID: 11400000, guid: fdc8169e418f4bbbbe2337e1d8282762, type: 2}
   link:
   - pilotCardId: 0
     pilotFeatures: []

@@ -2892,6 +2892,197 @@
                     "optionalPlayerConfirm": true
                 }
             ]
+        },
+        {
+            "effectSetName": "DestroyAttackedEnemy_NoPilot_Lv4OrLess_AfterBattleDamage",
+            "displayName": "バトルダメージ後：パイロット未セット・Lv4以下の攻撃対象を破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4,
+                    "requireTargetHasNoPilot": true,
+                    "resolveAfterDealtBattleDamage": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "MillTop2_SelfDeck_OnDestroyed",
+            "displayName": "【破壊時】自分の山札の上から2枚をトラッシュへ",
+            "effects": [
+                {
+                    "type": 19,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DamageEnemy1_Select_ThenDamageAlly1_IfPriorDealtDamage_OnPlayed",
+            "displayName": "【配備時】敵1体に1ダメ→実ダメージ時のみ味方1体に1ダメ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 14,
+                            "turnCheck": -1,
+                            "minimumCount": 0,
+                            "compareOp": 0,
+                            "compareValue": 0,
+                            "unitCountCompareOp": 0,
+                            "unitCountThreshold": 0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyUnit_Lv2OrLess_SelectSingle",
+            "displayName": "敵ユニット(Lv2以下)1体を破壊（選択UI）",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "Exile3_TekkadanOrTeiwaz_Unit_ThenDamage2_Enemy_OnMain",
+            "displayName": "【起動・メイン】トラッシュの〔鉄華団〕/〔テイワズ〕ユニット3枚除外→敵1体に2ダメージ",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 3,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureIds": [28, 27],
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "requireChainObservationContext": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenDamage1_EnemyAp5OrLess_OnBaseDeployed",
+            "displayName": "【配備時】シールド1枚を手札へ→AP5以下の敵1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
         }
     ]
 }

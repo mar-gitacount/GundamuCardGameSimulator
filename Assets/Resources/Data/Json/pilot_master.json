@@ -35,6 +35,24 @@
             "pilotKey": "Mu_La_Flaga",
             "displayName": "ムウ・ラ・フラガ",
             "description": ""
+        },
+        {
+            "id": 7,
+            "pilotKey": "Setsuna_F_Seiei",
+            "displayName": "刹那・F・セイエイ",
+            "description": ""
+        },
+        {
+            "id": 8,
+            "pilotKey": "Akihiro_Altland",
+            "displayName": "昭弘・アルトランド",
+            "description": ""
+        },
+        {
+            "id": 9,
+            "pilotKey": "Mikazuki_Augus",
+            "displayName": "三日月・オーガス",
+            "description": ""
         }
     ]
 }
