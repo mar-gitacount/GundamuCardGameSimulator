@@ -13,15 +13,21 @@ MonoBehaviour:
   m_Name: 109Mutual Attraction
   m_EditorClassIdentifier: 
   id: 109
-  cardName: 'Mutual Attraction '
+  gcgOfficialId: 
+  cardName: Mutual Attraction
   cost: 3
   level: 3
   power: 0
   hp: 0
-  imageName: {fileID: 1715126928373760792, guid: 52fd8dfe9e0fa7d4eb543732ab5452eb, type: 3}
+  imageName: {fileID: 2307453599561049749, guid: ccbd449721f414a48bd989604b92d765, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 1
   type: 2
@@ -45,3 +51,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 1
+  cannotMountPilot: 0

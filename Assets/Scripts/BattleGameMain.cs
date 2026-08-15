@@ -10860,16 +10860,15 @@ public partial class BattleGameMain : MonoBehaviour
                 28);
             if (effect != null && effect.type == EffectType.GrantAttackFlag)
             {
-                string atk = candidate.AttackFlgState == AttackFlg.True
-                    ? GameLocale.T("可", "ON")
-                    : GameLocale.T("不可", "OFF");
+                string atkJa = candidate.AttackFlgState == AttackFlg.True ? "可" : "不可";
+                string atkEn = candidate.AttackFlgState == AttackFlg.True ? "ON" : "OFF";
                 statLabel.SetLocalizedText(
-                    $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp} 攻撃:{atk}",
-                    $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp} Atk:{atk}");
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + " 攻撃:" + atkJa,
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + " Atk:" + atkEn);
             }
             else
             {
-                statLabel.text = $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp}";
+                statLabel.text = "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp;
             }
 
             statLabel.fontSize = 14;
