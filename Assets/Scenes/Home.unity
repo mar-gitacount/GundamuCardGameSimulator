@@ -546,7 +546,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &94996047
 RectTransform:
   m_ObjectHideFlags: 0
@@ -15869,7 +15869,7 @@ MonoBehaviour:
   SerachFindButton: {fileID: 1669694372}
   SearchInputField: {fileID: 1992551389}
   Searchcanvas: {fileID: 898589860}
-  IncludedCardsObj: {fileID: 975525036}
+  IncludedCardsObj: {fileID: 1129670258}
 --- !u!1 &1935112021
 GameObject:
   m_ObjectHideFlags: 0

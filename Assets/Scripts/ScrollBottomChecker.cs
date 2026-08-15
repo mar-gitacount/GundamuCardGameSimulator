@@ -171,7 +171,7 @@ public class ScrollBottomChecker : MonoBehaviour
         ApplyAllIncludedCardLocale();
     }
 
-    /// <summary>中身のない詳細検索（Advanced Search）見出しとその展開先を非表示にする。</summary>
+    /// <summary>中身のない詳細検索（Advanced Search）と、旧・収録カード色フィルターを非表示にする。</summary>
     private void HideAdvancedSearchSection()
     {
         if (Searchcanvas == null)
@@ -179,7 +179,33 @@ public class ScrollBottomChecker : MonoBehaviour
             return;
         }
 
-        // TMP「詳細検索 / Advanced Search」を持つボタンを非表示
+        HideSearchSectionByLabel("詳細検索", "Advanced Search");
+        HideSearchSectionByLabel("収録カード", "Included Cards");
+
+        // 詳細検索の展開先 / 旧色フィルター
+        Transform[] transforms = Searchcanvas.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            Transform t = transforms[i];
+            if (t == null)
+            {
+                continue;
+            }
+
+            if (t.name != "IncludeObject (2)" && t.name != "IncludeObject (1)" && t.name != "DatailButton (Legacy)")
+            {
+                continue;
+            }
+
+            if (t.gameObject.activeSelf)
+            {
+                t.gameObject.SetActive(false);
+            }
+        }
+    }
+
+    private void HideSearchSectionByLabel(string japanese, string english)
+    {
         TMP_Text[] tmps = Searchcanvas.GetComponentsInChildren<TMP_Text>(true);
         for (int i = 0; i < tmps.Length; i++)
         {
@@ -190,8 +216,8 @@ public class ScrollBottomChecker : MonoBehaviour
             }
 
             string label = NormalizeUiText(tmp.text);
-            if (label != "詳細検索"
-                && !label.Equals("Advanced Search", System.StringComparison.OrdinalIgnoreCase))
+            if (label != japanese
+                && !label.Equals(english, System.StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -204,7 +230,6 @@ public class ScrollBottomChecker : MonoBehaviour
             }
         }
 
-        // Legacy Text 版の見出しも同様
         Text[] legacyTexts = Searchcanvas.GetComponentsInChildren<Text>(true);
         for (int i = 0; i < legacyTexts.Length; i++)
         {
@@ -215,8 +240,8 @@ public class ScrollBottomChecker : MonoBehaviour
             }
 
             string label = NormalizeUiText(legacy.text);
-            if (label != "詳細検索"
-                && !label.Equals("Advanced Search", System.StringComparison.OrdinalIgnoreCase))
+            if (label != japanese
+                && !label.Equals(english, System.StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -226,22 +251,6 @@ public class ScrollBottomChecker : MonoBehaviour
             if (hideRoot.activeSelf)
             {
                 hideRoot.SetActive(false);
-            }
-        }
-
-        // 詳細検索の展開先
-        Transform[] transforms = Searchcanvas.GetComponentsInChildren<Transform>(true);
-        for (int i = 0; i < transforms.Length; i++)
-        {
-            Transform t = transforms[i];
-            if (t == null || t.name != "IncludeObject (2)")
-            {
-                continue;
-            }
-
-            if (t.gameObject.activeSelf)
-            {
-                t.gameObject.SetActive(false);
             }
         }
     }

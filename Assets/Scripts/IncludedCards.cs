@@ -36,6 +36,16 @@ public class IncludedCards : MonoBehaviour
     private readonly System.Collections.Generic.List<Toggle> _sourceTitleToggles =
         new System.Collections.Generic.List<Toggle>(24);
     private bool _sourceTitleExpanded;
+    private Toggle _onlineUsableToggle;
+    private TMP_Text _onlineUsableLabel;
+    private GameObject _colorRoot;
+    private GameObject _colorListRoot;
+    private TMP_Text _colorHeaderLabel;
+    private TMP_Text _colorHintLabel;
+    private TMP_Text _colorChevron;
+    private readonly System.Collections.Generic.List<Toggle> _colorToggles =
+        new System.Collections.Generic.List<Toggle>(8);
+    private bool _colorExpanded;
 
     void Awake()
     {
@@ -47,7 +57,7 @@ public class IncludedCards : MonoBehaviour
         GameLocale.LanguageChanged += OnLanguageChanged;
         RefreshLocalizedLabels();
     }
-
+        
     void OnDisable()
     {
         GameLocale.LanguageChanged -= OnLanguageChanged;
@@ -59,12 +69,12 @@ public class IncludedCards : MonoBehaviour
     }
 
     private void OnCardSetSelected(CardSetData set)
-    {
-        Debug.Log($"選択されたカードセット: {set.setName}");
-        Debug.Log($"カードのID: {set.setId}");
-    }
+{
+    Debug.Log($"選択されたカードセット: {set.setName}");
+    Debug.Log($"カードのID: {set.setId}");
+}
 
-    public List<Toggle> GetOnToggles()
+   public List<Toggle> GetOnToggles()
     {
         var result = new List<Toggle>();
         if (toggleParent == null)
@@ -101,13 +111,15 @@ public class IncludedCards : MonoBehaviour
                 // TMP_Dropdown のテンプレート内トグルは除外
                 if (toggle.GetComponentInParent<TMP_Dropdown>() != null
                     && toggle.GetComponent<SourceTitleToggleTag>() == null
+                    && toggle.GetComponent<ColorToggleTag>() == null
                     && toggle.GetComponent<ToggleDatail>() == null)
                 {
                     continue;
                 }
 
                 if (toggle.GetComponent<ToggleDatail>() != null
-                    || toggle.GetComponent<SourceTitleToggleTag>() != null)
+                    || toggle.GetComponent<SourceTitleToggleTag>() != null
+                    || toggle.GetComponent<ColorToggleTag>() != null)
                 {
                     toggle.SetIsOnWithoutNotify(false);
                 }
@@ -116,7 +128,14 @@ public class IncludedCards : MonoBehaviour
 
         ClearProductSetDropdowns();
         ClearSourceTitleSelections();
+        ClearColorSelections();
+        if (_onlineUsableToggle != null)
+        {
+            _onlineUsableToggle.SetIsOnWithoutNotify(false);
+        }
+
         RefreshSourceTitleHeaderSummary();
+        RefreshColorHeaderSummary();
     }
 
     private void ClearProductSetDropdowns()
@@ -154,6 +173,7 @@ public class IncludedCards : MonoBehaviour
 
         RefreshProductSetDropdownLocale();
         RefreshSourceTitleHeaderSummary();
+        RefreshColorHeaderSummary();
     }
 
     private void RefreshProductSetDropdownLocale()
@@ -162,6 +182,7 @@ public class IncludedCards : MonoBehaviour
         ApplyDropdownLabel(_boosterLabel, "ブースター", "Booster");
         ApplyDropdownLabel(_starterLabel, "スターター", "Starter");
         ApplyDropdownLabel(_eternalLabel, "Eternal Booster", "Eternal Booster");
+        ApplyDropdownLabel(_onlineUsableLabel, "オンラインで利用できる", "Available Online");
 
         int boosterValue = _boosterDropdown != null ? _boosterDropdown.value : 0;
         int starterValue = _starterDropdown != null ? _starterDropdown.value : 0;
@@ -215,14 +236,20 @@ public class IncludedCards : MonoBehaviour
         List<CardData> filtered = ApplyProductSetDropdownFilters(cards);
         // 作品タイトルは複数選択 OR。ブースター等の結果に AND で重ねる。
         filtered = ApplySourceTitleMultiSelectFilters(filtered);
+        // 色は複数選択 OR。他条件と AND。
+        filtered = ApplyColorMultiSelectFilters(filtered);
+        // オンライン利用可 ON → notUsedOnline を除外（他条件と AND）
+        filtered = ApplyOnlineUsableFilter(filtered);
 
         List<Toggle> onToggles = GetOnToggles();
-        // 作品タイトル用トグルは ToggleDatail を持たないので色・旧フィルターと分離する
+        // 作品タイトル／色トグルは ToggleDatail を持たないので色・旧フィルターと分離する
         int filterToggleCount = 0;
         for (int i = 0; i < onToggles.Count; i++)
         {
             if (onToggles[i] != null
+                && onToggles[i] != _onlineUsableToggle
                 && onToggles[i].GetComponent<SourceTitleToggleTag>() == null
+                && onToggles[i].GetComponent<ColorToggleTag>() == null
                 && onToggles[i].GetComponent<ToggleDatail>() != null)
             {
                 filterToggleCount++;
@@ -234,69 +261,72 @@ public class IncludedCards : MonoBehaviour
             return filtered;
         }
 
-        Dictionary<FilterType, Predicate<CardData>> groupPredicates
-            = new Dictionary<FilterType, Predicate<CardData>>();
+    Dictionary<FilterType, Predicate<CardData>> groupPredicates
+        = new Dictionary<FilterType, Predicate<CardData>>();
 
-        foreach (var toggle in onToggles)
-        {
-            if (toggle == null || toggle.GetComponent<SourceTitleToggleTag>() != null)
+    foreach (var toggle in onToggles)
+    {
+            if (toggle == null
+                || toggle == _onlineUsableToggle
+                || toggle.GetComponent<SourceTitleToggleTag>() != null
+                || toggle.GetComponent<ColorToggleTag>() != null)
             {
                 continue;
             }
 
-            ToggleDatail detail = toggle.GetComponent<ToggleDatail>();
+        ToggleDatail detail = toggle.GetComponent<ToggleDatail>();
             if (detail == null)
             {
                 continue;
             }
 
-            Predicate<CardData> condition = null;
-            Debug.Log($"トグルのフィルタータイプ: {detail.filterType}, ,バージョンID: {detail.id}, sourceType: {detail.sourceType}, color: {detail.color}");
-
-            switch (detail.filterType)
-            {
-                case FilterType.Version:
-                    condition = card => card.version == detail.id;
-                    Debug.Log($"フィルタリング: {detail.filterType}, version: {detail.id}");
-                    break;
-                case FilterType.SourceType:
-                    condition = card => card.sourceType == detail.sourceType;
-                    break;
-                case FilterType.Color:
-                    condition = card => card.color == detail.color;
-                    Debug.Log($"フィルタリング: {detail.filterType}, color: {detail.color}");
-                    break;
-                default:
-                    Debug.LogWarning($"未対応のフィルタータイプ: {detail.filterType}");
-                    break;
-            }
+        Predicate<CardData> condition = null;
+        Debug.Log($"トグルのフィルタータイプ: {detail.filterType}, ,バージョンID: {detail.id}, sourceType: {detail.sourceType}, color: {detail.color}");
+       
+        switch (detail.filterType)
+        {
+            case FilterType.Version:
+                condition = card => card.version == detail.id;
+                Debug.Log($"フィルタリング: {detail.filterType}, version: {detail.id}");
+                break;
+            case FilterType.SourceType:
+               condition = card => card.sourceType == detail.sourceType;
+                break;
+            case FilterType.Color:
+                condition = card => card.color == detail.color;
+                Debug.Log($"フィルタリング: {detail.filterType}, color: {detail.color}");
+                break;
+            default:
+                Debug.LogWarning($"未対応のフィルタータイプ: {detail.filterType}");
+                break;
+        }
 
             if (condition == null)
             {
                 continue;
             }
-
-            if (!groupPredicates.ContainsKey(detail.filterType))
-            {
-                groupPredicates[detail.filterType] = condition;
-            }
-            else
-            {
-                groupPredicates[detail.filterType]
-                    = groupPredicates[detail.filterType].Or(condition);
-            }
+        
+        if (!groupPredicates.ContainsKey(detail.filterType))
+        {
+            groupPredicates[detail.filterType] = condition;
         }
+        else
+        {
+            groupPredicates[detail.filterType]
+                = groupPredicates[detail.filterType].Or(condition);
+        }
+    }
 
         if (groupPredicates.Count == 0)
         {
             return filtered;
         }
 
-        Predicate<CardData> finalPredicate = card => true;
-        foreach (var predicate in groupPredicates.Values)
-        {
-            finalPredicate = finalPredicate.And(predicate);
-        }
+    Predicate<CardData> finalPredicate = card => true;
+    foreach (var predicate in groupPredicates.Values)
+    {
+        finalPredicate = finalPredicate.And(predicate);
+    }
 
         return filtered.FindAll(finalPredicate);
     }
@@ -310,6 +340,84 @@ public class IncludedCards : MonoBehaviour
         }
 
         return cards.FindAll(card => CardSourceTitleNames.MatchesAny(card, selected));
+    }
+
+    /// <summary>「オンラインで利用できる」ON のとき notUsedOnline カードを除外する。</summary>
+    private List<CardData> ApplyOnlineUsableFilter(List<CardData> cards)
+    {
+        if (cards == null)
+        {
+            return new List<CardData>();
+        }
+
+        if (_onlineUsableToggle == null || !_onlineUsableToggle.isOn)
+        {
+            return cards;
+        }
+
+        return cards.FindAll(card => card != null && !card.notUsedOnline);
+    }
+
+    private List<CardData> ApplyColorMultiSelectFilters(List<CardData> cards)
+    {
+        List<CardColor> selected = GetSelectedColors();
+        if (selected.Count == 0)
+        {
+            return cards;
+        }
+
+        return cards.FindAll(card =>
+        {
+            if (card == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < selected.Count; i++)
+            {
+                if (card.color == selected[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    }
+
+    private List<CardColor> GetSelectedColors()
+    {
+        var selected = new List<CardColor>();
+        for (int i = 0; i < _colorToggles.Count; i++)
+        {
+            Toggle toggle = _colorToggles[i];
+            if (toggle == null || !toggle.isOn)
+            {
+                continue;
+            }
+
+            ColorToggleTag tag = toggle.GetComponent<ColorToggleTag>();
+            if (tag == null)
+            {
+                continue;
+            }
+
+            selected.Add(tag.color);
+        }
+
+        return selected;
+    }
+
+    private void ClearColorSelections()
+    {
+        for (int i = 0; i < _colorToggles.Count; i++)
+        {
+            Toggle toggle = _colorToggles[i];
+            if (toggle != null)
+            {
+                toggle.SetIsOnWithoutNotify(false);
+            }
+        }
     }
 
     private List<CardSourceTitle> GetSelectedSourceTitles()
@@ -374,7 +482,7 @@ public class IncludedCards : MonoBehaviour
     }
 
     void CreateCardSetToggles()
-    {
+{
         if (_togglesCreated || toggleParent == null)
         {
             return;
@@ -397,7 +505,7 @@ public class IncludedCards : MonoBehaviour
             return;
         }
 
-        CardSetData[] cardSets = Resources.LoadAll<CardSetData>(cardSetResourcePath);
+    CardSetData[] cardSets = Resources.LoadAll<CardSetData>(cardSetResourcePath);
         if (cardSets == null || cardSets.Length == 0)
         {
             return;
@@ -444,27 +552,27 @@ public class IncludedCards : MonoBehaviour
 
             EnlargeToggle(toggle);
 
-            ToggleDatail detail = toggle.GetComponent<ToggleDatail>();
+        ToggleDatail detail = toggle.GetComponent<ToggleDatail>();
             if (detail == null)
             {
                 detail = toggle.gameObject.AddComponent<ToggleDatail>();
             }
 
-            detail.id = set.setId;
-            detail.filterType = set.filterType;
-            detail.sourceType = set.sourceType;
-            detail.color = set.color;
-            Debug.Log("トグルのカードのソースタイプ: " + set.sourceType + " フィルタータイプ: " + set.filterType + " カードセットID: " + set.setId);
+        detail.id = set.setId;
+        detail.filterType = set.filterType;
+        detail.sourceType = set.sourceType;
+        detail.color = set.color;
+        Debug.Log("トグルのカードのソースタイプ: " + set.sourceType + " フィルタータイプ: " + set.filterType + " カードセットID: " + set.setId);
 
             ApplyToggleLabel(toggle, set);
 
-            toggle.onValueChanged.AddListener(isOn =>
+        toggle.onValueChanged.AddListener(isOn =>
+        {
+            if (isOn)
             {
-                if (isOn)
-                {
-                    OnCardSetSelected(set);
-                }
-            });
+                OnCardSetSelected(set);
+            }
+        });
         }
 
         _togglesCreated = true;
@@ -474,6 +582,8 @@ public class IncludedCards : MonoBehaviour
     private void CreateProductSetDropdowns()
     {
         ConfigureProductSetParentLayout();
+
+        CreateOnlineUsableToggle();
 
         _boosterLabel = CreateDropdownRow(
             "BoosterSetRow",
@@ -494,12 +604,383 @@ public class IncludedCards : MonoBehaviour
             CardProductSetNames.BuildEternalDropdownOptions(GameLocale.IsJapanese),
             out _eternalDropdown);
 
+        CreateColorMultiSelect();
         CreateSourceTitleMultiSelect();
 
         Canvas.ForceUpdateCanvases();
         if (toggleParent is RectTransform parentRt)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
+        }
+    }
+
+    /// <summary>オンライン利用可能なカードのみ表示するトグル（Set Search）。</summary>
+    private void CreateOnlineUsableToggle()
+    {
+        GameObject row = new GameObject(
+            "OnlineUsableRow",
+            typeof(RectTransform),
+            typeof(LayoutElement),
+            typeof(HorizontalLayoutGroup));
+        row.transform.SetParent(toggleParent, false);
+
+        LayoutElement rowLayout = row.GetComponent<LayoutElement>();
+        rowLayout.minHeight = ToggleRowHeight;
+        rowLayout.preferredHeight = ToggleRowHeight;
+        rowLayout.minWidth = ProductDropdownInnerWidth;
+        rowLayout.preferredWidth = ProductDropdownInnerWidth;
+        rowLayout.flexibleWidth = 0f;
+
+        HorizontalLayoutGroup rowHlg = row.GetComponent<HorizontalLayoutGroup>();
+        rowHlg.padding = new RectOffset(4, 4, 0, 0);
+        rowHlg.spacing = 10f;
+        rowHlg.childAlignment = TextAnchor.MiddleLeft;
+        rowHlg.childControlWidth = false;
+        rowHlg.childControlHeight = true;
+        rowHlg.childForceExpandWidth = false;
+        rowHlg.childForceExpandHeight = true;
+
+        GameObject toggleGo = new GameObject(
+            "OnlineUsableToggle",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Toggle),
+            typeof(LayoutElement));
+        toggleGo.transform.SetParent(row.transform, false);
+
+        LayoutElement toggleLayout = toggleGo.GetComponent<LayoutElement>();
+        toggleLayout.minWidth = CheckboxSize;
+        toggleLayout.preferredWidth = CheckboxSize;
+        toggleLayout.minHeight = CheckboxSize;
+        toggleLayout.preferredHeight = CheckboxSize;
+        toggleLayout.flexibleWidth = 0f;
+
+        Image bg = toggleGo.GetComponent<Image>();
+        bg.color = new Color(1f, 1f, 1f, 0.95f);
+
+        GameObject checkGo = new GameObject("Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        checkGo.transform.SetParent(toggleGo.transform, false);
+        RectTransform checkRt = checkGo.GetComponent<RectTransform>();
+        checkRt.anchorMin = new Vector2(0.15f, 0.15f);
+        checkRt.anchorMax = new Vector2(0.85f, 0.85f);
+        checkRt.offsetMin = Vector2.zero;
+        checkRt.offsetMax = Vector2.zero;
+        Image checkImage = checkGo.GetComponent<Image>();
+        checkImage.color = new Color(0.2f, 0.55f, 1f, 1f);
+
+        _onlineUsableToggle = toggleGo.GetComponent<Toggle>();
+        _onlineUsableToggle.isOn = false;
+        _onlineUsableToggle.targetGraphic = bg;
+        _onlineUsableToggle.graphic = checkImage;
+        // ToggleGroup に入れると他トグルと排他になるため付けない
+
+        GameObject labelGo = new GameObject(
+            "Label",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI),
+            typeof(LayoutElement));
+        labelGo.transform.SetParent(row.transform, false);
+        LayoutElement labelLayout = labelGo.GetComponent<LayoutElement>();
+        labelLayout.minWidth = ProductDropdownInnerWidth - CheckboxSize - 24f;
+        labelLayout.preferredWidth = ProductDropdownInnerWidth - CheckboxSize - 24f;
+        labelLayout.flexibleWidth = 1f;
+        labelLayout.minHeight = ToggleRowHeight;
+        labelLayout.preferredHeight = ToggleRowHeight;
+
+        TextMeshProUGUI labelTmp = labelGo.GetComponent<TextMeshProUGUI>();
+        labelTmp.fontSize = 16f;
+        labelTmp.color = Color.white;
+        labelTmp.alignment = TextAlignmentOptions.MidlineLeft;
+        labelTmp.enableWordWrapping = false;
+        labelTmp.overflowMode = TextOverflowModes.Ellipsis;
+        labelTmp.raycastTarget = false;
+        _onlineUsableLabel = labelTmp;
+        ApplyDropdownLabel(_onlineUsableLabel, "オンラインで利用できる", "Available Online");
+        GameLocale.ApplyFont(_onlineUsableLabel);
+    }
+
+    private static CardColor[] GetSelectableSearchColors()
+    {
+        return new[]
+        {
+            CardColor.Red,
+            CardColor.Green,
+            CardColor.Blue,
+            CardColor.Yellow,
+            CardColor.White,
+            CardColor.Purple,
+        };
+    }
+
+    /// <summary>色複数選択（OR 検索）。Source Title と同型の折りたたみリスト。</summary>
+    private void CreateColorMultiSelect()
+    {
+        _colorToggles.Clear();
+        _colorExpanded = false;
+
+        _colorRoot = new GameObject(
+            "ColorMultiSelect",
+            typeof(RectTransform),
+            typeof(LayoutElement),
+            typeof(VerticalLayoutGroup));
+        _colorRoot.transform.SetParent(toggleParent, false);
+
+        LayoutElement rootLayout = _colorRoot.GetComponent<LayoutElement>();
+        rootLayout.minWidth = ProductDropdownInnerWidth;
+        rootLayout.preferredWidth = ProductDropdownInnerWidth;
+        rootLayout.flexibleWidth = 0f;
+        rootLayout.minHeight = 44f;
+        rootLayout.preferredHeight = 44f;
+
+        VerticalLayoutGroup rootVlg = _colorRoot.GetComponent<VerticalLayoutGroup>();
+        rootVlg.spacing = 4f;
+        rootVlg.childAlignment = TextAnchor.UpperCenter;
+        rootVlg.childControlWidth = true;
+        rootVlg.childControlHeight = true;
+        rootVlg.childForceExpandWidth = true;
+        rootVlg.childForceExpandHeight = false;
+        rootVlg.padding = new RectOffset(0, 0, 0, 0);
+
+        GameObject header = new GameObject(
+            "Header",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Button),
+            typeof(LayoutElement));
+        header.transform.SetParent(_colorRoot.transform, false);
+        LayoutElement headerLayout = header.GetComponent<LayoutElement>();
+        headerLayout.minHeight = 44f;
+        headerLayout.preferredHeight = 44f;
+        headerLayout.preferredWidth = ProductDropdownInnerWidth;
+        header.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.95f);
+
+        GameObject headerLabelGo = new GameObject("Title", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        headerLabelGo.transform.SetParent(header.transform, false);
+        RectTransform headerLabelRt = headerLabelGo.GetComponent<RectTransform>();
+        headerLabelRt.anchorMin = new Vector2(0f, 0.45f);
+        headerLabelRt.anchorMax = new Vector2(1f, 1f);
+        headerLabelRt.offsetMin = new Vector2(12f, 0f);
+        headerLabelRt.offsetMax = new Vector2(-36f, -2f);
+        _colorHeaderLabel = headerLabelGo.GetComponent<TextMeshProUGUI>();
+        _colorHeaderLabel.fontSize = 16f;
+        _colorHeaderLabel.color = Color.black;
+        _colorHeaderLabel.alignment = TextAlignmentOptions.BottomLeft;
+        _colorHeaderLabel.enableWordWrapping = false;
+        _colorHeaderLabel.overflowMode = TextOverflowModes.Ellipsis;
+        _colorHeaderLabel.raycastTarget = false;
+
+        GameObject hintGo = new GameObject("Hint", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        hintGo.transform.SetParent(header.transform, false);
+        RectTransform hintRt = hintGo.GetComponent<RectTransform>();
+        hintRt.anchorMin = new Vector2(0f, 0f);
+        hintRt.anchorMax = new Vector2(1f, 0.5f);
+        hintRt.offsetMin = new Vector2(12f, 2f);
+        hintRt.offsetMax = new Vector2(-36f, 0f);
+        _colorHintLabel = hintGo.GetComponent<TextMeshProUGUI>();
+        _colorHintLabel.fontSize = 12f;
+        _colorHintLabel.color = new Color(0.25f, 0.45f, 0.85f, 1f);
+        _colorHintLabel.alignment = TextAlignmentOptions.TopLeft;
+        _colorHintLabel.enableWordWrapping = false;
+        _colorHintLabel.raycastTarget = false;
+
+        GameObject chevronGo = new GameObject("Chevron", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        chevronGo.transform.SetParent(header.transform, false);
+        RectTransform chevronRt = chevronGo.GetComponent<RectTransform>();
+        chevronRt.anchorMin = new Vector2(1f, 0f);
+        chevronRt.anchorMax = new Vector2(1f, 1f);
+        chevronRt.pivot = new Vector2(1f, 0.5f);
+        chevronRt.sizeDelta = new Vector2(28f, 0f);
+        _colorChevron = chevronGo.GetComponent<TextMeshProUGUI>();
+        _colorChevron.fontSize = 14f;
+        _colorChevron.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+        _colorChevron.alignment = TextAlignmentOptions.Center;
+        _colorChevron.raycastTarget = false;
+        _colorChevron.text = "▼";
+
+        header.GetComponent<Button>().onClick.AddListener(ToggleColorExpanded);
+
+        _colorListRoot = new GameObject(
+            "List",
+            typeof(RectTransform),
+            typeof(LayoutElement),
+            typeof(VerticalLayoutGroup),
+            typeof(ContentSizeFitter));
+        _colorListRoot.transform.SetParent(_colorRoot.transform, false);
+        LayoutElement listLayout = _colorListRoot.GetComponent<LayoutElement>();
+        listLayout.preferredWidth = ProductDropdownInnerWidth;
+        listLayout.minWidth = ProductDropdownInnerWidth;
+        listLayout.flexibleWidth = 0f;
+        ContentSizeFitter listFitter = _colorListRoot.GetComponent<ContentSizeFitter>();
+        listFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        listFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        VerticalLayoutGroup listVlg = _colorListRoot.GetComponent<VerticalLayoutGroup>();
+        listVlg.spacing = 4f;
+        listVlg.padding = new RectOffset(0, 0, 0, 4);
+        listVlg.childAlignment = TextAnchor.UpperCenter;
+        listVlg.childControlWidth = true;
+        listVlg.childControlHeight = true;
+        listVlg.childForceExpandWidth = true;
+        listVlg.childForceExpandHeight = false;
+
+        CardColor[] colors = GetSelectableSearchColors();
+        for (int i = 0; i < colors.Length; i++)
+        {
+            CreateColorItem(colors[i]);
+        }
+
+        ApplyDropdownLabel(_colorHeaderLabel, "色", "Color");
+        ApplyDropdownLabel(_colorHintLabel, "複数選択可", "* Multiple Selection");
+        GameLocale.ApplyFont(_colorHeaderLabel);
+        GameLocale.ApplyFont(_colorHintLabel);
+        GameLocale.ApplyFont(_colorChevron);
+
+        _colorListRoot.SetActive(false);
+        RefreshColorHeaderSummary();
+        RefreshColorRootHeight();
+    }
+
+    private void CreateColorItem(CardColor color)
+    {
+        GameObject item = new GameObject(
+            "Color_" + color,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Toggle),
+            typeof(LayoutElement),
+            typeof(ColorToggleTag));
+        item.transform.SetParent(_colorListRoot.transform, false);
+
+        LayoutElement itemLayout = item.GetComponent<LayoutElement>();
+        itemLayout.minHeight = 34f;
+        itemLayout.preferredHeight = 34f;
+        itemLayout.preferredWidth = ProductDropdownInnerWidth;
+        itemLayout.flexibleWidth = 0f;
+
+        Image bg = item.GetComponent<Image>();
+        bg.color = new Color(0.88f, 0.88f, 0.88f, 1f);
+
+        ColorToggleTag tag = item.GetComponent<ColorToggleTag>();
+        tag.color = color;
+
+        Toggle toggle = item.GetComponent<Toggle>();
+        toggle.isOn = false;
+        toggle.targetGraphic = bg;
+
+        GameObject checkGo = new GameObject("Check", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        checkGo.transform.SetParent(item.transform, false);
+        RectTransform checkRt = checkGo.GetComponent<RectTransform>();
+        checkRt.anchorMin = new Vector2(0f, 0.5f);
+        checkRt.anchorMax = new Vector2(0f, 0.5f);
+        checkRt.sizeDelta = new Vector2(18f, 18f);
+        checkRt.anchoredPosition = new Vector2(16f, 0f);
+        Image checkImage = checkGo.GetComponent<Image>();
+        checkImage.color = new Color(0.2f, 0.55f, 1f, 1f);
+        toggle.graphic = checkImage;
+
+        GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        labelGo.transform.SetParent(item.transform, false);
+        RectTransform labelRt = labelGo.GetComponent<RectTransform>();
+        labelRt.anchorMin = Vector2.zero;
+        labelRt.anchorMax = Vector2.one;
+        labelRt.offsetMin = new Vector2(36f, 2f);
+        labelRt.offsetMax = new Vector2(-8f, -2f);
+        TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
+        GetColorNameTexts(null, color, out string ja, out string en);
+        label.text = GameLocale.T(ja, en);
+        label.fontSize = 13f;
+        label.color = Color.black;
+        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.enableWordWrapping = false;
+        label.overflowMode = TextOverflowModes.Ellipsis;
+        label.raycastTarget = false;
+        LocalizedTmpText loc = label.gameObject.AddComponent<LocalizedTmpText>();
+        loc.SetTexts(ja, en);
+        GameLocale.ApplyFont(label);
+
+        toggle.onValueChanged.AddListener(_ => RefreshColorHeaderSummary());
+        _colorToggles.Add(toggle);
+    }
+
+    private void ToggleColorExpanded()
+    {
+        _colorExpanded = !_colorExpanded;
+        if (_colorListRoot != null)
+        {
+            _colorListRoot.SetActive(_colorExpanded);
+        }
+
+        if (_colorChevron != null)
+        {
+            _colorChevron.text = _colorExpanded ? "▲" : "▼";
+        }
+
+        RefreshColorRootHeight();
+        if (toggleParent is RectTransform parentRt)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
+        }
+    }
+
+    private void RefreshColorRootHeight()
+    {
+        if (_colorRoot == null)
+        {
+            return;
+        }
+
+        LayoutElement rootLayout = _colorRoot.GetComponent<LayoutElement>();
+        if (rootLayout == null)
+        {
+            return;
+        }
+
+        float height = 44f;
+        if (_colorExpanded && _colorListRoot != null)
+        {
+            height += 4f + _colorToggles.Count * 38f;
+        }
+
+        rootLayout.minHeight = height;
+        rootLayout.preferredHeight = height;
+    }
+
+    private void RefreshColorHeaderSummary()
+    {
+        if (_colorHeaderLabel == null)
+        {
+            return;
+        }
+
+        List<CardColor> selected = GetSelectedColors();
+        string baseJa = "色";
+        string baseEn = "Color";
+        if (selected.Count == 0)
+        {
+            ApplyDropdownLabel(_colorHeaderLabel, baseJa + "  (-)", baseEn + "  (-)");
+        }
+        else if (selected.Count == 1)
+        {
+            GetColorNameTexts(null, selected[0], out string ja, out string en);
+            string name = GameLocale.T(ja, en);
+            ApplyDropdownLabel(_colorHeaderLabel, baseJa + "  (" + name + ")", baseEn + "  (" + name + ")");
+        }
+        else
+        {
+            GetColorNameTexts(null, selected[0], out string ja, out string en);
+            string name = GameLocale.T(ja, en);
+            ApplyDropdownLabel(
+                _colorHeaderLabel,
+                baseJa + "  (" + name + " +" + (selected.Count - 1) + ")",
+                baseEn + "  (" + name + " +" + (selected.Count - 1) + ")");
+        }
+
+        if (_colorHintLabel != null)
+        {
+            ApplyDropdownLabel(_colorHintLabel, "複数選択可", "* Multiple Selection");
         }
     }
 
