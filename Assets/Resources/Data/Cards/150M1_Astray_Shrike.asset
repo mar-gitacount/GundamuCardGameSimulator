@@ -23,6 +23,11 @@ MonoBehaviour:
   image: {fileID: 0}
   version: 5
   sourceType: 1
+  productLine: 0
+  boosterSet: 0
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 2
   type: 0

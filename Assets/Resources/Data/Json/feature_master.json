@@ -149,6 +149,42 @@
             "featureKey": "Militia",
             "displayName": "ミリシア",
             "description": ""
+        },
+        {
+            "id": 25,
+            "featureKey": "CB",
+            "displayName": "CB",
+            "description": ""
+        },
+        {
+            "id": 26,
+            "featureKey": "GN_Drive",
+            "displayName": "GN Drive",
+            "description": ""
+        },
+        {
+            "id": 27,
+            "featureKey": "Teiwaz",
+            "displayName": "テイワズ",
+            "description": ""
+        },
+        {
+            "id": 28,
+            "featureKey": "Tekkadan",
+            "displayName": "鉄華団",
+            "description": ""
+        },
+        {
+            "id": 29,
+            "featureKey": "Gundam_Frame",
+            "displayName": "ガンダム・フレーム",
+            "description": ""
+        },
+        {
+            "id": 30,
+            "featureKey": "Warship",
+            "displayName": "戦艦",
+            "description": ""
         }
     ]
 }

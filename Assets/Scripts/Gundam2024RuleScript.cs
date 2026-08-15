@@ -40,9 +40,9 @@ public class Gundam2024RuleScript
         /// <summary>EXリソースの上限枚数（ルール上 5）。</summary>
         public int maxExResource = 5;
         /// <summary>ゲーム開始時レベル（0。ターン開始で +1 される）。</summary>
-        public int startingLevel = 10;
+        public int startingLevel = 0;
         /// <summary>ゲーム開始時リソース（0。ターン開始でレベルに同期して増える）。</summary>
-        public int startingResource = 10;
+        public int startingResource = 0;
         /// <summary>初期シールド枚数は山札から5枚をシールドエリアに置く処理で上書きする。</summary>
         public int startingShield = 0;
         /// <summary>初期手札は BattleGameMain で物理ドローするため 0。オープニング後に SyncOpeningHandState で同期。</summary>

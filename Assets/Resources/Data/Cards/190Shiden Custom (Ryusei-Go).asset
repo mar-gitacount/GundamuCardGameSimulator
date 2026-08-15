@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 190
   gcgOfficialId: 
   cardName: Shiden Custom (Ryusei-Go)
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 3
+  level: 4
+  power: 4
+  hp: 3
   imageName: {fileID: -2825891924169569864, guid: 0a7235345a967bf479cf1280a4f794fa, type: 3}
   image: {fileID: 0}
   version: 5
@@ -27,22 +27,29 @@ MonoBehaviour:
   boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 16
   filterType: 0
   color: 6
   type: 0
   attackFlg: 0
   timedEffects: []
-  features: []
+  features:
+  - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
   pilotIds: []
-  link: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
+    pilotFeatures:
+    - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
-  isBlocker: 0
+  isBlocker: 1
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0

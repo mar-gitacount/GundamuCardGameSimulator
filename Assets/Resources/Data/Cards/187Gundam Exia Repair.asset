@@ -13,12 +13,12 @@ MonoBehaviour:
   m_Name: 187Gundam Exia Repair
   m_EditorClassIdentifier: 
   id: 187
-  gcgOfficialId: 
+  gcgOfficialId: 50
   cardName: Gundam Exia Repair
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 1
+  level: 2
+  power: 2
+  hp: 1
   imageName: {fileID: 7219313052181799459, guid: 5520d9bf29c01874f9954be84a8398e5, type: 3}
   image: {fileID: 0}
   version: 5
@@ -27,15 +27,39 @@ MonoBehaviour:
   boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 13
   filterType: 0
   color: 6
   type: 0
   attackFlg: 0
-  timedEffects: []
-  features: []
+  timedEffects:
+  - timing: 3
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DestroyAttackedEnemy_NoPilot_Lv4OrLess_AfterBattleDamage
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 9
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: MillTop2_SelfDeck_OnDestroyed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: 374064caad5947b0bb2b44e5adee549a, type: 2}
+  - {fileID: 11400000, guid: 361fd0a9743146c985079a7eeffbe53e, type: 2}
   pilotIds: []
-  link: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: 7064d1f21783461ca254e19d7d0167ac, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
@@ -44,5 +68,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0

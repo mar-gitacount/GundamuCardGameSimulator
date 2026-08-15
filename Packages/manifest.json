@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "com.playeveryware.eos": "file:D:/tools/EOS/com.playeveryware.eos-6.1.0.tgz",
+    "com.unity.addressables": "2.9.1",
     "com.unity.collab-proxy": "2.12.4",
     "com.unity.feature.2d": "2.0.2",
     "com.unity.ide.rider": "3.0.38",

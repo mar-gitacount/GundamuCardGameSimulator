@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 103Char Aznable
   m_EditorClassIdentifier: 
   id: 103
+  gcgOfficialId: 
   cardName: Char Aznable
   cost: 1
   level: 5
@@ -21,7 +22,12 @@ MonoBehaviour:
   imageName: {fileID: -347576101791659558, guid: cae2c4625014e9d4f9a2258b6cb3aeac, type: 3}
   image: {fileID: 0}
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 6
   type: 1
@@ -50,6 +56,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -62,6 +69,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 0
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -72,8 +81,12 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 1
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 0
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -83,14 +96,22 @@ MonoBehaviour:
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
+      targetCardNameContains: 
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
   - {fileID: 11400000, guid: f708192a3b4c5d6e7f8012a3b4c5d6e7, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -100,3 +121,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0

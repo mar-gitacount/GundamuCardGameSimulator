@@ -5357,6 +5357,17 @@ public partial class BattleGameMain : MonoBehaviour
         int defenderHpAfterExchange = defender.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
 
+        TryResolveOnDealtBattleDamageEffects(
+            attacker,
+            attackerOwner,
+            defender,
+            attackerPowerForCombat,
+            defenderHpBeforeExchange,
+            defenderHpAfterExchange);
+
+        defenderHpAfterExchange = defender.CurrentHp;
+        attackerHpAfterExchange = attacker.CurrentHp;
+
         NotifyLocalUnitAttackResolved(
             attacker,
             defender,
@@ -5838,6 +5849,12 @@ public partial class BattleGameMain : MonoBehaviour
 
                 if (effect.target.IsOpponentUnitTarget() || effect.type.UsesTargetCountValue())
                 {
+                    if (effect.resolveAfterDealtBattleDamage
+                        && effect.selectionMode.IsAttackedTargetOnlyMode())
+                    {
+                        continue;
+                    }
+
                     relevant = true;
                     break;
                 }
@@ -6059,6 +6076,12 @@ public partial class BattleGameMain : MonoBehaviour
 
                     if (effect.selectionMode.IsAttackedTargetOnlyMode())
                     {
+                        // バトルダメージ付与後に解決する効果は戦闘前ではスキップする。
+                        if (effect.resolveAfterDealtBattleDamage)
+                        {
+                            continue;
+                        }
+
                         if (attackedTarget == null
                             || attackedTarget.Data == null
                             || !attackedTarget.Data.IsUnitLike())
@@ -6072,6 +6095,12 @@ public partial class BattleGameMain : MonoBehaviour
                         }
 
                         List<CardController> singleTarget = new List<CardController> { attackedTarget };
+                        FilterTargetsByUnitCondition(singleTarget, effect, sourceCard);
+                        if (singleTarget.Count == 0)
+                        {
+                            continue;
+                        }
+
                         ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
                         continue;
                     }
@@ -8210,6 +8239,17 @@ public partial class BattleGameMain : MonoBehaviour
         int blockerHpAfterExchange = blocker.CurrentHp;
         int attackerHpAfterExchange = attacker.CurrentHp;
 
+        TryResolveOnDealtBattleDamageEffects(
+            attacker,
+            attackerOwner,
+            blocker,
+            attackerPowerForCombat,
+            blockerHpBeforeExchange,
+            blockerHpAfterExchange);
+
+        blockerHpAfterExchange = blocker.CurrentHp;
+        attackerHpAfterExchange = attacker.CurrentHp;
+
         NotifyLocalUnitAttackResolved(
             attacker,
             blocker,
@@ -9224,6 +9264,115 @@ public partial class BattleGameMain : MonoBehaviour
         if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
         {
             ApplyOnAttackAutoTargetEffectsFromData(attacker.MountedPilot, attackerOwner, attacker.MountedPilot.Data, defender);
+        }
+    }
+
+    /// <summary>
+    /// ユニット戦で相手へバトルダメージを与えたあと、
+    /// resolveAfterDealtBattleDamage の OnAttack（攻撃対象限定）を解決する。
+    /// </summary>
+    private void TryResolveOnDealtBattleDamageEffects(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController defender,
+        int attackerStrike,
+        int defenderHpBefore,
+        int defenderHpAfter)
+    {
+        if (attacker == null || attacker.Data == null || defender == null || defender.Data == null)
+        {
+            return;
+        }
+
+        if (attackerStrike <= 0 || defenderHpAfter >= defenderHpBefore)
+        {
+            return;
+        }
+
+        // 戦闘ダメージで既に撃破済みなら追加の破壊効果は不要。
+        if (defenderHpAfter <= 0)
+        {
+            return;
+        }
+
+        TryResolveOnDealtBattleDamageFromSource(attacker, attackerOwner, defender);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            TryResolveOnDealtBattleDamageFromSource(attacker.MountedPilot, attackerOwner, defender, attacker);
+        }
+    }
+
+    private void TryResolveOnDealtBattleDamageFromSource(
+        CardController sourceCard,
+        PlayerType ownerType,
+        CardController defender,
+        CardController attackHost = null)
+    {
+        if (sourceCard?.Data?.timedEffects == null || defender == null)
+        {
+            return;
+        }
+
+        // 既に場から消えていれば何もしない。
+        if (!IsUnitAliveOnAnyDeployField(defender))
+        {
+            return;
+        }
+
+        CardController hostForContext = attackHost != null ? attackHost : sourceCard;
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(ownerType, hostForContext);
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect == null
+                    || !effect.resolveAfterDealtBattleDamage
+                    || !effect.selectionMode.IsAttackedTargetOnlyMode()
+                    || !effect.target.IsOpponentUnitTarget())
+                {
+                    continue;
+                }
+
+                if (effect.target == TargetType.RestEnemyUnit && !defender.IsRestState)
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                List<CardController> singleTarget = new List<CardController> { defender };
+                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard);
+                if (singleTarget.Count == 0)
+                {
+                    continue;
+                }
+
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+
+                if (!IsUnitAliveOnAnyDeployField(defender))
+                {
+                    return;
+                }
+            }
         }
     }
 
