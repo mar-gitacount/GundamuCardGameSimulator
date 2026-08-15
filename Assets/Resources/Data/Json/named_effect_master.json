@@ -286,6 +286,52 @@
             ]
         },
         {
+            "effectSetName": "BounceEnemyUnitHp2OrLess_SelectSingle",
+            "displayName": "敵ユニット(HP2以下)1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyUnitHp3OrLess_SelectSingle",
+            "displayName": "敵ユニット(HP3以下)1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
             "effectSetName": "RestEnemyUnit_SelectSingle",
             "displayName": "敵ユニット1体をREST（選択UI）",
             "effects": [

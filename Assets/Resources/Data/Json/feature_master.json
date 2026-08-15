@@ -143,6 +143,12 @@
             "featureKey": "Academy",
             "displayName": "学園",
             "description": ""
+        },
+        {
+            "id": 24,
+            "featureKey": "Militia",
+            "displayName": "ミリシア",
+            "description": ""
         }
     ]
 }

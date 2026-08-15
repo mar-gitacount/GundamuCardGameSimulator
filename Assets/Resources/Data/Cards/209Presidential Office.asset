@@ -19,7 +19,7 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 0}
+  imageName: {fileID: -5174194211538906659, guid: fd5b9ee6c924c6d409cbea5e003875e6, type: 3}
   image: {fileID: 0}
   version: 5
   sourceType: 1
