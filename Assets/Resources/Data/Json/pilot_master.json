@@ -29,6 +29,12 @@
             "pilotKey": "Suletta_Mercury",
             "displayName": "スレッタ・マーキュリー",
             "description": ""
+        },
+        {
+            "id": 6,
+            "pilotKey": "Mu_La_Flaga",
+            "displayName": "ムウ・ラ・フラガ",
+            "description": ""
         }
     ]
 }

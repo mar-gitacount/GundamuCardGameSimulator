@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 79Flat (Militia)
   m_EditorClassIdentifier: 
   id: 79
+  gcgOfficialId: 
   cardName: Flat (Militia)
   cost: 2
   level: 3
@@ -22,18 +23,27 @@ MonoBehaviour:
   image: {fileID: 0}
   version: 4
   sourceType: 1
+  productLine: 1
+  boosterSet: 4
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 10
   filterType: 0
   color: 5
   type: 0
   attackFlg: 0
   timedEffects: []
-  features: []
+  features:
+  - {fileID: 11400000, guid: 2e1f316227c4430c860faebb0d37ee18, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
-  pilotMountOnPilotMountedOrder: 1
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 1
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
