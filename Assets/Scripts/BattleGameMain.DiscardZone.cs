@@ -133,10 +133,11 @@ public partial class BattleGameMain
                         int capturedIndex = i;
                         int capturedId = id;
                         CardData capturedData = data;
-                        bool testPlayTrash = IsTestPlayBattle() && !showingExile;
+                        bool fromExile = showingExile;
+                        bool testPlayZone = IsTestPlayBattle();
                         cc.SetUp(capturedData, clicked =>
                         {
-                            if (!testPlayTrash)
+                            if (!testPlayZone)
                             {
                                 return;
                             }
@@ -144,12 +145,24 @@ public partial class BattleGameMain
                             PlayerType ownerType = rule == enemyCardGameRule
                                 ? PlayerType.Enemy
                                 : PlayerType.Player;
-                            OpenTestPlayTrashCardMenu(
-                                rule,
-                                ownerType,
-                                capturedIndex,
-                                capturedId,
-                                capturedData);
+                            if (fromExile)
+                            {
+                                OpenTestPlayExileCardMenu(
+                                    rule,
+                                    ownerType,
+                                    capturedIndex,
+                                    capturedId,
+                                    capturedData);
+                            }
+                            else
+                            {
+                                OpenTestPlayTrashCardMenu(
+                                    rule,
+                                    ownerType,
+                                    capturedIndex,
+                                    capturedId,
+                                    capturedData);
+                            }
                         });
                         go.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
                     }
