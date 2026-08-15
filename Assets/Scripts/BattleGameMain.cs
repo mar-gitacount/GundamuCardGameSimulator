@@ -1600,7 +1600,10 @@ public partial class BattleGameMain : MonoBehaviour
                     fieldActionY);
             }
 
-            var trashButton = filterContent.CreateChildButton("send to trash");
+            var trashButton = filterContent.CreateChildButton(
+                cardController.Data != null && cardController.Data.IsUnitToken()
+                    ? GameLocale.T("消滅させる", "Vanish")
+                    : GameLocale.T("トラッシュへ送る", "Send to trash"));
             RectTransform trashBtnRect = trashButton.GetComponent<RectTransform>();
             trashBtnRect.sizeDelta = new Vector2(180, 50);
             trashBtnRect.anchoredPosition = new Vector2(0, fieldActionY);

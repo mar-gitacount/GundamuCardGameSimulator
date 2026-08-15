@@ -59,6 +59,7 @@ public class CardGameRule
     private Button exileZoneCountButton;
     private Button deckAreaButton;
     private Button testPlayDeckDrawButton;
+    private Button testPlayShieldTokenButton;
     private Button baseSlotAreaButton;
 
     private RectTransform resourceTokensContent;
@@ -1602,6 +1603,53 @@ public class CardGameRule
         }
     }
 
+    /// <summary>TestPlay: シールドゾーン下にトークン選択ボタンを用意する。</summary>
+    public void EnsureTestPlayShieldTokenButton(Action onOpen)
+    {
+        if (shieldPanelRoot == null || onOpen == null)
+        {
+            return;
+        }
+
+        if (testPlayShieldTokenButton == null)
+        {
+            Button btn = shieldPanelRoot.CreateChildButton("Token");
+            testPlayShieldTokenButton = btn;
+            RectTransform btnRt = btn.GetComponent<RectTransform>();
+            btnRt.anchorMin = new Vector2(0.5f, 0f);
+            btnRt.anchorMax = new Vector2(0.5f, 0f);
+            btnRt.pivot = new Vector2(0.5f, 0f);
+            btnRt.sizeDelta = new Vector2(58f, 22f);
+            btnRt.anchoredPosition = new Vector2(0f, 2f);
+            TextMeshProUGUI label = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+            {
+                label.SetLocalizedText("トークン", "Token");
+                label.fontSize = 11;
+                label.color = Color.black;
+            }
+
+            // シールドカード行の下端をボタン分あける
+            if (shieldCardsContent != null)
+            {
+                RectTransform rowRt = shieldCardsContent;
+                rowRt.offsetMin = new Vector2(rowRt.offsetMin.x, 26f);
+            }
+        }
+
+        testPlayShieldTokenButton.gameObject.SetActive(true);
+        testPlayShieldTokenButton.onClick.RemoveAllListeners();
+        testPlayShieldTokenButton.onClick.AddListener(() => onOpen());
+    }
+
+    public void SetTestPlayShieldTokenButtonInteractable(bool interactable)
+    {
+        if (testPlayShieldTokenButton != null)
+        {
+            testPlayShieldTokenButton.interactable = interactable;
+        }
+    }
+
     /// <summary>山札の上から最大 count 枚を取り出す（先頭＝一番上）。</summary>
     public List<int> TakeTopCardIds(int count)
     {
@@ -1987,6 +2035,21 @@ public class CardGameRule
         exileList.Add(cardId);
         UpdateDeckAndTrashTexts();
         OnCardAddedToExile?.Invoke(cardId);
+    }
+
+    /// <summary>除外ゾーンの指定位置のカードを1枚除去。</summary>
+    public bool TryRemoveCardFromExileAt(int index, out int removedCardId)
+    {
+        removedCardId = -1;
+        if (index < 0 || index >= exileList.Count)
+        {
+            return false;
+        }
+
+        removedCardId = exileList[index];
+        exileList.RemoveAt(index);
+        UpdateDeckAndTrashTexts();
+        return true;
     }
 
     /// <summary>カードがトラッシュに追加されたとき（cardId）。プレイヤー側 AI 観測用。</summary>

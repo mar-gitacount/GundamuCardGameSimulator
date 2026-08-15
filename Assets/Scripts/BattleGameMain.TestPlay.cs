@@ -178,6 +178,284 @@ public partial class BattleGameMain
         BindTestPlayDeckInteractions();
         BindTestPlayBaseSlotInteractions();
         BindTestPlayResourceZoneInteractions();
+        BindTestPlayShieldTokenInteractions();
+    }
+
+    private void BindTestPlayShieldTokenInteractions()
+    {
+        if (!IsTestPlayBattle())
+        {
+            return;
+        }
+
+        if (cardGameRule != null)
+        {
+            cardGameRule.EnsureTestPlayShieldTokenButton(() => OpenTestPlayTokenSelectPanel(PlayerType.Player));
+        }
+
+        if (enemyCardGameRule != null)
+        {
+            enemyCardGameRule.EnsureTestPlayShieldTokenButton(() => OpenTestPlayTokenSelectPanel(PlayerType.Enemy));
+        }
+    }
+
+    /// <summary>TestPlay: ユニットトークン一覧から選択してバトルゾーンへ出す。</summary>
+    private void OpenTestPlayTokenSelectPanel(PlayerType ownerType)
+    {
+        if (!IsTestPlayBattle())
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        List<CardData> tokens = CollectUnitTokenCardDatas();
+        DestroyActiveOnActionPopupIfAny();
+
+        GameObject root = new GameObject(
+            "TestPlayTokenSelect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        const int panelWidth = 480;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("TokenTitle", UIAnchor.TopCenter, panelWidth, 48);
+        title.SetLocalizedText(
+            ownerType == PlayerType.Player
+                ? "トークンを選択（自陣）"
+                : "トークンを選択（相手陣）",
+            ownerType == PlayerType.Player
+                ? "Select Token (Your side)"
+                : "Select Token (Opponent side)");
+        title.color = Color.white;
+        title.fontSize = 22;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
+
+        TextMeshProUGUI subtitle = root.CreateChildTextCustom("TokenSubtitle", UIAnchor.TopCenter, panelWidth - 24, 40);
+        subtitle.SetLocalizedText(
+            $"登録トークン: {tokens.Count} 種 — タップで場に出す",
+            $"Registered tokens: {tokens.Count} — tap to deploy");
+        subtitle.color = new Color(0.9f, 0.9f, 0.9f);
+        subtitle.fontSize = 14;
+        subtitle.enableWordWrapping = true;
+        subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -62f);
+
+        GameObject scrollGo = root.CreateGridScrollView(panelWidth, 420, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -320f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+        if (sr != null && sr.content != null)
+        {
+            GridLayoutGroup grid = sr.content.GetComponent<GridLayoutGroup>();
+            if (grid != null)
+            {
+                // 480幅内に3列で収める
+                const int columns = 3;
+                float pad = grid.padding.left + grid.padding.right;
+                float spacing = grid.spacing.x * (columns - 1);
+                float cellW = Mathf.Floor((panelWidth - pad - spacing) / columns);
+                float cellH = cellW * 1.45f;
+                grid.cellSize = new Vector2(cellW, cellH);
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                grid.constraintCount = columns;
+                grid.childAlignment = TextAnchor.UpperCenter;
+            }
+        }
+
+        if (tokens.Count == 0)
+        {
+            TextMeshProUGUI empty = root.CreateChildTextCustom("EmptyTokens", UIAnchor.TopCenter, panelWidth - 40, 40);
+            empty.SetLocalizedText(
+                "UnitToken タイプのカードがありません",
+                "No UnitToken cards found");
+            empty.color = Color.yellow;
+            empty.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -200f);
+        }
+        else if (content != null)
+        {
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                CardData tokenData = tokens[i];
+                if (tokenData == null)
+                {
+                    continue;
+                }
+
+                if (CardImagePrefab != null)
+                {
+                    GameObject go = Instantiate(CardImagePrefab, content);
+                    CardController cc = go.GetComponent<CardController>();
+                    if (cc != null)
+                    {
+                        cc.SetUp(tokenData, _ => { });
+                    }
+
+                    TextMeshProUGUI stat = go.CreateChildTextCustom("TokenStat", UIAnchor.BottomCenter, 100, 22);
+                    stat.text = $"AP:{tokenData.power} HP:{tokenData.hp}";
+                    stat.fontSize = 11;
+                    stat.color = Color.white;
+                    stat.alignment = TextAlignmentOptions.Center;
+
+                    TextMeshProUGUI nameTag = go.CreateChildTextCustom("TokenName", UIAnchor.TopCenter, 100, 20);
+                    nameTag.text = tokenData.cardName ?? "?";
+                    nameTag.fontSize = 10;
+                    nameTag.color = Color.white;
+                    nameTag.alignment = TextAlignmentOptions.Center;
+                    nameTag.enableWordWrapping = false;
+                    nameTag.overflowMode = TextOverflowModes.Ellipsis;
+
+                    Button btn = go.GetComponent<Button>() ?? go.AddComponent<Button>();
+                    CardData pick = tokenData;
+                    btn.onClick.AddListener(() =>
+                    {
+                        TestPlayDeployTokenToField(ownerType, pick);
+                        Destroy(root);
+                        activeOnActionPopupRoot = null;
+                        isOnActionPopupOpen = false;
+                    });
+                }
+                else
+                {
+                    Button rowBtn = content.gameObject.CreateChildButton(
+                        $"{tokenData.cardName} AP{tokenData.power}/HP{tokenData.hp}");
+                    RectTransform rowRt = rowBtn.GetComponent<RectTransform>();
+                    rowRt.sizeDelta = new Vector2(panelWidth - 40f, 44f);
+                    CardData pick = tokenData;
+                    rowBtn.onClick.AddListener(() =>
+                    {
+                        TestPlayDeployTokenToField(ownerType, pick);
+                        Destroy(root);
+                        activeOnActionPopupRoot = null;
+                        isOnActionPopupOpen = false;
+                    });
+                }
+            }
+        }
+
+        Button closeBtn = root.CreateChildButton(GameLocale.T("閉じる", "Close"));
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(160f, 44f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(0f, 28f);
+        closeBtn.onClick.AddListener(() =>
+        {
+            Destroy(root);
+            activeOnActionPopupRoot = null;
+            isOnActionPopupOpen = false;
+        });
+
+        Debug.Log($"[TestPlay] Token list opened ({tokens.Count}): " + FormatTokenListForLog(tokens));
+    }
+
+    private static List<CardData> CollectUnitTokenCardDatas()
+    {
+        var list = new List<CardData>();
+        CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
+        if (all == null)
+        {
+            return list;
+        }
+
+        for (int i = 0; i < all.Length; i++)
+        {
+            CardData card = all[i];
+            if (card != null && card.IsUnitToken())
+            {
+                list.Add(card);
+            }
+        }
+
+        list.Sort((a, b) => a.id.CompareTo(b.id));
+        return list;
+    }
+
+    private static string FormatTokenListForLog(List<CardData> tokens)
+    {
+        if (tokens == null || tokens.Count == 0)
+        {
+            return "(none)";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            CardData t = tokens[i];
+            if (t == null)
+            {
+                continue;
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append(", ");
+            }
+
+            sb.Append(t.id).Append(':').Append(t.cardName)
+                .Append(" AP").Append(t.power).Append("/HP").Append(t.hp);
+        }
+
+        return sb.ToString();
+    }
+
+    private void TestPlayDeployTokenToField(PlayerType ownerType, CardData tokenData)
+    {
+        if (!IsTestPlayBattle() || tokenData == null || !tokenData.IsUnitToken())
+        {
+            return;
+        }
+
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (rule == null || rule.PlayerDeployPanel == null || CardImagePrefab == null)
+        {
+            Debug.LogWarning("[TestPlay] Token deploy failed: missing rule/prefab.");
+            return;
+        }
+
+        CardController spawned = InstantiateBattleUnit(tokenData, rule.PlayerDeployPanel);
+        if (spawned == null)
+        {
+            Debug.LogWarning($"[TestPlay] Token instantiate failed: {tokenData.cardName}");
+            return;
+        }
+
+        if (!DeployUnitToBattleZone(
+                spawned,
+                ownerType,
+                rule,
+                triggerOnPlayed: false,
+                fromHand: false,
+                deployAsRested: false))
+        {
+            Destroy(spawned.gameObject);
+            Debug.LogWarning($"[TestPlay] Token deploy to battle zone failed: {tokenData.cardName}");
+            return;
+        }
+
+        // TestPlay サンドボックス: 出した直後から攻撃操作できるようにする
+        spawned.SetAttackFlg(AttackFlg.True);
+        spawned.SetUnitRestVisual(false);
+        spawned.SetBattleStatOverlayVisible(true);
+
+        Debug.Log(
+            $"[TestPlay] Token → Field {tokenData.cardName}(id:{tokenData.id}) "
+            + $"AP:{spawned.CurrentPower} HP:{spawned.CurrentHp} side:{ownerType}");
     }
 
     private void BindTestPlayResourceZoneInteractions()
@@ -1553,17 +1831,20 @@ public partial class BattleGameMain
 
         float y = startY;
 
-        Button deckBottomBtn = filterPanel.CreateChildButton(
-            GameLocale.T("山札の下に送る", "Send to deck bottom"));
-        RectTransform deckBottomRt = deckBottomBtn.GetComponent<RectTransform>();
-        deckBottomRt.sizeDelta = new Vector2(280f, 50f);
-        deckBottomRt.anchoredPosition = new Vector2(0f, y);
-        deckBottomBtn.onClick.AddListener(() =>
+        if (!card.Data.IsUnitToken())
         {
-            TestPlaySendUnitToDeckBottom(card, ownerType);
-            DestroyCardFilterOverlay(filterPanel);
-        });
-        y -= 60f;
+            Button deckBottomBtn = filterPanel.CreateChildButton(
+                GameLocale.T("山札の下に送る", "Send to deck bottom"));
+            RectTransform deckBottomRt = deckBottomBtn.GetComponent<RectTransform>();
+            deckBottomRt.sizeDelta = new Vector2(280f, 50f);
+            deckBottomRt.anchoredPosition = new Vector2(0f, y);
+            deckBottomBtn.onClick.AddListener(() =>
+            {
+                TestPlaySendUnitToDeckBottom(card, ownerType);
+                DestroyCardFilterOverlay(filterPanel);
+            });
+            y -= 60f;
+        }
 
         bool isRest = card.IsRestState;
         Button restBtn = filterPanel.CreateChildButton(
@@ -1579,6 +1860,22 @@ public partial class BattleGameMain
             DestroyCardFilterOverlay(filterPanel);
         });
         y -= 60f;
+
+        // トークンは山札に戻さず消滅させる方が自然
+        if (card.Data.IsUnitToken())
+        {
+            Button vanishBtn = filterPanel.CreateChildButton(
+                GameLocale.T("トークンを消滅", "Vanish token"));
+            RectTransform vanishRt = vanishBtn.GetComponent<RectTransform>();
+            vanishRt.sizeDelta = new Vector2(280f, 50f);
+            vanishRt.anchoredPosition = new Vector2(0f, y);
+            vanishBtn.onClick.AddListener(() =>
+            {
+                SendCardToTrash(card, ownerType);
+                DestroyCardFilterOverlay(filterPanel);
+            });
+            y -= 60f;
+        }
 
         return y;
     }
@@ -1683,5 +1980,292 @@ public partial class BattleGameMain
         rule.AddCardToExile(removedId);
         CloseDiscardZoneInspectionIfAny();
         Debug.Log($"[TestPlay] Trash → Exile id:{removedId} side:{ownerType}");
+    }
+
+    /// <summary>TestPlay: 除外ゾーンのカードを手札／山札／トラッシュ／配備へ移すメニュー。</summary>
+    private void OpenTestPlayExileCardMenu(
+        CardGameRule rule,
+        PlayerType ownerType,
+        int exileIndex,
+        int cardId,
+        CardData data)
+    {
+        if (!IsTestPlayBattle() || rule == null || data == null)
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "TestPlayExileCardMenu",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.72f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ExileCardTitle", UIAnchor.TopCenter, 720, 48);
+        title.SetLocalizedText(
+            $"除外：{data.cardName}",
+            $"Exile: {data.cardName}");
+        title.fontSize = 24;
+        title.fontStyle = FontStyles.Bold;
+        title.color = Color.white;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -80f);
+
+        bool isBase = data.type == Type.Base;
+        bool isCommand = data.IsCommand();
+        bool isUnit = data.IsUnitLike();
+        float y = -160f;
+
+        y = AddTestPlayTrashMenuButton(
+            root,
+            y,
+            isCommand
+                ? GameLocale.T("手札に加える", "Add to Hand")
+                : GameLocale.T("手札に戻す", "Return to Hand"),
+            () => TestPlayMoveExileCardToHand(rule, ownerType, exileIndex, cardId));
+
+        y = AddTestPlayTrashMenuButton(
+            root,
+            y,
+            GameLocale.T("山札の上に戻す", "Return to deck top"),
+            () => TestPlayMoveExileCardToDeck(rule, ownerType, exileIndex, cardId, toBottom: false));
+
+        y = AddTestPlayTrashMenuButton(
+            root,
+            y,
+            GameLocale.T("山札の下に戻す", "Return to deck bottom"),
+            () => TestPlayMoveExileCardToDeck(rule, ownerType, exileIndex, cardId, toBottom: true));
+
+        y = AddTestPlayTrashMenuButton(
+            root,
+            y,
+            GameLocale.T("トラッシュに送る", "Send to Trash"),
+            () => TestPlayMoveExileCardToTrash(rule, ownerType, exileIndex, cardId));
+
+        if (isBase)
+        {
+            y = AddTestPlayTrashMenuButton(
+                root,
+                y,
+                GameLocale.T("シールドゾーンに配備する", "Deploy to Shield Zone"),
+                () => TestPlayDeployExileCardToShield(rule, ownerType, exileIndex, cardId, data));
+        }
+        else if (isUnit && !isCommand)
+        {
+            y = AddTestPlayTrashMenuButton(
+                root,
+                y,
+                GameLocale.T("配備する", "Deploy"),
+                () => TestPlayDeployExileCardToField(rule, ownerType, exileIndex, cardId, data));
+        }
+
+        Button closeBtn = root.CreateChildButton(GameLocale.T("閉じる", "Close"));
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(200f, 48f);
+        closeRt.anchorMin = new Vector2(0.5f, 1f);
+        closeRt.anchorMax = new Vector2(0.5f, 1f);
+        closeRt.pivot = new Vector2(0.5f, 1f);
+        closeRt.anchoredPosition = new Vector2(0f, y - 20f);
+        closeBtn.onClick.AddListener(() =>
+        {
+            Destroy(root);
+            ReleaseOnActionPopupState(root);
+        });
+    }
+
+    private bool TryTakeTestPlayExileCard(
+        CardGameRule rule,
+        int exileIndex,
+        int expectedCardId,
+        out int removedId)
+    {
+        removedId = -1;
+        if (rule == null || expectedCardId < 0)
+        {
+            return false;
+        }
+
+        if (!rule.TryRemoveCardFromExileAt(exileIndex, out removedId))
+        {
+            return false;
+        }
+
+        if (removedId != expectedCardId)
+        {
+            rule.AddCardToExile(removedId);
+            removedId = -1;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void TestPlayMoveExileCardToHand(
+        CardGameRule rule,
+        PlayerType ownerType,
+        int exileIndex,
+        int cardId)
+    {
+        if (!TryTakeTestPlayExileCard(rule, exileIndex, cardId, out int removedId))
+        {
+            Debug.LogWarning("[TestPlay] 除外から手札へ戻せませんでした。");
+            return;
+        }
+
+        AddCardIdToHand(rule, ownerType, removedId);
+        CloseDiscardZoneInspectionIfAny();
+        Debug.Log($"[TestPlay] Exile → Hand id:{removedId} side:{ownerType}");
+    }
+
+    private void TestPlayMoveExileCardToDeck(
+        CardGameRule rule,
+        PlayerType ownerType,
+        int exileIndex,
+        int cardId,
+        bool toBottom)
+    {
+        if (!TryTakeTestPlayExileCard(rule, exileIndex, cardId, out int removedId))
+        {
+            Debug.LogWarning("[TestPlay] 除外から山札へ戻せませんでした。");
+            return;
+        }
+
+        if (toBottom)
+        {
+            rule.AppendCardsToBottom(new[] { removedId });
+        }
+        else
+        {
+            rule.PrependCardsToTopInOrder(new[] { removedId });
+        }
+
+        SyncGundamRuleDeckCount(ownerType, rule.GetRemainingCount());
+        CloseDiscardZoneInspectionIfAny();
+        Debug.Log(
+            $"[TestPlay] Exile → Deck {(toBottom ? "bottom" : "top")} id:{removedId} side:{ownerType}");
+    }
+
+    private void TestPlayMoveExileCardToTrash(
+        CardGameRule rule,
+        PlayerType ownerType,
+        int exileIndex,
+        int cardId)
+    {
+        if (!TryTakeTestPlayExileCard(rule, exileIndex, cardId, out int removedId))
+        {
+            Debug.LogWarning("[TestPlay] 除外からトラッシュへ送れませんでした。");
+            return;
+        }
+
+        rule.AddCardToTrash(removedId);
+        CloseDiscardZoneInspectionIfAny();
+        Debug.Log($"[TestPlay] Exile → Trash id:{removedId} side:{ownerType}");
+    }
+
+    private void TestPlayDeployExileCardToField(
+        CardGameRule rule,
+        PlayerType ownerType,
+        int exileIndex,
+        int cardId,
+        CardData data)
+    {
+        if (data == null || !data.IsUnitLike() || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        if (!TryTakeTestPlayExileCard(rule, exileIndex, cardId, out int removedId))
+        {
+            Debug.LogWarning("[TestPlay] 除外から配備できませんでした。");
+            return;
+        }
+
+        CardData resolved = DeckSettinObject.Instance != null
+            ? DeckSettinObject.Instance.GetCardDataById(removedId)
+            : data;
+        if (resolved == null)
+        {
+            rule.AddCardToExile(removedId);
+            return;
+        }
+
+        GameObject go = Instantiate(CardImagePrefab);
+        CardController spawned = go.GetComponent<CardController>();
+        if (spawned == null)
+        {
+            Destroy(go);
+            rule.AddCardToExile(removedId);
+            return;
+        }
+
+        spawned.SetUp(resolved, OnCardClicked);
+        SendCardToField(spawned, ownerType, rule);
+        CloseDiscardZoneInspectionIfAny();
+        Debug.Log($"[TestPlay] Exile → Field {resolved.cardName} side:{ownerType}");
+    }
+
+    private void TestPlayDeployExileCardToShield(
+        CardGameRule rule,
+        PlayerType ownerType,
+        int exileIndex,
+        int cardId,
+        CardData data)
+    {
+        if (data == null || data.type != Type.Base || CardImagePrefab == null || gundamRule == null)
+        {
+            return;
+        }
+
+        if (!TryTakeTestPlayExileCard(rule, exileIndex, cardId, out int removedId))
+        {
+            Debug.LogWarning("[TestPlay] 除外からシールド配備できませんでした。");
+            return;
+        }
+
+        CardData resolved = DeckSettinObject.Instance != null
+            ? DeckSettinObject.Instance.GetCardDataById(removedId)
+            : data;
+        if (resolved == null)
+        {
+            rule.AddCardToExile(removedId);
+            return;
+        }
+
+        GameObject go = Instantiate(CardImagePrefab);
+        CardController spawned = go.GetComponent<CardController>();
+        if (spawned == null)
+        {
+            Destroy(go);
+            rule.AddCardToExile(removedId);
+            return;
+        }
+
+        spawned.SetUp(resolved, OnCardClicked);
+        if (!rule.TryForceAttachShieldCard(spawned))
+        {
+            Destroy(go);
+            rule.AddCardToExile(removedId);
+            Debug.LogWarning("[TestPlay] シールドゾーンへの配備に失敗しました。");
+            return;
+        }
+
+        gundamRule.AddShieldCount(ToRuleSide(ownerType), 1);
+        SyncResourceViewsFromRule(ToRuleSide(ownerType));
+        CloseDiscardZoneInspectionIfAny();
+        Debug.Log($"[TestPlay] Exile → Shield {resolved.cardName} side:{ownerType}");
     }
 }
