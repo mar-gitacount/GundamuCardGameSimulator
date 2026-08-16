@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 4
   hp: 3
-  imageName: {fileID: 21300000, guid: a3fa765a5d34c9c479156491d796fc8e, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/45_Zaku 2 FZ"
   version: 3
   sourceType: 1
   filterType: 0

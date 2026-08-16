@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 5477913946314167194, guid: ce52364a88c12f042ac28dab92b96a64, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Leo"
   version: 5
   sourceType: 1
   productLine: 1

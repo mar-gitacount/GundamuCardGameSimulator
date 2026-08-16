@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 4
   hp: 5
-  imageName: {fileID: 21300000, guid: 893abb0029745d44cb4d2a6e79ad0a70, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/55_G-fred"
   version: 3
   sourceType: 1
   filterType: 0

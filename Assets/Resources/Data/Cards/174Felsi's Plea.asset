@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 8547944194754005138, guid: c5bb53533a5d541469f131c253c5d7b9, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Felsi\u0027s Plea"
   version: 5
   sourceType: 1
   productLine: 1

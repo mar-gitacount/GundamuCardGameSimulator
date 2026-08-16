@@ -601,7 +601,7 @@ public class NewDeckMaking : MonoBehaviour
                 typeof(LayoutElement));
             cardGo.transform.SetParent(content, false);
             Image img = cardGo.GetComponent<Image>();
-            img.sprite = data.imageName != null ? data.imageName : data.image;
+            CardSpriteLoader.ApplyToImage(img, data);
             img.preserveAspect = true;
             LayoutElement layout = cardGo.GetComponent<LayoutElement>();
             layout.preferredWidth = 100f;

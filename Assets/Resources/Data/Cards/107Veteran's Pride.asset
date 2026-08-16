@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 1
   hp: 0
-  imageName: {fileID: -2681881235827277146, guid: 017444d24a1c2894b9be05bab497ea6a, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/107_Veteran\u0027s Pride"
   version: 5
   sourceType: 2
   filterType: 0

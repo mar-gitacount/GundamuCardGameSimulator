@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 2
   power: 1
   hp: 0
-  imageName: {fileID: 21300000, guid: 0c237e495ce44f64b52b4ae7ea3dfb6c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Hawk of Endymion"
   version: 4
   sourceType: 2
   productLine: 2

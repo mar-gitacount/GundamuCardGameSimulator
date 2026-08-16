@@ -17,6 +17,10 @@ public class CardData : ScriptableObject
     public int hp;
     public Sprite imageName;
     public Sprite image;
+
+    [Tooltip("Addressables のアドレス（Local）。例: Data/Images/70_Mikazuki Augus。ランタイムはこれを使い、imageName/image の直参照は使わない。")]
+    public string imageAddress;
+
     public int version;
     public CardSourceType sourceType;
 
@@ -123,6 +127,49 @@ public class CardData : ScriptableObject
                 starterSet = StarterProductSet.None;
                 break;
         }
+    }
+
+    /// <summary>JSON 用の画像ファイル名（拡張子なし）。imageAddress 優先。</summary>
+    public string GetImageLeafNameForJson()
+    {
+        if (!string.IsNullOrWhiteSpace(imageAddress))
+        {
+            string addr = imageAddress.Trim();
+            const string prefix = "Data/Images/";
+            if (addr.StartsWith(prefix))
+            {
+                return addr.Substring(prefix.Length);
+            }
+
+            int slash = addr.LastIndexOf('/');
+            return slash >= 0 ? addr.Substring(slash + 1) : addr;
+        }
+
+        if (imageName != null)
+        {
+            return imageName.name;
+        }
+
+        if (image != null)
+        {
+            return image.name;
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>画像識別をアドレスのみにする（Sprite 直参照はクリア）。</summary>
+    public void SetImageAddressFromLeaf(string leafName)
+    {
+        imageName = null;
+        image = null;
+        if (string.IsNullOrWhiteSpace(leafName))
+        {
+            imageAddress = string.Empty;
+            return;
+        }
+
+        imageAddress = "Data/Images/" + leafName.Trim();
     }
 }
 

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 1
   hp: 1
-  imageName: {fileID: 21300000, guid: a7627197f2f0a44468ab0492896d50bb, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/49_Giant Killing"
   version: 9
   sourceType: 2
   filterType: 0

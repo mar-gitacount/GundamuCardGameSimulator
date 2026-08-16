@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 1
   power: 3
   hp: 2
-  imageName: {fileID: 21300000, guid: f2b43d52ea2df1f48836ea6e8689ba49, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/20000_EffectTestUnit2"
   version: 4
   sourceType: 2
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 2
   hp: 2
-  imageName: {fileID: -5446558225048108846, guid: d0240f4d3e671b94aa92ce25d6ce7b19, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/86_Re-GZ BWS"
   version: 5
   sourceType: 1
   filterType: 0

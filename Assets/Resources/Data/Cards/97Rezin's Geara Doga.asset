@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 3
   hp: 4
-  imageName: {fileID: -2749737113084711048, guid: 52276877bd1b1494c87be2a5ffe6bf41, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/97_Rezin\u0027s Geara Doga"
   version: 5
   sourceType: 2
   filterType: 0

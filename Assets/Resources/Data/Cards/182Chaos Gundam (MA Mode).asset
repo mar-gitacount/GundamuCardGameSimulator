@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 1789765577599904466, guid: b7bf066863cb416489423b1c939e5719, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Chaos Gundam (MA Mode)"
   version: 5
   sourceType: 1
   productLine: 1

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 4
   hp: 3
-  imageName: {fileID: -8341383756596143776, guid: ff5a4f8050a834d418975394c0dbc28c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/123_Rising Gundam"
   version: 5
   sourceType: 1
   filterType: 0

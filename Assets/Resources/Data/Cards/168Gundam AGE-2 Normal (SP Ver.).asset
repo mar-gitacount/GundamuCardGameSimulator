@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 999898628527825845, guid: 3cdee757c86c16f44a0adbc3e7e29716, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gundam AGE-2 Normal (SP Ver.)"
   version: 5
   sourceType: 1
   productLine: 1

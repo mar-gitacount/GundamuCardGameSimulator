@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 2
   hp: 0
-  imageName: {fileID: 3930917566324499585, guid: 5c9dbf1c09a726845a1f47508aeda108, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/130_Hoka Kyoten Juzetsujin"
   version: 5
   sourceType: 1
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 2
   hp: 2
-  imageName: {fileID: -371362985042007005, guid: 4c4d16b91ac116d4da1eaa58a3db37fb, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/126_Master Asia"
   version: 5
   sourceType: 1
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 3
   hp: 4
-  imageName: {fileID: 913298015647762217, guid: 987808310cd3f83459298e60c3911bdf, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/121_Shining Gundam(LR)"
   version: 5
   sourceType: 1
   filterType: 0

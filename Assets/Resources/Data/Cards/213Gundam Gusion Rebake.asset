@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 5
   power: 3
   hp: 5
-  imageName: {fileID: 3290678355526618385, guid: 4d829155ad660be48a42282328711d73, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gundam Gusion Rebake"
   version: 2
   sourceType: 1
   productLine: 1

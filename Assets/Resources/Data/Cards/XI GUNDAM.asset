@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 8
   power: 5
   hp: 5
-  imageName: {fileID: 21300000, guid: 267acbbf2b8b42541931f248642e2e7c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/24_XI GUNDAM"
   version: 4
   sourceType: 2
   filterType: 0

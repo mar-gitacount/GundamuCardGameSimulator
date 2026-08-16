@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 0
   hp: 5
-  imageName: {fileID: 21300000, guid: f14dff45d14d32b44adf3f351291c7d0, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/62_Corsica Base"
   version: 1
   sourceType: 2
   filterType: 0

@@ -1,0 +1,1264 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Default Local Group
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Default Local Group
+  m_GUID: 54aa4d74937b9c942a1b7524392cd5cf
+  m_SerializeEntries:
+  - m_GUID: 01258d66108ce4a4d934d6b5a854dbf9
+    m_Address: Data/Images/21_Gundumrubliss
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 017444d24a1c2894b9be05bab497ea6a
+    m_Address: Data/Images/107_Veteran's Pride
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 01d2973de3b33bc4c9b07fc2284b8c46
+    m_Address: Data/Images/129_Shining Finger
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 02658f633d426ee4d9ee488b6182b146
+    m_Address: Data/Images/138_Zeong (Head)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0416c9842e5c87746b49ba35f384d89d
+    m_Address: Data/Images/Landman Rodi
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 04aed1000da445d4098ab36940de7550
+    m_Address: Data/Images/89_Kayra's Jegan
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 05439dc25a08a324b8b8456ab6e908ef
+    m_Address: Data/Images/27_zawort
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 05a29fbcdd76ccd4d9dbcc9eb7ba5b3c
+    m_Address: Data/Images/67_Guncannon
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 05b004a7949542a488a078af367700a5
+    m_Address: Data/Images/Gundam Throne Eins (GN High Mega Launcher)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 083ad3b0f4ef70749b2366cbb2ba842c
+    m_Address: Data/Images/96_Alpha Azieru
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 08b5ee58d42f6fa4ba0d3440b1f79814
+    m_Address: Data/Images/110_Widespread Annihilation
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0a7235345a967bf479cf1280a4f794fa
+    m_Address: Data/Images/Shiden Custom (Ryusei-Go)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0c237e495ce44f64b52b4ae7ea3dfb6c
+    m_Address: Data/Images/Hawk of Endymion
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0d37b7b17f091ca4e84eb7695d389d1c
+    m_Address: Data/Images/41_Argama
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0e094484b59d8484c833d97a5665f037
+    m_Address: Data/Images/71_GrazeCustom
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0fc6bb08f25009a48aaeb1100a3e0ec7
+    m_Address: Data/Images/142_Airframe Seizure
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 125ddcb8dcc9b224a92a4a6e6200c8e4
+    m_Address: Data/Images/Girty Lue
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 15793a0f4375df342a836135ecb5a61e
+    m_Address: Data/Images/65_WhiteBase
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1c792975fe1bdbc4e8d0b212f5307837
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-07-28 191824"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1d957169a22b3864d86bdfb0d137cc39
+    m_Address: Data/Images/92_Quess's Jagd Doga
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1e60fccbf0967d946a199c53022eef0f
+    m_Address: "Data/Images/17_\u30B8\u30E3\u30B9\u30C6\u30A3\u30B9\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1ef2617a7d77deb46a731888cfcac119
+    m_Address: Data/Images/Lauda Neill
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1f0cc01921f9b844bad5289f3a1d7535
+    m_Address: Data/Images/88_AmuroRay
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1f206c695b4b1e04e8f10b246a123c0a
+    m_Address: Data/Images/80_Gundam Deathscythe
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1fbb7e06a03c6e84fbb787a7eebd048a
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-07-01 16.26.56"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2041f76156dd443ea5ab2c22544889aa
+    m_Address: Data/Images/RewloolaRewloola
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 210b2d5d19a1e774b9a89cad9989bfc0
+    m_Address: Data/Images/119_Gundam Rose
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 22aac9c8b29204244b6fae8a02f8bc13
+    m_Address: "Data/Images/18_\u30B9\u30C8\u30E9\u30A4\u30AF\u30EB\u30FC\u30B8\u30E5"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2359b5aefa3aa084780549ff8bb7f16a
+    m_Address: Data/Images/22_UnicornGundum
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 249c4173d7d3c204b97f9021040f665e
+    m_Address: Data/Images/63_Tallgeese
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2522405d2ca272942987ee6f840be293
+    m_Address: Data/Images/A Wind Against Fires
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2647982eec34e374ea266793825541dd
+    m_Address: Data/Images/105_Quess Paraya
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 26637c6f0bd89dd4db9979c00c1c223c
+    m_Address: Data/Images/Wings of Light
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 267acbbf2b8b42541931f248642e2e7c
+    m_Address: Data/Images/24_XI GUNDAM
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 26dada865db9f08418f2b16d2395dc26
+    m_Address: Data/Images/28_Close Combat
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 28507830f912ac64eacb0115d3015443
+    m_Address: Data/Images/44_KenpFar
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 29e3a1ff4d5f2c241a734b145d1a5e4a
+    m_Address: Data/Images/59_Launcher Strike Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2a7af236e908aa144a2cd5f08d57149a
+    m_Address: Data/Images/36_Aegis Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2b946764bf3b8584f835522931a29920
+    m_Address: "Data/Images/19_\u30B2\u30EB\u30B0\u30B0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2cf78103eb4b8bf4d82c72ac0c6b4499
+    m_Address: Data/Images/At the Risk of One's Life
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2d4f5086bc3d9a04c8e42782ce58c7a5
+    m_Address: Data/Images/Destiny Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2e52143fd6a23874d84cc3336c2be84c
+    m_Address: Data/Images/Noin's Taurus
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2f597dcbf838c584496a4218f0c26fa2
+    m_Address: Data/Images/Gundam Kyrios (Flight Mode)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 31e7f532f05f7a442a4585c9734293c6
+    m_Address: Data/Images/106_Gyunei Guss
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 322510a5b87e0414085abeacc665585d
+    m_Address: Data/Images/Gundam Sandrock Custom (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 32a5da3f5cfdc274ebfc7743bfba340c
+    m_Address: Data/Images/111_NT Research Institute Director
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 33bb74a974d09bd46bbafbdd2296758f
+    m_Address: Data/Images/54_A Show of Resolve
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 34c1f6dcb8647394ea312be535b91cd2
+    m_Address: Data/Images/Gundam Calibarn
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 35014bb5b4a73684785e93b9e0f56fd1
+    m_Address: Data/Images/Stellar Loussier
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 36ec316c3f4645d47bb4ec6c6c524f87
+    m_Address: Data/Images/115_Dragon Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 385ce68dd1bf34741a357c675b1801c5
+    m_Address: Data/Images/Incendiary Spark
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 38c15df03f8da704ca56420ca07805d4
+    m_Address: Data/Images/Tallgeese3
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3a231487733ec6f4eb76843185105d65
+    m_Address: "Data/Images/4_\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3aaf55f9a92860048a0c4d20eb4f030e
+    m_Address: Data/Images/Gundam Aerial Rebuild
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3acdc28d493f5bb4eb56ee9f8d66f49c
+    m_Address: Data/Images/Gundam Barbatos Lupus Rex
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3c280d7c1c601064f83432361a142b3e
+    m_Address: Data/Images/38_Perfect Strike Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3cdee757c86c16f44a0adbc3e7e29716
+    m_Address: Data/Images/Gundam AGE-2 Normal (SP Ver.)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3ce398b0748827a4a97caba6be7295b4
+    m_Address: Data/Images/50_Rick Dias
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3e6971951a137224b9fcc926552b0af2
+    m_Address: "Data/Images/20_\u4E88\u671F\u305B\u306C\u51FA\u6765\u4E8B"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3e7b110cfb517b149bf397dac77ff80a
+    m_Address: "Data/Images/15_\u6EA2\u308C\u308B\u6148\u611B"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3e981edfb21084949bfe2cc3bc791599
+    m_Address: Data/Images/Destroy Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4157503773b07e543a40833e769b831b
+    m_Address: "Data/Images/9_\u30D6\u30E9\u30B9\u30C8\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 42c561731d1818a45a42c783e3277615
+    m_Address: Data/Images/Calamity Gundam & Raider Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 43fde1486671ee34cba1f0ec05a98b8f
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-05-31 104237"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 44d4ed6846bf9fe4e81a83764bfe1f76
+    m_Address: Data/Images/Exass
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4561a30053b757b42a3b1098067a0f1f
+    m_Address: Data/Images/30_30Vesalius
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 45d71468c25ce7541aa63d93a4c7c699
+    m_Address: Data/Images/132_Gundam Fight
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 45fa035d6ea541e4bb821a2f718c123b
+    m_Address: "Data/Images/13_\u30DF\u30CD\u30EB\u30D0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4a8b969af98243a46814089331f54372
+    m_Address: Data/Images/61_Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4aa70ff3f3e2ee04f997a31169d773e1
+    m_Address: Data/Images/Gaia Gundam (MA Mode)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4bdfcbae55126c146a48dc94e4292a8c
+    m_Address: Data/Images/57_Fatom
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4c4d16b91ac116d4da1eaa58a3db37fb
+    m_Address: Data/Images/126_Master Asia
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4cbc289f2c05f674eaa296e6907af87a
+    m_Address: Data/Images/Pluma
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4d4e2d58cc09e3f41824af9715454474
+    m_Address: Data/Images/113_Cyclone Punch
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4d829155ad660be48a42282328711d73
+    m_Address: Data/Images/Gundam Gusion Rebake
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5114dc53b09f9cf44978dbde178200d5
+    m_Address: Data/Images/32_Jachin Due
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 52276877bd1b1494c87be2a5ffe6bf41
+    m_Address: Data/Images/97_Rezin's Geara Doga
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5256b295ee4f1374497073ef1ed64b2d
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-05-20 155000"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 527baf1b2f0147649bda95729b8761e6
+    m_Address: Data/Images/136_Strike Rouge (Ootori)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 529114f185431124eb16131d3ec65c74
+    m_Address: "Data/Images/6_\u30AD\u30E9\u30E4\u30DE\u30C8"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 52fb8168eeec0ee4e8693a975155be41
+    m_Address: Data/Images/140_Zaku II
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 52fd8dfe9e0fa7d4eb543732ab5452eb
+    m_Address: Data/Images/109_Mutual Attraction
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5340a9d677563724f8cddfa068cbb8a2
+    m_Address: Data/Images/Prospera Mercury
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5381ac974a1d40f4cbd7cc6843a292f6
+    m_Address: Data/Images/84_Nu Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5442ca2c5e97be148ab2b1ea79856389
+    m_Address: Data/Images/Michaelis
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5520d9bf29c01874f9954be84a8398e5
+    m_Address: Data/Images/Gundam Exia Repair
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 56c56151c02e5d84e89ded1f77407c48
+    m_Address: Data/Images/101_Gyunei's Jagd Doga
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 570c16d0d74f7ce4d81014fdb854170a
+    m_Address: "Data/Images/1_\u30D0\u30A4\u30A2\u30E9\u30F3\u30AB\u30B9\u30BF\u30E0\u30C6\u30B9\u30C8"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 577ef0cc664f02f478770557eb22e4ed
+    m_Address: "Data/Images/11_\u30D5\u30EA\u30FC\u30C0\u30E0\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5a01715a63a1d1b4ebfd54e6bf2027ad
+    m_Address: Data/Images/Gundam Deathscythe Hell (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5a443ded8e503a64a9479d4e95c320a9
+    m_Address: Data/Images/48_Dopp
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5a6a4619e54b21d4b85cdbfd76253c76
+    m_Address: Data/Images/66_Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5c9dbf1c09a726845a1f47508aeda108
+    m_Address: Data/Images/130_Hoka Kyoten Juzetsujin
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5dfb7229be2ed4747ba0a7b08629ee2c
+    m_Address: Data/Images/25_gim
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5f042bc4b4d14314fab8de337a882f7f
+    m_Address: Data/Images/37_Aile Strike Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5f5541665031bb04591c82a70ff4f45e
+    m_Address: Data/Images/74_Hyzaku
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5f827a8f9917ab547a2f29f46a0b3191
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-05-20 154055"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 600b875ba88ae3546a4f2ca2c284beff
+    m_Address: Data/Images/58_Athrun Zala
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 606d9d4ec82042941a1b8865507334cd
+    m_Address: Data/Images/Gundam Schwarzette
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 614c16a5ca095734e873aa176feabd96
+    m_Address: Data/Images/Force Impulse Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 619b27aa2eeb28c4e9e5970b9352624e
+    m_Address: Data/Images/Javelin
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 635ad84693f6f274b96e8d5df077d8a7
+    m_Address: Data/Images/56_Nyaan
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 678f7f2ae6282c549acf0b4b0d9edcd8
+    m_Address: Data/Images/98_Gyunei's Jagd Doga
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 67f335d6a5e3413cbedd440a309d6971
+    m_Address: "Data/Images/5_\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 693e111dc01961c4d8af4d6170332663
+    m_Address: Data/Images/Heero Yuy
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 69a5b2f304cdda04ba38ac6349a2d617
+    m_Address: Data/Images/137_Wire-Guided Arm
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6ba03d97fbbf1e942bd582449ea97158
+    m_Address: Data/Images/Quatre Raberba Winner
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6df0a64a15ad09c44b10ea986cb610a8
+    m_Address: Data/Images/64_Leo
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6e9a76e57aecc854f83cd00ba48b11cc
+    m_Address: Data/Images/127_Darkness Finger
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6fcaaa716424ec0478041352c379027b
+    m_Address: Data/Images/53_Gundam Barbatos Adapt
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 72f53fae7e51c6344b4a167a1f7ba11c
+    m_Address: Data/Images/39_Amuro Ray
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7391d39123abea642a824ba38a7af03f
+    m_Address: Data/Images/Gundam Barbatos Lupus
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 74b6d852d1b424f45b4696147d256716
+    m_Address: Data/Images/Trowa Barton
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 74eb3288dc17adb419b61331691c1313
+    m_Address: Data/Images/125_Bolt Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 75c33e4542d5b964fb1bb597556209ee
+    m_Address: Data/Images/Interwoven Blessings
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 77674724c72e3f34383246292ca07533
+    m_Address: Data/Images/Chaos Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 77a81039ad3f05b4aa875d3670cda625
+    m_Address: Data/Images/87_Re-GZ
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 78b9597b7e17b1b459195814a8f91a29
+    m_Address: Data/Images/128_Rose Screamer
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7902b547487d0d04faff12ff17b94d6a
+    m_Address: Data/Images/120_Domon Kasshu
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 791172811a91e2143867512b0334486a
+    m_Address: Data/Images/10000_EffectTestUnit
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d
+    m_Address: Data/Images/Asshimar
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7aed06f3db3b15c4f918ace1bbb5f83e
+    m_Address: Data/Images/51_Gundam Lfrith
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7d15f7b90abd3f04c8bc2f4fcfa05e23
+    m_Address: Data/Images/34_GuAIZ (Commander Type)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7dc1a4b5af568104cadc548dc00598ef
+    m_Address: Data/Images/Abyss Gundam (MA Mode)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7dd1e07ae8e8a334c9d16c35a58cb916
+    m_Address: Data/Images/46_Shinanju
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 816e619e228317d409013bcd0409cd32
+    m_Address: Data/Images/76_Anksha
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 817fd552ba7ebbe45a326be103884625
+    m_Address: Data/Images/141_Delta Plus
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 81b34dbb7aa42514fadf3ea3c7ae2eed
+    m_Address: Data/Images/Archangel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 81e5284e11caaab49a1d5fe7a5fa4a93
+    m_Address: Data/Images/131_Graviton Hammer
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 824aa4e85c266864885396e173178232
+    m_Address: Data/Images/124_Royal Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 838e6a1df1b2a6b41bf2be82c798d801
+    m_Address: "Data/Images/8_\u30D5\u30A9\u30FC\u30B9\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 87310f8cd6bb73d458bedaafefcb27d6
+    m_Address: Data/Images/33_33Valiant
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8844baf7b6ad3f243b55938de71e589d
+    m_Address: Data/Images/100_Hobby Hizack
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 893abb0029745d44cb4d2a6e79ad0a70
+    m_Address: Data/Images/55_G-fred
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e
+    m_Address: Data/Images/Gun Blaster
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8c75180ab4b4f4349af19534df1d7bb4
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-06-08 201217"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 915e0a7fb2e55e445923a9534ed41120
+    m_Address: Data/Images/23_Jegan
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 94366088d8817fc4bb0940891913cb1c
+    m_Address: Data/Images/104_Axis
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 96b20f0c191cfce4d964929bf2fa7c8f
+    m_Address: "Data/Images/43_Char's Zaku \u2161"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 97cd251d2094af84bb01effe1c6393ca
+    m_Address: Data/Images/Abyss Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 987808310cd3f83459298e60c3911bdf
+    m_Address: Data/Images/121_Shining Gundam(LR)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9bc7da37c9188b945bfc516edb799317
+    m_Address: Data/Images/114_Gundam Maxter
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9c0127ca552146339a8f417df4a152ac
+    m_Address: Data/Images/Hyakuren
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f
+    m_Address: Data/Images/Kira's Strike Rouge
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9c7773b89c419c74791d62902d680a2a
+    m_Address: Data/Images/99_Geara Doga
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9cf42333626e34147ab9285f757a3346
+    m_Address: "Data/Images/\u30AB\u30FC\u30C9\u30EA\u30B9\u30C8  GUNDAM CARD GAME
+      \u516C\u5F0F\u30B5\u30A4\u30C8 (1).jpeg"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9eb71273a64afcf4eb24c3d32b22ad8f
+    m_Address: Data/Images/Hashmal
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9fbfe04d3903eea44a28d1d1bd970ff2
+    m_Address: Data/Images/29_GQuuuuuuX (Omega Psycommu)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9ff62ecadc8ecba4e916a501883a3789
+    m_Address: Data/Images/68_Guntank
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0684d637a138a64e88b78991da37835
+    m_Address: Data/Images/Gavane's Borjarnon
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0b1c2d3e4f5061728394a5b6c7d8e9f
+    m_Address: Data/Images/M1 Astray Shrike
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a2814396171449a439f4f5b6b5f2e428
+    m_Address: Data/Images/Gaia Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a3ec779b5576e7b4aba06db9b6d5e6db
+    m_Address: Data/Images/Andrew Waldfeld
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a3fa765a5d34c9c479156491d796fc8e
+    m_Address: Data/Images/45_Zaku 2 FZ
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a40992a9cc30fda468a706b47f34cece
+    m_Address: Data/Images/135_Akatsuki (Oowashi)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a45bf74a267ef8b48972f89e2f4715a9
+    m_Address: Data/Images/Flat (Militia)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a5c456e61eadc0c4aab524af0c619186
+    m_Address: "Data/Images/10_\u30BD\u30FC\u30C9\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a7627197f2f0a44468ab0492896d50bb
+    m_Address: Data/Images/49_Giant Killing
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a836612da37493b47a83ebab43c19445
+    m_Address: Data/Images/60_Archangel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a9dc9036a8a495840a94f6d2398dd79c
+    m_Address: Data/Images/52_Zoloat (League Militaire)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ab43f231b9a21fb49bc276ec2c294943
+    m_Address: Data/Images/Altron Gundam (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ac08c4455e9ed90409f60d0efc16c0a1
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2025-12-27 18.32.27.jpeg"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: acbc8af0453fe894fb588d7edc46697e
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-08-04 161019"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: aefcf033d33408140b6c42a5838dd0c5
+    m_Address: Data/Images/Demi Barding
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: af80c9162812ad4439ad582ec122f877
+    m_Address: Data/Images/133_V2 Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: af9c6a3e7cd1f85459708f86fb21ea9e
+    m_Address: Data/Images/White Ark
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b00d398040bf6b048b04d55be02f9a1b
+    m_Address: Data/Images/93_Quess Paraya
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b16f4871c807ea9448a191b59c7ded68
+    m_Address: Data/Images/40_Silver Bullet
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b1c2d3e4f5061728394a5b6c7d8e9f0a
+    m_Address: Data/Images/Murasame
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b2e382e9965ff3d4aa60565dcec658b7
+    m_Address: "Data/Images/14_\u30B7\u30F3\u30A2\u30B9\u30AB"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b5a113bc7a926724b9a7bcda7b7486a4
+    m_Address: Data/Images/82_Improved Technique
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b67d169119b5dae419a943259a9ee789
+    m_Address: Data/Images/42_RickDom
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b7bf066863cb416489423b1c939e5719
+    m_Address: Data/Images/Chaos Gundam (MA Mode)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b7fd67c4fcdc20244bd3a16880a572be
+    m_Address: Data/Images/Not with Scattershot!
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b9247628bba421642a2cf1b85224fda7
+    m_Address: Data/Images/26_gumtank
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b95de9379780b874a885a7c074238397
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-08-06 153331"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: bbff6ffe70b6c3447bf480189a7d0fcd
+    m_Address: "Data/Images/78_\u30AD\u30E9\u30E4\u30DE\u30C8"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: bd450d003fa9b864c81f9ef853bc2beb
+    m_Address: Data/Images/Exclusively Defense-Oriented Policy
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: be42a39e597919249b5e65c8d8841f89
+    m_Address: Data/Images/Gundam AGE-2 Double Bullet
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: be4745e190bb9234fb9e7e16c082ae54
+    m_Address: Data/Images/Auel Neider
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c354e66ed37362d4db6df773246878d3
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-08-12 163737"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c3fd051abc7734d45bf1afd00a4f2805
+    m_Address: "Data/Images/0_\u30E6\u30CB\u30B3\u30FC\u30F3\u30AC\u30F3\u30C0\u30E0(\u30D0\u30F3\u30B7\u30A4)"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c40792143f133054d9b0c4638cacd82b
+    m_Address: Data/Images/118_Neros Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c4cf2b02c1092de4a9e37968b04c7a78
+    m_Address: Data/Images/108_Ra Cailum
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c4db0f2dd11272f48b472eda573c74bc
+    m_Address: Data/Images/81_Duo Maxwell
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c5bb53533a5d541469f131c253c5d7b9
+    m_Address: Data/Images/Felsi's Plea
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c65f37de2564be5478df2cc8e365c385
+    m_Address: Data/Images/102_Kayra Su
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c71c235321e4d1a45ad4b26182d4d378
+    m_Address: Data/Images/Forbidden Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c8a026140ad4645499b74c966694e15f
+    m_Address: Data/Images/Quiet Zero
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c8e4f2a19b3d5e7f0a1c2d3e4f5a6b7c
+    m_Address: Data/Images/122_Shining Gundam (Super Mode)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c97699cb95e88294cb20e5bf542760f0
+    m_Address: Data/Images/77_StrikeFreedomgandom
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ca4359c8334d6cc46bcce6207d23e502
+    m_Address: "Data/Images/2_\u30D0\u30F3\u30B7\u30A4"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: cacf17bda7266a142afa3e188b55a6e4
+    m_Address: "Data/Images/\u30D5\u30A1\u30A4\u30EB_000"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: cae2c4625014e9d4f9a2258b6cb3aeac
+    m_Address: Data/Images/103_Char Aznable
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ccbd449721f414a48bd989604b92d765
+    m_Address: Data/Images/Mutual Attraction
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce16a6a9924c1d74092107e064833298
+    m_Address: Data/Images/112_Master Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce52364a88c12f042ac28dab92b96a64
+    m_Address: Data/Images/Leo
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce63e4769f6c3ef4d82c5cd669fea1ed
+    m_Address: Data/Images/31_Mining Asteroid Palau
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: cf8461d80c5ff624ba155b545b5c4d2e
+    m_Address: Data/Images/79_Flat (Militia)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d0115f1ecf2f99b4289416a817fcf358
+    m_Address: Data/Images/Gun EZ
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d0240f4d3e671b94aa92ce25d6ce7b19
+    m_Address: Data/Images/86_Re-GZ BWS
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d19caba588932d64abe0180447fc4545
+    m_Address: Data/Images/Wing Gundam Zero (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d2316d13a812d914fa774b11b801783a
+    m_Address: Data/Images/116_Haow Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d29ae2553eb78ad4aa473dc6aecf7a7a
+    m_Address: Data/Images/Overcoming Hardships
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d2ae3bd2caa55994caf4aa41106ce7d8
+    m_Address: Data/Images/Sting Oakley
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d3480e8e3ba85204ba8ccf2b872d9d36
+    m_Address: Data/Images/72_ZakuWarrior
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d410f40f71753674182438401582bb12
+    m_Address: Data/Images/1000000_EffectTestPilot
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d56f844ceb094584f85582299aeb1a18
+    m_Address: Data/Images/35_Ginn
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d7589ab196ab23644b1a5ab60622fbb9
+    m_Address: Data/Images/Desultor
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d8439cd48a62cf641aa969d9c84dd7ce
+    m_Address: Data/Images/70_Mikazuki Augus
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d9843d9fcef7fea46aaefe3a189aef25
+    m_Address: "Data/Images/7_\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d9c636d251a744643b9216fc22e2f40f
+    m_Address: Data/Images/83_Nu Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: df82f484f608f594cbdd434c82aafa53
+    m_Address: Data/Images/90_Kayra''s Re-GZ
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dfa4ce48833537243b94bab341e65420
+    m_Address: Data/Images/Chad Chadan
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dfc734e5afcb3504183b05fcb06fd6f1
+    m_Address: Data/Images/117_Shining Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e12a067db42f6ac42aa1a35edd7fc2d5
+    m_Address: Data/Images/95_Sazabi
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e3193faffd6fd6c458805bd97e35378c
+    m_Address: Data/Images/73_00Gundom
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e331a55b36da97f42a9c8b495e7529fa
+    m_Address: Data/Images/134_Waldfeld's Murasame
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e468c9e85d49fca44addf46d2f82cc52
+    m_Address: Data/Images/Odelo Henrik
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e4de227adf35310499f0fd63fda121b4
+    m_Address: Data/Images/75_Nemo
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e57712237d018174bab8229972708160
+    m_Address: Data/Images/85_Jegan
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e57aefc152ed82c429f3189a6e230ffa
+    m_Address: "Data/Images/16_\u30D5\u30EA\u30FC\u30C0\u30E0\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e5c93344acdfad84ebc7b696d0591cd4
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-04-04 215305"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e66cc734c843434cae2b0bc2cc505bd9
+    m_Address: Data/Images/Sword Strike Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e6f43aa643052644e952ef5f815b5300
+    m_Address: Data/Images/Guel's Dilanza
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e738353718f6c0542a845f3befc31920
+    m_Address: "Data/Images/12_\u30B8\u30E3\u30A4\u30A2\u30F3\u30C8\u30AD\u30EA\u30F3\u30B0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e88b64a36acacd34aacc43ac7692cb82
+    m_Address: Data/Images/Become a Shield
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e8f9a0b1c2d3e4f5061728394a5b6c7d
+    m_Address: Data/Images/Neros Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ea98339a3f5fecc438749fa9d747fbee
+    m_Address: Data/Images/69_Gundam Barbatos 1st Form
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: eb53a68232034b7eaad052a6ca2c2528
+    m_Address: Data/Images/Gundam Barbatos Lupus(GD03)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: eb5a6d08a23e98b43bdf5ca6af11e5a4
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-08-06 144811"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: eb8a5631ac52802419c33c053f7114ad
+    m_Address: Data/Images/91_Sazabi
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f14dff45d14d32b44adf3f351291c7d0
+    m_Address: Data/Images/62_Corsica Base
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f2748c183420f224ca97288ae199b357
+    m_Address: Data/Images/47_Angelos GeraZulu
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f2b43d52ea2df1f48836ea6e8689ba49
+    m_Address: Data/Images/20000_EffectTestUnit2
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f355797668735c746ad084188d934621
+    m_Address: Data/Images/Cagalli Yula Athha
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f35f04371d285244f809d64d1333312b
+    m_Address: "Data/Images/\u30AB\u30FC\u30C9\u30EA\u30B9\u30C8  GUNDAM CARD GAME
+      \u516C\u5F0F\u30B5\u30A4\u30C8.jpeg"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f406483bdd2ac2c46a9c8766b1862403
+    m_Address: Data/Images/139_Zeong
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f40fffdcf1144934499ac602b057f5e5
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2026-04-04 215333"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f4a86792d5dac5145969698d3a162177
+    m_Address: "Data/Images/\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
+      2025-12-27 18.33.07.jpeg"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f5890786072ee23478d63aada7bd9f45
+    m_Address: Data/Images/Gundam Heavyarms Custom (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f67779afd95c12a4da6a3310bcb071c8
+    m_Address: "Data/Images/3_\u30E6\u30CB\u30B3\u30FC\u30F3\u30AC\u30F3\u30C0\u30E0"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f7965f6d8de775041b67c4b0639689a6
+    m_Address: Data/Images/Gundam Flauros (Ryusei-Go)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fd5b9ee6c924c6d409cbea5e003875e6
+    m_Address: Data/Images/Presidential Office
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ff5a4f8050a834d418975394c0dbc28c
+    m_Address: Data/Images/123_Rising Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 73cbac16b1c70944cbf6d57d738e16f5, type: 2}
+    - {fileID: 11400000, guid: b790d0ce7ae984547b582724aa76def9, type: 2}

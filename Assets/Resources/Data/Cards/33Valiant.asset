@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 0
   hp: 5
-  imageName: {fileID: 21300000, guid: 87310f8cd6bb73d458bedaafefcb27d6, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/33_33Valiant"
   version: 1
   sourceType: 1
   filterType: 0

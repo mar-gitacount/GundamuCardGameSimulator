@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 3
   power: 2
   hp: 4
-  imageName: {fileID: 7870707770496230493, guid: b1c2d3e4f5061728394a5b6c7d8e9f0a, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Murasame"
   version: 5
   sourceType: 1
   productLine: 0

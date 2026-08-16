@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -8734945431283989276, guid: 7dc1a4b5af568104cadc548dc00598ef, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Abyss Gundam (MA Mode)"
   version: 5
   sourceType: 1
   productLine: 1

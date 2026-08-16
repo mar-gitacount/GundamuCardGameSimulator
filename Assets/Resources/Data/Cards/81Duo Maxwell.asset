@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 1
   hp: 2
-  imageName: {fileID: 3297126399465329336, guid: c4db0f2dd11272f48b472eda573c74bc, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/81_Duo Maxwell"
   version: 1
   sourceType: 1
   filterType: 0

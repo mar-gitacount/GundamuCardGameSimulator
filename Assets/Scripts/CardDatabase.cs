@@ -89,7 +89,7 @@ public class CardDatabase : MonoBehaviour
         level = card.level,
         power = card.power,
         hp = card.hp,
-        imageName = card.imageName != null ? card.imageName.name : "",
+        imageName = card.GetImageLeafNameForJson(),
         version = card.version,
         sourceType = (int)card.sourceType,
         productLine = (int)card.productLine,
@@ -123,32 +123,24 @@ CardData ConvertToCardData(CardJson json)
     card.power = json.power;
     card.hp = json.hp;
 
-    // Sprite を Resources から復元（アセット参照がある場合はそれを優先）
+    // 画像は Addressables アドレスのみ（Sprite 直参照・Resources.Load しない）
     if (cardDict != null && cardDict.TryGetValue(json.id, out CardData assetCard) && assetCard != null
-        && assetCard.imageName != null)
+        && !string.IsNullOrWhiteSpace(assetCard.imageAddress))
     {
-        card.imageName = assetCard.imageName;
+        card.imageAddress = assetCard.imageAddress.Trim();
     }
     else if (!string.IsNullOrEmpty(json.imageName))
     {
-        Debug.Log($"画像名が存在するため、カードID {json.id} の画像を読み込もうとしています: {json.imageName}");
-        Sprite sprite = Resources.Load<Sprite>($"Data/Images/{json.imageName}");
-        if (sprite == null)
-        {
-            sprite = Resources.Load<Sprite>($"Data/Cards/{json.imageName}");
-        }
-
-        card.imageName = sprite;
-        if (sprite == null)
-        {
-            Debug.LogWarning($"カードID {json.id} の Sprite が見つかりません: {json.imageName}");
-        }
+        card.SetImageAddressFromLeaf(json.imageName.Trim());
     }
     else
     {
-        Debug.LogWarning($"画像名が空のため、カードID {json.id} の画像を読み込めませんでした");
-        card.imageName = null;
+        card.imageAddress = string.Empty;
+        Debug.LogWarning($"画像名が空のため、カードID {json.id} の imageAddress を設定できませんでした");
     }
+
+    card.imageName = null;
+    card.image = null;
 
     card.version = json.version;
     // card.sourceType = (CardData.CardSourceType)json.sourceType;
@@ -220,8 +212,6 @@ public void LoadAllCards()
 
     foreach (var card in cards)
     {
-        Debug.Log($"カード読み込み: ID={card.id}, 名前={card.cardName}, 画像={card.imageName}, version={card.version}");
-
         // Runtime用Dictionary
         cardDict[card.id] = card;
 
@@ -271,7 +261,6 @@ public CardData FindById(int id)
 {
     if (cardDict.TryGetValue(id, out var card))
     {
-        Debug.Log($"ID {id} のカードが見つかりました: 名前={card.cardName}, 画像={card.imageName}, version={card.version}");
         return card;
     }
     Debug.LogWarning($"ID {id} のカードが存在しません");
@@ -281,8 +270,7 @@ public CardData FindById(int id)
     public List<CardData> FindByNameContains(string keyword)
     {
         var result = new List<CardData>();
-        // JSONから CreateInstance すると imageName(Sprite) が空になる。
-        // 検索表示は Resources 上の CardData（Sprite 参照付き）を使う。
+        // JSONから CreateInstance すると画像は imageAddress のみ。表示は CardSpriteLoader 経由。
         string key = keyword ?? string.Empty;
         foreach (CardData card in cardDict.Values)
         {
@@ -295,7 +283,7 @@ public CardData FindById(int id)
             {
                 result.Add(card);
                 Debug.Log(
-                    $"検索ヒット: ID={card.id}, 名前={card.cardName}, 画像={(card.imageName != null ? card.imageName.name : "null")}");
+                    $"検索ヒット: ID={card.id}, 名前={card.cardName}, 画像={(string.IsNullOrEmpty(card.imageAddress) ? "null" : card.imageAddress)}");
             }
         }
 

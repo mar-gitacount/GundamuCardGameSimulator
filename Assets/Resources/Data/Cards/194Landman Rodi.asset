@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 8484347718238199770, guid: 0416c9842e5c87746b49ba35f384d89d, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Landman Rodi"
   version: 5
   sourceType: 1
   productLine: 1

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 0
   hp: 5
-  imageName: {fileID: 21300000, guid: 15793a0f4375df342a836135ecb5a61e, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/65_WhiteBase"
   version: 1
   sourceType: 2
   filterType: 0

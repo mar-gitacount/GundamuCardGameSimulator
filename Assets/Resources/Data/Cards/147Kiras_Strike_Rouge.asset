@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 4
   power: 3
   hp: 4
-  imageName: {fileID: 5870707770496230491, guid: 9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Kira\u0027s Strike Rouge"
   version: 5
   sourceType: 1
   productLine: 0

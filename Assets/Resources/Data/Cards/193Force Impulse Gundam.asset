@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -8457958927924261287, guid: 614c16a5ca095734e873aa176feabd96, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Force Impulse Gundam"
   version: 5
   sourceType: 1
   productLine: 1

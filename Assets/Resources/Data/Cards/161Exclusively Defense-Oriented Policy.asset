@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -4175202012445451802, guid: bd450d003fa9b864c81f9ef853bc2beb, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Exclusively Defense-Oriented Policy"
   version: 5
   sourceType: 1
   productLine: 1

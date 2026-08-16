@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 2
   power: 2
   hp: 1
-  imageName: {fileID: 7219313052181799459, guid: 5520d9bf29c01874f9954be84a8398e5, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gundam Exia Repair"
   version: 5
   sourceType: 1
   productLine: 1

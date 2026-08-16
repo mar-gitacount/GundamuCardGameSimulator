@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -2915209462701658891, guid: 2e52143fd6a23874d84cc3336c2be84c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Noin\u0027s Taurus"
   version: 5
   sourceType: 1
   productLine: 1

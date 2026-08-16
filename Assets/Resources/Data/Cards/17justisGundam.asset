@@ -13,15 +13,22 @@ MonoBehaviour:
   m_Name: 17justisGundam
   m_EditorClassIdentifier: 
   id: 17
-  cardName: "\u30B8\u30E3\u30B9\u30C6\u30A3\u30B9\u30AC\u30F3\u30C0\u30E0"
+  gcgOfficialId: 
+  cardName: justisGundam
   cost: 5
   level: 7
   power: 5
   hp: 5
-  imageName: {fileID: 21300000, guid: 1e60fccbf0967d946a199c53022eef0f, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/17_\u30B8\u30E3\u30B9\u30C6\u30A3\u30B9\u30AC\u30F3\u30C0\u30E0"
   version: 1
   sourceType: 1
+  productLine: 0
+  boosterSet: 0
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 5
   type: 0
@@ -42,6 +49,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -54,6 +62,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -64,8 +74,12 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -74,6 +88,16 @@ MonoBehaviour:
       autoSelectLowestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
@@ -92,6 +116,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -104,6 +129,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions:
       - boardSide: -1
@@ -124,6 +151,8 @@ MonoBehaviour:
         pilotLevelThreshold: 0
         activationStatTarget: -1
         observedCardType: 0
+        destroyedByOwnerRelation: 0
+        cardNameContains: 
       filterTargetUnitLevel: 0
       filterByTargetCardType: 1
       targetCardType: 5
@@ -132,8 +161,12 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -142,12 +175,25 @@ MonoBehaviour:
       autoSelectLowestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features: []
+  pilotIds: []
   link:
   - pilotCardId: 58
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -158,3 +204,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0

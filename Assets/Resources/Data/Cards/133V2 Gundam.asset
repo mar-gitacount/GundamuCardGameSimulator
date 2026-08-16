@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 4
   hp: 5
-  imageName: {fileID: -7875016689111741613, guid: af80c9162812ad4439ad582ec122f877, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/133_V2 Gundam"
   version: 5
   sourceType: 2
   filterType: 0

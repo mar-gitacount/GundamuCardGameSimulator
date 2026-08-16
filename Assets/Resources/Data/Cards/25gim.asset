@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 2
   hp: 2
-  imageName: {fileID: 21300000, guid: 5dfb7229be2ed4747ba0a7b08629ee2c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/25_gim"
   version: 4
   sourceType: 2
   filterType: 0

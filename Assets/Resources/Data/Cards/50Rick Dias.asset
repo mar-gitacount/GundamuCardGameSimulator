@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 3
   hp: 3
-  imageName: {fileID: 21300000, guid: 3ce398b0748827a4a97caba6be7295b4, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/50_Rick Dias"
   version: 2
   sourceType: 1
   filterType: 0

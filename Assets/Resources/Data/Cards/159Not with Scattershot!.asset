@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -4187605564337043163, guid: b7fd67c4fcdc20244bd3a16880a572be, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Not with Scattershot!"
   version: 5
   sourceType: 1
   productLine: 1

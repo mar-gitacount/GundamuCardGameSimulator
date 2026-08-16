@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 4
   hp: 4
-  imageName: {fileID: 7434950526670777746, guid: d2316d13a812d914fa774b11b801783a, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/116_Haow Gundam"
   version: 5
   sourceType: 1
   filterType: 0

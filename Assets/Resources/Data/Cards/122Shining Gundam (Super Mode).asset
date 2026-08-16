@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 4
   hp: 5
-  imageName: {fileID: 4829103746582910374, guid: c8e4f2a19b3d5e7f0a1c2d3e4f5a6b7c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/122_Shining Gundam (Super Mode)"
   version: 5
   sourceType: 1
   filterType: 0

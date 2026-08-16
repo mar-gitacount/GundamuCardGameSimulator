@@ -1025,9 +1025,9 @@ public void cardObj(int cardId, GameObject preferredTemplate = null)
     if (cardDataAsset != null)
     {
         Image cardImage = copy.GetComponent<Image>();
-        if (cardImage != null && cardDataAsset.imageName != null)
+        if (cardImage != null)
         {
-            cardImage.sprite = cardDataAsset.imageName;
+            CardSpriteLoader.ApplyToImage(cardImage, cardDataAsset);
         }
     }
 
@@ -1524,8 +1524,6 @@ public void ShowFileList()
         int thumbId = DeckStorageService.ResolveThumbnailId(
             BuildCountMap(data),
             data.thumbnailId);
-        Sprite thumbSprite = ResolveCardSprite(thumbId);
-
         GameObject thumbGo = new GameObject(
             "Thumbnail",
             typeof(RectTransform),
@@ -1537,7 +1535,7 @@ public void ShowFileList()
         thumbLayout.preferredHeight = 132f;
         thumbLayout.minHeight = 120f;
         Image thumbImage = thumbGo.GetComponent<Image>();
-        thumbImage.sprite = thumbSprite;
+        CardSpriteLoader.ApplyToImage(thumbImage, thumbId);
         thumbImage.preserveAspect = true;
         thumbImage.raycastTarget = false;
         thumbImage.color = Color.white;
@@ -1622,30 +1620,7 @@ public void ShowFileList()
 
     private static Sprite ResolveCardSprite(int cardId)
     {
-        if (cardId <= 0)
-        {
-            return null;
-        }
-
-        if (CardDatabase.Instance != null)
-        {
-            CardData data = CardDatabase.Instance.FindById(cardId);
-            if (data != null && data.imageName != null)
-            {
-                return data.imageName;
-            }
-        }
-
-        CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
-        for (int i = 0; i < all.Length; i++)
-        {
-            if (all[i] != null && all[i].id == cardId && all[i].imageName != null)
-            {
-                return all[i].imageName;
-            }
-        }
-
-        return null;
+        return CardSpriteLoader.ResolveEmbeddedSpriteByCardId(cardId);
     }
 
     private static string FormatDeckListDate(DateTime stamp)

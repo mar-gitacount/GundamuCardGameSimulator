@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 7
   power: 5
   hp: 6
-  imageName: {fileID: 2870707770496230488, guid: 9eb71273a64afcf4eb24c3d32b22ad8f, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Hashmal"
   version: 5
   sourceType: 1
   productLine: 0

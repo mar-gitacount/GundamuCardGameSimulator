@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 0
   power: 3
   hp: 1
-  imageName: {fileID: -7280626467932350327, guid: 02658f633d426ee4d9ee488b6182b146, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/138_Zeong (Head)"
   version: 5
   sourceType: 2
   filterType: 0

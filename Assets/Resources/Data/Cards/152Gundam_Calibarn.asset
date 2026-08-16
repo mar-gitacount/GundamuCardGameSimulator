@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 8
   power: 7
   hp: 5
-  imageName: {fileID: 8771562250130363755, guid: 34c1f6dcb8647394ea312be535b91cd2, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gundam Calibarn"
   version: 5
   sourceType: 1
   productLine: 0

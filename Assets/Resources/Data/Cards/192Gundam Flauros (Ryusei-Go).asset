@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 5
   power: 5
   hp: 3
-  imageName: {fileID: 6838179167926989869, guid: f7965f6d8de775041b67c4b0639689a6, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gundam Flauros (Ryusei-Go)"
   version: 5
   sourceType: 1
   productLine: 1

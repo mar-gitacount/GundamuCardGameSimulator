@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 5
   power: 4
   hp: 4
-  imageName: {fileID: 21300000, guid: b16f4871c807ea9448a191b59c7ded68, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/40_Silver Bullet"
   version: 4
   sourceType: 2
   filterType: 0

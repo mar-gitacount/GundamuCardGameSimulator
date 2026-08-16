@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -998959963773291700, guid: 42c561731d1818a45a42c783e3277615, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Calamity Gundam & Raider Gundam"
   version: 5
   sourceType: 1
   productLine: 1

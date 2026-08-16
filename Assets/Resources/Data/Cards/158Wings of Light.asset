@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 590933584154710255, guid: 26637c6f0bd89dd4db9979c00c1c223c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Wings of Light"
   version: 5
   sourceType: 1
   productLine: 1

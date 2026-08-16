@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 4
   hp: 3
-  imageName: {fileID: -5071616656870864803, guid: 817fd552ba7ebbe45a326be103884625, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/141_Delta Plus"
   version: 1
   sourceType: 1
   filterType: 0

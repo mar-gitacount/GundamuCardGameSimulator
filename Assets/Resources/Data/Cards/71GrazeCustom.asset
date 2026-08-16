@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 2
   hp: 2
-  imageName: {fileID: 21300000, guid: 0e094484b59d8484c833d97a5665f037, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/71_GrazeCustom"
   version: 4
   sourceType: 2
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 3
   hp: 2
-  imageName: {fileID: 2896791991058719559, guid: 824aa4e85c266864885396e173178232, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/124_Royal Gundam"
   version: 5
   sourceType: 1
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 3
   hp: 3
-  imageName: {fileID: 21300000, guid: b67d169119b5dae419a943259a9ee789, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/42_RickDom"
   version: 1
   sourceType: 2
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 4
   hp: 3
-  imageName: {fileID: 21300000, guid: 7d15f7b90abd3f04c8bc2f4fcfa05e23, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/34_GuAIZ (Commander Type)"
   version: 3
   sourceType: 1
   filterType: 0

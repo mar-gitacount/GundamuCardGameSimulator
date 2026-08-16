@@ -580,7 +580,9 @@ public class ScrollBottomChecker : MonoBehaviour
 
             Image img = obj.GetComponent<Image>();
             if (img != null)
-                img.sprite = carddata.imageName;
+            {
+                CardSpriteLoader.ApplyToImage(img, carddata);
+            }
 
             Card.EnsureNotUsedOnlineLabel(obj, carddata);
 

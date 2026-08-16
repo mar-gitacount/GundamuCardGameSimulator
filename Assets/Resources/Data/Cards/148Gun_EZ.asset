@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 2
   power: 2
   hp: 1
-  imageName: {fileID: 1229455927945685819, guid: d0115f1ecf2f99b4289416a817fcf358, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gun EZ"
   version: 5
   sourceType: 1
   productLine: 0

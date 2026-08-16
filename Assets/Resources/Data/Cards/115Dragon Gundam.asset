@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 5
   power: 4
   hp: 4
-  imageName: {fileID: -9136035123777294029, guid: 36ec316c3f4645d47bb4ec6c6c524f87, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/115_Dragon Gundam"
   version: 5
   sourceType: 1
   filterType: 0

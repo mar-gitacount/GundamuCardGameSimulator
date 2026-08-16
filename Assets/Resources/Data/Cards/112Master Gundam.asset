@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 7
   power: 5
   hp: 5
-  imageName: {fileID: -3768563775242045933, guid: ce16a6a9924c1d74092107e064833298, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/112_Master Gundam"
   version: 5
   sourceType: 1
   filterType: 0

@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 5348566342697328128, guid: 5442ca2c5e97be148ab2b1ea79856389, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Michaelis"
   version: 5
   sourceType: 1
   productLine: 1

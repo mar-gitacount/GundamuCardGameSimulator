@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -5696430525764102977, guid: dfa4ce48833537243b94bab341e65420, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Chad Chadan"
   version: 5
   sourceType: 1
   productLine: 1

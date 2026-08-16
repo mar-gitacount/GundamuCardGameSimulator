@@ -25,7 +25,7 @@ public class PlayerPrefsSaveData : ISaveData
             level = card.level,
             power = card.power,
             hp = card.hp,
-            imageName = card.imageName != null ? card.imageName.name : "",
+            imageName = card.GetImageLeafNameForJson(),
             version = card.version,
             sourceType = (int)card.sourceType,
             color = (int)card.color, // カードの色を追加
@@ -49,13 +49,15 @@ public class PlayerPrefsSaveData : ISaveData
         card.level = json.level;
         card.power = json.power;
         card.hp = json.hp;
-        if(!string.IsNullOrEmpty(json.imageName))
+        if (!string.IsNullOrEmpty(json.imageName))
         {
-            card.imageName = Resources.Load<Sprite>($"Data/Cards/{json.imageName}");
+            card.SetImageAddressFromLeaf(json.imageName);
         }
         else
         {
+            card.imageAddress = string.Empty;
             card.imageName = null;
+            card.image = null;
         }
 
         card.isBlocker = json.isBlocker;

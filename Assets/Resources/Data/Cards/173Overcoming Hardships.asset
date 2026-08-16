@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 4135983129345907833, guid: d29ae2553eb78ad4aa473dc6aecf7a7a, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Overcoming Hardships"
   version: 5
   sourceType: 1
   productLine: 1

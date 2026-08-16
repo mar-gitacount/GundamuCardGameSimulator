@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 0
   power: 2
   hp: 1
-  imageName: {fileID: -2946500925568056418, guid: 69a5b2f304cdda04ba38ac6349a2d617, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/137_Wire-Guided Arm"
   version: 5
   sourceType: 2
   filterType: 0

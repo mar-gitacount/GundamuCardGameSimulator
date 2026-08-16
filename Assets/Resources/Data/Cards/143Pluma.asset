@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 2
   hp: 1
-  imageName: {fileID: -4359950603665760168, guid: 4cbc289f2c05f674eaa296e6907af87a, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Pluma"
   version: 5
   sourceType: 1
   productLine: 0

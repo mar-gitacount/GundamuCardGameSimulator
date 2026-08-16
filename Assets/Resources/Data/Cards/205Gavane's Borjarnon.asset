@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 3003507903810156225, guid: a0684d637a138a64e88b78991da37835, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gavane\u0027s Borjarnon"
   version: 5
   sourceType: 1
   productLine: 1

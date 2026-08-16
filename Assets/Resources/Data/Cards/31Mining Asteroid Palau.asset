@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 0
   hp: 6
-  imageName: {fileID: 21300000, guid: ce63e4769f6c3ef4d82c5cd669fea1ed, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/31_Mining Asteroid Palau"
   version: 1
   sourceType: 2
   filterType: 0

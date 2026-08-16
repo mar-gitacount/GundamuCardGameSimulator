@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 4
   power: 4
   hp: 3
-  imageName: {fileID: -2825891924169569864, guid: 0a7235345a967bf479cf1280a4f794fa, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Shiden Custom (Ryusei-Go)"
   version: 5
   sourceType: 1
   productLine: 1

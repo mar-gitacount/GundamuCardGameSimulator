@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 5
   power: 2
   hp: 2
-  imageName: {fileID: 8099380003363608689, guid: 1f0cc01921f9b844bad5289f3a1d7535, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/88_AmuroRay"
   version: 5
   sourceType: 2
   filterType: 0

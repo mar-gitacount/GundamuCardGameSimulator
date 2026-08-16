@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 5
   hp: 4
-  imageName: {fileID: -7689158440275419944, guid: 1f206c695b4b1e04e8f10b246a123c0a, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/80_Gundam Deathscythe"
   version: 1
   sourceType: 1
   filterType: 0

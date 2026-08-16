@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 7
   power: 5
   hp: 5
-  imageName: {fileID: 3020834385081325284, guid: d9c636d251a744643b9216fc22e2f40f, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/83_Nu Gundam"
   version: 5
   sourceType: 1
   filterType: 0
