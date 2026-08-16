@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 4
   hp: 3
-  imageName: {fileID: -8554828380788714283, guid: f406483bdd2ac2c46a9c8766b1862403, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/139_Zeong"
   version: 5
   sourceType: 2
   filterType: 0

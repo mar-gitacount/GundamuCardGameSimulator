@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 2
   hp: 1
-  imageName: {fileID: -6741561644241054926, guid: 7902b547487d0d04faff12ff17b94d6a, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/120_Domon Kasshu"
   version: 5
   sourceType: 1
   filterType: 0

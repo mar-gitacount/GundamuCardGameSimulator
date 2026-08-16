@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using System;
 using TMPro;
 public class CardController : MonoBehaviour,IPointerClickHandler
@@ -37,6 +38,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     private Action<CardController> onClickCallback;
     
     public Sprite cardSprite{ get; private set; }
+
+    /// <summary>Addressables 経由で保持している Sprite ハンドル（未使用時は無効）。</summary>
+    private AsyncOperationHandle<Sprite> _addressableSpriteHandle;
+    private int _spriteLoadGeneration;
 
     /// <summary>ユニットの現在 HP（配備・ドロー時に Data.hp で初期化）。</summary>
     public int CurrentHp { get; private set; }
@@ -339,11 +344,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         this.Data = carddata;
         
         this.onClickCallback = callback;
-        cardSprite = ResolveCardSprite(carddata);
-        if (cardImage != null)
-        {
-            cardImage.sprite = cardSprite;
-        }
+        BeginResolveCardSprite(carddata);
 
         // 手札・新規生成時は常に False（ユニット以外は攻撃フラグを使わない）
         _attackFlg = AttackFlg.False;
@@ -352,6 +353,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _isTemporaryBurstBattleUnit = false;
         ResetRuntimeStatsFromData();
         SetBattleStatOverlayVisible(false);
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseAddressableSpriteHandle();
     }
 
     /// <summary>バトルゾーン上のユニットに現在 AP / HP 表示を出す。</summary>
@@ -1282,26 +1288,67 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     }
 
     /// <summary>
-    /// CardData に設定済みの Sprite を優先。未設定時のみ Resources から名前解決する。
-    /// Multiple スプライト（名前が *_0）でも Inspector 参照ならそのまま使える。
+    /// Addressables（Local）を優先して非同期ロード。未登録・失敗時は CardData の Sprite 参照へフォールバック。
     /// </summary>
-    private static Sprite ResolveCardSprite(CardData carddata)
+    private void BeginResolveCardSprite(CardData carddata)
     {
-        if (carddata == null)
+        ReleaseAddressableSpriteHandle();
+        _spriteLoadGeneration++;
+        int generation = _spriteLoadGeneration;
+
+        // フォールバックを先に表示（Addressables 未登録カードでも即表示）
+        cardSprite = CardSpriteLoader.ResolveEmbeddedSprite(carddata);
+        RefreshVisualSpriteFromData();
+
+        CardSpriteLoader.LoadForCardAsync(carddata, handle =>
         {
-            return null;
+            if (generation != _spriteLoadGeneration)
+            {
+                CardSpriteLoader.Release(handle);
+                return;
+            }
+
+            if (!handle.IsValid())
+            {
+                return;
+            }
+
+            _addressableSpriteHandle = handle;
+            ApplyAddressableSpriteResult(handle, generation);
+        });
+    }
+
+    private void ApplyAddressableSpriteResult(AsyncOperationHandle<Sprite> handle, int generation)
+    {
+        if (generation != _spriteLoadGeneration)
+        {
+            // 別カードへ差し替え済み。ハンドルは新しい BeginResolve 側で解放済み。
+            return;
         }
 
-        if (carddata.imageName != null)
+        if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result != null)
         {
-            return carddata.imageName;
+            cardSprite = handle.Result;
+            RefreshVisualSpriteFromData();
+            return;
         }
 
-        if (carddata.image != null)
+        // Addressables に無い／失敗 → 埋め込み参照のまま。ハンドルは解放。
+        ReleaseAddressableSpriteHandle();
+        if (cardSprite == null)
         {
-            return carddata.image;
+            cardSprite = CardSpriteLoader.ResolveEmbeddedSprite(Data);
+            RefreshVisualSpriteFromData();
+        }
+    }
+
+    private void ReleaseAddressableSpriteHandle()
+    {
+        if (_addressableSpriteHandle.IsValid())
+        {
+            CardSpriteLoader.Release(_addressableSpriteHandle);
         }
 
-        return null;
+        _addressableSpriteHandle = default;
     }
 }

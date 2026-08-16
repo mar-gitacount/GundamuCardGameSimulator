@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 3
   hp: 2
-  imageName: {fileID: -1428688948014451110, guid: c40792143f133054d9b0c4638cacd82b, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/118_Neros Gundam"
   version: 5
   sourceType: 1
   filterType: 0

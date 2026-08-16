@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 8654005582226259932, guid: ab43f231b9a21fb49bc276ec2c294943, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Altron Gundam (EW)"
   version: 5
   sourceType: 1
   productLine: 1

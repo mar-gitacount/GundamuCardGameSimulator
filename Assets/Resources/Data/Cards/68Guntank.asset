@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 0
   power: 1
   hp: 1
-  imageName: {fileID: 21300000, guid: 9ff62ecadc8ecba4e916a501883a3789, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/68_Guntank"
   version: 1
   sourceType: 1
   filterType: 0

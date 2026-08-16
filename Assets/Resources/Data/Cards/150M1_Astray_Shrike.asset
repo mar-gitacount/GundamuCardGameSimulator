@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 2
   power: 1
   hp: 2
-  imageName: {fileID: 6870707770496230492, guid: a0b1c2d3e4f5061728394a5b6c7d8e9f, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/M1 Astray Shrike"
   version: 5
   sourceType: 1
   productLine: 0

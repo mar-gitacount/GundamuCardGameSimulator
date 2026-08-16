@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 3
   hp: 2
-  imageName: {fileID: 3824258934102218233, guid: 56c56151c02e5d84e89ded1f77407c48, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/101_Gyunei\u0027s Jagd Doga"
   version: 5
   sourceType: 2
   filterType: 0

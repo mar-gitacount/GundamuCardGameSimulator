@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -505909731467825761, guid: a3ec779b5576e7b4aba06db9b6d5e6db, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Andrew Waldfeld"
   version: 5
   sourceType: 1
   productLine: 1

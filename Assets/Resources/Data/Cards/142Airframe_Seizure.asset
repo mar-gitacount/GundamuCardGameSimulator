@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 1
   power: 0
   hp: 0
-  imageName: {fileID: 21300000, guid: 0fc6bb08f25009a48aaeb1100a3e0ec7, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/142_Airframe Seizure"
   version: 5
   sourceType: 1
   filterType: 0

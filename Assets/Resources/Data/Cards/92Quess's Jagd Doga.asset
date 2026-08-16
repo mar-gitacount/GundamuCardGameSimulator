@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 3
   hp: 2
-  imageName: {fileID: -3894421324810160188, guid: 1d957169a22b3864d86bdfb0d137cc39, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/92_Quess\u0027s Jagd Doga"
   version: 5
   sourceType: 1
   filterType: 0

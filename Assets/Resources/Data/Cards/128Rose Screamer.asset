@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 1
   hp: 1
-  imageName: {fileID: 3661224468701220220, guid: 78b9597b7e17b1b459195814a8f91a29, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/128_Rose Screamer"
   version: 5
   sourceType: 1
   filterType: 0

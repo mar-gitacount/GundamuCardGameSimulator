@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 4
   power: 4
   hp: 3
-  imageName: {fileID: 21300000, guid: e66cc734c843434cae2b0bc2cc505bd9, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Sword Strike Gundam"
   version: 1
   sourceType: 1
   productLine: 1

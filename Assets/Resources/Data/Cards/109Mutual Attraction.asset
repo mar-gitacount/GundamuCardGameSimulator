@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 3
   power: 0
   hp: 0
-  imageName: {fileID: 2307453599561049749, guid: ccbd449721f414a48bd989604b92d765, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/109_Mutual Attraction"
   version: 5
   sourceType: 1
   productLine: 1

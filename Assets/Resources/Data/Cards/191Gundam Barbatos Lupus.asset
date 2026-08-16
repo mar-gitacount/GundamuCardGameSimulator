@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 7
   power: 5
   hp: 5
-  imageName: {fileID: 21300000, guid: eb53a68232034b7eaad052a6ca2c2528, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gundam Barbatos Lupus(GD03)"
   version: 3
   sourceType: 1
   productLine: 1

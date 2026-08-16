@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -8646555581137447022, guid: 6ba03d97fbbf1e942bd582449ea97158, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Quatre Raberba Winner"
   version: 5
   sourceType: 1
   productLine: 1

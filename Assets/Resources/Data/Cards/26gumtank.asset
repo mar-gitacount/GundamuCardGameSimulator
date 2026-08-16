@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 1
   hp: 2
-  imageName: {fileID: 21300000, guid: b9247628bba421642a2cf1b85224fda7, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/26_gumtank"
   version: 1
   sourceType: 1
   filterType: 0

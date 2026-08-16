@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 6272063842030162490, guid: 4aa70ff3f3e2ee04f997a31169d773e1, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gaia Gundam (MA Mode)"
   version: 5
   sourceType: 1
   productLine: 1

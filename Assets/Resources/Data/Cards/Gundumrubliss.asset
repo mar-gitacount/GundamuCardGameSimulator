@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 2
   hp: 4
-  imageName: {fileID: 21300000, guid: 01258d66108ce4a4d934d6b5a854dbf9, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/21_Gundumrubliss"
   version: 1
   sourceType: 1
   filterType: 0

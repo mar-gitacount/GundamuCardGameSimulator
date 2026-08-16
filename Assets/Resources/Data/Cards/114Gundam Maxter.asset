@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 3
   hp: 2
-  imageName: {fileID: 3457279284697379608, guid: 9bc7da37c9188b945bfc516edb799317, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/114_Gundam Maxter"
   version: 5
   sourceType: 1
   filterType: 0

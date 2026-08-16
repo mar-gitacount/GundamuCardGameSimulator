@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 0
   hp: 6
-  imageName: {fileID: -567694013841348282, guid: 94366088d8817fc4bb0940891913cb1c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/104_Axis"
   version: 5
   sourceType: 2
   filterType: 0

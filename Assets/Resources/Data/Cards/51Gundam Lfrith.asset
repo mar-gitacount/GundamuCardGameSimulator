@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 2
   hp: 4
-  imageName: {fileID: 21300000, guid: 7aed06f3db3b15c4f918ace1bbb5f83e, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/51_Gundam Lfrith"
   version: 2
   sourceType: 1
   filterType: 0

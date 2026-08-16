@@ -1,0 +1,15 @@
+fixed=180
+15:  id: 100
+16:  cardName: "Hobby Hizack"
+17:  cost: 1
+18:  level: 2
+19:  power: 2
+20:  hp: 2
+21:  imageName: {fileID: 0}
+22:  image: {fileID: 0}
+23:  imageAddress: "Data/Images/100_Hobby Hizack"
+24:  version: 5
+25:  sourceType: 2
+26:  filterType: 0
+27:  color: 6
+unquotedImageAddressWithSpace=0

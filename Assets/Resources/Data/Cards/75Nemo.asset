@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 2
   hp: 2
-  imageName: {fileID: 21300000, guid: e4de227adf35310499f0fd63fda121b4, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/75_Nemo"
   version: 10
   sourceType: 2
   filterType: 0

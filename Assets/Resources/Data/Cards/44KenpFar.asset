@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 4
   hp: 3
-  imageName: {fileID: 21300000, guid: 28507830f912ac64eacb0115d3015443, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/44_KenpFar"
   version: 3
   sourceType: 1
   filterType: 0

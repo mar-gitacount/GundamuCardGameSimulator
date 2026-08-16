@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 0
   hp: 0
-  imageName: {fileID: 1911532324272381287, guid: b5a113bc7a926724b9a7bcda7b7486a4, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/82_Improved Technique"
   version: 3
   sourceType: 1
   filterType: 0

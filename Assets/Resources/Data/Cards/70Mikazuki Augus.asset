@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 2
   hp: 1
-  imageName: {fileID: 21300000, guid: d8439cd48a62cf641aa969d9c84dd7ce, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/70_Mikazuki Augus"
   version: 2
   sourceType: 1
   filterType: 0

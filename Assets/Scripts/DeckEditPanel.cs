@@ -50,7 +50,7 @@ public class DeckEditPanel : MonoBehaviour
             cardId.CardId = targetId;
 
             Image img = cardObj.GetComponent<Image>();
-            img.sprite = carddata.imageName;
+            CardSpriteLoader.ApplyToImage(img, carddata);
             DeckSettinObject.Instance.EnsureCardCountBadge(cardObj, count);
             Card.EnsureNotUsedOnlineLabel(cardObj, carddata);
             Debug.Log($"生成するカードID: {carddata.id}, 枚数: {count}");
@@ -102,7 +102,7 @@ public class DeckEditPanel : MonoBehaviour
             cardId.CardId = targetId;
 
             Image img = cardObj.GetComponent<Image>();
-            img.sprite = carddata.imageName;
+            CardSpriteLoader.ApplyToImage(img, carddata);
             Debug.Log($"生成するカードID: {carddata.id}, 枚数: {count}");
             // !消す3. 辞書からIDでデータを抽出
             if (_cardDatabase.TryGetValue(targetId, out CardData masterData))

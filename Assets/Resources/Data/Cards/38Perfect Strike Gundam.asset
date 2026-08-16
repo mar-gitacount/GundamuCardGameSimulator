@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 5
   power: 4
   hp: 4
-  imageName: {fileID: 21300000, guid: 3c280d7c1c601064f83432361a142b3e, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/38_Perfect Strike Gundam"
   version: 1
   sourceType: 1
   filterType: 0

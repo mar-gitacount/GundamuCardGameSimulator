@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 1
   hp: 1
-  imageName: {fileID: 5377410069852794659, guid: c65f37de2564be5478df2cc8e365c385, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/102_Kayra Su"
   version: 5
   sourceType: 2
   filterType: 0

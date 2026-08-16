@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 0
   hp: 2
-  imageName: {fileID: -2177948925939566107, guid: 81e5284e11caaab49a1d5fe7a5fa4a93, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/131_Graviton Hammer"
   version: 5
   sourceType: 1
   filterType: 0

@@ -51,18 +51,18 @@ public class IncludedCards : MonoBehaviour
     {
         CreateCardSetToggles();
     }
-
+        
     void OnEnable()
     {
         GameLocale.LanguageChanged += OnLanguageChanged;
         RefreshLocalizedLabels();
     }
-        
+
     void OnDisable()
     {
         GameLocale.LanguageChanged -= OnLanguageChanged;
     }
-
+        
     private void OnLanguageChanged(GameLanguage _)
     {
         RefreshLocalizedLabels();
@@ -226,8 +226,8 @@ public class IncludedCards : MonoBehaviour
         loc.SetTexts(japanese, english);
     }
 
-    public List<CardData> GetSelectedCards(List<CardData> cards)
-    {
+public List<CardData> GetSelectedCards(List<CardData> cards)
+{
         if (cards == null)
         {
             return new List<CardData>();
@@ -241,7 +241,7 @@ public class IncludedCards : MonoBehaviour
         // オンライン利用可 ON → notUsedOnline を除外（他条件と AND）
         filtered = ApplyOnlineUsableFilter(filtered);
 
-        List<Toggle> onToggles = GetOnToggles();
+    List<Toggle> onToggles = GetOnToggles();
         // 作品タイトル／色トグルは ToggleDatail を持たないので色・旧フィルターと分離する
         int filterToggleCount = 0;
         for (int i = 0; i < onToggles.Count; i++)
@@ -543,7 +543,7 @@ public class IncludedCards : MonoBehaviour
                 ApplyFilterTypeHeader(text, set.filterType);
             }
 
-            Toggle toggle = Instantiate(togglePrefab, toggleParent);
+        Toggle toggle = Instantiate(togglePrefab, toggleParent);
             if (toggle == null || set == null)
             {
                 Debug.LogWarning("[IncludedCards] トグル生成に失敗したためスキップします。");
@@ -573,7 +573,7 @@ public class IncludedCards : MonoBehaviour
                 OnCardSetSelected(set);
             }
         });
-        }
+    }
 
         _togglesCreated = true;
     }

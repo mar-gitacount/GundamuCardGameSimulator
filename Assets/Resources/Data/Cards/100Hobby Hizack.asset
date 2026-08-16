@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 2
   hp: 2
-  imageName: {fileID: 3084928524200672671, guid: 8844baf7b6ad3f243b55938de71e589d, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/100_Hobby Hizack"
   version: 5
   sourceType: 2
   filterType: 0

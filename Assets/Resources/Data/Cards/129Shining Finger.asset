@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 0
   hp: 0
-  imageName: {fileID: -8199325592238663969, guid: 01d2973de3b33bc4c9b07fc2284b8c46, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/129_Shining Finger"
   version: 5
   sourceType: 1
   filterType: 0

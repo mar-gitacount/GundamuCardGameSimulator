@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 1
   hp: 1
-  imageName: {fileID: 7920382928353043622, guid: 4d4e2d58cc09e3f41824af9715454474, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/113_Cyclone Punch"
   version: 5
   sourceType: 1
   filterType: 0

@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 511347208359246140, guid: c8a026140ad4645499b74c966694e15f, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Quiet Zero"
   version: 5
   sourceType: 1
   productLine: 1

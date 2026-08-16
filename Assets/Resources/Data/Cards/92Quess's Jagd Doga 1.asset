@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 1
   hp: 1
-  imageName: {fileID: 2187706778667496124, guid: b00d398040bf6b048b04d55be02f9a1b, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/93_Quess Paraya"
   version: 5
   sourceType: 1
   filterType: 0

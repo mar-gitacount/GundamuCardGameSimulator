@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 1
   hp: 2
-  imageName: {fileID: 21300000, guid: 600b875ba88ae3546a4f2ca2c284beff, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/58_Athrun Zala"
   version: 1
   sourceType: 2
   filterType: 0

@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 3
   power: 0
   hp: 5
-  imageName: {fileID: 21300000, guid: 2041f76156dd443ea5ab2c22544889aa, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/RewloolaRewloola"
   version: 3
   sourceType: 2
   productLine: 2

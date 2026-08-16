@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -4594110687881944558, guid: d7589ab196ab23644b1a5ab60622fbb9, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Desultor"
   version: 5
   sourceType: 1
   productLine: 1

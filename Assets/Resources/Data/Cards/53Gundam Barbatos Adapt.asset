@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 2
   hp: 4
-  imageName: {fileID: 21300000, guid: 6fcaaa716424ec0478041352c379027b, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/53_Gundam Barbatos Adapt"
   version: 3
   sourceType: 1
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 6
   power: 0
   hp: 0
-  imageName: {fileID: 5389630585011322657, guid: 08b5ee58d42f6fa4ba0d3440b1f79814, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/110_Widespread Annihilation"
   version: 5
   sourceType: 1
   filterType: 0

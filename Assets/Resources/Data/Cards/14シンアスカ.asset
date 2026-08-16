@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 3
   hp: 0
-  imageName: {fileID: 21300000, guid: b2e382e9965ff3d4aa60565dcec658b7, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/14_\u30B7\u30F3\u30A2\u30B9\u30AB"
   version: 9
   sourceType: 2
   filterType: 0

@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 0
   power: 4
   hp: 2
-  imageName: {fileID: 21300000, guid: 249c4173d7d3c204b97f9021040f665e, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/63_Tallgeese"
   version: 1
   sourceType: 1
   filterType: 0

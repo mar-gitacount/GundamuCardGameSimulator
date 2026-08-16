@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 3
   power: 0
   hp: 5
-  imageName: {fileID: -45498459166169073, guid: c4cf2b02c1092de4a9e37968b04c7a78, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/108_Ra Cailum"
   version: 5
   sourceType: 2
   filterType: 0

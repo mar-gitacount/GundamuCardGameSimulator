@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 2
   power: 2
   hp: 2
-  imageName: {fileID: 8522176863357372626, guid: 619b27aa2eeb28c4e9e5970b9352624e, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Javelin"
   version: 5
   sourceType: 1
   productLine: 0

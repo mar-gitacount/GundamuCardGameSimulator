@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 3
   power: 0
   hp: 5
-  imageName: {fileID: 21300000, guid: 0d37b7b17f091ca4e84eb7695d389d1c, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/41_Argama"
   version: 2
   sourceType: 2
   filterType: 0

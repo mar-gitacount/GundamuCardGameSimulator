@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -5636754494707570455, guid: be4745e190bb9234fb9e7e16c082ae54, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Auel Neider"
   version: 5
   sourceType: 1
   productLine: 1

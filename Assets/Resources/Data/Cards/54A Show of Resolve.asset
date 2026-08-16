@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 4
   power: 0
   hp: 0
-  imageName: {fileID: 21300000, guid: 33bb74a974d09bd46bbafbdd2296758f, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/54_A Show of Resolve"
   version: 1
   sourceType: 1
   filterType: 0

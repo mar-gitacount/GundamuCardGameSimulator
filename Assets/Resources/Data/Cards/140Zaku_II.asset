@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 2
   power: 1
   hp: 2
-  imageName: {fileID: 21300000, guid: 52fb8168eeec0ee4e8693a975155be41, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/140_Zaku II"
   version: 1
   sourceType: 2
   filterType: 0

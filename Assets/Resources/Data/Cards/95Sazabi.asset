@@ -18,8 +18,9 @@ MonoBehaviour:
   level: 5
   power: 5
   hp: 4
-  imageName: {fileID: 1235584507115434388, guid: e12a067db42f6ac42aa1a35edd7fc2d5, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/95_Sazabi"
   version: 5
   sourceType: 2
   filterType: 0

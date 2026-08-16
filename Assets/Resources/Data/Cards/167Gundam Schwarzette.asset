@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: 5144007168082880899, guid: 606d9d4ec82042941a1b8865507334cd, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gundam Schwarzette"
   version: 5
   sourceType: 1
   productLine: 1

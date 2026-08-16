@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 0
   power: 0
   hp: 0
-  imageName: {fileID: -1386668537363413738, guid: 81b34dbb7aa42514fadf3ea3c7ae2eed, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Archangel"
   version: 5
   sourceType: 1
   productLine: 1

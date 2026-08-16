@@ -19,8 +19,9 @@ MonoBehaviour:
   level: 4
   power: 3
   hp: 4
-  imageName: {fileID: 4870707770496230490, guid: 8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e, type: 3}
+  imageName: {fileID: 0}
   image: {fileID: 0}
+  imageAddress: "Data/Images/Gun Blaster"
   version: 5
   sourceType: 1
   productLine: 0
