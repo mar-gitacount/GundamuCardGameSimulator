@@ -173,13 +173,65 @@ public partial class BattleGameMain
         return rule.IsRegisteredInShieldZone(card);
     }
 
-    private IEnumerator WaitForShieldBreakFlowCompleteCoroutine()
+    private IEnumerator WaitForShieldBreakFlowCompleteCoroutine(float timeoutSeconds = -1f)
     {
         yield return null;
-        yield return new WaitUntil(() =>
-            !shieldBreakQueueRunning
+        if (timeoutSeconds <= 0f)
+        {
+            yield return new WaitUntil(() =>
+                !shieldBreakQueueRunning
+                && pendingShieldBreakBatches.Count == 0
+                && !isShieldBreakFlowOpen
+                && !IsLiveShieldBreakInProgress());
+            yield break;
+        }
+
+        float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+        while ((shieldBreakQueueRunning
+                || pendingShieldBreakBatches.Count > 0
+                || isShieldBreakFlowOpen
+                || IsLiveShieldBreakInProgress())
+            && Time.realtimeSinceStartup < deadline)
+        {
+            yield return null;
+        }
+
+        if (!shieldBreakQueueRunning
             && pendingShieldBreakBatches.Count == 0
-            && !isShieldBreakFlowOpen);
+            && !isShieldBreakFlowOpen
+            && !IsLiveShieldBreakInProgress())
+        {
+            yield break;
+        }
+
+        if (IsLiveShieldBreakInProgress())
+        {
+            Debug.LogWarning(
+                $"[Battle] Shield break handshake still live after {timeoutSeconds}s — not force-clearing.");
+            yield break;
+        }
+
+        Debug.LogWarning(
+            $"[Battle] Shield break still open after {timeoutSeconds}s — force clear so turn can advance.");
+        ForceClearStaleShieldBreakStateForTurnProgress();
+    }
+
+    /// <summary>
+    /// ターン進行を止めたままのシールド破壊フラグ／待ち UI を強制解除する。
+    /// 実処理中の破壊を打ち切るため、ターン境界のタイムアウト時だけ使う。
+    /// </summary>
+    private void ForceClearStaleShieldBreakStateForTurnProgress()
+    {
+        if (IsLiveShieldBreakInProgress())
+        {
+            Debug.LogWarning("[Battle] Skip shield-break force clear — handshake/burst still running.");
+            return;
+        }
+
+        pendingShieldBreakBatches.Clear();
+        shieldBreakQueueRunning = false;
+        isShieldBreakFlowOpen = false;
+        CloseOnlineShieldBreakThinkOverlay();
     }
 
     private IEnumerator RunShieldBreakQueueCoroutine()

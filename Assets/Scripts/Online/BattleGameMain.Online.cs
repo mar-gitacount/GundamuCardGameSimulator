@@ -11,6 +11,12 @@ public partial class BattleGameMain
     private int _onlineAttackRequestIdCounter;
     private int _pendingOnlineBlockRequestId;
     private System.Action<int> _pendingOnlineBlockCallback;
+    private int _onlineEndTurnRequestIdCounter;
+    private int _pendingOnlineEndTurnRequestId;
+    private int _appliedRemoteEndTurnRequestId;
+    private Coroutine _pendingOnlineEndTurnRetryCoroutine;
+    /// <summary>自分ターンの Draw 以降が実際に始まっていれば true。相手ターンの MainPhase 残留と区別する。</summary>
+    private bool _onlineLocalTurnSequenceStarted;
     private List<OnlineBattleUnitEffectChange> _pendingOnlineEffectChanges;
     private bool _onlineEffectSyncActive;
 
@@ -306,8 +312,12 @@ public partial class BattleGameMain
     {
         _nextBattleInstanceId = 1;
         _onlineAttackRequestIdCounter = 0;
+        _onlineEndTurnRequestIdCounter = 0;
         _pendingOnlineBlockRequestId = 0;
         _pendingOnlineBlockCallback = null;
+        StopPendingOnlineEndTurnRetry();
+        _pendingOnlineEndTurnRequestId = 0;
+        _appliedRemoteEndTurnRequestId = 0;
         _pendingOnlineEffectChanges = null;
         _onlineEffectSyncActive = false;
         ResetOnlineOnActionState();
@@ -827,7 +837,63 @@ public partial class BattleGameMain
             return;
         }
 
-        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurn());
+        int requestId = ++_onlineEndTurnRequestIdCounter;
+        _pendingOnlineEndTurnRequestId = requestId;
+        StopPendingOnlineEndTurnRetry();
+
+        bool sent = SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurn(
+            OnlineBattleActionPayload.CreateEndTurn(requestId)));
+        Debug.Log($"[OnlineBattle] EndTurn sent. requestId:{requestId} sent:{sent}");
+
+        if (sent)
+        {
+            _pendingOnlineEndTurnRetryCoroutine = StartCoroutine(CoRetryPendingOnlineEndTurn(requestId));
+        }
+        else
+        {
+            Debug.LogWarning($"[OnlineBattle] EndTurn initial send failed. requestId:{requestId}");
+        }
+    }
+
+    private void StopPendingOnlineEndTurnRetry()
+    {
+        if (_pendingOnlineEndTurnRetryCoroutine == null)
+        {
+            return;
+        }
+
+        StopCoroutine(_pendingOnlineEndTurnRetryCoroutine);
+        _pendingOnlineEndTurnRetryCoroutine = null;
+    }
+
+    private IEnumerator CoRetryPendingOnlineEndTurn(int requestId)
+    {
+        const float retryIntervalSeconds = 1.25f;
+        const float retryTimeoutSeconds = 12f;
+        float deadline = Time.realtimeSinceStartup + retryTimeoutSeconds;
+
+        while (IsOnlineBattle()
+            && !isMatchFinished
+            && _pendingOnlineEndTurnRequestId == requestId
+            && Time.realtimeSinceStartup < deadline)
+        {
+            yield return new WaitForSecondsRealtime(retryIntervalSeconds);
+
+            if (_pendingOnlineEndTurnRequestId != requestId || !IsOnlineBattle() || isMatchFinished)
+            {
+                yield break;
+            }
+
+            bool resent = SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurn(
+                OnlineBattleActionPayload.CreateEndTurn(requestId)));
+            Debug.Log($"[OnlineBattle] EndTurn resent. requestId:{requestId} sent:{resent}");
+        }
+
+        if (_pendingOnlineEndTurnRequestId == requestId)
+        {
+            Debug.LogWarning($"[OnlineBattle] EndTurn ack timeout. requestId:{requestId}");
+            _pendingOnlineEndTurnRetryCoroutine = null;
+        }
     }
 
     private void NotifyLocalPlayCardDeployed(
@@ -1099,7 +1165,10 @@ public partial class BattleGameMain
         switch (message.type)
         {
             case "EndTurn":
-                HandleRemoteEndTurn();
+                HandleRemoteEndTurn(message.payload);
+                break;
+            case EosOnlineBattleMessage.EndTurnAck:
+                HandleRemoteEndTurnAck(message.payload);
                 break;
             case "PlayCard":
                 StartCoroutine(HandleRemotePlayCardCoroutine(message.payload));
@@ -1408,16 +1477,90 @@ public partial class BattleGameMain
             AttackFlowStrikeKind.Shield);
     }
 
-    private void HandleRemoteEndTurn()
+    private void HandleRemoteEndTurn(string payload)
     {
-        if (currentPlayerType != PlayerType.Enemy)
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
+            || action.action != OnlineBattleActionPayload.EndTurn
+            || action.requestId <= 0)
         {
-            Debug.Log("[OnlineBattle] Ignored remote EndTurn because it is not opponent turn locally.");
+            Debug.LogWarning($"[OnlineBattle] Invalid EndTurn payload: {payload}");
             return;
         }
 
-        Debug.Log("[OnlineBattle] Remote EndTurn received. Applying turn switch (OnAction already handled via P2P).");
+        // ACK はターン切替より先に返す。遅延端末の再送を止め、相手待ちを解除する。
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateEndTurnAck(
+            OnlineBattleActionPayload.CreateEndTurnAck(action.requestId)));
+        CloseAllOnlineActionStepUi();
+
+        if (_appliedRemoteEndTurnRequestId == action.requestId)
+        {
+            Debug.Log($"[OnlineBattle] Duplicate EndTurn ignored. requestId:{action.requestId}");
+            return;
+        }
+
+        // 再送 EndTurn が、既に始まった自分ターンを再度 StartTurn すると
+        // isEndTurnFlowRunning / 待ち UI で End ボタンが押せなくなる。
+        if (isEndTurnFlowRunning || IsLocalTurnAlreadyPlayable())
+        {
+            _appliedRemoteEndTurnRequestId = action.requestId;
+            Debug.Log(
+                $"[OnlineBattle] EndTurn ignored, local turn already started or applying. "
+                + $"requestId:{action.requestId} phase:{currentPhase} endTurnRunning:{isEndTurnFlowRunning} "
+                + $"seqStarted:{_onlineLocalTurnSequenceStarted}");
+            return;
+        }
+
+        if (currentPlayerType == PlayerType.Player)
+        {
+            Debug.LogWarning(
+                $"[OnlineBattle] EndTurn arrived while local side is Player. "
+                + $"requestId:{action.requestId} phase:{currentPhase} — apply opponent-ended-turn.");
+        }
+
+        _appliedRemoteEndTurnRequestId = action.requestId;
+        Debug.Log(
+            $"[OnlineBattle] Remote EndTurn received. requestId:{action.requestId} "
+            + $"localCurrent:{currentPlayerType} Applying turn switch.");
         StartCoroutine(ApplyRemoteOpponentEndedTurnCoroutine());
+    }
+
+    /// <summary>自分ターンのメイン進行が既に始まっていれば、遅延 EndTurn で再開始しない。</summary>
+    private bool IsLocalTurnAlreadyPlayable()
+    {
+        if (currentPlayerType != PlayerType.Player)
+        {
+            return false;
+        }
+
+        if (isTurnPhaseSequenceRunning || _onlineLocalTurnSequenceStarted)
+        {
+            return true;
+        }
+
+        return currentPhase == BattlePhase.DrawPhase
+            || currentPhase == BattlePhase.ResourcePhase
+            || currentPhase == BattlePhase.ActivePhase;
+    }
+
+    private void HandleRemoteEndTurnAck(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
+            || action.action != OnlineBattleActionPayload.EndTurnAck
+            || action.requestId <= 0)
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid EndTurnAck payload: {payload}");
+            return;
+        }
+
+        if (action.requestId != _pendingOnlineEndTurnRequestId)
+        {
+            Debug.Log($"[OnlineBattle] Ignored EndTurnAck requestId:{action.requestId} pending:{_pendingOnlineEndTurnRequestId}");
+            return;
+        }
+
+        StopPendingOnlineEndTurnRetry();
+        _pendingOnlineEndTurnRequestId = 0;
+        Debug.Log($"[OnlineBattle] EndTurn ack received. requestId:{action.requestId}");
     }
 
     /// <summary>
@@ -1427,32 +1570,62 @@ public partial class BattleGameMain
     private IEnumerator ApplyRemoteOpponentEndedTurnCoroutine()
     {
         isEndTurnFlowRunning = true;
-        yield return WaitForShieldBreakFlowCompleteCoroutine();
-        yield return WaitForBattleFlowIdleCoroutine();
+        try
+        {
+            CloseAllOnlineActionStepUi();
+            yield return WaitForShieldBreakFlowCompleteCoroutine(45f);
+            yield return WaitForBattleFlowIdleBeforeEndTurnCoroutine();
+            ClearStaleAttackAndShieldFlagsForEndTurn();
+            if (ShouldBlockOnlineLocalPlayDueToOnAction())
+            {
+                CloseAllOnlineActionStepUi();
+            }
 
-        pendingUnitAttackAttacker = null;
-        pendingOnAttackEffectResolvedAttacker = null;
-        PlayerType endingTurnSide = PlayerType.Enemy;
-        // ターン終了リペアはターン所有者側だけで適用し EffectSync(Repair) で同期する。
-        // ここで再計算すると相手盤面 HP が二重回復／ズレする。
-        TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
-        ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
-        ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
-        ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
-        ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
-        ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
-        DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            PlayerType endingTurnSide = PlayerType.Enemy;
+            TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
+            ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
+            ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
+            ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
+            ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
+            ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
+            DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
-        currentPlayerType = PlayerType.Player;
-        RefreshAllFieldOwnerTurnPassives();
-        AdvanceRuleToNextTurnStart();
-        UpdateEndTurnButtonVisibility();
+            currentPlayerType = PlayerType.Player;
+            RefreshAllFieldOwnerTurnPassives();
+            AdvanceRuleToNextTurnStart();
+            UpdateEndTurnButtonVisibility();
 
-        Debug.Log("[OnlineBattle] Remote opponent turn ended. Starting local turn.");
-        ChangePhase(BattlePhase.StartTurn);
-        isEndTurnFlowRunning = false;
+            Debug.Log("[OnlineBattle] Remote opponent turn ended. Starting local turn.");
+            float seqDeadline = Time.realtimeSinceStartup + 8f;
+            while (isTurnPhaseSequenceRunning && Time.realtimeSinceStartup < seqDeadline)
+            {
+                yield return null;
+            }
+
+            if (isTurnPhaseSequenceRunning)
+            {
+                Debug.LogWarning("[OnlineBattle] Aborting leftover turn sequence so local turn can start.");
+                AbortTurnPhaseSequenceForRemoteTurnSwitch();
+            }
+
+            if (!isEnemyMainPhaseCoroutineRunning)
+            {
+                StartCoroutine(ExecuteTurnPhaseSequenceCoroutine());
+            }
+            else
+            {
+                Debug.LogWarning(
+                    $"[OnlineBattle] Could not start local turn sequence. enemyMain:{isEnemyMainPhaseCoroutineRunning}");
+            }
+        }
+        finally
+        {
+            isEndTurnFlowRunning = false;
+        }
     }
 
     private IEnumerator HandleRemotePlayCardCoroutine(string payload)
