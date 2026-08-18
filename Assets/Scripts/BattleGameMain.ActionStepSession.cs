@@ -150,10 +150,15 @@ public partial class BattleGameMain
         }
 
         Debug.Log($"[ActionStep] Session complete id:{_actionStepSession.SessionId}");
+        bool wasTurnEndActionStep = !_actionStepSession.IsAttackContext;
         System.Action complete = _actionStepSession.OnComplete;
         _actionStepSession = null;
         _onlineOnActionActiveContext = null;
         complete?.Invoke();
+        if (wasTurnEndActionStep)
+        {
+            TryAdvanceTurnAfterOnlineTurnEndActionStep();
+        }
     }
 
     private void AdvanceActionStepSession(PlayerType fromSide, ActionStepPassKind passKind)

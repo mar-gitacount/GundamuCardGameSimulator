@@ -178,7 +178,9 @@ public partial class BattleGameMain
         _onlineDeferredEnemyShieldBreak = null;
         isShieldAttackResolving = false;
         isTurnPhaseSequenceRunning = false;
+        _turnPhaseSequenceGeneration++;
         isEnemyMainPhaseCoroutineRunning = false;
+        _onlineLocalTurnSequenceStarted = false;
         blockShieldFlowDuringShieldAttack = false;
         deferredShieldBlockRedirectWait = false;
         shieldStrikeAbortedAfterBlockInterrupt = false;

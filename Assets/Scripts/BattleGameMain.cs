@@ -130,6 +130,7 @@ public partial class BattleGameMain : MonoBehaviour
     [SerializeField] private bool enableEnemyOnActionDebugPopupOnly;
     private bool isShieldAttackResolving;
     private bool isTurnPhaseSequenceRunning;
+    private int _turnPhaseSequenceGeneration;
     /// <summary>エネミー <see cref="EnemyActionCoroutine"/> 実行中。ターン進行を止める。</summary>
     private bool isEnemyMainPhaseCoroutineRunning;
     private bool blockShieldFlowDuringShieldAttack;
@@ -2092,39 +2093,90 @@ public partial class BattleGameMain : MonoBehaviour
             yield break;
         }
 
+        int generation = ++_turnPhaseSequenceGeneration;
         isTurnPhaseSequenceRunning = true;
-        yield return WaitForShieldBreakFlowCompleteCoroutine();
-
-        if (IsTestPlayBattle())
+        if (currentPlayerType == PlayerType.Player)
         {
-            ApplyTestPlayBoardPerspective(currentPlayerType);
-            ExecuteTurnStartCore();
-            currentPhase = BattlePhase.MainPhase;
-            UpdateEndTurnButtonVisibility();
-            ExcuteMainPhase();
-            isTurnPhaseSequenceRunning = false;
-            yield break;
+            _onlineLocalTurnSequenceStarted = true;
         }
 
-        yield return ShowPhasePauseCoroutine(currentPlayerType == PlayerType.Player ? "Player Turn" : "Enemy Turn");
-        currentPhase = BattlePhase.DrawPhase;
-        UpdateEndTurnButtonVisibility();
-        yield return ShowPhasePauseCoroutine("Draw Phase");
+        try
+        {
+            if (IsOnlineBattle())
+            {
+                CloseAllOnlineActionStepUi();
+            }
 
-        currentPhase = BattlePhase.ResourcePhase;
-        UpdateEndTurnButtonVisibility();
-        yield return ShowPhasePauseCoroutine("Resource Phase");
+            yield return WaitForShieldBreakFlowCompleteCoroutine(8f);
+            if (generation != _turnPhaseSequenceGeneration)
+            {
+                yield break;
+            }
 
-        currentPhase = BattlePhase.ActivePhase;
-        UpdateEndTurnButtonVisibility();
-        yield return ShowPhasePauseCoroutine("Card & Resource Active");
+            if (IsTestPlayBattle())
+            {
+                ApplyTestPlayBoardPerspective(currentPlayerType);
+                ExecuteTurnStartCore();
+                currentPhase = BattlePhase.MainPhase;
+                UpdateEndTurnButtonVisibility();
+                ExcuteMainPhase();
+                yield break;
+            }
 
-        ExecuteTurnStartCore();
+            yield return ShowPhasePauseCoroutine(currentPlayerType == PlayerType.Player ? "Player Turn" : "Enemy Turn");
+            if (generation != _turnPhaseSequenceGeneration)
+            {
+                yield break;
+            }
 
-        currentPhase = BattlePhase.MainPhase;
-        UpdateEndTurnButtonVisibility();
-        yield return ShowPhasePauseCoroutine("Main Phase");
-        ExcuteMainPhase();
+            currentPhase = BattlePhase.DrawPhase;
+            UpdateEndTurnButtonVisibility();
+            yield return ShowPhasePauseCoroutine("Draw Phase");
+            if (generation != _turnPhaseSequenceGeneration)
+            {
+                yield break;
+            }
+
+            currentPhase = BattlePhase.ResourcePhase;
+            UpdateEndTurnButtonVisibility();
+            yield return ShowPhasePauseCoroutine("Resource Phase");
+            if (generation != _turnPhaseSequenceGeneration)
+            {
+                yield break;
+            }
+
+            currentPhase = BattlePhase.ActivePhase;
+            UpdateEndTurnButtonVisibility();
+            yield return ShowPhasePauseCoroutine("Card & Resource Active");
+            if (generation != _turnPhaseSequenceGeneration)
+            {
+                yield break;
+            }
+
+            ExecuteTurnStartCore();
+
+            currentPhase = BattlePhase.MainPhase;
+            UpdateEndTurnButtonVisibility();
+            yield return ShowPhasePauseCoroutine("Main Phase");
+            if (generation != _turnPhaseSequenceGeneration)
+            {
+                yield break;
+            }
+
+            ExcuteMainPhase();
+        }
+        finally
+        {
+            if (generation == _turnPhaseSequenceGeneration)
+            {
+                isTurnPhaseSequenceRunning = false;
+            }
+        }
+    }
+
+    private void AbortTurnPhaseSequenceForRemoteTurnSwitch()
+    {
+        _turnPhaseSequenceGeneration++;
         isTurnPhaseSequenceRunning = false;
     }
 
@@ -2132,15 +2184,22 @@ public partial class BattleGameMain : MonoBehaviour
     {
         currentPhase = BattlePhase.EndTurn;
         UpdateEndTurnButtonVisibility();
-        yield return WaitForBattleFlowIdleCoroutine();
+        yield return WaitForBattleFlowIdleBeforeEndTurnCoroutine();
+
+        if (IsLiveShieldBreakInProgress())
+        {
+            yield return WaitForShieldBreakFlowCompleteCoroutine(45f);
+        }
+
+        ClearStaleAttackAndShieldFlagsForEndTurn();
+        if (ShouldBlockOnlineLocalPlayDueToOnAction())
+        {
+            CloseAllOnlineActionStepUi();
+        }
+
         if (!IsTestPlayBattle())
         {
             yield return ShowPhasePauseCoroutine("End Phase");
-        }
-
-        while (isEnemyMainPhaseCoroutineRunning || IsBattleFlowBlockingTurnProgress())
-        {
-            yield return null;
         }
 
         ExcueteEndTurn();
@@ -3517,8 +3576,18 @@ public partial class BattleGameMain : MonoBehaviour
 
     void ExcueteEndTurn()
     {
+        ClearStaleAttackAndShieldFlagsForEndTurn();
+        if (ShouldBlockOnlineLocalPlayDueToOnAction())
+        {
+            Debug.LogWarning("[OnlineBattle] Stale OnAction wait blocked EndTurn — clearing and retrying.");
+            CloseAllOnlineActionStepUi();
+        }
+
         if (isEndTurnFlowRunning || isEnemyMainPhaseCoroutineRunning || IsBattleFlowBlockingTurnProgress())
         {
+            Debug.LogWarning(
+                $"[OnlineBattle] EndTurn skipped. endTurnRunning:{isEndTurnFlowRunning} "
+                + $"liveShield:{IsLiveShieldBreakInProgress()} blocking:{IsBattleFlowBlockingTurnProgress()}");
             return;
         }
 
@@ -3531,6 +3600,19 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log("[OnlineBattle] Wait for your turn.");
             return;
+        }
+
+        if (IsLiveShieldBreakInProgress())
+        {
+            Debug.Log("[OnlineBattle] End Turn ignored — shield break / attack handshake still running.");
+            return;
+        }
+
+        ClearStaleAttackAndShieldFlagsForEndTurn();
+        if (ShouldBlockOnlineLocalPlayDueToOnAction())
+        {
+            Debug.LogWarning("[OnlineBattle] Clearing stale OnAction wait so EndTurn can proceed.");
+            CloseAllOnlineActionStepUi();
         }
 
         ChangePhase(BattlePhase.EndTurn);
@@ -3563,9 +3645,78 @@ public partial class BattleGameMain : MonoBehaviour
             || pendingOnAttackEffectResolvedAttacker != null;
     }
 
+    /// <summary>シールド破壊の握手・バースト解決が実処理中か。残留フラグとは区別する。</summary>
+    private bool IsLiveShieldBreakInProgress()
+    {
+        return isShieldAttackResolving
+            || _pendingOnlineShieldBreakRequestId > 0
+            || isOnlineShieldBreakThinkPauseOpen
+            || shieldBreakQueueRunning
+            || pendingShieldBreakBatches.Count > 0;
+    }
+
+    /// <summary>
+    /// 攻撃／シールド破壊が終わったあとに残ったフラグだけ消す。
+    /// 進行中の握手は絶対に切らない（切ると End 不能とフリーズになる）。
+    /// </summary>
+    private void ClearStaleAttackAndShieldFlagsForEndTurn()
+    {
+        if (IsLiveShieldBreakInProgress())
+        {
+            return;
+        }
+
+        if (attackFlowStrikeKind != AttackFlowStrikeKind.None
+            || pendingUnitAttackAttacker != null
+            || pendingOnAttackEffectResolvedAttacker != null)
+        {
+            Debug.LogWarning("[Battle] Clearing leftover attack-flow flags before End Turn.");
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            ClearAttackFlowContext();
+        }
+
+        if (isShieldBreakFlowOpen)
+        {
+            ForceClearStaleShieldBreakStateForTurnProgress();
+        }
+    }
+
     private IEnumerator WaitForBattleFlowIdleCoroutine()
     {
         while (IsBattleFlowBlockingTurnProgress())
+        {
+            yield return null;
+        }
+    }
+
+    /// <summary>
+    /// ターン終了直前の Idle 待ち。OnAction 相手待ちの残留などで永久停止しないよう上限を設ける。
+    /// </summary>
+    private IEnumerator WaitForBattleFlowIdleBeforeEndTurnCoroutine()
+    {
+        const float idleTimeoutSeconds = 8f;
+        float deadline = Time.realtimeSinceStartup + idleTimeoutSeconds;
+        while (IsBattleFlowBlockingTurnProgress() && Time.realtimeSinceStartup < deadline)
+        {
+            yield return null;
+        }
+
+        if (!IsBattleFlowBlockingTurnProgress())
+        {
+            yield break;
+        }
+
+        Debug.LogWarning(
+            $"[OnlineBattle] Battle flow still blocking before end turn after {idleTimeoutSeconds}s — clear stale waits.");
+        if (ShouldBlockOnlineLocalPlayDueToOnAction())
+        {
+            CloseAllOnlineActionStepUi();
+        }
+
+        // それでも攻撃フロー等で残る場合はこれ以上待たずターン終了へ進む。
+        float softDeadline = Time.realtimeSinceStartup + 2f;
+        while (IsBattleFlowBlockingTurnProgress() && Time.realtimeSinceStartup < softDeadline)
         {
             yield return null;
         }
@@ -3584,49 +3735,76 @@ public partial class BattleGameMain : MonoBehaviour
     private IEnumerator ExecuteEndTurnCoroutine()
     {
         isEndTurnFlowRunning = true;
-        yield return WaitForShieldBreakFlowCompleteCoroutine();
-        yield return WaitForBattleFlowIdleCoroutine();
-        pendingUnitAttackAttacker = null;
-        pendingOnAttackEffectResolvedAttacker = null;
-        PlayerType endingTurnSide = currentPlayerType;
-        bool waitingForClose = false;
-        bool startedOnActionStep = TryRunTurnEndOnActionPhases(endingTurnSide, () => waitingForClose = false);
-        if (startedOnActionStep)
+        try
         {
-            waitingForClose = true;
-            yield return new WaitUntil(() => !waitingForClose);
+            yield return WaitForShieldBreakFlowCompleteCoroutine(8f);
+            if (IsLiveShieldBreakInProgress())
+            {
+                Debug.LogWarning("[OnlineBattle] End turn aborted — shield break handshake still running.");
+                yield break;
+            }
+
+            ClearStaleAttackAndShieldFlagsForEndTurn();
+            // 前回の OnAction 待ちフラグ残留で Idle 待ちが永久化しないよう、タイムアウト付きで待つ。
+            yield return WaitForBattleFlowIdleBeforeEndTurnCoroutine();
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            PlayerType endingTurnSide = currentPlayerType;
+            bool waitingForClose = false;
+            bool startedOnActionStep = TryRunTurnEndOnActionPhases(endingTurnSide, () => waitingForClose = false);
+            if (startedOnActionStep)
+            {
+                waitingForClose = true;
+                const float turnEndActionStepTimeoutSeconds = 45f;
+                float actionStepDeadline = Time.realtimeSinceStartup + turnEndActionStepTimeoutSeconds;
+                yield return new WaitUntil(() =>
+                    !waitingForClose || Time.realtimeSinceStartup >= actionStepDeadline);
+                if (waitingForClose)
+                {
+                    ForceCompleteActionStepSessionForTimeout(
+                        $"turn end action step exceeded {turnEndActionStepTimeoutSeconds}s");
+                    waitingForClose = false;
+                }
+            }
+
+            ApplyTurnEndRepairForAllInPlayUnits();
+            TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
+            // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
+            ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
+            ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
+            ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
+            ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
+            ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
+            ClearObservedUnitWatches();
+            ForceClearEffectChainObservationScope();
+            DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
+            NotifyLocalPlayerEndedTurn();
+
+            // プレイヤーとエネミーのターンを切り替える
+            currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
+            if (currentPlayerType != PlayerType.Player)
+            {
+                _onlineLocalTurnSequenceStarted = false;
+            }
+            if (IsTestPlayBattle())
+            {
+                ApplyTestPlayBoardPerspective(currentPlayerType);
+            }
+
+            RefreshAllFieldOwnerTurnPassives();
+            AdvanceRuleToNextTurnStart();
+            UpdateEndTurnButtonVisibility();
+
+            Debug.Log("エンドフェイズの処理を実行します。");
+            ChangePhase(BattlePhase.StartTurn);
         }
-
-        ApplyTurnEndRepairForAllInPlayUnits();
-        TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
-        // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
-        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
-        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
-        ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
-        ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
-        ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
-        ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
-        ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
-        ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
-        ClearObservedUnitWatches();
-        ForceClearEffectChainObservationScope();
-        DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
-        NotifyLocalPlayerEndedTurn();
-
-        // プレイヤーとエネミーのターンを切り替える
-        currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
-        if (IsTestPlayBattle())
+        finally
         {
-            ApplyTestPlayBoardPerspective(currentPlayerType);
+            isEndTurnFlowRunning = false;
         }
-
-        RefreshAllFieldOwnerTurnPassives();
-        AdvanceRuleToNextTurnStart();
-        UpdateEndTurnButtonVisibility();
-
-        Debug.Log("エンドフェイズの処理を実行します。");
-        ChangePhase(BattlePhase.StartTurn);
-        isEndTurnFlowRunning = false;
     }
 
     // Update is called once per frame

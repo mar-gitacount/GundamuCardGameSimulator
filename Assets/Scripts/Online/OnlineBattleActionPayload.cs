@@ -63,6 +63,8 @@ public class OnlineBattleActionPayload
     public int sessionPlayerActionEnded;
     /// <summary>送信側視点で Enemy ゾーンが ActionEnd 済み（1/0）。受信側はミラーして適用。</summary>
     public int sessionEnemyActionEnded;
+    /// <summary>ターン終了アクションステップが両者完了したら 1。受信側は EndTurn 欠落でも次ターン開始。</summary>
+    public int turnEndCommit;
     /// <summary>アクションステップセッション ID（0=レガシー／非セッション）。</summary>
     public int actionStepSessionId;
     /// <summary>DeployUnit 同期：送信側視点の配備先バトルゾーン（0=Player, 1=Enemy）。未指定時は Player。</summary>
@@ -96,6 +98,8 @@ public class OnlineBattleActionPayload
     public const string HandDiscardRevealComplete = "HandDiscardRevealComplete";
     public const string ResourceState = "ResourceState";
     public const string HandDeckState = "HandDeckState";
+    public const string EndTurn = "EndTurn";
+    public const string EndTurnAck = "EndTurnAck";
 
     public static string CreateHandDiscardReveal(int cardId, int requestId)
     {
@@ -405,7 +409,8 @@ public class OnlineBattleActionPayload
         int sessionEnemyActionEnded,
         int resourceAfter,
         int exResourceAfter,
-        int levelAfter)
+        int levelAfter,
+        int turnEndCommit = 0)
     {
         return JsonUtility.ToJson(new OnlineOnActionEndDto
         {
@@ -417,7 +422,8 @@ public class OnlineBattleActionPayload
             sessionEnemyActionEnded = sessionEnemyActionEnded,
             resourceAfter = resourceAfter,
             exResourceAfter = exResourceAfter,
-            levelAfter = levelAfter
+            levelAfter = levelAfter,
+            turnEndCommit = turnEndCommit
         });
     }
 
@@ -483,6 +489,24 @@ public class OnlineBattleActionPayload
         });
     }
 
+    public static string CreateEndTurn(int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineEndTurnDto
+        {
+            action = EndTurn,
+            requestId = requestId
+        });
+    }
+
+    public static string CreateEndTurnAck(int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineEndTurnAckDto
+        {
+            action = EndTurnAck,
+            requestId = requestId
+        });
+    }
+
     public static bool TryParse(string raw, out OnlineBattleActionPayload payload)
     {
         payload = null;
@@ -519,6 +543,8 @@ public class OnlineBattleActionPayload
                     return payload.cardId > 0;
                 case CommandPlayRevealComplete:
                 case HandDiscardRevealComplete:
+                case EndTurn:
+                case EndTurnAck:
                     return payload.requestId > 0;
                 case HandDiscardReveal:
                     return payload.cardId > 0 && payload.requestId > 0;
@@ -708,6 +734,22 @@ public class OnlineHandDeckStateDto
     public int deckRemainCount;
 }
 
+/// <summary>EndTurn 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineEndTurnDto
+{
+    public string action;
+    public int requestId;
+}
+
+/// <summary>EndTurnAck 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineEndTurnAckDto
+{
+    public string action;
+    public int requestId;
+}
+
 /// <summary>HandDiscardReveal 送信用 lean DTO。</summary>
 [Serializable]
 public class OnlineHandDiscardRevealDto
@@ -761,6 +803,7 @@ public class OnlineOnActionEndDto
     public int resourceAfter;
     public int exResourceAfter;
     public int levelAfter;
+    public int turnEndCommit;
 }
 
 /// <summary>ShieldAttack 専用 lean payload。</summary>

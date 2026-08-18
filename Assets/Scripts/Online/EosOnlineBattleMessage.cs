@@ -70,11 +70,23 @@ public class EosOnlineBattleMessage
         });
     }
 
-    public static string CreateEndTurn()
+    public static string CreateEndTurn(string payload)
     {
-        return JsonUtility.ToJson(new EosOnlineBattleMessage
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
         {
-            type = "EndTurn"
+            type = "EndTurn",
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public const string EndTurnAck = "EndTurnAck";
+
+    public static string CreateEndTurnAck(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
+        {
+            type = EndTurnAck,
+            payload = payload ?? string.Empty
         });
     }
 
