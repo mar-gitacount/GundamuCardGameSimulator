@@ -298,6 +298,7 @@ public static class LocaleCatalog
             { "search.free_word", ("フリーワード", "Free Word") },
             { "search.advanced", ("詳細検索", "Advanced Search") },
             { "search.clear", ("クリア", "Clear") },
+            { "search.dismiss", ("\u00D7\u3059", "\u00D7") },
             { "search.placeholder", ("カード名を入力", "Enter card name") },
             { "search.filter.version", ("バージョン", "Version") },
             { "search.filter.color", ("色", "Color") },

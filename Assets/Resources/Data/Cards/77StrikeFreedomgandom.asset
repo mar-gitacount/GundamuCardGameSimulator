@@ -13,16 +13,22 @@ MonoBehaviour:
   m_Name: 77StrikeFreedomgandom
   m_EditorClassIdentifier: 
   id: 77
+  gcgOfficialId: 
   cardName: StrikeFreedomgandom
-  cost: 3
-  level: 3
+  cost: 6
+  level: 8
   power: 5
   hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/77_StrikeFreedomgandom"
+  imageAddress: Data/Images/77_StrikeFreedomgandom
   version: 5
   sourceType: 1
+  productLine: 0
+  boosterSet: 0
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 2
   type: 0
@@ -54,11 +60,16 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 6
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   - pilotCardId: 78
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -69,3 +80,5 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
