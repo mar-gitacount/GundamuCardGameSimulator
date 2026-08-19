@@ -111,6 +111,9 @@ public partial class BattleGameMain : MonoBehaviour
     private CardController pendingOnAttackEffectResolvedAttacker;
     private bool isEndTurnFlowRunning;
     private bool isOnActionPopupOpen;
+    /// <summary>ActionStep でカード確定後〜コスト支払い・効果解決が終わるまで。この間はカード選択 UI を差し込まない。</summary>
+    private bool _isActionStepCommandResolving;
+    private GameObject _activeResourcePaymentOverlay;
     private bool isShieldBreakFlowOpen;
     private bool shieldBreakQueueRunning;
     private readonly Queue<PendingShieldBreakBatch> pendingShieldBreakBatches = new Queue<PendingShieldBreakBatch>();
@@ -3627,6 +3630,8 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return isOnActionPopupOpen
+            || _isActionStepCommandResolving
+            || _activeResourcePaymentOverlay != null
             || _activeOnActionCommandRevealRoot != null
             || _activeHandDiscardRevealRoot != null
             || isAttackedSidePanelOpen
@@ -14964,6 +14969,12 @@ public partial class BattleGameMain : MonoBehaviour
         onActionSelectableSources.AddRange(ownFieldUnitsWithOnAction);
         onActionSelectableSources.AddRange(commandCards);
 
+        if (_isActionStepCommandResolving || _activeResourcePaymentOverlay != null)
+        {
+            Debug.Log("[ActionStep] Skip card-select UI — command resolve / resource pay is in progress.");
+            return true;
+        }
+
         if (onActionSelectableSources.Count == 0)
         {
             Debug.Log($"[OnActionCandidates] context:{context} side:{side} none");
@@ -15108,11 +15119,16 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
                     {
+                        BeginActionStepCommandResolve(root);
                         ExecuteOnActionCommandQueue(
                             side,
                             selectedCommands,
                             0,
-                            () => ResolveActionStepUi(side, passKind, root),
+                            () =>
+                            {
+                                EndActionStepCommandResolve();
+                                ResolveActionStepUi(side, passKind, root);
+                            },
                             attackingUnitInAttackFlow);
                         return;
                     }
@@ -15121,23 +15137,24 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
-                _onlineOnActionActiveContext = null;
-                isOnActionPopupOpen = false;
-                activeOnActionPopupRoot = null;
-                Destroy(root);
-
                 int requestId = _pendingOnlineOnActionRequestId > 0
                     ? _pendingOnlineOnActionRequestId
                     : _onlineOnActionResponseRequestId;
 
                 if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
                 {
+                    BeginActionStepCommandResolve(root);
                     ExecuteOnActionCommandQueue(
                         side,
                         selectedCommands,
                         0,
                         () =>
                         {
+                            EndActionStepCommandResolve();
+                            _onlineOnActionActiveContext = null;
+                            isOnActionPopupOpen = false;
+                            activeOnActionPopupRoot = null;
+                            Destroy(root);
                             SendOnlineActionStepResolution(requestId, side, passKind);
                             onStepDone?.Invoke();
                         },
@@ -15145,6 +15162,10 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
+                _onlineOnActionActiveContext = null;
+                isOnActionPopupOpen = false;
+                activeOnActionPopupRoot = null;
+                Destroy(root);
                 SendOnlineActionStepResolution(requestId, side, passKind);
                 onStepDone?.Invoke();
                 return;
@@ -15152,12 +15173,14 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
             {
+                BeginActionStepCommandResolve(root);
                 ExecuteOnActionCommandQueue(
                     side,
                     selectedCommands,
                     0,
                     () =>
                     {
+                        EndActionStepCommandResolve();
                         _onlineOnActionActiveContext = null;
                         isOnActionPopupOpen = false;
                         activeOnActionPopupRoot = null;
@@ -15842,7 +15865,8 @@ public partial class BattleGameMain : MonoBehaviour
             CardData sourceData = source != null ? source.Data : null;
             List<EffectData> deferredMountEffects = CollectMountSelfFromTrashAsPilotEffects(
                 timed != null ? timed.GetResolvedEffects() : null);
-            FinalizeOnMainSourceCard(source, side);
+            // 必殺技監視 UI と搭乗 UI が同時に開くと DestroyActiveOnActionPopupIfAny で潰れる。
+            yield return CoFinalizeOnMainSourceCardAndWaitSpecialMoveWatch(source, side);
             if (deferredMountEffects.Count > 0 && sourceCardId > 0)
             {
                 TryExecuteDeferredMountSelfFromTrashChain(
@@ -16701,6 +16725,34 @@ public partial class BattleGameMain : MonoBehaviour
         });
     }
 
+    /// <summary>
+    /// 支払い overlay（sortingOrder 520）より前面に出し、クリックが奥の Canvas に吸われないようにする。
+    /// </summary>
+    private static void EnsureOnActionPopupOverlayCanvas(GameObject root, int sortingOrder = 530)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        Canvas overlayCanvas = root.GetComponent<Canvas>();
+        if (overlayCanvas == null)
+        {
+            overlayCanvas = root.AddComponent<Canvas>();
+        }
+
+        overlayCanvas.overrideSorting = true;
+        overlayCanvas.sortingOrder = sortingOrder;
+        overlayCanvas.additionalShaderChannels = AdditionalCanvasShaderChannels.TexCoord1
+            | AdditionalCanvasShaderChannels.Normal
+            | AdditionalCanvasShaderChannels.Tangent;
+
+        if (root.GetComponent<GraphicRaycaster>() == null)
+        {
+            root.AddComponent<GraphicRaycaster>();
+        }
+    }
+
     private void DestroyActiveOnActionPopupIfAny()
     {
         if (activeOnActionPopupRoot != null)
@@ -16718,7 +16770,10 @@ public partial class BattleGameMain : MonoBehaviour
 
         _unitPilotEffectOrderUiOpen = false;
         _effectChoiceUiOpen = false;
-        isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
+        isOnActionPopupOpen = activeOnActionPopupRoot != null
+            || _activeLookDeckPopupRoot != null
+            || _isActionStepCommandResolving
+            || _activeResourcePaymentOverlay != null;
     }
 
     private void ShowResultOverlay(string resultText)

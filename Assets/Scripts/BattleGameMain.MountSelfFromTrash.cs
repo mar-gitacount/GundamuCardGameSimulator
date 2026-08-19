@@ -98,10 +98,19 @@ public partial class BattleGameMain
             effect,
             onAccepted: () =>
             {
-                if (ownerType == PlayerType.Enemy)
+                // Yes 時点で再収集（確認中に場が変わった場合に備える）。
+                List<CardController> liveHosts = CollectMountSelfFromTrashHostCandidates(ownerType, effect);
+                if (liveHosts.Count == 0)
                 {
-                    CardController picked = hosts[0];
-                    TryCommitMountSelfFromTrash(ownerType, sourceCardId, sourceData, picked);
+                    Debug.Log(
+                        $"[MountSelfFromTrash] 確認後に搭乗可能な対象がなくなった (cardId:{sourceCardId})。");
+                    onComplete?.Invoke();
+                    return;
+                }
+
+                if (ownerType == PlayerType.Enemy || liveHosts.Count == 1)
+                {
+                    TryCommitMountSelfFromTrash(ownerType, sourceCardId, sourceData, liveHosts[0]);
                     onComplete?.Invoke();
                     return;
                 }
@@ -110,7 +119,7 @@ public partial class BattleGameMain
                     ownerType,
                     sourceCardId,
                     sourceData,
-                    hosts,
+                    liveHosts,
                     onComplete));
             },
             onDeclined: () =>
@@ -118,6 +127,39 @@ public partial class BattleGameMain
                 Debug.Log($"[MountSelfFromTrash] プレイヤーが搭乗を見送った (cardId:{sourceCardId})。");
                 onComplete?.Invoke();
             });
+    }
+
+    /// <summary>
+    /// OnMain コマンドをトラッシュへ送る。〔必殺技〕監視が終わるまで待ってから搭乗 UI を出す。
+    /// </summary>
+    private IEnumerator CoFinalizeOnMainSourceCardAndWaitSpecialMoveWatch(
+        CardController source,
+        PlayerType side)
+    {
+        if (source == null || source.Data == null)
+        {
+            yield break;
+        }
+
+        if (!source.Data.IsCommand())
+        {
+            FinalizeOnMainSourceCard(source, side);
+            yield break;
+        }
+
+        CardData commandData = source.Data;
+        if (side == PlayerType.Player)
+        {
+            string playKind = HasEffectTiming(commandData, EffectTiming.OnMain)
+                ? "CommandOnMain"
+                : "CommandOnAction";
+            RecordEnemyAiObservedPlayerCardPlay(source, playKind);
+        }
+
+        bool watchDone = false;
+        NotifyOwnerSpecialMoveCommandActivated(side, commandData, () => watchDone = true);
+        yield return new WaitUntil(() => watchDone);
+        SendUsedCommandToTrash(source, side);
     }
 
     private static bool TrashContainsCardId(CardGameRule trashRule, int cardId)
@@ -173,7 +215,7 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (!MatchesRequiredFeatures(unit.Data, requiredFeatures))
+            if (!MatchesMountSelfFromTrashHostFeatures(unit.Data, effect, requiredFeatures))
             {
                 continue;
             }
@@ -188,6 +230,43 @@ public partial class BattleGameMain
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// targetFeature / targetFeatureId / 〔MF〕キーのいずれかで搭乗先を判定する。
+    /// </summary>
+    private static bool MatchesMountSelfFromTrashHostFeatures(
+        CardData unitData,
+        EffectData effect,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        bool hasFeatureFilter = (requiredFeatures != null && requiredFeatures.Count > 0)
+            || (effect != null && effect.targetFeatureId > 0);
+        if (!hasFeatureFilter)
+        {
+            return true;
+        }
+
+        if (MatchesRequiredFeatures(unitData, requiredFeatures))
+        {
+            return true;
+        }
+
+        if (effect != null && effect.targetFeatureId > 0 && unitData != null)
+        {
+            if (unitData.HasFeatureId(effect.targetFeatureId))
+            {
+                return true;
+            }
+
+            // JSON の 12 = 〔MF〕。レジストリ未解決時のフォールバック。
+            if (effect.targetFeatureId == 12 && unitData.HasFeatureKey("MF"))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private IEnumerator ShowMountSelfFromTrashHostSelectionCoroutine(
@@ -221,12 +300,13 @@ public partial class BattleGameMain
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
+        EnsureOnActionPopupOverlayCanvas(root);
         Image dim = root.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.62f);
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("MountTrashTitle", UIAnchor.TopCenter, 760, 48);
-        title.text = "Set Pilot onto Unit";
+        title.SetLocalizedText("パイロットをセットするユニットを選ぶ", "Set Pilot onto Unit");
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
@@ -234,7 +314,9 @@ public partial class BattleGameMain
 
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("MountTrashSubtitle", UIAnchor.TopCenter, 760, 36);
         string pilotLabel = sourceData != null ? sourceData.cardName : $"id:{sourceCardId}";
-        subtitle.text = $"Choose an ally Unit to set {pilotLabel} from Trash";
+        subtitle.SetLocalizedText(
+            $"トラッシュの {pilotLabel} をセットする味方ユニットを選んでください",
+            $"Choose an ally Unit to set {pilotLabel} from Trash");
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
@@ -266,19 +348,22 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                GameObject go = Instantiate(CardImagePrefab, content);
-                CardController cc = go.GetComponent<CardController>();
-                if (cc != null)
-                {
-                    CardController captured = host;
-                    cc.SetUp(host.Data, _ =>
+                // 敵 AP-2 と同じ Button.onClick。CardController の IPointerClickHandler だけだと反応しない。
+                AppendSelectableTargetCardToGrid(
+                    content,
+                    host,
+                    highlightAsAttackingUnit: false,
+                    onPicked: picked =>
                     {
-                        selected = captured;
+                        if (dismissed)
+                        {
+                            return;
+                        }
+
+                        selected = picked;
                         dismissed = true;
                         ClosePopup();
                     });
-                    go.transform.localScale = new Vector3(0.42f, 0.42f, 1f);
-                }
             }
         }
 

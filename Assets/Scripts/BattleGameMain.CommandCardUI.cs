@@ -154,7 +154,10 @@ public partial class BattleGameMain
                 activeOnActionPopupRoot = null;
             }
 
-            isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
+            isOnActionPopupOpen = activeOnActionPopupRoot != null
+                || _activeLookDeckPopupRoot != null
+                || _isActionStepCommandResolving
+                || _activeResourcePaymentOverlay != null;
         });
 
         yield return new WaitUntil(() => acknowledged);

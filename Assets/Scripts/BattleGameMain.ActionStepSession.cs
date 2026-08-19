@@ -154,6 +154,7 @@ public partial class BattleGameMain
         System.Action complete = _actionStepSession.OnComplete;
         _actionStepSession = null;
         _onlineOnActionActiveContext = null;
+        EndActionStepCommandResolve();
         complete?.Invoke();
         if (wasTurnEndActionStep)
         {
@@ -216,7 +217,10 @@ public partial class BattleGameMain
             activeOnActionPopupRoot = null;
         }
 
-        isOnActionPopupOpen = activeOnActionPopupRoot != null || _activeLookDeckPopupRoot != null;
+        isOnActionPopupOpen = activeOnActionPopupRoot != null
+            || _activeLookDeckPopupRoot != null
+            || _isActionStepCommandResolving
+            || _activeResourcePaymentOverlay != null;
     }
 
     private static void SetActionStepButtonInteractable(Button btn, bool interactable)
@@ -336,5 +340,20 @@ public partial class BattleGameMain
 
         PlayerType actingSide = MirrorOnlineActingZoneToLocalPlayerType(actingZoneSide);
         AdvanceActionStepSession(actingSide, passKind);
+    }
+
+    /// <summary>カード確定直後に選択 UI を隠し、コスト支払い中に ActionStep 一覧が被らないようにする。</summary>
+    private void BeginActionStepCommandResolve(GameObject selectionRoot)
+    {
+        _isActionStepCommandResolving = true;
+        if (selectionRoot != null)
+        {
+            selectionRoot.SetActive(false);
+        }
+    }
+
+    private void EndActionStepCommandResolve()
+    {
+        _isActionStepCommandResolving = false;
     }
 }

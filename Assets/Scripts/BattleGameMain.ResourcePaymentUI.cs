@@ -123,11 +123,14 @@ public partial class BattleGameMain
                 finished = true;
             });
 
-        yield return new WaitUntil(() => finished);
-        if (overlay != null)
+        if (overlay == null)
         {
-            Destroy(overlay);
+            onFinished?.Invoke(false, 0);
+            yield break;
         }
+
+        yield return new WaitUntil(() => finished);
+        CloseResourcePaymentOverlay(overlay);
 
         onFinished?.Invoke(paid, exToUse);
     }
@@ -189,13 +192,27 @@ public partial class BattleGameMain
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
         Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
 
-        Transform canvasRoot = ResolveUiCanvasRoot();
+        Canvas canvas = ResolveBattleCanvas();
+        Transform canvasRoot = canvas != null
+            ? canvas.transform
+            : ResolveUiCanvasRoot();
+        if (canvasRoot == null)
+        {
+            onCancel?.Invoke();
+            return null;
+        }
+
+        CloseResourcePaymentOverlay(_activeResourcePaymentOverlay);
+
         GameObject overlay = new GameObject(
             "ResourcePaymentOverlay",
             typeof(RectTransform),
             typeof(CanvasRenderer),
-            typeof(Image));
+            typeof(Image),
+            typeof(Canvas),
+            typeof(GraphicRaycaster));
         overlay.transform.SetParent(canvasRoot, false);
+        overlay.transform.SetAsLastSibling();
         RectTransform overlayRt = overlay.GetComponent<RectTransform>();
         overlayRt.anchorMin = Vector2.zero;
         overlayRt.anchorMax = Vector2.one;
@@ -204,6 +221,13 @@ public partial class BattleGameMain
         Image dim = overlay.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.55f);
         dim.raycastTarget = true;
+
+        Canvas overlayCanvas = overlay.GetComponent<Canvas>();
+        overlayCanvas.overrideSorting = true;
+        overlayCanvas.sortingOrder = 520;
+        overlayCanvas.additionalShaderChannels = AdditionalCanvasShaderChannels.TexCoord1
+            | AdditionalCanvasShaderChannels.Normal
+            | AdditionalCanvasShaderChannels.Tangent;
 
         GameObject sheet = overlay.CreateChildPanelCustom("PaySheet", UIAnchor.CenterStretch, 520, 360);
         RectTransform sheetRt = sheet.GetComponent<RectTransform>();
@@ -236,7 +260,36 @@ public partial class BattleGameMain
                 onCancel?.Invoke();
             });
 
+        _activeResourcePaymentOverlay = overlay;
+        isOnActionPopupOpen = true;
         return overlay;
+    }
+
+    private void CloseResourcePaymentOverlay(GameObject overlay)
+    {
+        if (overlay == null)
+        {
+            if (_activeResourcePaymentOverlay == null)
+            {
+                return;
+            }
+
+            overlay = _activeResourcePaymentOverlay;
+        }
+
+        if (_activeResourcePaymentOverlay == overlay)
+        {
+            _activeResourcePaymentOverlay = null;
+        }
+
+        if (overlay != null)
+        {
+            Destroy(overlay);
+        }
+
+        isOnActionPopupOpen = activeOnActionPopupRoot != null
+            || _activeLookDeckPopupRoot != null
+            || _isActionStepCommandResolving;
     }
 
     private Transform ResolveUiCanvasRoot()

@@ -38,6 +38,8 @@ public partial class BattleGameMain
         CloseAllOnlineActionStepUi();
         _pendingOnlineOnActionBeginJson = null;
         ResetOnlineOnActionCommandRevealState();
+        EndActionStepCommandResolve();
+        CloseResourcePaymentOverlay(_activeResourcePaymentOverlay);
     }
     private void ResetOnlineActionStepEndedTracking()
     {
@@ -338,6 +340,18 @@ public partial class BattleGameMain
             Debug.Log($"[OnlineBattle] Action step session sync id:{action.actionStepSessionId}");
         }
 
+        if (_isActionStepCommandResolving || _activeResourcePaymentOverlay != null)
+        {
+            if (action.actingZoneSide == (int)PlayerType.Enemy)
+            {
+                _onlineOnActionResponseRequestId = action.requestId;
+            }
+
+            Debug.Log(
+                $"[OnlineBattle] OnActionBegin deferred while paying/resolving. requestId:{action.requestId}");
+            return;
+        }
+
         RememberTurnEndActionStepFromContext(action.onActionContext);
         if (action.actingZoneSide == (int)PlayerType.Player)
         {
@@ -354,7 +368,10 @@ public partial class BattleGameMain
             Debug.LogWarning($"[OnlineBattle] Ignored OnActionBegin for unknown zone:{action.actingZoneSide}");
             return;
         }
-        if (action.requestId == _onlineOnActionResponseRequestId && isOnActionPopupOpen)
+        if (action.requestId == _onlineOnActionResponseRequestId
+            && (isOnActionPopupOpen
+                || _isActionStepCommandResolving
+                || _activeResourcePaymentOverlay != null))
         {
             Debug.Log($"[OnlineBattle] Duplicate OnActionBegin ignored. requestId:{action.requestId}");
             return;
