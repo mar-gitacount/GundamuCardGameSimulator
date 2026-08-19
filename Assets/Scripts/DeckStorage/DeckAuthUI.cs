@@ -6,6 +6,8 @@ using UnityEngine.UI;
 /// <summary>ログインページ。未ログイン=ローカル保存、ログイン後=Cloud Save。</summary>
 public class DeckAuthUI : MonoBehaviour
 {
+    [Tooltip("true のときサインイン UI（オーバーレイ・Sign In ボタン等）を表示しない。UI オブジェクトは残す。")]
+    [SerializeField] private bool hideSignInUi = true;
     [SerializeField] private bool buildUiAtRuntime = true;
     [SerializeField] private TMP_InputField usernameField;
     [SerializeField] private TMP_InputField passwordField;
@@ -65,8 +67,18 @@ public class DeckAuthUI : MonoBehaviour
         }
         else
         {
-            SetLoginOverlayVisible(true);
-            RefreshDeckList();
+            if (hideSignInUi)
+            {
+                guestModeChosen = true;
+                SetLoginOverlayVisible(false);
+                ApplySignInUiVisibility();
+                RefreshDeckList();
+            }
+            else
+            {
+                SetLoginOverlayVisible(true);
+                RefreshDeckList();
+            }
         }
     }
 
@@ -100,6 +112,7 @@ public class DeckAuthUI : MonoBehaviour
         AttachMobileInputEnhancers(built);
 
         transform.SetAsLastSibling();
+        ApplySignInUiVisibility();
     }
 
     public static void AttachMobileInputEnhancers(LoginPageUIBuilder.BuiltLoginPage page)
@@ -239,7 +252,15 @@ public class DeckAuthUI : MonoBehaviour
         }
 
         RefreshUi();
-        SetLoginOverlayVisible(true);
+        if (hideSignInUi)
+        {
+            guestModeChosen = true;
+            SetLoginOverlayVisible(false);
+        }
+        else
+        {
+            SetLoginOverlayVisible(true);
+        }
     }
 
     private void OnGuestContinueClicked()
@@ -264,6 +285,11 @@ public class DeckAuthUI : MonoBehaviour
 
     private void OnOpenLoginClicked()
     {
+        if (hideSignInUi)
+        {
+            return;
+        }
+
         SetLoginOverlayVisible(true);
         SetStatus(PlayerAuthService.Instance.UseCloudStorage
             ? GameLocale.T(
@@ -289,18 +315,20 @@ public class DeckAuthUI : MonoBehaviour
 
         if (openLoginButton != null)
         {
-            openLoginButton.gameObject.SetActive(!signedIn);
+            openLoginButton.gameObject.SetActive(!hideSignInUi && !signedIn);
         }
 
         if (signOutButton != null)
         {
-            signOutButton.gameObject.SetActive(signedIn);
+            signOutButton.gameObject.SetActive(!hideSignInUi && signedIn);
         }
 
         if (accountBar != null)
         {
-            accountBar.SetActive(guestModeChosen || signedIn);
+            accountBar.SetActive(!hideSignInUi && (guestModeChosen || signedIn));
         }
+
+        ApplySignInUiVisibility();
 
         if (!signedIn && !guestModeChosen)
         {
@@ -322,7 +350,36 @@ public class DeckAuthUI : MonoBehaviour
     {
         if (loginOverlay != null)
         {
-            loginOverlay.SetActive(visible);
+            loginOverlay.SetActive(!hideSignInUi && visible);
+        }
+    }
+
+    /// <summary>hideSignInUi 時はオーバーレイ内の Sign In / Sign Up を含め非表示にする。</summary>
+    private void ApplySignInUiVisibility()
+    {
+        if (!hideSignInUi)
+        {
+            return;
+        }
+
+        if (signInButton != null)
+        {
+            signInButton.gameObject.SetActive(false);
+        }
+
+        if (signUpButton != null)
+        {
+            signUpButton.gameObject.SetActive(false);
+        }
+
+        if (openLoginButton != null)
+        {
+            openLoginButton.gameObject.SetActive(false);
+        }
+
+        if (loginOverlay != null)
+        {
+            loginOverlay.SetActive(false);
         }
     }
 

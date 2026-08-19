@@ -5,6 +5,9 @@ using TMPro;
 
 public class ScrollBottomChecker : MonoBehaviour
 {
+    private const string SearchDismissGlyph = "\u00D7";
+    private const string SearchDismissSuffix = "\u3059";
+
     private ScrollRect scrollRect;
     [SerializeField] private GameObject imagePrefab;
     private bool isLoading = false;
@@ -169,6 +172,60 @@ public class ScrollBottomChecker : MonoBehaviour
         }
 
         ApplyAllIncludedCardLocale();
+        ApplySearchDismissButtonLabel();
+    }
+
+    /// <summary>検索画面ヘッダーの「消す」は漢字のみ × にする（「す」は残す）。</summary>
+    private void ApplySearchDismissButtonLabel()
+    {
+        if (Searchcanvas == null)
+        {
+            return;
+        }
+
+        string label = GetSearchDismissLabel();
+        Button[] buttons = Searchcanvas.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            Button button = buttons[i];
+            if (button == null || button == ClearSearchButton)
+            {
+                continue;
+            }
+
+            TMP_Text tmp = button.GetComponentInChildren<TMP_Text>(true);
+            if (tmp != null && IsSearchDismissLabel(NormalizeUiText(tmp.text)))
+            {
+                tmp.text = label;
+                tmp.alignment = TextAlignmentOptions.Center;
+                GameLocale.ApplyFont(tmp);
+                continue;
+            }
+
+            Text legacy = button.GetComponentInChildren<Text>(true);
+            if (legacy != null && IsSearchDismissLabel(NormalizeUiText(legacy.text)))
+            {
+                legacy.text = label;
+                legacy.alignment = TextAnchor.MiddleCenter;
+            }
+        }
+    }
+
+    private static string GetSearchDismissLabel()
+    {
+        return GameLocale.TKey("search.dismiss");
+    }
+
+    private static bool IsSearchDismissLabel(string normalized)
+    {
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return false;
+        }
+
+        return normalized == "消す"
+            || normalized == SearchDismissGlyph + SearchDismissSuffix
+            || normalized == SearchDismissGlyph;
     }
 
     /// <summary>中身のない詳細検索（Advanced Search）と、旧・収録カード色フィルターを非表示にする。</summary>
