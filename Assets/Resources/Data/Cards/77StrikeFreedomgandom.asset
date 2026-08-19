@@ -34,7 +34,7 @@ MonoBehaviour:
   type: 0
   attackFlg: 0
   timedEffects:
-  - timing: 15
+  - timing: 0
     activationConditions: []
     requireChainObservationContext: 0
     effectsName: MarkAllyUnit_EnemyKillWatch

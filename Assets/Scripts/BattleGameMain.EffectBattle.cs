@@ -55,6 +55,7 @@ public partial class BattleGameMain
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
+        EnsureOnActionPopupOverlayCanvas(root);
         Image dim = root.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.62f);
         dim.raycastTarget = true;
