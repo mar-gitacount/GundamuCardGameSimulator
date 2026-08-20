@@ -416,7 +416,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (!HasOnMainHandDeployCandidatesIfRequired(side, timed))
+        if (!HasOnMainDeployZoneCandidatesIfRequired(side, timed))
         {
             return false;
         }
@@ -444,8 +444,8 @@ public partial class BattleGameMain
             && first.target == TargetType.Self;
     }
 
-    /// <summary>手札配備（選択必須）を含む OnMain は、候補が1枚以上あるときだけ発動可。</summary>
-    private bool HasOnMainHandDeployCandidatesIfRequired(PlayerType side, TimedEffectData timed)
+    /// <summary>手札／トラッシュ配備（選択必須）を含む OnMain は、候補が1枚以上あるときだけ発動可。</summary>
+    private bool HasOnMainDeployZoneCandidatesIfRequired(PlayerType side, TimedEffectData timed)
     {
         IReadOnlyList<EffectData> effects = timed?.GetResolvedEffects();
         if (effects == null)
@@ -454,6 +454,7 @@ public partial class BattleGameMain
         }
 
         bool hasHandDeploySelect = false;
+        bool hasTrashDeploySelect = false;
         for (int i = 0; i < effects.Count; i++)
         {
             EffectData effect = effects[i];
@@ -462,24 +463,31 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (effect.deployUnitSource != DeployUnitSource.Hand)
+            if (effect.deployUnitSource == DeployUnitSource.Hand)
             {
-                continue;
-            }
+                if (!effect.RequiresDeployUnitZoneSelection())
+                {
+                    continue;
+                }
 
-            if (!effect.RequiresDeployUnitZoneSelection())
-            {
-                continue;
+                hasHandDeploySelect = true;
+                if (CollectHandDeployCandidates(side, effect).Count > 0)
+                {
+                    return true;
+                }
             }
-
-            hasHandDeploySelect = true;
-            if (CollectHandDeployCandidates(side, effect).Count > 0)
+            else if (effect.deployUnitSource == DeployUnitSource.Trash)
             {
-                return true;
+                hasTrashDeploySelect = true;
+                CardGameRule trashRule = ResolveTrashRuleForEffect(side, effect);
+                if (trashRule != null && CollectTrashDeployCandidates(trashRule, effect).Count > 0)
+                {
+                    return true;
+                }
             }
         }
 
-        return !hasHandDeploySelect;
+        return !hasHandDeploySelect && !hasTrashDeploySelect;
     }
 
     private List<OnMainExecutableBlock> CollectExecutableOnMainBlocks(PlayerType side, CardController source)

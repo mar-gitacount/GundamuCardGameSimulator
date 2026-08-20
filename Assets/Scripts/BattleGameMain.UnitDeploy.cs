@@ -125,7 +125,8 @@ public partial class BattleGameMain
         CardGameRule rule,
         bool triggerOnPlayed,
         bool fromHand,
-        bool deployAsRested = false)
+        bool deployAsRested = false,
+        bool fromTrash = false)
     {
         if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || rule == null)
         {
@@ -162,6 +163,7 @@ public partial class BattleGameMain
 
         unit.SetEligibleForShieldZoneDeploy(false);
         unit.ResetRuntimeStatsFromData();
+        unit.SetDeployedFromTrash(fromTrash);
         ApplyUnitDeployFieldAttackState(unit);
         AssignBattleInstanceIdIfNeeded(unit);
         ApplyPilotMountFieldAurasToDeployedUnit(unit, recipient);
@@ -337,7 +339,13 @@ public partial class BattleGameMain
             return false;
         }
 
-        return DeployUnitToBattleZone(spawned, recipient, deployRule, triggerOnPlayed, fromHand: false);
+        return DeployUnitToBattleZone(
+            spawned,
+            recipient,
+            deployRule,
+            triggerOnPlayed,
+            fromHand: false,
+            fromTrash: true);
     }
 
     private void ApplyDeployUnitFromTrashAuto(

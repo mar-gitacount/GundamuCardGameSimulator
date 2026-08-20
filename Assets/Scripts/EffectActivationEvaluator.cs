@@ -52,6 +52,9 @@ public sealed class EffectActivationContext
     /// <summary>このターン中にオーナーが〔必殺技〕コマンドのメイン／アクションを発動済みか。</summary>
     public bool OwnerActivatedSpecialMoveCommandThisTurn { get; }
 
+    /// <summary>オーナーの配備ベースが生存している。</summary>
+    public bool OwnerHasDeployedBase { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -71,7 +74,8 @@ public sealed class EffectActivationContext
         bool hasDestroyingCardOwner = false,
         BattleGameMain.PlayerType destroyingCardOwner = default,
         bool destroyedByBattleDamage = false,
-        bool ownerActivatedSpecialMoveCommandThisTurn = false)
+        bool ownerActivatedSpecialMoveCommandThisTurn = false,
+        bool ownerHasDeployedBase = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -92,6 +96,7 @@ public sealed class EffectActivationContext
         DestroyingCardOwner = destroyingCardOwner;
         DestroyedByBattleDamage = destroyedByBattleDamage;
         OwnerActivatedSpecialMoveCommandThisTurn = ownerActivatedSpecialMoveCommandThisTurn;
+        OwnerHasDeployedBase = ownerHasDeployedBase;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -120,7 +125,8 @@ public sealed class EffectActivationContext
             HasDestroyingCardOwner,
             DestroyingCardOwner,
             DestroyedByBattleDamage,
-            OwnerActivatedSpecialMoveCommandThisTurn);
+            OwnerActivatedSpecialMoveCommandThisTurn,
+            OwnerHasDeployedBase);
     }
 }
 
@@ -270,6 +276,21 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.OwnerHasLinkedUnitWithFeature)
         {
             return EvaluateOwnerHasLinkedUnitWithFeature(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.TrashHasColor)
+        {
+            return EvaluateTrashHasColor(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerHasDeployedBase)
+        {
+            return ctx != null && ctx.OwnerHasDeployedBase;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.SourceDeployedFromTrash)
+        {
+            return ctx != null && ctx.SourceCard != null && ctx.SourceCard.WasDeployedFromTrash;
         }
 
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
@@ -480,6 +501,19 @@ public static class EffectActivationEvaluator
         IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
         int need = Mathf.Max(1, c.minimumCount);
         return TrashCardQuery.HasCardTypeAtLeast(trashIds, c.observedCardType, need);
+    }
+
+    private static bool EvaluateTrashHasColor(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+        int need = Mathf.Max(1, c.minimumCount);
+        CardColor color = (CardColor)c.compareValue;
+        return TrashCardQuery.HasColorAtLeast(trashIds, color, need);
     }
 
     private static bool EvaluateTrashHasFeature(EffectActivationCondition c, EffectActivationContext ctx)

@@ -185,6 +185,18 @@
             "featureKey": "Warship",
             "displayName": "戦艦",
             "description": ""
+        },
+        {
+            "id": 31,
+            "featureKey": "Minerva_Squad",
+            "displayName": "ミネルバ隊",
+            "description": ""
+        },
+        {
+            "id": 32,
+            "featureKey": "Coordinator",
+            "displayName": "コーディネイター",
+            "description": ""
         }
     ]
 }

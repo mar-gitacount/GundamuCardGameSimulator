@@ -53,6 +53,18 @@
             "pilotKey": "Mikazuki_Augus",
             "displayName": "三日月・オーガス",
             "description": ""
+        },
+        {
+            "id": 10,
+            "pilotKey": "Athrun_Zala",
+            "displayName": "アスラン・ザラ",
+            "description": ""
+        },
+        {
+            "id": 11,
+            "pilotKey": "Lunamaria_Hawke",
+            "displayName": "ルナマリア・ホーク",
+            "description": ""
         }
     ]
 }

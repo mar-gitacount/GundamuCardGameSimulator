@@ -30,6 +30,7 @@ public class PlayerPrefsSaveData : ISaveData
             sourceType = (int)card.sourceType,
             color = (int)card.color, // カードの色を追加
             type = (int)card.type,
+            battleZones = (int)card.battleZones,
             featureIds = CardFeatureRegistry.CollectIds(card.features),
             pilotIdIds = CardPilotIdRegistry.CollectIds(card.pilotIds),
             isBlocker = card.isBlocker,
@@ -67,6 +68,7 @@ public class PlayerPrefsSaveData : ISaveData
         card.isRepair = json.isRepair;
         card.repairAmount = json.repairAmount;
         card.type = (Type)json.type;
+        card.battleZones = (CardBattleZone)json.battleZones;
         card.SetFeaturesFromIds(json.featureIds);
         card.SetPilotIdsFromIds(json.pilotIdIds);
         return card;

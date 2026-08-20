@@ -2686,12 +2686,19 @@ public class CardGameRule
     /// <summary>手札ゾーン内のカード枚数表示を、実際の手札 UI 枚数に合わせて更新する。</summary>
     public void RefreshHandCountDisplay()
     {
+        RefreshHandCountDisplay(CountHandZoneCards());
+    }
+
+    /// <summary>指定枚数で手札ヘッダーを更新する（破棄待ちカードを含めない集計結果を渡す）。</summary>
+    public void RefreshHandCountDisplay(int displayedCount)
+    {
         if (handCountText == null)
         {
             return;
         }
 
-        handCountText.SetLocalizedText($"{GameLocale.TKey("zone.hand")} ({CountHandZoneCards()})");
+        int count = Mathf.Max(0, displayedCount);
+        handCountText.SetLocalizedText($"{GameLocale.TKey("zone.hand")} ({count})");
         handCountText.color = Color.black;
     }
 
@@ -2839,7 +2846,8 @@ public class CardGameRule
         }
     }
 
-    private int CountHandZoneCards()
+    /// <summary>手札スクロール内の生存カード枚数（オンライン伏せトークン含む。Destroy 済みは除く）。</summary>
+    public int CountHandZoneCards()
     {
         if (HandScrollContent == null)
         {
@@ -2849,10 +2857,13 @@ public class CardGameRule
         int count = 0;
         for (int i = 0; i < HandScrollContent.childCount; i++)
         {
-            if (HandScrollContent.GetChild(i).GetComponent<CardController>() != null)
+            CardController cc = HandScrollContent.GetChild(i).GetComponent<CardController>();
+            if (cc == null)
             {
-                count++;
+                continue;
             }
+
+            count++;
         }
 
         return count;

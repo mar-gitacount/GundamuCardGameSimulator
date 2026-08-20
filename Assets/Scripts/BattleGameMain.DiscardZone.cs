@@ -282,6 +282,22 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (!string.IsNullOrWhiteSpace(effect.targetCardNameContains)
+                && (data == null
+                    || !CardNameContainsMatcher.Matches(data.cardName, effect.targetCardNameContains.Trim())))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(effect.targetCardNameExcludes)
+                && data != null
+                && CardNameContainsMatcher.MatchesExcludeNeedle(
+                    data.cardName,
+                    effect.targetCardNameExcludes.Trim()))
+            {
+                continue;
+            }
+
             if (!EffectDataExtensions.MatchesCardDataStatFilter(effect, data))
             {
                 continue;

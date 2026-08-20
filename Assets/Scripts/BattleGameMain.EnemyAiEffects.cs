@@ -338,6 +338,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
+                || eff.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
                 || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.ExileFromDeck
                 || eff.type == EffectType.ExileFromTrash

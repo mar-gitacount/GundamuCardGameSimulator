@@ -60,6 +60,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 070029e855b5109448f7e8c98aa8ce05
+    m_Address: Data/Images/ST09Force Impulse Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 083ad3b0f4ef70749b2366cbb2ba842c
     m_Address: Data/Images/96_Alpha Azieru
     m_ReadOnly: 0
@@ -345,6 +350,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 4561a30053b757b42a3b1098067a0f1f
     m_Address: Data/Images/30_30Vesalius
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 456fed58422fd6b42a08a5df90cb4cce
+    m_Address: Data/Images/Saviour Gundam
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -777,6 +787,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a22ef5a71ad53b342b42c23396f8b36c
+    m_Address: Data/Images/ST09Freedom Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a2814396171449a439f4f5b6b5f2e428
     m_Address: Data/Images/Gaia Gundam
     m_ReadOnly: 0
@@ -856,6 +871,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: b00d398040bf6b048b04d55be02f9a1b
     m_Address: Data/Images/93_Quess Paraya
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b041fefc05f598441941f724bd4fa757
+    m_Address: Data/Images/Impulse Gundam
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

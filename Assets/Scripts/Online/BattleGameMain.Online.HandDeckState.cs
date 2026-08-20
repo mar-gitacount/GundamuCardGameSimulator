@@ -3,9 +3,14 @@ using UnityEngine;
 /// <summary>オンライン：自サイドの手札枚数／山札残数と相手手札伏せ UI の同期。</summary>
 public partial class BattleGameMain
 {
+    private int _lastSyncedPlayerHandUiCount = -1;
+    private int _lastSyncedEnemyHandUiCount = -1;
+    private int _lastSentOnlineHandUiCount = -1;
+
     /// <summary>
     /// 自分視点の Player ゾーン手札・山札を相手へ送る。
     /// カード ID は送らず枚数のみ（手札内容の秘匿を維持）。
+    /// 枚数は手札 UI 上の生存カードを正とする（同一 CardData の複数枚をリストが取りこぼしてもずれない）。
     /// </summary>
     private void NotifyLocalPlayerHandDeckSnapshot()
     {
@@ -14,8 +19,9 @@ public partial class BattleGameMain
             return;
         }
 
-        int handCount = Mathf.Max(0, playerHandCards.Count);
+        int handCount = Mathf.Max(0, cardGameRule.CountHandZoneCards());
         int deckRemain = Mathf.Max(0, cardGameRule.GetRemainingCount());
+        _lastSentOnlineHandUiCount = handCount;
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateHandDeckState(
             OnlineBattleActionPayload.CreateHandDeckState(
                 (int)PlayerType.Player,
@@ -130,6 +136,42 @@ public partial class BattleGameMain
         if (state != null)
         {
             state.handCount = Mathf.Max(0, handCount);
+        }
+    }
+
+    /// <summary>
+    /// 手札ヘッダー枚数を毎フレーム実 UI に合わせる。
+    /// オンラインは自手札枚数が変わったら相手へ送り直す。
+    /// </summary>
+    private void SyncLiveHandCountDisplays()
+    {
+        if (cardGameRule == null && enemyCardGameRule == null)
+        {
+            return;
+        }
+
+        int playerUi = cardGameRule != null ? cardGameRule.CountHandZoneCards() : 0;
+        int enemyUi = enemyCardGameRule != null ? enemyCardGameRule.CountHandZoneCards() : 0;
+
+        if (playerUi != _lastSyncedPlayerHandUiCount)
+        {
+            cardGameRule?.RefreshHandCountDisplay(playerUi);
+            SyncGundamRuleHandCount(PlayerType.Player, playerUi);
+            _lastSyncedPlayerHandUiCount = playerUi;
+        }
+
+        if (enemyUi != _lastSyncedEnemyHandUiCount)
+        {
+            enemyCardGameRule?.RefreshHandCountDisplay(enemyUi);
+            SyncGundamRuleHandCount(PlayerType.Enemy, enemyUi);
+            _lastSyncedEnemyHandUiCount = enemyUi;
+        }
+
+        if (IsOnlineBattle()
+            && !_applyingRemoteBattleAction
+            && playerUi != _lastSentOnlineHandUiCount)
+        {
+            NotifyLocalPlayerHandDeckSnapshot();
         }
     }
 }

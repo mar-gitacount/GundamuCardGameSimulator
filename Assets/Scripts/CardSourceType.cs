@@ -36,7 +36,8 @@ public enum FilterType
     Color,
     SourceType,
     Cost,
-    Level
+    Level,
+    BattleZone
 }
 
 public enum Type

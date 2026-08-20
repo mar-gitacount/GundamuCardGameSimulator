@@ -27,6 +27,12 @@ public partial class BattleGameMain
         ShuffleToDeckBottom
     }
 
+    private enum LookDeckPickCommitKind
+    {
+        AddToHand,
+        ChooseToDeckTopThenTrashRemainder
+    }
+
     private sealed class LookResolutionContext
     {
         public CardController SourceCard;
@@ -498,6 +504,15 @@ public partial class BattleGameMain
         {
             ApplyChooseLookedRemainderDispositionEffect(
                 context,
+                () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder)
+        {
+            ApplyChooseLookedToDeckTopThenTrashRemainderEffect(
+                context,
+                effect,
                 () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
             return;
         }
@@ -987,6 +1002,136 @@ public partial class BattleGameMain
         bottomBtn.onClick.AddListener(() => CloseAndChoose(LookedRemainderDispositionChoice.ShuffleToDeckBottom));
     }
 
+    private void ApplyChooseLookedToDeckTopThenTrashRemainderEffect(
+        LookResolutionContext context,
+        EffectData effect,
+        System.Action onComplete)
+    {
+        if (context?.DeckRule == null || context.Entries == null || context.Entries.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        int pickCount = Mathf.Max(1, ResolveEffectMagnitude(effect, context.OwnerType, context.SourceCard));
+        pickCount = Mathf.Min(pickCount, context.Entries.Count);
+
+        if (context.OwnerType == PlayerType.Enemy || context.Entries.Count <= pickCount)
+        {
+            List<LookedDeckEntry> autoPicks = new List<LookedDeckEntry>(pickCount);
+            for (int i = 0; i < pickCount; i++)
+            {
+                autoPicks.Add(context.Entries[i]);
+            }
+
+            CommitLookedToDeckTopThenTrashRemainder(context, autoPicks);
+            onComplete?.Invoke();
+            return;
+        }
+
+        ShowLookDeckPickToTopThenTrashPopup(context, pickCount, onComplete);
+    }
+
+    private void CommitLookedToDeckTopThenTrashRemainder(
+        LookResolutionContext context,
+        List<LookedDeckEntry> chosenTopFirst)
+    {
+        if (context?.DeckRule == null)
+        {
+            return;
+        }
+
+        HashSet<int> chosenDeckIndexes = new HashSet<int>();
+        List<int> topIds = new List<int>();
+        if (chosenTopFirst != null)
+        {
+            for (int i = 0; i < chosenTopFirst.Count; i++)
+            {
+                LookedDeckEntry pick = chosenTopFirst[i];
+                if (pick == null || !chosenDeckIndexes.Add(pick.DeckIndex))
+                {
+                    continue;
+                }
+
+                topIds.Add(pick.CardId);
+            }
+        }
+
+        List<LookedDeckEntry> toRemove = new List<LookedDeckEntry>();
+        List<int> trashIds = new List<int>();
+        for (int i = 0; i < context.Entries.Count; i++)
+        {
+            LookedDeckEntry entry = context.Entries[i];
+            if (entry == null)
+            {
+                continue;
+            }
+
+            toRemove.Add(entry);
+            if (!chosenDeckIndexes.Contains(entry.DeckIndex))
+            {
+                trashIds.Add(entry.CardId);
+            }
+        }
+
+        toRemove.Sort((a, b) => b.DeckIndex.CompareTo(a.DeckIndex));
+
+        WithZoneSyncSuppressed(() =>
+        {
+            for (int i = 0; i < toRemove.Count; i++)
+            {
+                context.DeckRule.TryTakeCardAtDeckIndex(toRemove[i].DeckIndex, out _);
+            }
+
+            if (topIds.Count > 0)
+            {
+                context.DeckRule.PrependCardsToTopInOrder(topIds);
+            }
+
+            for (int i = 0; i < trashIds.Count; i++)
+            {
+                context.DeckRule.AddCardToTrash(trashIds[i]);
+            }
+        });
+
+        int deckRemain = context.DeckRule.GetRemainingCount();
+        SyncGundamRuleDeckCount(context.DeckOwnerType, deckRemain);
+        if (trashIds.Count > 0)
+        {
+            NotifyLocalZoneDeckToTrash(context.DeckOwnerType, trashIds, deckRemain);
+        }
+
+        Debug.Log(
+            $"[OnLook] ChooseLookedToDeckTopThenTrashRemainder top:{topIds.Count} trash:{trashIds.Count} "
+            + $"deck:{context.DeckLabel} by cardId:{context.SourceCard?.Data?.id}");
+    }
+
+    private void ShowLookDeckPickToTopThenTrashPopup(
+        LookResolutionContext context,
+        int pickCount,
+        System.Action onComplete)
+    {
+        string subtitle = pickCount <= 1
+            ? GameLocale.T(
+                "1枚選んで OK（山札の上へ。残りはトラッシュ）",
+                "Choose 1 card, then OK (put on top; rest to trash)")
+            : GameLocale.T(
+                $"{pickCount}枚選んで OK（山札の上へ。残りはトラッシュ）",
+                $"Choose {pickCount} cards, then OK (put on top; rest to trash)");
+
+        ShowLookDeckPopupCore(
+            context,
+            context.Entries,
+            pickCount,
+            context.OwnerType,
+            handRule: null,
+            addEffect: null,
+            onComplete,
+            subtitle,
+            LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder,
+            allowSkip: false);
+    }
+
     private void ShowLookDeckViewOnlyPopup(
         LookResolutionContext context,
         System.Action onClose,
@@ -1044,7 +1189,9 @@ public partial class BattleGameMain
         CardGameRule handRule,
         EffectData addEffect,
         System.Action onClose,
-        string subtitle = null)
+        string subtitle = null,
+        LookDeckPickCommitKind commitKind = LookDeckPickCommitKind.AddToHand,
+        bool allowSkip = true)
     {
         if (context == null || context.Entries.Count == 0 || CardImagePrefab == null)
         {
@@ -1195,6 +1342,18 @@ public partial class BattleGameMain
                 return;
             }
 
+            if (commitKind == LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder)
+            {
+                if (pendingPicks.Count != pickCount)
+                {
+                    return;
+                }
+
+                CommitLookedToDeckTopThenTrashRemainder(context, pendingPicks);
+                ClosePopup();
+                return;
+            }
+
             for (int i = 0; i < pendingPicks.Count; i++)
             {
                 TakeLookedEntryToHand(context, handRule, handOwner, pendingPicks[i], addEffect);
@@ -1258,7 +1417,7 @@ public partial class BattleGameMain
             okRt.anchorMin = new Vector2(0.5f, 0f);
             okRt.anchorMax = new Vector2(0.5f, 0f);
             okRt.pivot = new Vector2(0.5f, 0f);
-            okRt.anchoredPosition = new Vector2(-110f, 36f);
+            okRt.anchoredPosition = allowSkip ? new Vector2(-110f, 36f) : new Vector2(0f, 36f);
             TextMeshProUGUI okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
             if (okLabel != null)
             {
@@ -1267,20 +1426,23 @@ public partial class BattleGameMain
 
             okBtn.onClick.AddListener(ConfirmPendingPicks);
 
-            Button skipBtn = root.CreateChildButton("LookDeckSkip");
-            RectTransform skipRt = skipBtn.GetComponent<RectTransform>();
-            skipRt.sizeDelta = new Vector2(180f, 48f);
-            skipRt.anchorMin = new Vector2(0.5f, 0f);
-            skipRt.anchorMax = new Vector2(0.5f, 0f);
-            skipRt.pivot = new Vector2(0.5f, 0f);
-            skipRt.anchoredPosition = new Vector2(110f, 36f);
-            TextMeshProUGUI skipLabel = skipBtn.GetComponentInChildren<TextMeshProUGUI>();
-            if (skipLabel != null)
+            if (allowSkip)
             {
-                skipLabel.text = "Skip";
-            }
+                Button skipBtn = root.CreateChildButton("LookDeckSkip");
+                RectTransform skipRt = skipBtn.GetComponent<RectTransform>();
+                skipRt.sizeDelta = new Vector2(180f, 48f);
+                skipRt.anchorMin = new Vector2(0.5f, 0f);
+                skipRt.anchorMax = new Vector2(0.5f, 0f);
+                skipRt.pivot = new Vector2(0.5f, 0f);
+                skipRt.anchoredPosition = new Vector2(110f, 36f);
+                TextMeshProUGUI skipLabel = skipBtn.GetComponentInChildren<TextMeshProUGUI>();
+                if (skipLabel != null)
+                {
+                    skipLabel.text = "Skip";
+                }
 
-            skipBtn.onClick.AddListener(ClosePopup);
+                skipBtn.onClick.AddListener(ClosePopup);
+            }
         }
         else
         {

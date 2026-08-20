@@ -10,36 +10,51 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 193Force Impulse Gundam
+  m_Name: Minerva
   m_EditorClassIdentifier: 
-  id: 193
+  id: 13
   gcgOfficialId: 
-  cardName: Force Impulse Gundam
-  cost: 3
-  level: 4
-  power: 3
-  hp: 4
+  cardName: "\u30DF\u30CD\u30EB\u30D0"
+  cost: 1
+  level: 2
+  power: 0
+  hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Force Impulse Gundam"
-  version: 5
-  sourceType: 1
-  productLine: 1
-  boosterSet: 5
-  starterSet: 0
+  imageAddress: "Data/Images/13_\u30DF\u30CD\u30EB\u30D0"
+  version: 9
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 9
   eternalBoosterSet: 0
   sourceTitle: 12
   filterType: 0
   color: 6
-  type: 0
-  battleZones: 3
+  type: 3
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployBase1_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 6
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddShield1_OnBaseDeployed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 6
     activationConditions:
     - boardSide: -1
-      checkKind: 30
-      turnCheck: -1
+      checkKind: -1
+      turnCheck: 0
       feature: {fileID: 0}
       featureId: 0
       features: []
@@ -58,7 +73,15 @@ MonoBehaviour:
       destroyedByOwnerRelation: 0
       cardNameContains: 
     requireChainObservationContext: 0
-    effectsName: AddTrashShinAsukaPilot_IfDeployedFromTrash_OnPlayed
+    effectsName: LookTop2_SelfDeck
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnLook_Choose1ToDeckTop_TrashRemainder
     effects: []
     activationCost: 0
     oncePerTurn: 0
@@ -66,14 +89,9 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
   - {fileID: 11400000, guid: c31d4e5f6a7b8c9d0e1f2a3b4c5d6e7f, type: 2}
+  - {fileID: 11400000, guid: 5a47f8b7e2c445e4b40e8767fd088d44, type: 2}
   pilotIds: []
-  link:
-  - pilotCardId: 0
-    linkPilotIds:
-    - {fileID: 11400000, guid: c11d12e13f1415161718191a1b1c2d3e, type: 2}
-    linkPilotIdIds: 
-    pilotFeatures: []
-    pilotFeatureIds: 
+  link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
