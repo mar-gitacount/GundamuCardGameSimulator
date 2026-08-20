@@ -10,23 +10,23 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 193Force Impulse Gundam
+  m_Name: Sword Impulse Gundam
   m_EditorClassIdentifier: 
-  id: 193
+  id: 10
   gcgOfficialId: 
-  cardName: Force Impulse Gundam
-  cost: 3
+  cardName: Sword Impulse Gundam
+  cost: 2
   level: 4
-  power: 3
-  hp: 4
+  power: 4
+  hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Force Impulse Gundam"
-  version: 5
-  sourceType: 1
-  productLine: 1
-  boosterSet: 5
-  starterSet: 0
+  imageAddress: "Data/Images/10_\u30BD\u30FC\u30C9\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+  version: 9
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 9
   eternalBoosterSet: 0
   sourceTitle: 12
   filterType: 0
@@ -58,7 +58,7 @@ MonoBehaviour:
       destroyedByOwnerRelation: 0
       cardNameContains: 
     requireChainObservationContext: 0
-    effectsName: AddTrashShinAsukaPilot_IfDeployedFromTrash_OnPlayed
+    effectsName: DestroyEnemyUnit_Lv3OrLess_SelectSingle
     effects: []
     activationCost: 0
     oncePerTurn: 0
@@ -69,10 +69,16 @@ MonoBehaviour:
   pilotIds: []
   link:
   - pilotCardId: 0
-    linkPilotIds:
-    - {fileID: 11400000, guid: c11d12e13f1415161718191a1b1c2d3e, type: 2}
+    linkPilotIds: []
     linkPilotIdIds: 
-    pilotFeatures: []
+    pilotFeatures:
+    - {fileID: 11400000, guid: d32e4f5a6b7c8d9e0f1a2b3c4d5e6f70, type: 2}
+    pilotFeatureIds: 
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
+    pilotFeatures:
+    - {fileID: 11400000, guid: c31d4e5f6a7b8c9d0e1f2a3b4c5d6e7f, type: 2}
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0

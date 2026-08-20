@@ -582,6 +582,15 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _turnEndRepairBonus = 0;
         _ownerEffectDestroyArmed = false;
         _runtimeBlockerAbilityEnabled = Data.IsBlockerUnit();
+        WasDeployedFromTrash = false;
+    }
+
+    /// <summary>今回の配備がトラッシュからだったか（【配備時】条件用）。</summary>
+    public bool WasDeployedFromTrash { get; private set; }
+
+    public void SetDeployedFromTrash(bool fromTrash)
+    {
+        WasDeployedFromTrash = fromTrash;
     }
 
     /// <summary>戦闘ダメージ。ユニット以外では呼ばない想定。IncomingDamageReduction を適用する。</summary>

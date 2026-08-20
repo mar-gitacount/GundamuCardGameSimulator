@@ -99,6 +99,7 @@ public class CardDatabase : MonoBehaviour
         sourceTitle = (int)card.sourceTitle,
         color = (int)card.color, // カードの色を追加
         type = (int)card.type,
+        battleZones = (int)card.battleZones,
         featureIds = CardFeatureRegistry.CollectIds(card.features),
         pilotIdIds = CardPilotIdRegistry.CollectIds(card.pilotIds),
         isBlocker = card.isBlocker,
@@ -152,6 +153,7 @@ CardData ConvertToCardData(CardJson json)
     card.sourceTitle = (CardSourceTitle)json.sourceTitle;
     card.color = (CardColor)json.color; // カードの色を追加
     card.type = (Type)json.type;
+    card.battleZones = (CardBattleZone)json.battleZones;
     card.isBlocker = json.isBlocker;
     card.isDeployTurnAttack = json.isDeployTurnAttack;
     card.isNotDirectAttack = json.isNotDirectAttack;

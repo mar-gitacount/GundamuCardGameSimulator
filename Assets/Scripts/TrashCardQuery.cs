@@ -68,6 +68,34 @@ public static class TrashCardQuery
         return CountByCardType(trashCardIds, cardType) >= need;
     }
 
+    /// <summary>指定色の枚数。</summary>
+    public static int CountByColor(IReadOnlyList<int> trashCardIds, CardColor color)
+    {
+        if (trashCardIds == null || trashCardIds.Count == 0 || DeckSettinObject.Instance == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = 0; i < trashCardIds.Count; i++)
+        {
+            CardData data = DeckSettinObject.Instance.GetCardDataById(trashCardIds[i]);
+            if (data != null && data.color == color)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>指定色が minimumCount 枚以上あるか。</summary>
+    public static bool HasColorAtLeast(IReadOnlyList<int> trashCardIds, CardColor color, int minimumCount)
+    {
+        int need = Mathf.Max(1, minimumCount);
+        return CountByColor(trashCardIds, color) >= need;
+    }
+
     /// <summary>指定 Feature（OR）のいずれかを持つカード枚数。</summary>
     public static int CountByAnyFeature(IReadOnlyList<int> trashCardIds, IReadOnlyList<CardFeatureData> features)
     {

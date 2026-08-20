@@ -240,7 +240,12 @@ public enum EffectType
     /// Self のターン終了リペアボーナスを、盤上の〔特徴〕ユニットトークン数×value に再設定する。
     /// filterByTargetCardType=UnitToken / valueCountFeatureId 必須。
     /// </summary>
-    SyncTurnEndRepairBonus
+    SyncTurnEndRepairBonus,
+    /// <summary>
+    /// OnLook 専用。見たカードから value 枚を選び山札の上に戻す（選んだ順・先頭が一番上）。
+    /// 選ばなかった見た枚はオーナーのトラッシュへ置く。
+    /// </summary>
+    ChooseLookedToDeckTopThenTrashRemainder
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -649,7 +654,16 @@ public enum EffectActivationCheckKind
     /// オーナーのバトルゾーンに、リンク中かつ features / featureIds のいずれか（OR）を持つ
     /// 生存ユニットが minimumCount 体以上いる。
     /// </summary>
-    OwnerHasLinkedUnitWithFeature
+    OwnerHasLinkedUnitWithFeature,
+    /// <summary>
+    /// 指定トラッシュ（boardSide 未指定時はオーナー）に、compareValue の色（CardColor）のカードが
+    /// minimumCount 枚以上ある。
+    /// </summary>
+    TrashHasColor,
+    /// <summary>オーナーの配備ベースが場にあり、HP が 1 以上。</summary>
+    OwnerHasDeployedBase,
+    /// <summary>発動元ユニットが今回トラッシュから配備された。</summary>
+    SourceDeployedFromTrash
 }
 
 public enum EffectTurnCheckKind
@@ -807,7 +821,40 @@ public static class CardNameContainsMatcher
                 || unitName.IndexOf("シャイニングガンダム", System.StringComparison.Ordinal) >= 0;
         }
 
+        if (IsImpulseGundamNeedle(needle) && !IsForceImpulseGundamNeedle(needle))
+        {
+            return unitName.IndexOf("Impulse Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || unitName.IndexOf("インパルスガンダム", System.StringComparison.Ordinal) >= 0;
+        }
+
+        if (IsShinAsukaNeedle(needle))
+        {
+            return unitName.IndexOf("Shin Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || unitName.IndexOf("Shinn Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || unitName.IndexOf("シン・アスカ", System.StringComparison.Ordinal) >= 0;
+        }
+
         return false;
+    }
+
+    /// <summary>
+    /// 除外用の名前一致。Impulse 別名展開は使わず、フォースインパルスのみ英日相互許容する。
+    /// </summary>
+    public static bool MatchesExcludeNeedle(string unitName, string needle)
+    {
+        if (string.IsNullOrEmpty(unitName) || string.IsNullOrWhiteSpace(needle))
+        {
+            return false;
+        }
+
+        string trimmed = needle.Trim();
+        if (IsForceImpulseGundamNeedle(trimmed))
+        {
+            return unitName.IndexOf("Force Impulse Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || unitName.IndexOf("フォースインパルスガンダム", System.StringComparison.Ordinal) >= 0;
+        }
+
+        return unitName.IndexOf(trimmed, System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsMasterGundamNeedle(string needle)
@@ -820,6 +867,25 @@ public static class CardNameContainsMatcher
     {
         return needle.IndexOf("Shining Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
             || needle.IndexOf("シャイニングガンダム", System.StringComparison.Ordinal) >= 0;
+    }
+
+    private static bool IsImpulseGundamNeedle(string needle)
+    {
+        return needle.IndexOf("Impulse Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("インパルスガンダム", System.StringComparison.Ordinal) >= 0;
+    }
+
+    private static bool IsForceImpulseGundamNeedle(string needle)
+    {
+        return needle.IndexOf("Force Impulse Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("フォースインパルスガンダム", System.StringComparison.Ordinal) >= 0;
+    }
+
+    private static bool IsShinAsukaNeedle(string needle)
+    {
+        return needle.IndexOf("Shin Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("Shinn Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("シン・アスカ", System.StringComparison.Ordinal) >= 0;
     }
 }
 
@@ -1045,6 +1111,11 @@ public class EffectData
         "対象ユニットのカード名に含む文字列（部分一致・大小無視）。"
         + "Shining Gundam / シャイニングガンダム 等は相互許容。空なら名前条件なし。")]
     public string targetCardNameContains;
+
+    [Tooltip(
+        "対象カード名に含むと候補から除外する文字列（部分一致・大小無視）。"
+        + "Force Impulse Gundam / フォースインパルスガンダム は相互許容。空なら除外なし。")]
+    public string targetCardNameExcludes;
 
     [Tooltip("true のとき《突破》を持たないユニットのみ対象（印刷＋付与の合算が 0）。")]
     public bool requireTargetLacksBreach;
@@ -1320,6 +1391,7 @@ public static class EffectDataExtensions
                 || effect.compareTargetStatToSource
                 || effect.compareTargetStatToPriorChainPicked
                 || !string.IsNullOrWhiteSpace(effect.targetCardNameContains)
+                || !string.IsNullOrWhiteSpace(effect.targetCardNameExcludes)
                 || effect.requireTargetLacksBreach
                 || effect.requireTargetHasNoPilot);
     }
@@ -1463,6 +1535,14 @@ public static class EffectDataExtensions
 
         if (!string.IsNullOrWhiteSpace(effect.targetCardNameContains)
             && !CardNameContainsMatcher.Matches(unit.Data.cardName, effect.targetCardNameContains.Trim()))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(effect.targetCardNameExcludes)
+            && CardNameContainsMatcher.MatchesExcludeNeedle(
+                unit.Data.cardName,
+                effect.targetCardNameExcludes.Trim()))
         {
             return false;
         }
@@ -1843,6 +1923,23 @@ public static class EffectDataExtensions
         }
 
         if (effect.filterByTargetCardType && !effect.MatchesTargetCardTypeFilter(card))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(effect.targetCardNameContains)
+            && !CardNameContainsMatcher.Matches(card.cardName, effect.targetCardNameContains.Trim()))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(effect.targetCardNameExcludes)
+            && CardNameContainsMatcher.MatchesExcludeNeedle(card.cardName, effect.targetCardNameExcludes.Trim()))
+        {
+            return false;
+        }
+
+        if (!effect.MatchesCardDataStatFilter(card))
         {
             return false;
         }

@@ -3815,7 +3815,7 @@ public partial class BattleGameMain : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        SyncLiveHandCountDisplays();
     }
 
     private Gundam2024RuleScript.PlayerSide ToRuleSide(PlayerType type)
@@ -4364,13 +4364,10 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (ownerType == PlayerType.Player)
         {
-            if (!playerHandCards.Contains(card.Data))
-            {
-                playerHandCards.Add(card.Data);
-                NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
-            }
+            playerHandCards.Add(card.Data);
+            NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
         }
-        else if (!enemyHandCards.Contains(card.Data))
+        else
         {
             enemyHandCards.Add(card.Data);
         }
@@ -4423,6 +4420,7 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerOnHandAutoEffects(unit, ownerType, skipHandZoneCheck: true);
         RefreshAllHandsConditionalOnHandAuto();
         RefreshAllFieldOwnerTurnPassives();
+        rule.RefreshHandCountDisplay();
         Debug.Log($"[Bounce] {unit.Data.cardName}(id:{unit.Data.id}) → {ownerType} hand");
         return true;
     }
@@ -4704,6 +4702,7 @@ public partial class BattleGameMain : MonoBehaviour
             ApplyUnitDeployFieldAttackState(cardController);
             AssignBattleInstanceIdIfNeeded(cardController);
             ApplyPilotMountFieldAurasToDeployedUnit(cardController, ownerType);
+            cardController.SetDeployedFromTrash(false);
         }
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
@@ -7565,41 +7564,67 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// 攻撃者（＋搭乗パイロット）の OnShieldAttack にある制圧の最大破壊枚数。無ければ 0。
+    /// 発動条件（味方ベースがある間など）を満たすブロックのみ数える。
     /// </summary>
-    private static int GetMaxSuppressBreakCountFromCardData(CardData data)
+    private int GetMaxSuppressBreakCountFromCardData(CardData data, PlayerType ownerType, CardController sourceCard)
     {
-        List<EffectData> effects = TimedEffectResolver.CollectEffectsByTiming(data, EffectTiming.OnShieldAttack);
-        int maxBreaks = 0;
-        for (int i = 0; i < effects.Count; i++)
+        if (data == null || data.timedEffects == null)
         {
-            EffectData effect = effects[i];
-            if (effect == null || effect.type != EffectType.Suppress)
+            return 0;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        int maxBreaks = 0;
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null
+                || timed.timing != EffectTiming.OnShieldAttack
+                || !timed.HasResolvedEffects())
             {
                 continue;
             }
 
-            int breaks = effect.value > 0 ? effect.value : DefaultSuppressShieldBreakCount;
-            if (breaks > maxBreaks)
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
-                maxBreaks = breaks;
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int j = 0; j < effects.Count; j++)
+            {
+                EffectData effect = effects[j];
+                if (effect == null || effect.type != EffectType.Suppress)
+                {
+                    continue;
+                }
+
+                int breaks = effect.value > 0 ? effect.value : DefaultSuppressShieldBreakCount;
+                if (breaks > maxBreaks)
+                {
+                    maxBreaks = breaks;
+                }
             }
         }
 
         return maxBreaks;
     }
 
-    private static int GetMaxSuppressBreakCountFromUnit(CardController unit)
+    private int GetMaxSuppressBreakCountFromUnit(CardController unit)
     {
         if (unit == null || unit.Data == null)
         {
             return 0;
         }
 
-        int maxBreaks = GetMaxSuppressBreakCountFromCardData(unit.Data);
+        PlayerType ownerType = ResolveCardOwner(unit.transform);
+        int maxBreaks = GetMaxSuppressBreakCountFromCardData(unit.Data, ownerType, unit);
         CardController pilot = unit.MountedPilot;
         if (pilot != null && pilot.Data != null)
         {
-            maxBreaks = Mathf.Max(maxBreaks, GetMaxSuppressBreakCountFromCardData(pilot.Data));
+            maxBreaks = Mathf.Max(
+                maxBreaks,
+                GetMaxSuppressBreakCountFromCardData(pilot.Data, ownerType, unit));
         }
 
         if (unit.HasSuppressUntilEndOfTurnGrant)
@@ -9789,7 +9814,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
-            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType));
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -9811,7 +9837,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
-            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType));
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
     }
 
     private EffectActivationContext BuildPilotMountActivationContext(
@@ -9833,7 +9860,8 @@ public partial class BattleGameMain : MonoBehaviour
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
-            priorChainDealtDamage: GetEffectChainDealtDamage());
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
     }
 
     private void RefreshAllHandsConditionalOnHandAuto()
@@ -11924,6 +11952,7 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.ReturnLookedRemainderToDeckTop:
             case EffectType.ShuffleLookedRemainderToDeckBottom:
             case EffectType.ChooseLookedRemainderDisposition:
+            case EffectType.ChooseLookedToDeckTopThenTrashRemainder:
                 Debug.LogWarning(
                     $"[Effect] {effect.type} は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
                 break;
@@ -13170,6 +13199,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ReturnLookedRemainderToDeckTop
             || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
             || effect.type == EffectType.ChooseLookedRemainderDisposition
+            || effect.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
             || effect.type == EffectType.MillTopToTrash
             || effect.type == EffectType.ExileFromDeck
             || effect.type == EffectType.ExileFromTrash
@@ -13753,6 +13783,7 @@ public partial class BattleGameMain : MonoBehaviour
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
+                || eff.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
                 || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.ExileFromDeck
                 || eff.type == EffectType.ExileFromTrash
@@ -16597,6 +16628,7 @@ public partial class BattleGameMain : MonoBehaviour
         playerHandCards.Remove(command.Data);
         enemyHandCards.Remove(command.Data);
         Destroy(command.gameObject);
+        ownerRule.RefreshHandCountDisplay();
         if (ownerType == PlayerType.Player)
         {
             NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();

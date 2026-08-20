@@ -40,6 +40,11 @@ public class CardData : ScriptableObject
     public CardColor color;
     [Tooltip("カード種類（ユニット / パイロット / コマンド / ベース / EXリソース / ユニットトークン / コマンドパイロット）。")]
     public Type type;
+
+    [Header("地形（Zone）")]
+    [Tooltip("配備可能な地形。Space と Earth を同時指定可。None は未設定（制限なし）。")]
+    public CardBattleZone battleZones = CardBattleZone.None;
+
     /// <summary>ユニット（Type.Unit）向け。アセット上の既定値。実行時は CardController で上書き。</summary>
     [Tooltip("ユニットのみ。配備ターンは False（isDeployTurnAttack 時は True）。Link 条件搭乗で同日 True。次の自分ターン開始で True。")]
     public AttackFlg attackFlg = AttackFlg.False;
@@ -194,6 +199,7 @@ public class CardJson
     public int sourceTitle;
     public int color; // カードの色を追加
     public int type;
+    public int battleZones;
     public int[] featureIds;
     public int[] pilotIdIds;
     public bool isBlocker;

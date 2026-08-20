@@ -546,6 +546,26 @@
             ]
         },
         {
+            "effectSetName": "LookTop2_SelfDeck",
+            "displayName": "自分の山札の上から2枚を見る",
+            "effects": [
+                {
+                    "type": 13,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
             "effectSetName": "LookTop1_PlayDeck",
             "displayName": "プレイ時：自分の山札の上から1枚を見る",
             "effects": [
@@ -1602,6 +1622,26 @@
                     "filterByTargetCardType": true,
                     "targetCardType": 0,
                     "revealDiscardedToOpponent": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Breach3",
+            "displayName": "突破3（敵ユニット破壊時・シールドエリア先頭に3ダメージ）",
+            "effects": [
+                {
+                    "type": 31,
+                    "value": 3,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
                 }
             ]
         },
@@ -3008,6 +3048,29 @@
             ]
         },
         {
+            "effectSetName": "DestroyEnemyUnit_Lv3OrLess_SelectSingle",
+            "displayName": "敵ユニット(Lv3以下)1体を破壊（選択UI）",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
             "effectSetName": "Exile3_TekkadanOrTeiwaz_Unit_ThenDamage2_Enemy_OnMain",
             "displayName": "【起動・メイン】トラッシュの〔鉄華団〕/〔テイワズ〕ユニット3枚除外→敵1体に2ダメージ",
             "effects": [
@@ -3081,6 +3144,155 @@
                     "targetUnitFilterStat": 0,
                     "targetUnitStatCompareOp": 3,
                     "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "ReturnSelfToDeckBottom_ThenDeployTrashImpulseGundamLv4Plus_OnMain",
+            "displayName": "起動・メイン：自身を山札下へ戻す→トラッシュのLv4以上・カード名にインパルスガンダムを含むユニット1体を配備",
+            "effects": [
+                {
+                    "type": 29,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitSource": 2,
+                    "deployUnitTriggerOnPlayed": true,
+                    "targetCardNameContains": "Impulse Gundam",
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_AllUnits_Ap5OrLess_OnLink",
+            "displayName": "リンク時：AP5以下のユニットすべてに2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 3,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                },
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 4,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnDestroyed_AddTrashMinervaSquadUnit_ExcludeForceImpulse",
+            "displayName": "破壊時：トラッシュの〔ミネルバ隊〕ユニット1枚を手札へ（フォースインパルスガンダムを除く）",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 31,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "targetCardNameExcludes": "Force Impulse Gundam"
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddTrashShinAsukaPilot_IfDeployedFromTrash_OnPlayed",
+            "displayName": "配備時（トラッシュから）：トラッシュのカード名にシン・アスカを含むパイロット1枚を手札へ",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 1,
+                    "targetCardNameContains": "Shin Asuka"
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLook_Choose1ToDeckTop_TrashRemainder",
+            "displayName": "OnLook：見たカード1枚を山札の上へ。残りはトラッシュへ",
+            "effects": [
+                {
+                    "type": 50,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
                 }
             ]
         }

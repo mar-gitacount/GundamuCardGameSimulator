@@ -80,6 +80,7 @@ public static class CardImportEditor
         card.filterType = FilterType.Version;
         card.color = (CardColor)entry.color;
         card.type = (Type)entry.type;
+        card.battleZones = (CardBattleZone)entry.battleZones;
         card.attackFlg = AttackFlg.False;
         card.isBlocker = entry.isBlocker;
         card.isDeployTurnAttack = entry.isDeployTurnAttack;
@@ -292,6 +293,7 @@ public class CardImportJsonEntry
     public int sourceType;
     public int color;
     public int type;
+    public int battleZones;
     public int[] featureIds;
     public bool isBlocker;
     public bool isDeployTurnAttack;
