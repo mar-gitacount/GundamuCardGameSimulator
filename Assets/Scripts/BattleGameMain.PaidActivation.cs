@@ -480,9 +480,18 @@ public partial class BattleGameMain
             {
                 hasTrashDeploySelect = true;
                 CardGameRule trashRule = ResolveTrashRuleForEffect(side, effect);
-                if (trashRule != null && CollectTrashDeployCandidates(trashRule, effect).Count > 0)
+                if (trashRule != null)
                 {
-                    return true;
+                    List<TrashExileCandidate> trashCandidates = CollectTrashDeployCandidates(trashRule, effect);
+                    if (effect.deployUnitPayCost)
+                    {
+                        trashCandidates = FilterAffordableTrashDeployCandidates(side, trashCandidates);
+                    }
+
+                    if (trashCandidates.Count > 0)
+                    {
+                        return true;
+                    }
                 }
             }
         }

@@ -206,6 +206,71 @@ public partial class BattleGameMain
         return true;
     }
 
+    /// <summary>
+    /// トラッシュ等からの効果配備用。カードの Lv/Cost を最小 EX で支払う。
+    /// </summary>
+    private bool TryPayCardDataDeployCost(PlayerType ownerType, CardData data)
+    {
+        if (data == null || gundamRule == null)
+        {
+            return false;
+        }
+
+        if (IsTestPlayBattle())
+        {
+            return true;
+        }
+
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(ownerType);
+        int requiredLevel = data.level;
+        int cost = Mathf.Max(0, data.cost);
+        if (!gundamRule.CanPlayCardWithAnyEx(side, requiredLevel, cost))
+        {
+            Gundam2024RuleScript.PlayerState state = GetRuleState(side);
+            Debug.Log(
+                $"[DeployPay] Cannot pay effect-deploy card:{data.cardName}(id:{data.id}) "
+                + $"lvReq:{requiredLevel} cost:{cost} side:{side} "
+                + $"totalLv:{state.TotalLevel} resource:{state.resource} exRes:{state.exResource}");
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerState payState = GetRuleState(side);
+        int maxEx = Mathf.Min(payState.exResource, cost);
+        for (int ex = 0; ex <= maxEx; ex++)
+        {
+            if (!gundamRule.CanPlayCard(side, requiredLevel, cost, ex))
+            {
+                continue;
+            }
+
+            if (!gundamRule.TryConsumeResource(side, cost, ex, data.id, requiredLevel))
+            {
+                continue;
+            }
+
+            AfterLocalResourceConsumed(side, ex);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>効果による「コストを支払って配備」が可能か（EX 込み）。</summary>
+    private bool CanAffordCardDataDeployCost(PlayerType ownerType, CardData data)
+    {
+        if (data == null || gundamRule == null)
+        {
+            return false;
+        }
+
+        if (IsTestPlayBattle())
+        {
+            return true;
+        }
+
+        return gundamRule.CanPlayCardWithAnyEx(ToRuleSide(ownerType), data.level, Mathf.Max(0, data.cost));
+    }
+
     private void BeginDeployBaseFromHand(CardController cardController, PlayerType ownerType, CardGameRule ownerRule)
     {
         if (cardController == null || cardController.Data == null || cardController.Data.type != Type.Base)

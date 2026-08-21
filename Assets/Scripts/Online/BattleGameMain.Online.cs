@@ -1649,6 +1649,8 @@ public partial class BattleGameMain
         if (action.action == OnlineBattleActionPayload.DeployUnit)
         {
             CardController deployed = ApplyRemoteDeployUnit(action);
+            // 攻撃中の効果配備などで、相手の OK 待ちに攻撃フロー／アクションステップが止まらないよう先に Ack
+            SendOpponentCardConfirmComplete(action.requestId);
             if (deployed != null)
             {
                 yield return ShowCommandUseAcknowledgementCoroutine(
@@ -1658,7 +1660,6 @@ public partial class BattleGameMain
                     GameLocale.T("相手 — ユニット配備", "Opponent — Unit Deploy"));
             }
 
-            SendOpponentCardConfirmComplete(action.requestId);
             yield break;
         }
 
