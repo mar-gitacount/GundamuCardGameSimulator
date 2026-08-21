@@ -240,6 +240,14 @@ public partial class BattleGameMain
             attackerStrike,
             defenderStrike);
 
+        TryResolveOnDealtBattleDamageEffects(
+            attacker,
+            attackerOwner,
+            defender,
+            attackerStrike,
+            defenderHpBefore,
+            defender.CurrentHp);
+
         int attackerHpAfter = attacker.CurrentHp;
         int defenderHpAfter = defender.CurrentHp;
 

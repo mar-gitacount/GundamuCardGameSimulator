@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 61Gundam
   m_EditorClassIdentifier: 
   id: 61
-  gcgOfficialId: 
+  gcgOfficialId: ST01-001
   cardName: Gundam
   cost: 3
   level: 4
@@ -23,7 +23,12 @@ MonoBehaviour:
   image: {fileID: 0}
   imageAddress: "Data/Images/61_Gundam"
   version: 1
-  sourceType: 1
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 1
+  eternalBoosterSet: 0
+  sourceTitle: 1
   filterType: 0
   color: 2
   type: 0
@@ -134,3 +139,7 @@ MonoBehaviour:
   repairAmount: 2
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 1
+    cardNumber: 1
