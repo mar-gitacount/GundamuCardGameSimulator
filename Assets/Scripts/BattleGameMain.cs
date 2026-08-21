@@ -6031,8 +6031,8 @@ public partial class BattleGameMain : MonoBehaviour
 
                 if (effect.target.IsOpponentUnitTarget() || effect.type.UsesTargetCountValue())
                 {
-                    if (effect.resolveAfterDealtBattleDamage
-                        && effect.selectionMode.IsAttackedTargetOnlyMode())
+                    // バトルダメージ付与後解決（Exia Repair 等）は戦闘前チェーンに載せない
+                    if (effect.resolveAfterDealtBattleDamage)
                     {
                         continue;
                     }
@@ -6230,32 +6230,8 @@ public partial class BattleGameMain : MonoBehaviour
                         continue;
                     }
 
-                    if (effect.type.RequiresManualUnitSelection() || EffectRequiresManualUnitSelection(effect))
-                    {
-                        List<CardController> bounceCandidates = ResolveSelectableEffectTargets(
-                            sourceCard,
-                            attackerOwner,
-                            effect);
-                        if (bounceCandidates.Count == 0)
-                        {
-                            continue;
-                        }
-
-                        if (TryResolveOnAttackManualUnitPick(
-                            sourceCard,
-                            attacker,
-                            attackerOwner,
-                            effect,
-                            bounceCandidates,
-                            stepResolved,
-                            onResolved))
-                        {
-                            return true;
-                        }
-
-                        continue;
-                    }
-
+                    // Destroy 等は RequiresManualUnitSelection が true のため、
+                    // 攻撃対象限定（Exia Repair 含む）を手動選択より先に処理する。
                     if (effect.selectionMode.IsAttackedTargetOnlyMode())
                     {
                         // バトルダメージ付与後に解決する効果は戦闘前ではスキップする。
@@ -6284,6 +6260,32 @@ public partial class BattleGameMain : MonoBehaviour
                         }
 
                         ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
+                        continue;
+                    }
+
+                    if (effect.type.RequiresManualUnitSelection() || EffectRequiresManualUnitSelection(effect))
+                    {
+                        List<CardController> bounceCandidates = ResolveSelectableEffectTargets(
+                            sourceCard,
+                            attackerOwner,
+                            effect);
+                        if (bounceCandidates.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        if (TryResolveOnAttackManualUnitPick(
+                            sourceCard,
+                            attacker,
+                            attackerOwner,
+                            effect,
+                            bounceCandidates,
+                            stepResolved,
+                            onResolved))
+                        {
+                            return true;
+                        }
+
                         continue;
                     }
 
@@ -9548,8 +9550,14 @@ public partial class BattleGameMain : MonoBehaviour
                 EffectData effect = resolved[j];
                 if (effect == null
                     || !effect.resolveAfterDealtBattleDamage
-                    || !effect.selectionMode.IsAttackedTargetOnlyMode()
                     || !effect.target.IsOpponentUnitTarget())
+                {
+                    continue;
+                }
+
+                // 攻撃対象限定以外は「その攻撃でダメージを与えたユニット」に限定できないためスキップ
+                if (!effect.selectionMode.IsAttackedTargetOnlyMode()
+                    && effect.selectionMode != EffectSelectionMode.Unset)
                 {
                     continue;
                 }
@@ -9613,12 +9621,25 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
+                // バトルダメージ後解決は TryResolveOnDealtBattleDamageEffects 専任
+                if (effect.resolveAfterDealtBattleDamage)
+                {
+                    continue;
+                }
+
                 if (effect.target == TargetType.RestEnemyUnit && (defender == null || !defender.IsRestState))
                 {
                     continue;
                 }
 
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { defender });
+                List<CardController> singleTarget = new List<CardController> { defender };
+                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard);
+                if (singleTarget.Count == 0)
+                {
+                    continue;
+                }
+
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
             }
         }
     }

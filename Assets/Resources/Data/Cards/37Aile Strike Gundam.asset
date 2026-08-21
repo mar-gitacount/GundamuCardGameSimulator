@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 37Aile Strike Gundam
   m_EditorClassIdentifier: 
   id: 37
+  gcgOfficialId: ST04-001
   cardName: Aile Strike Gundam
   cost: 4
   level: 5
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/37_Aile Strike Gundam"
-  version: 1
+  imageAddress: Data/Images/37_Aile Strike Gundam
+  version: 4
   sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 4
+  eternalBoosterSet: 0
+  sourceTitle: 11
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 15
@@ -34,6 +41,9 @@ MonoBehaviour:
       checkKind: 4
       turnCheck: 0
       feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
       minimumCount: 0
       levelAggregate: 1
       compareOp: 0
@@ -41,7 +51,13 @@ MonoBehaviour:
       unitCountCompareOp: 0
       unitCountThreshold: 0
       pilotCardId: 0
+      trashCardId: 0
       pilotLevelThreshold: 4
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
     effectsName: 
     effects:
     - type: 9
@@ -54,27 +70,86 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
       targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
       targetUnitFilterStat: 1
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 4
+      compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
       filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 6
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   - pilotCardId: 78
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 1
+  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 4
+    cardNumber: 1

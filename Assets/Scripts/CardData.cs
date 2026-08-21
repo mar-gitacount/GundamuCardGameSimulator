@@ -7,7 +7,7 @@ public class CardData : ScriptableObject
 {
     public int id;
 
-    [Tooltip("公式 GCG カードID（同一カードのレア違いで共通）。内部の id とは別。空なら未設定。")]
+    [Tooltip("公式 GCG カードID（例: ST01-001）。下の gcgId を入力すると自動で入る。手動編集も可。")]
     public string gcgOfficialId;
 
     public string cardName;
@@ -89,12 +89,84 @@ public class CardData : ScriptableObject
     [Tooltip("true のときパイロットをセットできない（有線式アーム等）。")]
     public bool cannotMountPilot;
 
+    [Header("公式カード番号（GCG）")]
+    [Tooltip("種別・セット番号・カード番号。1 と 1 なら ST01-001。入力した数値がそのまま使われる。")]
+    public GcgIdParts gcgId = new GcgIdParts();
+
 #if UNITY_EDITOR
     private void OnValidate()
     {
         SyncProductFieldsFromLine();
+        SyncGcgOfficialIdFromParts();
     }
 #endif
+
+    /// <summary>公式 detailSearch 用キー（例: ST01-001）。</summary>
+    public string GetGcgDetailSearchId()
+    {
+        if (gcgId != null && gcgId.IsComplete())
+        {
+            return gcgId.FormatId();
+        }
+
+        return string.IsNullOrWhiteSpace(gcgOfficialId) ? string.Empty : gcgOfficialId.Trim();
+    }
+
+    public bool HasGcgStNum()
+    {
+        return gcgId != null && gcgId.setNumber > 0 && gcgId.cardNumber > 0;
+    }
+
+    public bool HasOfficialCardNumberParts()
+    {
+        return HasGcgStNum();
+    }
+
+    public string ResolveGcgPrefix()
+    {
+        if (gcgId != null && gcgId.setKind != GcgOfficialSetKind.Unset)
+        {
+            return gcgId.ResolvePrefix();
+        }
+
+        switch (productLine)
+        {
+            case CardProductLine.Starter:
+                return "ST";
+            case CardProductLine.Booster:
+                return "GD";
+            case CardProductLine.EternalBooster:
+                return "EB";
+            default:
+                return string.Empty;
+        }
+    }
+
+    public bool HasGcgSetKind()
+    {
+        return gcgId != null && gcgId.setKind != GcgOfficialSetKind.Unset;
+    }
+
+    public bool HasCompleteGcgOfficialNumber()
+    {
+        return gcgId != null && gcgId.IsComplete();
+    }
+
+    /// <summary>gcgId の入力値から gcgOfficialId を作る（ST01-001 形式）。</summary>
+    public void SyncGcgOfficialIdFromParts()
+    {
+        if (gcgId == null || !gcgId.IsComplete())
+        {
+            return;
+        }
+
+        gcgOfficialId = gcgId.FormatId();
+    }
+
+    public void SyncGcgOfficialIdFromStNum()
+    {
+        SyncGcgOfficialIdFromParts();
+    }
 
     /// <summary>productLine に合わせて sourceType / version / 未使用セットを揃える。</summary>
     public void SyncProductFieldsFromLine()
@@ -184,6 +256,9 @@ public class CardJson
 {
     public int id;
     public string gcgOfficialId;
+    public int gcgSetKind;
+    public int gcgSetNumber;
+    public int gcgCardNumber;
     public string cardName;
     public int cost;
     public int level;

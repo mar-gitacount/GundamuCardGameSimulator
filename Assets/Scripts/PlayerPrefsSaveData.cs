@@ -20,6 +20,10 @@ public class PlayerPrefsSaveData : ISaveData
         return new CardJson
         {
             id = card.id,
+            gcgOfficialId = card.gcgOfficialId,
+            gcgSetKind = card.gcgId != null ? (int)card.gcgId.setKind : 0,
+            gcgSetNumber = card.gcgId != null ? card.gcgId.setNumber : 0,
+            gcgCardNumber = card.gcgId != null ? card.gcgId.cardNumber : 0,
             cardName = card.cardName,
             cost = card.cost,
             level = card.level,
@@ -45,6 +49,16 @@ public class PlayerPrefsSaveData : ISaveData
     {
         CardData card = ScriptableObject.CreateInstance<CardData>();
         card.id = json.id;
+        card.gcgOfficialId = json.gcgOfficialId;
+        if (card.gcgId == null)
+        {
+            card.gcgId = new GcgIdParts();
+        }
+
+        card.gcgId.setKind = (GcgOfficialSetKind)json.gcgSetKind;
+        card.gcgId.setNumber = json.gcgSetNumber;
+        card.gcgId.cardNumber = json.gcgCardNumber;
+        card.SyncGcgOfficialIdFromParts();
         card.cardName = json.cardName;
         card.cost = json.cost;
         card.level = json.level;
