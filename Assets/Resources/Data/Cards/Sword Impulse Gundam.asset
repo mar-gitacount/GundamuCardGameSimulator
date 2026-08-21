@@ -80,6 +80,12 @@ MonoBehaviour:
     pilotFeatures:
     - {fileID: 11400000, guid: c31d4e5f6a7b8c9d0e1f2a3b4c5d6e7f, type: 2}
     pilotFeatureIds: 
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: e900ea46d5cf6c647b6cef88d3a24d16, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0

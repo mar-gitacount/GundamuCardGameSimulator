@@ -1194,7 +1194,10 @@ public partial class BattleGameMain
                     ordered,
                     0,
                     FinishPreCombat);
-            });
+            },
+            autoPilotFirst: false,
+            titleJa: "アタック時効果の解決順を選択",
+            titleEn: "Choose On Attack effect order");
         return true;
     }
 

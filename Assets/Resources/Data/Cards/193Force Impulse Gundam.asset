@@ -70,7 +70,7 @@ MonoBehaviour:
   link:
   - pilotCardId: 0
     linkPilotIds:
-    - {fileID: 11400000, guid: c11d12e13f1415161718191a1b1c2d3e, type: 2}
+    - {fileID: 11400000, guid: e900ea46d5cf6c647b6cef88d3a24d16, type: 2}
     linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 

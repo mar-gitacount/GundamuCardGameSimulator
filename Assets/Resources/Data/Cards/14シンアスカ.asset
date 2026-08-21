@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: "14\u30B7\u30F3\u30A2\u30B9\u30AB"
   m_EditorClassIdentifier: 
   id: 14
-  cardName: "\u30B7\u30F3\u30A2\u30B9\u30AB"
+  gcgOfficialId: 
+  cardName: Shin Asuka
   cost: 1
   level: 4
   power: 3
@@ -23,9 +24,15 @@ MonoBehaviour:
   imageAddress: "Data/Images/14_\u30B7\u30F3\u30A2\u30B9\u30AB"
   version: 9
   sourceType: 2
+  productLine: 0
+  boosterSet: 0
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 6
   type: 1
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -35,7 +42,18 @@ MonoBehaviour:
     effects: []
     activationCost: 0
     oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 3
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ActivateResource1_Self_OnAttack
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
+  pilotIds:
+  - {fileID: 11400000, guid: e900ea46d5cf6c647b6cef88d3a24d16, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -43,3 +61,7 @@ MonoBehaviour:
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0

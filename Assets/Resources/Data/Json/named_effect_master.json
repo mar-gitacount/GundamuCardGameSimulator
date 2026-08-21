@@ -3255,7 +3255,7 @@
         },
         {
             "effectSetName": "AddTrashShinAsukaPilot_IfDeployedFromTrash_OnPlayed",
-            "displayName": "配備時（トラッシュから）：トラッシュのカード名にシン・アスカを含むパイロット1枚を手札へ",
+            "displayName": "配備時（トラッシュから）：pilot_master id4（シン・アスカ）のパイロット1枚を手札へ",
             "effects": [
                 {
                     "type": 40,
@@ -3272,7 +3272,7 @@
                     "valueCountExcludeSource": 0,
                     "filterByTargetCardType": true,
                     "targetCardType": 1,
-                    "targetCardNameContains": "Shin Asuka"
+                    "targetPilotId": 4
                 }
             ]
         },

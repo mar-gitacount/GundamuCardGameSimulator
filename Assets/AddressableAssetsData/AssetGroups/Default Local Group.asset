@@ -1131,6 +1131,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dcf803cbc51ce0140ac119b82c2733fd
+    m_Address: Data/Images/Shinn Asuka
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: df82f484f608f594cbdd434c82aafa53
     m_Address: Data/Images/90_Kayra''s Re-GZ
     m_ReadOnly: 0

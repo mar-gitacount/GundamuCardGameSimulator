@@ -1025,6 +1025,20 @@ public partial class BattleGameMain
             sb.Append(featureLabel);
         }
 
+        if (effect.HasTargetPilotIdFilter())
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append("・");
+            }
+
+            CardPilotIdData pilotId = CardPilotIdRegistry.GetById(effect.targetPilotId);
+            string pilotLabel = pilotId != null && !string.IsNullOrEmpty(pilotId.displayName)
+                ? pilotId.displayName
+                : $"PilotId {effect.targetPilotId}";
+            sb.Append(pilotLabel);
+        }
+
         return sb.Length > 0 ? sb.ToString() : GameLocale.T("カード", "card");
     }
 }
