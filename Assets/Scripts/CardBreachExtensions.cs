@@ -3,8 +3,35 @@ using System.Collections.Generic;
 /// <summary>突破（Breach）のデータ判定。複数ある場合は value を合算する。</summary>
 public static class CardBreachExtensions
 {
-    /// <summary>カード定義の Breach 量（effects / effectsName 合算。0 なら無し）。</summary>
+    /// <summary>カード定義の Breach 量（条件なしマーカーのみ。0 なら無し）。</summary>
     public static int GetBreachAmount(this CardData card)
+    {
+        return SumBreachFromCardData(card, runtimeUnit: null);
+    }
+
+    /// <summary>ユニット本体＋搭乗パイロットの Breach 合算（条件付き突破は実効 AP 等で判定）。</summary>
+    public static int GetBreachAmount(this CardController unit)
+    {
+        if (unit == null)
+        {
+            return 0;
+        }
+
+        int total = SumBreachFromCardData(unit.Data, unit);
+        if (unit.MountedPilot != null && unit.MountedPilot.Data != null)
+        {
+            total += SumBreachFromCardData(unit.MountedPilot.Data, unit);
+        }
+
+        if (unit.HasBreachUntilEndOfTurnGrant)
+        {
+            total += unit.BreachUntilEndOfTurnAmount;
+        }
+
+        return total;
+    }
+
+    private static int SumBreachFromCardData(CardData card, CardController runtimeUnit)
     {
         if (card == null || card.timedEffects == null)
         {
@@ -16,6 +43,12 @@ public static class CardBreachExtensions
         {
             TimedEffectData timed = card.timedEffects[i];
             if (timed == null || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (timed.HasActivationConditions()
+                && !MeetsBreachActivationConditions(timed, runtimeUnit))
             {
                 continue;
             }
@@ -40,25 +73,46 @@ public static class CardBreachExtensions
         return total;
     }
 
-    /// <summary>ユニット本体＋搭乗パイロットの Breach 合算。</summary>
-    public static int GetBreachAmount(this CardController unit)
+    /// <summary>
+    /// 条件付き突破（例: AP5以上の間 Breach3）。
+    /// ランタイムユニットが無いときは条件付きブロックを無視する。
+    /// </summary>
+    private static bool MeetsBreachActivationConditions(TimedEffectData timed, CardController runtimeUnit)
     {
-        if (unit == null)
+        if (timed == null || !timed.HasActivationConditions())
         {
-            return 0;
+            return true;
         }
 
-        int total = unit.Data != null ? unit.Data.GetBreachAmount() : 0;
-        if (unit.MountedPilot != null && unit.MountedPilot.Data != null)
+        if (runtimeUnit == null)
         {
-            total += unit.MountedPilot.Data.GetBreachAmount();
+            return false;
         }
 
-        if (unit.HasBreachUntilEndOfTurnGrant)
+        IReadOnlyList<EffectActivationCondition> conditions = timed.activationConditions;
+        for (int i = 0; i < conditions.Count; i++)
         {
-            total += unit.BreachUntilEndOfTurnAmount;
+            EffectActivationCondition c = conditions[i];
+            if (c == null || c.checkKind == EffectActivationCheckKind.Unset)
+            {
+                continue;
+            }
+
+            if (c.checkKind != EffectActivationCheckKind.SourceUnitStat)
+            {
+                return false;
+            }
+
+            EffectTargetUnitFilterStat stat = c.activationStatTarget == EffectTargetUnitFilterStat.Unset
+                ? EffectTargetUnitFilterStat.AP
+                : c.activationStatTarget;
+            int statValue = EffectDataExtensions.GetTargetUnitFilterStatValue(runtimeUnit, stat);
+            if (!EffectCompareHelper.Compare(statValue, c.compareValue, c.compareOp))
+            {
+                return false;
+            }
         }
 
-        return total;
+        return true;
     }
 }

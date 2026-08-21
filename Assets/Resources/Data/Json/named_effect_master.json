@@ -3295,6 +3295,106 @@
                     "valueCountExcludeSource": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "GrantFirstStrike_AllyZaft_Ap5Plus_UntilEOT",
+            "displayName": "配備時：AP5以上の〔ザフト〕味方1体に《先制攻撃》（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 47,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 3,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployTrashUnit_Lv5OrLess_PayCost_OnMain",
+            "displayName": "メイン：トラッシュのLv5以下ユニット1枚をコスト支払って配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitSource": 2,
+                    "deployUnitTriggerOnPlayed": true,
+                    "deployUnitPayCost": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "OptionalDeployTrashMinervaSquadUnit_PayCost",
+            "displayName": "任意：トラッシュの〔ミネルバ隊〕ユニット1枚をコスト支払って配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitSource": 2,
+                    "deployUnitTriggerOnPlayed": true,
+                    "deployUnitPayCost": true,
+                    "filterDeployCandidateByFeature": true,
+                    "targetFeatureId": 31,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "HighMobility",
+            "displayName": "高機動（ブロックされない）",
+            "effects": [
+                {
+                    "type": 11,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
         }
     ]
 }

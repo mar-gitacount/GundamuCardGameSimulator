@@ -303,9 +303,28 @@ public partial class BattleGameMain
         PlayerType recipient,
         int trashIndex,
         CardData data,
-        bool triggerOnPlayed)
+        bool triggerOnPlayed,
+        bool payCost = false,
+        PlayerType payCostOwner = PlayerType.Player)
     {
         if (trashRule == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<int> trashIds = trashRule.GetTrashCardIds();
+        if (trashIndex < 0 || trashIndex >= trashIds.Count)
+        {
+            return false;
+        }
+
+        CardData resolved = data ?? DeckSettinObject.Instance.GetCardDataById(trashIds[trashIndex]);
+        if (resolved == null || !resolved.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (payCost && !TryPayCardDataDeployCost(payCostOwner, resolved))
         {
             return false;
         }
@@ -321,13 +340,6 @@ public partial class BattleGameMain
 
         if (removedId < 0)
         {
-            return false;
-        }
-
-        CardData resolved = data ?? DeckSettinObject.Instance.GetCardDataById(removedId);
-        if (resolved == null || !resolved.IsUnitLike())
-        {
-            trashRule.AddCardToTrash(removedId);
             return false;
         }
 
@@ -354,7 +366,9 @@ public partial class BattleGameMain
         PlayerType recipient,
         List<TrashExileCandidate> candidates,
         int pickCount,
-        bool triggerOnPlayed)
+        bool triggerOnPlayed,
+        bool payCost,
+        PlayerType payCostOwner)
     {
         List<TrashExileCandidate> ordered = new List<TrashExileCandidate>(candidates);
         ordered.Sort((a, b) => b.TrashIndex.CompareTo(a.TrashIndex));
@@ -368,7 +382,9 @@ public partial class BattleGameMain
                 recipient,
                 candidate.TrashIndex,
                 candidate.Data,
-                triggerOnPlayed))
+                triggerOnPlayed,
+                payCost,
+                payCostOwner))
             {
                 deployed++;
             }
@@ -498,6 +514,11 @@ public partial class BattleGameMain
             : ownerType;
         PlayerType recipient = ResolveDeployRecipientPlayerType(ownerType, effect);
         List<TrashExileCandidate> candidates = CollectTrashDeployCandidates(trashRule, effect);
+        if (effect.deployUnitPayCost)
+        {
+            candidates = FilterAffordableTrashDeployCandidates(ownerType, candidates);
+        }
+
         if (candidates.Count == 0)
         {
             onComplete?.Invoke();
@@ -505,6 +526,7 @@ public partial class BattleGameMain
         }
 
         int pickCount = Mathf.Min(deployCount, candidates.Count);
+        bool payCost = effect.deployUnitPayCost;
         if (ownerType == PlayerType.Enemy)
         {
             BeginOnlineEffectSyncBatch(ownerType);
@@ -514,39 +536,139 @@ public partial class BattleGameMain
                 recipient,
                 candidates,
                 pickCount,
-                effect.deployUnitTriggerOnPlayed);
+                effect.deployUnitTriggerOnPlayed,
+                payCost,
+                ownerType);
             FlushOnlineEffectSyncBatch();
             SyncAllResourceViewsFromRule();
-            onComplete?.Invoke();
+            InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
             return;
         }
 
-        if (candidates.Count == 1 && pickCount == 1)
+        void BeginTrashSelection()
         {
-            BeginOnlineEffectSyncBatch(ownerType);
-            TryDeployUnitFromTrashIndex(
+            // 「してもよい」は候補1枚でも選択／スキップ UI を出す（自動配備しない）
+            if (!effect.optionalPlayerConfirm && candidates.Count == 1 && pickCount == 1)
+            {
+                BeginOnlineEffectSyncBatch(ownerType);
+                TryDeployUnitFromTrashIndex(
+                    trashRule,
+                    trashOwner,
+                    recipient,
+                    candidates[0].TrashIndex,
+                    candidates[0].Data,
+                    effect.deployUnitTriggerOnPlayed,
+                    payCost,
+                    ownerType);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
+                return;
+            }
+
+            StartCoroutine(ShowDeployUnitFromTrashSelectionCoroutine(
+                sourceCard,
                 trashRule,
+                ownerType,
                 trashOwner,
                 recipient,
-                candidates[0].TrashIndex,
-                candidates[0].Data,
-                effect.deployUnitTriggerOnPlayed);
-            FlushOnlineEffectSyncBatch();
-            SyncAllResourceViewsFromRule();
-            onComplete?.Invoke();
+                effect,
+                candidates,
+                pickCount,
+                () => InvokeAfterOnlineDeployConfirmIfNeeded(onComplete)));
+        }
+
+        if (effect.optionalPlayerConfirm)
+        {
+            TryBeginOptionalConfirmedEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                onAccepted: BeginTrashSelection,
+                onDeclined: () => onComplete?.Invoke());
             return;
         }
 
-        StartCoroutine(ShowDeployUnitFromTrashSelectionCoroutine(
-            sourceCard,
-            trashRule,
-            ownerType,
-            trashOwner,
-            recipient,
-            effect,
-            candidates,
-            pickCount,
-            onComplete));
+        BeginTrashSelection();
+    }
+
+    /// <summary>
+    /// オンライン配備の「カード確認待ち」が終わるまで onComplete を遅延する。
+    /// OnAttack → アクションステップへ進む前に確認を完了させ、フリーズを防ぐ。
+    /// </summary>
+    private void InvokeAfterOnlineDeployConfirmIfNeeded(Action onComplete)
+    {
+        if (onComplete == null)
+        {
+            return;
+        }
+
+        if (!IsOnlineBattle()
+            || _applyingRemoteBattleAction
+            || (!isOnlineOpponentCardConfirmWaitOpen
+                && _pendingCommandPlayRevealRequestId <= 0))
+        {
+            onComplete.Invoke();
+            return;
+        }
+
+        StartCoroutine(CoInvokeAfterOnlineDeployConfirm(onComplete));
+    }
+
+    private IEnumerator CoInvokeAfterOnlineDeployConfirm(Action onComplete)
+    {
+        int requestId = _pendingCommandPlayRevealRequestId;
+        const float timeoutSeconds = 45f;
+        float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            bool stillWaiting = isOnlineOpponentCardConfirmWaitOpen
+                || (requestId > 0
+                    && _pendingCommandPlayRevealRequestId == requestId
+                    && !_commandPlayRevealRemoteCompleteReceived);
+            if (!stillWaiting)
+            {
+                break;
+            }
+
+            yield return null;
+        }
+
+        if (isOnlineOpponentCardConfirmWaitOpen
+            || (requestId > 0
+                && _pendingCommandPlayRevealRequestId == requestId
+                && !_commandPlayRevealRemoteCompleteReceived))
+        {
+            Debug.LogWarning(
+                $"[DeployUnit] Opponent card confirm timeout ({timeoutSeconds}s) — continue attack flow. "
+                + $"requestId:{requestId}");
+            CloseOnlineOpponentCardConfirmWaitOverlay();
+            ClearPendingOpponentCardConfirmRequest();
+        }
+
+        onComplete?.Invoke();
+    }
+
+    private List<TrashExileCandidate> FilterAffordableTrashDeployCandidates(
+        PlayerType ownerType,
+        List<TrashExileCandidate> candidates)
+    {
+        List<TrashExileCandidate> result = new List<TrashExileCandidate>();
+        if (candidates == null)
+        {
+            return result;
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            TrashExileCandidate c = candidates[i];
+            if (c.Data != null && CanAffordCardDataDeployCost(ownerType, c.Data))
+            {
+                result.Add(c);
+            }
+        }
+
+        return result;
     }
 
     private IEnumerator ShowDeployUnitFromHandSelectionCoroutine(
@@ -723,7 +845,8 @@ public partial class BattleGameMain
                 break;
             }
 
-            if (available.Count == 1)
+            // optionalPlayerConfirm 時は1枚でも UI（スキップ可）を出す
+            if (available.Count == 1 && (effect == null || !effect.optionalPlayerConfirm))
             {
                 TrashExileCandidate only = available[0];
                 BeginOnlineEffectSyncBatch(ownerType);
@@ -733,7 +856,9 @@ public partial class BattleGameMain
                     recipient,
                     only.TrashIndex,
                     only.Data,
-                    effect.deployUnitTriggerOnPlayed);
+                    effect.deployUnitTriggerOnPlayed,
+                    effect.deployUnitPayCost,
+                    ownerType);
                 FlushOnlineEffectSyncBatch();
                 SyncAllResourceViewsFromRule();
                 usedTrashIndices.Add(only.TrashIndex);
@@ -758,9 +883,18 @@ public partial class BattleGameMain
             dim.raycastTarget = true;
 
             TextMeshProUGUI title = root.CreateChildTextCustom("DeployTrashTitle", UIAnchor.TopCenter, 760, 48);
-            title.SetLocalizedText(
-                $"トラッシュから配備 ({remaining}枚)",
-                $"Deploy from Trash ({remaining} left)");
+            if (effect != null && effect.optionalPlayerConfirm)
+            {
+                title.SetLocalizedText(
+                    $"トラッシュから配備（してもよい・残り{remaining}枚）",
+                    $"Deploy from Trash (optional, {remaining} left)");
+            }
+            else
+            {
+                title.SetLocalizedText(
+                    $"トラッシュから配備 ({remaining}枚)",
+                    $"Deploy from Trash ({remaining} left)");
+            }
             title.fontSize = 26;
             title.fontStyle = FontStyles.Bold;
             title.color = Color.white;
@@ -814,7 +948,9 @@ public partial class BattleGameMain
                             recipient,
                             trashIndex,
                             data,
-                            effect.deployUnitTriggerOnPlayed);
+                            effect.deployUnitTriggerOnPlayed,
+                            effect.deployUnitPayCost,
+                            ownerType);
                         FlushOnlineEffectSyncBatch();
                         SyncAllResourceViewsFromRule();
                         usedTrashIndices.Add(trashIndex);

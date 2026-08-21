@@ -12066,6 +12066,11 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);
+                if (effect.statTarget == EffectStatTarget.AP || effect.statTarget == EffectStatTarget.Both)
+                {
+                    RefreshConditionalBlockerAbilities();
+                }
+
                 Debug.Log(
                     $"[Effect] {effect.type} {magnitude} target:{effect.target} "
                     + $"stat:{effect.statTarget} by cardId:{sourceCard.Data.id} targets:{targets.Count}");

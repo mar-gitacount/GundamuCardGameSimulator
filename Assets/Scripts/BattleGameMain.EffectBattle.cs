@@ -83,6 +83,14 @@ public partial class BattleGameMain
                 "味方ユニット1体にダメージ軽減を付与しますか？",
                 "Grant damage reduction to 1 ally Unit?");
         }
+        else if (effect != null
+            && effect.type == EffectType.DeployUnit
+            && effect.deployUnitSource == DeployUnitSource.Trash)
+        {
+            title.SetLocalizedText(
+                "トラッシュからユニットを配備しますか？",
+                "Deploy a Unit from Trash?");
+        }
         else
         {
             title.SetLocalizedText("この効果を発動しますか？", "Activate this effect?");
@@ -109,6 +117,14 @@ public partial class BattleGameMain
         else if (effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
         {
             subtitle.SetLocalizedText("コストなし。辞退もできます。", "No cost. You may decline.");
+        }
+        else if (effect != null
+            && effect.type == EffectType.DeployUnit
+            && effect.deployUnitSource == DeployUnitSource.Trash)
+        {
+            subtitle.SetLocalizedText(
+                "辞退すると攻撃／アクションステップへ進みます。",
+                "Decline to continue to attack / Action Step.");
         }
         else
         {

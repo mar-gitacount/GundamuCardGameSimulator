@@ -24,6 +24,15 @@ public class Card : MonoBehaviour
 
    private DeckEdit deck;
 
+    /// <summary>カード詳細オーバーレイ表示中。拡大コピー押下での無限重ねを防ぐ。</summary>
+    private static bool s_detailUiOpen;
+
+    /// <summary>詳細 UI クローズ時に呼ぶ（オーバーレイ破棄時）。</summary>
+    public static void NotifyDetailUiClosed()
+    {
+        s_detailUiOpen = false;
+    }
+
     
     // カードデータのクラスも定義する。
     // Start is called before the first frame update
@@ -62,10 +71,21 @@ public class Card : MonoBehaviour
     }
     private void clicked()
     {
+        // 既に詳細 UI が出ているときは重ねない
+        if (s_detailUiOpen)
+        {
+            return;
+        }
+
+        if (FilterPanelPrefab == null || canvas == null)
+        {
+            return;
+        }
+
+        s_detailUiOpen = true;
         RectTransform FilterPanel = Instantiate(FilterPanelPrefab, canvas.transform);
+        FilterPanel.gameObject.AddComponent<CardDetailOverlayLifetime>();
         
-        // FilterPanelCloseButton= FilterPanel.GetComponent<Button>();
-        // FilterPanelCloseButton.onClick.AddListener(OnDestroy);
         Debug.Log($"ボタン:カード{DeckSettinObject.Instance.isDeckEditing}");
         // デッキ編集中ならデッキ追加リストを表示、static変数に代入する。
         // falseになった場合、変数を初期化する。
@@ -140,6 +160,8 @@ public class Card : MonoBehaviour
         }
         // 画像のコピーを作成して、フィルターパネルの子オブジェクトとして配置する
         copy = Instantiate(gameObject, canvas.transform);
+        // 拡大コピーのクリックで再び詳細を開かない
+        DisableCardClickOnDetailCopy(copy);
         RectTransform CardCopyRect = copy.GetComponent<RectTransform>();
         CardCopyRect.SetParent(FilterPanel.transform, false);
         CardCopyRect.anchoredPosition = Vector2.zero;
@@ -149,37 +171,24 @@ public class Card : MonoBehaviour
         CardCopyRect.sizeDelta = new Vector2(400, 600);
 
         PlaceDetailCloseButtonAboveCard(FilterPanel, CardCopyRect);
-        return;
-       
-        
-        // Canvas canvas = GetComponentInParent<Canvas>().rootCanvas;
-        if (copy != null)
-    {
-        Debug.Log("既にカードが表示されているため、コピーを削除して新しいカードを表示します。");
-        Destroy(copy);
-        return;
     }
-        Destroy(copy);
-        copy = Instantiate(gameObject, canvas.transform);
 
-        RectTransform rect = copy.GetComponent<RectTransform>();
-        // RectTransform rect = image.GetComponent<RectTransform>();
+    private static void DisableCardClickOnDetailCopy(GameObject detailCopy)
+    {
+        if (detailCopy == null)
+        {
+            return;
+        }
 
-        rect.SetParent(canvas.transform, false);
-        rect.anchoredPosition = Vector2.zero;
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(400, 600);
-
-
-        // Debug.Log($"Card clicked! Current size: {rect.sizeDelta}");
-        // rect.sizeDelta = new Vector2(200, 300); // 幅200 高さ300
-        // Debug.Log($"Card clicked! New size: {rect.sizeDelta}");
-        // Debug.Log("Card clicked!");
-        // layout.preferredWidth = 200;
-        // layout.preferredHeight = 300;
-
+        // interactable=false にすると Button の disabledColor で半透明になるため触らない。
+        Button[] buttons = detailCopy.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            if (buttons[i] != null)
+            {
+                buttons[i].onClick.RemoveAllListeners();
+            }
+        }
     }
 
     /// <summary>詳細表示の Close を拡大カードの少し上に置く。</summary>

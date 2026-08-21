@@ -1057,6 +1057,11 @@ public class EffectData
     [Tooltip("DeployUnit: true のとき配備直後に REST 状態にする（ジオング破壊時ヘッド等）。")]
     public bool deployUnitAsRested;
 
+    [Tooltip(
+        "DeployUnit（Hand/Trash）: true のとき配備前にそのカードの Lv/Cost を支払う"
+        + "（目覚める力／デスティニー等の「コストを支払って配備」）。")]
+    public bool deployUnitPayCost;
+
     [Tooltip("DeploySelfAsBattleUnit: 1以上ならランタイム複製時の AP。0 なら印刷値。")]
     public int deployUnitOverrideAp;
 

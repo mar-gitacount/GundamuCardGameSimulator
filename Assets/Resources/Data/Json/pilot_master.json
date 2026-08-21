@@ -65,6 +65,12 @@
             "pilotKey": "Lunamaria_Hawke",
             "displayName": "ルナマリア・ホーク",
             "description": ""
+        },
+        {
+            "id": 12,
+            "pilotKey": "Nicol_Amalfi",
+            "displayName": "ニコル・アマルフィ",
+            "description": ""
         }
     ]
 }

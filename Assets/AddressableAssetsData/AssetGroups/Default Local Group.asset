@@ -35,6 +35,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 030a706186c5e0040b121c19f4bbc5fd
+    m_Address: Data/Images/GD04Destiny Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 0416c9842e5c87746b49ba35f384d89d
     m_Address: Data/Images/Landman Rodi
     m_ReadOnly: 0
@@ -454,6 +459,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 54a6dfc0f6af0b141ade8ca09dedbbce
+    m_Address: Data/Images/Duel Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5520d9bf29c01874f9954be84a8398e5
     m_Address: Data/Images/Gundam Exia Repair
     m_ReadOnly: 0
@@ -759,6 +769,11 @@ MonoBehaviour:
   - m_GUID: 9cf42333626e34147ab9285f757a3346
     m_Address: "Data/Images/\u30AB\u30FC\u30C9\u30EA\u30B9\u30C8  GUNDAM CARD GAME
       \u516C\u5F0F\u30B5\u30A4\u30C8 (1).jpeg"
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9dfb28c67911de3488dede3033cf0de1
+    m_Address: Data/Images/Buster Gundam
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -1086,6 +1101,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d590a4e7684995642acb8c64464cfc2e
+    m_Address: Data/Images/Awakened Power
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: d7589ab196ab23644b1a5ab60622fbb9
     m_Address: Data/Images/Desultor
     m_ReadOnly: 0
@@ -1093,6 +1113,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: d8439cd48a62cf641aa969d9c84dd7ce
     m_Address: Data/Images/70_Mikazuki Augus
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d91f61bb00bac384a805f50d653b1c16
+    m_Address: Data/Images/Blitz Gundam
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
