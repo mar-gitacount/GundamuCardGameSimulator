@@ -829,9 +829,7 @@ public static class CardNameContainsMatcher
 
         if (IsShinAsukaNeedle(needle))
         {
-            return unitName.IndexOf("Shin Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
-                || unitName.IndexOf("Shinn Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
-                || unitName.IndexOf("シン・アスカ", System.StringComparison.Ordinal) >= 0;
+            return IsShinAsukaCardName(unitName);
         }
 
         return false;
@@ -885,7 +883,24 @@ public static class CardNameContainsMatcher
     {
         return needle.IndexOf("Shin Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
             || needle.IndexOf("Shinn Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
-            || needle.IndexOf("シン・アスカ", System.StringComparison.Ordinal) >= 0;
+            || needle.IndexOf("シン・アスカ", System.StringComparison.Ordinal) >= 0
+            || needle.IndexOf("シンアスカ", System.StringComparison.Ordinal) >= 0
+            || needle.IndexOf("sinaska", System.StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    /// <summary>14シンアスカ等の表記ゆれ（sinaska / シンアスカ）を含む。</summary>
+    private static bool IsShinAsukaCardName(string unitName)
+    {
+        if (string.IsNullOrEmpty(unitName))
+        {
+            return false;
+        }
+
+        return unitName.IndexOf("Shin Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || unitName.IndexOf("Shinn Asuka", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || unitName.IndexOf("シン・アスカ", System.StringComparison.Ordinal) >= 0
+            || unitName.IndexOf("シンアスカ", System.StringComparison.Ordinal) >= 0
+            || unitName.IndexOf("sinaska", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
 
@@ -1122,6 +1137,11 @@ public class EffectData
         + "Force Impulse Gundam / フォースインパルスガンダム は相互許容。空なら除外なし。")]
     public string targetCardNameExcludes;
 
+    [Tooltip(
+        "0 より大きいとき、pilot_master の PilotId（CardData.pilotIds）がその ID を持つカードのみ対象。"
+        + "例: 4 = シン・アスカ。AddFromTrashToHand / ExileFromTrash 等のトラッシュ候補で使用。")]
+    public int targetPilotId;
+
     [Tooltip("true のとき《突破》を持たないユニットのみ対象（印刷＋付与の合算が 0）。")]
     public bool requireTargetLacksBreach;
 
@@ -1261,6 +1281,22 @@ public static class EffectDataExtensions
         }
 
         return card != null && CardTypeExtensions.MatchesTypeFilter(effect.targetCardType, card.type);
+    }
+
+    /// <summary>targetPilotId &gt; 0 のとき、カードがその PilotId を持つか。</summary>
+    public static bool HasTargetPilotIdFilter(this EffectData effect)
+    {
+        return effect != null && effect.targetPilotId > 0;
+    }
+
+    public static bool MatchesTargetPilotIdFilter(this EffectData effect, CardData card)
+    {
+        if (effect == null || !effect.HasTargetPilotIdFilter())
+        {
+            return true;
+        }
+
+        return card != null && card.HasPilotIdValue(effect.targetPilotId);
     }
 
     /// <summary>

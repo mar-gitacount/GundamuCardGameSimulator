@@ -282,6 +282,11 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (!EffectDataExtensions.MatchesTargetPilotIdFilter(effect, data))
+            {
+                continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(effect.targetCardNameContains)
                 && (data == null
                     || !CardNameContainsMatcher.Matches(data.cardName, effect.targetCardNameContains.Trim())))

@@ -33,6 +33,8 @@ public partial class BattleGameMain
     /// ユニット／パイロット双方にブロックがある場合のみ順番 UI（プレイヤー）または自動順（敵）で解決する。
     /// 片方のみならそのままその側だけを返す。どちらも無ければ空リスト。
     /// </summary>
+    /// <param name="titleJa">UI タイトル日本語（null/空なら既定）。</param>
+    /// <param name="titleEn">UI タイトル英語（null/空なら既定）。</param>
     private void ResolveUnitPilotEffectOrder(
         PlayerType ownerType,
         CardController unitCard,
@@ -41,7 +43,9 @@ public partial class BattleGameMain
         List<TimedEffectData> pilotBlocks,
         CardData orderHintHostData,
         Action<List<UnitPilotEffectOrderEntry>> onResolved,
-        bool autoPilotFirst = false)
+        bool autoPilotFirst = false,
+        string titleJa = null,
+        string titleEn = null)
     {
         List<TimedEffectData> safeUnit = unitBlocks ?? new List<TimedEffectData>();
         List<TimedEffectData> safePilot = pilotBlocks ?? new List<TimedEffectData>();
@@ -100,7 +104,9 @@ public partial class BattleGameMain
             pilotCard,
             safeUnit,
             safePilot,
-            onResolved);
+            onResolved,
+            titleJa,
+            titleEn);
     }
 
     private static List<UnitPilotEffectOrderEntry> BuildAutoUnitPilotEffectOrder(
@@ -180,7 +186,9 @@ public partial class BattleGameMain
         CardController pilotCard,
         List<TimedEffectData> unitBlocks,
         List<TimedEffectData> pilotBlocks,
-        Action<List<UnitPilotEffectOrderEntry>> onResolved)
+        Action<List<UnitPilotEffectOrderEntry>> onResolved,
+        string titleJa = null,
+        string titleEn = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null || CardImagePrefab == null)
@@ -230,7 +238,9 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("OrderTitle", UIAnchor.TopCenter, 780, 52);
-        title.SetLocalizedText("効果の解決順を選択", "Choose effect resolution order");
+        string ja = string.IsNullOrEmpty(titleJa) ? "効果の解決順を選択" : titleJa;
+        string en = string.IsNullOrEmpty(titleEn) ? "Choose effect resolution order" : titleEn;
+        title.SetLocalizedText(ja, en);
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
