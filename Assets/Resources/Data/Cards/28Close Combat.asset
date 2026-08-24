@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 28Close Combat
   m_EditorClassIdentifier: 
   id: 28
-  gcgOfficialId: 
+  gcgOfficialId: GD03-003
   cardName: Close Combat
   cost: 2
   level: 2
@@ -22,11 +22,11 @@ MonoBehaviour:
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/28_Close Combat
-  version: 4
+  version: 3
   sourceType: 2
-  productLine: 0
+  productLine: 2
   boosterSet: 0
-  starterSet: 0
+  starterSet: 3
   eternalBoosterSet: 0
   sourceTitle: 0
   filterType: 0
@@ -258,6 +258,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
-  gcgSetKind: 1
-  gcgSt: 0
-  gcgNum: 0
+  gcgId:
+    setKind: 2
+    setNumber: 3
+    cardNumber: 3

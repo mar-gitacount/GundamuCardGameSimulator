@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 82Improved Technique
   m_EditorClassIdentifier: 
   id: 82
+  gcgOfficialId: GD03-109
   cardName: Improved Technique
   cost: 3
   level: 3
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/82_Improved Technique"
+  imageAddress: Data/Images/82_Improved Technique
   version: 3
   sourceType: 1
+  productLine: 1
+  boosterSet: 3
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 19
   filterType: 0
   color: 0
   type: 2
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 8
@@ -54,6 +61,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: cd8fb7d0c0bd0e047ad30c5e79268c4e, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -63,3 +71,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 3
+    cardNumber: 109

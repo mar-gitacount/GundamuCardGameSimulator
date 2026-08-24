@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 103Char Aznable
   m_EditorClassIdentifier: 
   id: 103
-  gcgOfficialId: 
+  gcgOfficialId: GD05-093
   cardName: Char Aznable
   cost: 1
   level: 5
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/103_Char Aznable"
+  imageAddress: Data/Images/103_Char Aznable
   version: 5
   sourceType: 1
   productLine: 1
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 1
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -83,6 +84,7 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 1
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
+      deployUnitPayCost: 0
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 0
@@ -98,6 +100,8 @@ MonoBehaviour:
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       resolveAfterDealtBattleDamage: 0
@@ -124,3 +128,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 93

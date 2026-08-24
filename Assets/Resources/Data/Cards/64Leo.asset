@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 64Leo
   m_EditorClassIdentifier: 
   id: 64
+  gcgOfficialId: T-004
   cardName: Leo
   cost: 0
   level: 0
@@ -20,25 +21,40 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/64_Leo"
-  version: 1
-  sourceType: 1
+  imageAddress: Data/Images/64_Leo
+  version: 2
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 2
+  eternalBoosterSet: 0
+  sourceTitle: 7
   filterType: 0
   color: 4
   type: 5
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: 8f2a1b3c4d5e6f708192a3b4c5d6e7f8, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
-  isBlocker: 1
+  isBlocker: 0
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 4
+    setNumber: 0
+    cardNumber: 4

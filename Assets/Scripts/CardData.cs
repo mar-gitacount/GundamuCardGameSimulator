@@ -114,7 +114,7 @@ public class CardData : ScriptableObject
 
     public bool HasGcgStNum()
     {
-        return gcgId != null && gcgId.setNumber > 0 && gcgId.cardNumber > 0;
+        return gcgId != null && gcgId.IsComplete();
     }
 
     public bool HasOfficialCardNumberParts()
@@ -152,10 +152,21 @@ public class CardData : ScriptableObject
         return gcgId != null && gcgId.IsComplete();
     }
 
-    /// <summary>gcgId の入力値から gcgOfficialId を作る（ST01-001 形式）。</summary>
+    /// <summary>gcgId の入力値から gcgOfficialId を作る（ST01-001 / T-001 形式）。</summary>
     public void SyncGcgOfficialIdFromParts()
     {
-        if (gcgId == null || !gcgId.IsComplete())
+        if (gcgId == null)
+        {
+            return;
+        }
+
+        // トークンはセット番号を使わない
+        if (gcgId.IsToken() && gcgId.setNumber != 0)
+        {
+            gcgId.setNumber = 0;
+        }
+
+        if (!gcgId.IsComplete())
         {
             return;
         }

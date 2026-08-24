@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 137Wire-Guided Arm
   m_EditorClassIdentifier: 
   id: 137
+  gcgOfficialId: T-022
   cardName: Wire-Guided Arm
   cost: 0
   level: 0
@@ -20,16 +21,23 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/137_Wire-Guided Arm"
-  version: 5
-  sourceType: 2
+  imageAddress: Data/Images/137_Wire-Guided Arm
+  version: 4
+  sourceType: 1
+  productLine: 1
+  boosterSet: 4
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 1
   filterType: 0
   color: 4
   type: 5
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -41,3 +49,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 1
+  gcgId:
+    setKind: 4
+    setNumber: 0
+    cardNumber: 22

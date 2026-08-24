@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 46Shinanju
   m_EditorClassIdentifier: 
   id: 46
+  gcgOfficialId: ST03-001
   cardName: Shinanju
   cost: 5
   level: 6
@@ -20,19 +21,35 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/46_Shinanju"
-  version: 1
+  imageAddress: Data/Images/46_Shinanju
+  version: 3
   sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 3
+  eternalBoosterSet: 0
+  sourceTitle: 14
   filterType: 0
   color: 0
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 0
+  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 3
+    cardNumber: 1

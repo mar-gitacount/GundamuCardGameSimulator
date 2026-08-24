@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 89Kayra's Jegan
   m_EditorClassIdentifier: 
   id: 89
+  gcgOfficialId: GD05-028
   cardName: Kayra's Jegan
   cost: 1
   level: 5
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/89_Kayra\u0027s Jegan"
+  imageAddress: Data/Images/89_Kayra's Jegan
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 1
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 0
@@ -55,8 +62,11 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 66000000
   pilotMountOnPilotMountedSource: 0
@@ -67,3 +77,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 28

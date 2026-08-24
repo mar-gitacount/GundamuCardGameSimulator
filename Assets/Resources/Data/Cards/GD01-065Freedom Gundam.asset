@@ -10,10 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: New Card Data 16
+  m_Name: GD01-065Freedom Gundam
   m_EditorClassIdentifier: 
   id: 16
-  cardName: "\u30D5\u30EA\u30FC\u30C0\u30E0\u30AC\u30F3\u30C0\u30E0"
+  gcgOfficialId: GD01-065
+  cardName: GD01-065Freedom Gundam
   cost: 5
   level: 7
   power: 4
@@ -23,10 +24,31 @@ MonoBehaviour:
   imageAddress: "Data/Images/16_\u30D5\u30EA\u30FC\u30C0\u30E0\u30AC\u30F3\u30C0\u30E0"
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 11
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 1
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 65

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 100Hobby Hizack
   m_EditorClassIdentifier: 
   id: 100
+  gcgOfficialId: GD05-062
   cardName: Hobby Hizack
   cost: 1
   level: 2
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/100_Hobby Hizack"
+  imageAddress: Data/Images/100_Hobby Hizack
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 6
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 11
@@ -49,6 +56,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: 
     effects: []
@@ -57,6 +65,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -66,3 +75,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 62

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 105Quess Paraya
   m_EditorClassIdentifier: 
   id: 105
+  gcgOfficialId: GD05-094
   cardName: Quess Paraya
   cost: 1
   level: 3
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/105_Quess Paraya"
+  imageAddress: Data/Images/105_Quess Paraya
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 6
   type: 1
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -46,6 +53,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -55,3 +63,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 94

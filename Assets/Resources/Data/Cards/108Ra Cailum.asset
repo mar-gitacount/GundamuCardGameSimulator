@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 108Ra Cailum
   m_EditorClassIdentifier: 
   id: 108
-  gcgOfficialId: 
+  gcgOfficialId: GD05-125
   cardName: Ra Cailum
   cost: 1
   level: 3
@@ -21,12 +21,18 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/108_Ra Cailum"
+  imageAddress: Data/Images/108_Ra Cailum
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 1
   type: 3
+  battleZones: 1
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -106,6 +112,7 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
+      deployUnitPayCost: 0
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 0
@@ -121,7 +128,11 @@ MonoBehaviour:
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
       requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
       choiceBranches: []
@@ -164,6 +175,7 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
+      deployUnitPayCost: 0
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 0
@@ -179,7 +191,11 @@ MonoBehaviour:
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
       requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
       choiceBranches: []
@@ -202,3 +218,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 125

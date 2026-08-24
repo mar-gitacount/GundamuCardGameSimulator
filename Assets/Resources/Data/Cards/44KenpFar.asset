@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 44KenpFar
   m_EditorClassIdentifier: 
   id: 44
+  gcgOfficialId: GD03-017
   cardName: KenpFar
   cost: 3
   level: 4
@@ -20,19 +21,35 @@ MonoBehaviour:
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/44_KenpFar"
+  imageAddress: Data/Images/44_KenpFar
   version: 3
   sourceType: 1
+  productLine: 1
+  boosterSet: 3
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 4
   filterType: 0
   color: 1
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 0
+  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 1
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 3
+    cardNumber: 17

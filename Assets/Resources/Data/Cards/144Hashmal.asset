@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 144Hashmal
   m_EditorClassIdentifier: Assembly-CSharp::CardData
   id: 144
-  gcgOfficialId: 
+  gcgOfficialId: GD05-006
   cardName: Hashmal
   cost: 6
   level: 7
@@ -21,17 +21,18 @@ MonoBehaviour:
   hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Hashmal"
+  imageAddress: Data/Images/Hashmal
   version: 5
   sourceType: 1
-  productLine: 0
-  boosterSet: 0
+  productLine: 1
+  boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
   sourceTitle: 0
   filterType: 0
   color: 2
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 0
@@ -113,3 +114,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 6

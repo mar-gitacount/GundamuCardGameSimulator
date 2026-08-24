@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 80Gundam Deathscythe
   m_EditorClassIdentifier: 
   id: 80
+  gcgOfficialId: GD01-025
   cardName: Gundam Deathscythe
   cost: 4
   level: 6
@@ -20,17 +21,26 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/80_Gundam Deathscythe"
+  imageAddress: Data/Images/80_Gundam Deathscythe
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 1
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
+  pilotIds: []
   link:
   - pilotCardId: 81
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -41,3 +51,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 25

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 71GrazeCustom
   m_EditorClassIdentifier: 
   id: 71
+  gcgOfficialId: ST05-004
   cardName: GrazeCustom
   cost: 1
   level: 2
@@ -20,16 +21,23 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/71_GrazeCustom"
-  version: 4
+  imageAddress: Data/Images/71_GrazeCustom
+  version: 5
   sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 5
+  eternalBoosterSet: 0
+  sourceTitle: 16
   filterType: 0
   color: 6
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -39,3 +47,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 5
+    cardNumber: 4

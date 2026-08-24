@@ -10,18 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: New Card Data
+  m_Name: "\u6D88\u3059\u304B\u3082"
   m_EditorClassIdentifier: 
-  id: 0
-  cardName: "\u30E6\u30CB\u30B3\u30FC\u30F3\u30AC\u30F3\u30C0\u30E0(\u30D0\u30F3\u30B7\u30A4)"
-  cost: 4
-  level: 5
-  power: 5
-  hp: 4
+  id: 7
+  cardName: "\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+  cost: 2
+  level: 3
+  power: 3
+  hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/0_\u30E6\u30CB\u30B3\u30FC\u30F3\u30AC\u30F3\u30C0\u30E0(\u30D0\u30F3\u30B7\u30A4)"
-  version: 1
-  sourceType: 1
+  imageAddress: "Data/Images/7_\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+  version: 9
+  sourceType: 2
   filterType: 0
-  color: 2
+  color: 6

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 81Duo Maxwell
   m_EditorClassIdentifier: 
   id: 81
+  gcgOfficialId: GD01-090
   cardName: Duo Maxwell
   cost: 1
   level: 4
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/81_Duo Maxwell"
+  imageAddress: Data/Images/81_Duo Maxwell
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 1
   type: 1
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -38,6 +45,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: cd8fb7d0c0bd0e047ad30c5e79268c4e, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -47,3 +55,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 90

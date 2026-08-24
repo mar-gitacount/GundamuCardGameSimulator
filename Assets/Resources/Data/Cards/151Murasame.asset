@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 151Murasame
   m_EditorClassIdentifier: Assembly-CSharp::CardData
   id: 151
-  gcgOfficialId: 
+  gcgOfficialId: GD05-016
   cardName: Murasame
   cost: 2
   level: 3
@@ -21,17 +21,18 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Murasame"
+  imageAddress: Data/Images/Murasame
   version: 5
   sourceType: 1
-  productLine: 0
-  boosterSet: 0
+  productLine: 1
+  boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 12
   filterType: 0
   color: 2
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 23
@@ -78,3 +79,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 16

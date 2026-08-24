@@ -13,25 +13,26 @@ MonoBehaviour:
   m_Name: 155Andrew Waldfeld
   m_EditorClassIdentifier: 
   id: 155
-  gcgOfficialId: 
+  gcgOfficialId: GD05-082
   cardName: Andrew Waldfeld
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 4
+  level: 1
+  power: 2
+  hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Andrew Waldfeld"
+  imageAddress: Data/Images/Andrew Waldfeld
   version: 5
   sourceType: 1
   productLine: 1
   boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 12
   filterType: 0
   color: 2
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
@@ -47,3 +48,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 1
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 82

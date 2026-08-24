@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 52Zoloat (League Militaire)
   m_EditorClassIdentifier: 
   id: 52
+  gcgOfficialId: GD04-016
   cardName: Zoloat (League Militaire)
   cost: 2
   level: 2
@@ -20,15 +21,22 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/52_Zoloat (League Militaire)"
-  version: 1
-  sourceType: 2
+  imageAddress: Data/Images/52_Zoloat (League Militaire)
+  version: 4
+  sourceType: 1
+  productLine: 1
+  boosterSet: 4
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 5
   filterType: 0
   color: 5
   type: 0
+  battleZones: 1
   attackFlg: 0
   timedEffects: []
   features: []
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -38,3 +46,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 4
+    cardNumber: 16

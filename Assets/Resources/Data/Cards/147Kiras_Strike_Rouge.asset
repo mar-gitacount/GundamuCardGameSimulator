@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 147Kiras_Strike_Rouge
   m_EditorClassIdentifier: Assembly-CSharp::CardData
   id: 147
-  gcgOfficialId: 
+  gcgOfficialId: GD05-010
   cardName: Kira's Strike Rouge
   cost: 2
   level: 4
@@ -21,17 +21,18 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Kira\u0027s Strike Rouge"
+  imageAddress: Data/Images/Kira's Strike Rouge
   version: 5
   sourceType: 1
-  productLine: 0
-  boosterSet: 0
+  productLine: 1
+  boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 12
   filterType: 0
   color: 2
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
@@ -61,3 +62,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 10

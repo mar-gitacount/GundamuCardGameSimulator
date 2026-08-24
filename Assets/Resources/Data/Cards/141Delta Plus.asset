@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 141Delta Plus
   m_EditorClassIdentifier: 
   id: 141
+  gcgOfficialId: GD01-006
   cardName: Delta Plus
   cost: 3
   level: 4
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/141_Delta Plus"
+  imageAddress: Data/Images/141_Delta Plus
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 14
   filterType: 0
   color: 2
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 18
@@ -38,8 +45,11 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
     pilotFeatureIds: 
@@ -53,3 +63,7 @@ MonoBehaviour:
   repairAmount: 1
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 6

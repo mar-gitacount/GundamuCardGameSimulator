@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 107Veteran's Pride
   m_EditorClassIdentifier: 
   id: 107
+  gcgOfficialId: GD05-116
   cardName: Veteran's Pride
   cost: 1
   level: 2
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/107_Veteran\u0027s Pride"
+  imageAddress: Data/Images/107_Veteran's Pride
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 6
   type: 6
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 12
@@ -43,6 +50,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -55,6 +63,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 2
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -65,8 +75,13 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -76,8 +91,17 @@ MonoBehaviour:
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
@@ -96,6 +120,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -108,6 +133,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 2
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -118,8 +145,13 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -129,13 +161,23 @@ MonoBehaviour:
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -145,3 +187,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 116

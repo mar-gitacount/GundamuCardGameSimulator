@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 104Axis
   m_EditorClassIdentifier: 
   id: 104
+  gcgOfficialId: GD05-129
   cardName: Axis
   cost: 1
   level: 4
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/104_Axis"
+  imageAddress: Data/Images/104_Axis
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 6
   type: 3
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -65,6 +72,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: ArmOwnerEffectDestroy_OnUnitDestroyedByOwnerEffect
     effects:
@@ -78,6 +86,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -90,6 +99,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -100,12 +111,33 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 0
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
-      autoSelectLowestUnitStat: 0
+      selectMinCount: 0
+      selectMaxCount: 0
       observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
@@ -130,6 +162,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     - boardSide: -1
       checkKind: 21
       turnCheck: -1
@@ -149,6 +182,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: RestSelf_DeployNeoZeonLv3FromHand_OnMain
     effects:
@@ -162,6 +196,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -174,6 +209,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -184,12 +221,33 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 0
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
-      autoSelectLowestUnitStat: 0
+      selectMinCount: 0
+      selectMaxCount: 0
       observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     - type: 22
       value: 1
       target: 5
@@ -200,6 +258,7 @@ MonoBehaviour:
       valueCountBoardSide: 0
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
       shieldTokenCardId: 0
@@ -213,6 +272,8 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 3
       compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -223,8 +284,13 @@ MonoBehaviour:
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 1
       deployUnitTriggerOnPlayed: 1
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 0
       revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -234,13 +300,23 @@ MonoBehaviour:
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
     activationCost: 0
     oncePerTurn: 1
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -250,3 +326,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 129

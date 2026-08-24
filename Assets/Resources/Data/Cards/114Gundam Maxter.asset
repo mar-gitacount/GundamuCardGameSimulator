@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 114Gundam Maxter
   m_EditorClassIdentifier: 
   id: 114
+  gcgOfficialId: GD05-069
   cardName: Gundam Maxter
   cost: 2
   level: 3
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/114_Gundam Maxter"
+  imageAddress: Data/Images/114_Gundam Maxter
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 6
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 16
@@ -49,6 +56,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: LookTop4_SelfDeck
     effects: []
@@ -92,6 +100,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: ActivateMountedCardOnMain_OnAttack
     effects: []
@@ -101,8 +110,11 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
   - {fileID: 11400000, guid: f1a2b3c4d5e6f708192a3b4c5d6e7f80, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 113
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -113,3 +125,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 69

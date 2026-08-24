@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 136Strike Rouge (Ootori)
   m_EditorClassIdentifier: 
   id: 136
+  gcgOfficialId: GD05-005
   cardName: Strike Rouge (Ootori)
   cost: 3
   level: 4
@@ -20,18 +21,27 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/136_Strike Rouge (Ootori)"
+  imageAddress: Data/Images/136_Strike Rouge (Ootori)
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 2
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
     pilotFeatureIds: 
@@ -43,3 +53,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 5
