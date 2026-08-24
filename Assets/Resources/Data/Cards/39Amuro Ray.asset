@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 39Amuro Ray
   m_EditorClassIdentifier: 
   id: 39
-  gcgOfficialId: 
+  gcgOfficialId: ST01-010
   cardName: Amuro Ray
   cost: 1
   level: 4
@@ -21,12 +21,18 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/39_Amuro Ray"
+  imageAddress: Data/Images/39_Amuro Ray
   version: 1
   sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 1
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 2
   type: 1
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -98,6 +104,7 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
+      deployUnitPayCost: 0
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
@@ -113,7 +120,11 @@ MonoBehaviour:
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
       requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
       choiceBranches: []
@@ -138,3 +149,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 1
+    cardNumber: 10

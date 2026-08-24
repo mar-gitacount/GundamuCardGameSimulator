@@ -10,10 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: New Card Data 19
+  m_Name: GF01-23Char's Gelgoog
   m_EditorClassIdentifier: 
   id: 19
-  cardName: "\u30B2\u30EB\u30B0\u30B0"
+  gcgOfficialId: GD01-023
+  cardName: Char's Gelgoog
   cost: 4
   level: 4
   power: 4
@@ -23,8 +24,31 @@ MonoBehaviour:
   imageAddress: "Data/Images/19_\u30B2\u30EB\u30B0\u30B0"
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 1
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
+  features: []
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 1
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 23

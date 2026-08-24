@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 135Akatsuki (Oowashi)
   m_EditorClassIdentifier: 
   id: 135
+  gcgOfficialId: GD05-003
   cardName: Akatsuki (Oowashi)
   cost: 6
   level: 6
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/135_Akatsuki (Oowashi)"
+  imageAddress: Data/Images/135_Akatsuki (Oowashi)
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 12
   filterType: 0
   color: 2
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 13
@@ -66,8 +73,11 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
     pilotFeatureIds: 
@@ -79,3 +89,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 3

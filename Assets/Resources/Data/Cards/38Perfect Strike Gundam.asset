@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 38Perfect Strike Gundam
   m_EditorClassIdentifier: 
   id: 38
+  gcgOfficialId: GD01-068
   cardName: Perfect Strike Gundam
   cost: 3
   level: 5
@@ -20,21 +21,41 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/38_Perfect Strike Gundam"
+  imageAddress: Data/Images/38_Perfect Strike Gundam
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 10
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
     pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
+  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 68

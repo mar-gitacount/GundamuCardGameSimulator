@@ -10,18 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: New Card Data 8
+  m_Name: "ST09-002 \u30D5\u30A9\u30FC\u30B9\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
   m_EditorClassIdentifier: 
   id: 8
-  gcgOfficialId: 
-  cardName: "\u30D5\u30A9\u30FC\u30B9\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
+  gcgOfficialId: ST09-002
+  cardName: "ST09-002 \u30D5\u30A9\u30FC\u30B9\u30A4\u30F3\u30D1\u30EB\u30B9\u30AC\u30F3\u30C0\u30E0"
   cost: 4
   level: 5
   power: 5
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/ST09Force Impulse Gundam"
+  imageAddress: Data/Images/ST09Force Impulse Gundam
   version: 9
   sourceType: 2
   productLine: 2
@@ -64,3 +64,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 9
+    cardNumber: 2

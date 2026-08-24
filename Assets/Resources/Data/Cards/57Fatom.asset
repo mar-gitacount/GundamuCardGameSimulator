@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 57Fatom
   m_EditorClassIdentifier: 
   id: 57
+  gcgOfficialId: T-011
   cardName: Fatom
   cost: 0
   level: 0
@@ -20,18 +21,27 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/57_Fatom"
+  imageAddress: Data/Images/57_Fatom
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 11
   filterType: 0
   color: 4
   type: 5
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: 8f2a1b3c4d5e6f708192a3b4c5d6e7f8, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -40,3 +50,11 @@ MonoBehaviour:
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 4
+    setNumber: 0
+    cardNumber: 11

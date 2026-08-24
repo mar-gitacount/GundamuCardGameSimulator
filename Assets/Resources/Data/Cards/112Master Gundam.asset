@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 112Master Gundam
   m_EditorClassIdentifier: 
   id: 112
+  gcgOfficialId: GD05-033
   cardName: Master Gundam
   cost: 5
   level: 7
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/112_Master Gundam"
+  imageAddress: Data/Images/112_Master Gundam
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 6
   filterType: 0
   color: 0
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 3
@@ -39,8 +46,11 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
   - {fileID: 11400000, guid: a7c3e91f2b840d5e6f1a2b3c4d5e6f70, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 126
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -51,3 +61,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 33

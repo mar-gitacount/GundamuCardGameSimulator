@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 63Tallgeese
   m_EditorClassIdentifier: 
   id: 63
+  gcgOfficialId: T-005
   cardName: Tallgeese
   cost: 0
   level: 0
@@ -20,17 +21,26 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/63_Tallgeese"
-  version: 1
-  sourceType: 1
+  imageAddress: Data/Images/63_Tallgeese
+  version: 2
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 2
+  eternalBoosterSet: 0
+  sourceTitle: 7
   filterType: 0
   color: 4
   type: 5
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -41,3 +51,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 4
+    setNumber: 0
+    cardNumber: 5

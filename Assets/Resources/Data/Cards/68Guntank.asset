@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 68Guntank
   m_EditorClassIdentifier: 
   id: 68
+  gcgOfficialId: T-003
   cardName: Guntank
   cost: 0
   level: 0
@@ -20,17 +21,26 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/68_Guntank"
+  imageAddress: Data/Images/68_Guntank
   version: 1
-  sourceType: 1
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 1
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 4
   type: 5
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -41,3 +51,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 4
+    setNumber: 0
+    cardNumber: 3

@@ -10,10 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: New Card Data 11
+  m_Name: ST09-004Freedom Gundam
   m_EditorClassIdentifier: 
   id: 11
-  cardName: "\u30D5\u30EA\u30FC\u30C0\u30E0\u30AC\u30F3\u30C0\u30E0"
+  gcgOfficialId: 
+  cardName: ST09-004Freedom Gundam
   cost: 5
   level: 6
   power: 4
@@ -23,5 +24,31 @@ MonoBehaviour:
   imageAddress: "Data/Images/11_\u30D5\u30EA\u30FC\u30C0\u30E0\u30AC\u30F3\u30C0\u30E0"
   version: 9
   sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 9
+  eternalBoosterSet: 0
+  sourceTitle: 12
   filterType: 0
   color: 5
+  type: 0
+  battleZones: -1
+  attackFlg: 0
+  timedEffects: []
+  features: []
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 0
+    cardNumber: 0

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 51Gundam Lfrith
   m_EditorClassIdentifier: 
   id: 51
+  gcgOfficialId: GD01-086
   cardName: Gundam Lfrith
   cost: 2
   level: 3
@@ -20,18 +21,34 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/51_Gundam Lfrith"
-  version: 2
+  imageAddress: Data/Images/51_Gundam Lfrith
+  version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 18
   filterType: 0
   color: 5
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects: []
   features: []
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 1
+  isDeployTurnAttack: 0
   isNotDirectAttack: 1
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 86

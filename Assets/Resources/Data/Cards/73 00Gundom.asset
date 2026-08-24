@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 73 00Gundom
   m_EditorClassIdentifier: 
   id: 73
+  gcgOfficialId: GD03-063
   cardName: 00Gundom
   cost: 1
   level: 2
@@ -20,16 +21,23 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/73_00Gundom"
+  imageAddress: Data/Images/73_00Gundom
   version: 3
   sourceType: 1
+  productLine: 1
+  boosterSet: 3
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 13
   filterType: 0
   color: 6
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
@@ -39,3 +47,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 3
+    cardNumber: 63

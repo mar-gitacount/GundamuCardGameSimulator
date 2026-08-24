@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 27zawort
   m_EditorClassIdentifier: 
   id: 27
+  gcgOfficialId: ST01-009
   cardName: zawort
   cost: 2
   level: 2
@@ -20,14 +21,34 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/27_zawort"
+  imageAddress: Data/Images/27_zawort
   version: 1
   sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 1
+  eternalBoosterSet: 0
+  sourceTitle: 18
   filterType: 0
   color: 5
   type: 0
+  battleZones: 1
   attackFlg: 0
   timedEffects: []
   features: []
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 1
+  isDeployTurnAttack: 0
   isNotDirectAttack: 1
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 1
+    cardNumber: 9

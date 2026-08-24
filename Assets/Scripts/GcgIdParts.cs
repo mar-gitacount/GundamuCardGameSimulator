@@ -3,23 +3,39 @@ using UnityEngine;
 
 /// <summary>
 /// 公式サイトのカード番号パーツ。
-/// セット1・カード1 → ST01-001（公式 detailSearch と同じ形式）。
+/// セット1・カード1 → ST01-001。トークンはカード番号のみ → T-001。
 /// </summary>
 [Serializable]
 public class GcgIdParts
 {
-    [Tooltip("スターター / ブースター / Eternal")]
+    [Tooltip("スターター / ブースター / Eternal / トークン")]
     public GcgOfficialSetKind setKind = GcgOfficialSetKind.Unset;
 
-    [Tooltip("セット番号。1 を入れると ST01 の 01 になる。")]
+    [Tooltip("セット番号（ST01 の 01）。トークンでは不要（無視される）。")]
     public int setNumber;
 
-    [Tooltip("カード番号。1 を入れると 001 になる（公式と同じ3桁）。")]
+    [Tooltip("カード番号。1 を入れると 001 になる（公式と同じ3桁）。トークンは T-001。")]
     public int cardNumber;
+
+    public bool IsToken()
+    {
+        return setKind == GcgOfficialSetKind.Token;
+    }
 
     public bool IsComplete()
     {
-        return setKind != GcgOfficialSetKind.Unset && setNumber > 0 && cardNumber > 0;
+        if (setKind == GcgOfficialSetKind.Unset || cardNumber <= 0)
+        {
+            return false;
+        }
+
+        // トークンは setNumber 不要（T-001）
+        if (IsToken())
+        {
+            return true;
+        }
+
+        return setNumber > 0;
     }
 
     public string ResolvePrefix()
@@ -32,12 +48,14 @@ public class GcgIdParts
                 return "GD";
             case GcgOfficialSetKind.EternalBooster:
                 return "EB";
+            case GcgOfficialSetKind.Token:
+                return "T";
             default:
                 return string.Empty;
         }
     }
 
-    /// <summary>例: setNumber=1, cardNumber=1 → ST01-001</summary>
+    /// <summary>例: ST01-001 / T-001</summary>
     public string FormatId()
     {
         if (!IsComplete())
@@ -49,6 +67,11 @@ public class GcgIdParts
         if (string.IsNullOrEmpty(prefix))
         {
             return string.Empty;
+        }
+
+        if (IsToken())
+        {
+            return prefix + "-" + cardNumber.ToString("000");
         }
 
         return prefix

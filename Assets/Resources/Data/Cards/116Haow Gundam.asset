@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 116Haow Gundam
   m_EditorClassIdentifier: 
   id: 116
+  gcgOfficialId: GD05-036
   cardName: Haow Gundam
   cost: 4
   level: 6
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/116_Haow Gundam"
+  imageAddress: Data/Images/116_Haow Gundam
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 6
   filterType: 0
   color: 0
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 15
@@ -38,6 +45,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -47,3 +55,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 36

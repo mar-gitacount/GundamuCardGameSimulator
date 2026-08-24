@@ -16,7 +16,7 @@ public enum CardProductLine
 }
 
 /// <summary>
-/// 公式サイト detailSearch 用のセット種別（ST / GD / EB）。
+/// 公式サイト detailSearch 用のセット種別（ST / GD / EB / T）。
 /// 収録セットの productLine とは別に、公式カード番号用に明示選択する。
 /// </summary>
 public enum GcgOfficialSetKind
@@ -29,6 +29,8 @@ public enum GcgOfficialSetKind
     Booster = 2,
     [InspectorName("Eternal Booster (EB)")]
     EternalBooster = 3,
+    [InspectorName("トークン (T)")]
+    Token = 4,
 }
 
 /// <summary>ブースター作品（プルダウン用）。</summary>

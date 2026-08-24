@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 134Waldfeld's Murasame
   m_EditorClassIdentifier: 
   id: 134
+  gcgOfficialId: GD05-003
   cardName: Waldfeld's Murasame
   cost: 2
   level: 3
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/134_Waldfeld\u0027s Murasame"
+  imageAddress: Data/Images/134_Waldfeld's Murasame
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 12
   filterType: 0
   color: 2
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 9
@@ -59,6 +66,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -68,3 +76,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 3

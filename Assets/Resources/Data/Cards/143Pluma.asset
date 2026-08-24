@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 143Pluma
   m_EditorClassIdentifier: Assembly-CSharp::CardData
   id: 143
-  gcgOfficialId: 
+  gcgOfficialId: T-027
   cardName: Pluma
   cost: 0
   level: 0
@@ -21,17 +21,18 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Pluma"
+  imageAddress: Data/Images/Pluma
   version: 5
   sourceType: 1
-  productLine: 0
-  boosterSet: 0
+  productLine: 1
+  boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 16
   filterType: 0
   color: 4
   type: 5
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
@@ -48,3 +49,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 1
+  gcgId:
+    setKind: 4
+    setNumber: 0
+    cardNumber: 27

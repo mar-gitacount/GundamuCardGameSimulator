@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 83Nu Gundam 1
   m_EditorClassIdentifier: 
   id: 83
-  gcgOfficialId: 
+  gcgOfficialId: GD05-017
   cardName: Nu Gundam
   cost: 5
   level: 7
@@ -21,12 +21,18 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/83_Nu Gundam"
+  imageAddress: Data/Images/83_Nu Gundam
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 1
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 0
@@ -85,3 +91,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 17

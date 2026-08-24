@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 126Master Asia
   m_EditorClassIdentifier: 
   id: 126
+  gcgOfficialId: GD05-033
   cardName: Master Asia
   cost: 1
   level: 6
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/126_Master Asia"
+  imageAddress: Data/Images/126_Master Asia
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 6
   filterType: 0
   color: 0
   type: 1
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -86,6 +93,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e0f1a2b3c4d5e6f708192a3b4c5d6e7f, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -97,3 +105,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 33

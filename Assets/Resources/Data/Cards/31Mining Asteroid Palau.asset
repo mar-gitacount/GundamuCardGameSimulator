@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 31Mining Asteroid Palau
   m_EditorClassIdentifier: 
   id: 31
+  gcgOfficialId: ST01-128
   cardName: Mining Asteroid Palau
   cost: 1
   level: 2
@@ -20,23 +21,50 @@ MonoBehaviour:
   hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/31_Mining Asteroid Palau"
+  imageAddress: Data/Images/31_Mining Asteroid Palau
   version: 1
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 14
   filterType: 0
   color: 4
   type: 3
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: DeployBase1_OnBurst
     effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   - timing: 6
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: AddShield1_OnBaseDeployed
     effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
+  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 1
+    cardNumber: 128

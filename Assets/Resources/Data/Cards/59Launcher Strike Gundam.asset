@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 59Launcher Strike Gundam
   m_EditorClassIdentifier: 
   id: 59
+  gcgOfficialId: ST01-072
   cardName: Launcher Strike Gundam
   cost: 3
   level: 4
@@ -20,16 +21,23 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/59_Launcher Strike Gundam"
+  imageAddress: Data/Images/59_Launcher Strike Gundam
   version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 11
   filterType: 0
   color: 5
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects: []
   features:
   - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -37,3 +45,11 @@ MonoBehaviour:
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 1
+    cardNumber: 72

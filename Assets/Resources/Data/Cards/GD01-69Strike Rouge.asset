@@ -10,10 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: New Card Data 18
+  m_Name: GD01-69Strike Rouge
   m_EditorClassIdentifier: 
   id: 18
-  cardName: "\u30B9\u30C8\u30E9\u30A4\u30AF\u30EB\u30FC\u30B8\u30E5"
+  gcgOfficialId: 
+  cardName: Strike Rouge
   cost: 2
   level: 3
   power: 3
@@ -23,5 +24,31 @@ MonoBehaviour:
   imageAddress: "Data/Images/18_\u30B9\u30C8\u30E9\u30A4\u30AF\u30EB\u30FC\u30B8\u30E5"
   version: 1
   sourceType: 1
+  productLine: 0
+  boosterSet: 0
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 5
+  type: 0
+  battleZones: 0
+  attackFlg: 0
+  timedEffects: []
+  features: []
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 1
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 0
+    setNumber: 0
+    cardNumber: 0

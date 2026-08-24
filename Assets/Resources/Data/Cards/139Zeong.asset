@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 139Zeong
   m_EditorClassIdentifier: 
   id: 139
+  gcgOfficialId: GD04-017
   cardName: Zeong
   cost: 5
   level: 6
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/139_Zeong"
-  version: 5
-  sourceType: 2
+  imageAddress: Data/Images/139_Zeong
+  version: 4
+  sourceType: 1
+  productLine: 1
+  boosterSet: 4
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 1
   filterType: 0
   color: 1
   type: 0
+  battleZones: 1
   attackFlg: 0
   timedEffects:
   - timing: 15
@@ -67,8 +74,11 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 103
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -81,3 +91,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 4
+    cardNumber: 17

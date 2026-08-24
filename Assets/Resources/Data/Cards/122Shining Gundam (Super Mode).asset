@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 122Shining Gundam (Super Mode)
   m_EditorClassIdentifier: 
   id: 122
+  gcgOfficialId: GD05-068
   cardName: Shining Gundam (Super Mode)
   cost: 5
   level: 6
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/122_Shining Gundam (Super Mode)"
+  imageAddress: Data/Images/122_Shining Gundam (Super Mode)
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 6
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 22
@@ -57,6 +64,7 @@ MonoBehaviour:
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: BuffSelfAp2_UntilEndOfBattle_LinkedOnAttack
     effects: []
@@ -66,8 +74,11 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
   - {fileID: 11400000, guid: f1a2b3c4d5e6f708192a3b4c5d6e7f80, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 120
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
@@ -78,3 +89,9 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 68

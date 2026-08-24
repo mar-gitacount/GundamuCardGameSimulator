@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 88AmuroRay
   m_EditorClassIdentifier: 
   id: 88
-  gcgOfficialId: 
+  gcgOfficialId: GD05-085
   cardName: Amuro Ray
   cost: 1
   level: 5
@@ -21,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/88_AmuroRay"
+  imageAddress: Data/Images/88_AmuroRay
   version: 5
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 1
   type: 1
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -62,3 +68,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 85

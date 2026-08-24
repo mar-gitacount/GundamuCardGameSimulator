@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 17justisGundam
   m_EditorClassIdentifier: 
   id: 17
-  gcgOfficialId: 
+  gcgOfficialId: GD01-066
   cardName: justisGundam
   cost: 5
   level: 7
@@ -24,14 +24,15 @@ MonoBehaviour:
   imageAddress: "Data/Images/17_\u30B8\u30E3\u30B9\u30C6\u30A3\u30B9\u30AC\u30F3\u30C0\u30E0"
   version: 1
   sourceType: 1
-  productLine: 0
-  boosterSet: 0
+  productLine: 1
+  boosterSet: 1
   starterSet: 0
   eternalBoosterSet: 0
   sourceTitle: 0
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 0
@@ -75,6 +76,7 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
+      deployUnitPayCost: 0
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
@@ -90,6 +92,8 @@ MonoBehaviour:
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       resolveAfterDealtBattleDamage: 0
@@ -162,6 +166,7 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
+      deployUnitPayCost: 0
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
@@ -177,6 +182,8 @@ MonoBehaviour:
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       resolveAfterDealtBattleDamage: 0
@@ -206,3 +213,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 66

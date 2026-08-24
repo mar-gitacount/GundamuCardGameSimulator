@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 41Argama
   m_EditorClassIdentifier: 
   id: 41
+  gcgOfficialId: GD02-129
   cardName: Argama
   cost: 1
   level: 3
@@ -20,33 +21,63 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/41_Argama"
+  imageAddress: Data/Images/41_Argama
   version: 2
-  sourceType: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 2
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 2
   filterType: 0
   color: 5
   type: 3
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 5
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: DeployBase1_OnBurst
     effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   - timing: 6
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: AddShield1_OnBaseDeployed
     effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   - timing: 6
     activationConditions: []
+    requireChainObservationContext: 0
     effectsName: SelfEffectDamageImmunity_OnPlayed
     effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 1
+  isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 2
+    cardNumber: 129

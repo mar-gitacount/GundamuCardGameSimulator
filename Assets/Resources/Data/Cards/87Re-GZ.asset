@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 87Re-GZ
   m_EditorClassIdentifier: 
   id: 87
-  gcgOfficialId: 
+  gcgOfficialId: GD05-019
   cardName: Re-GZ
   cost: 3
   level: 4
@@ -21,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/87_Re-GZ"
+  imageAddress: Data/Images/87_Re-GZ
   version: 5
   sourceType: 1
+  productLine: 1
+  boosterSet: 5
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 3
   filterType: 0
   color: 1
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 9
@@ -55,8 +61,11 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: 25baf6268c3eef1458e8c1324eae5dd6, type: 2}
     pilotFeatureIds: 58000000
@@ -70,3 +79,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 19
