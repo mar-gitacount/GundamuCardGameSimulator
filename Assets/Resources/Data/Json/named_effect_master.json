@@ -3395,6 +3395,86 @@
                     "valueCountExcludeSource": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "Support2_RestSelf_BuffAllyOtherAp2_OnMain",
+            "displayName": "起動・メイン：《サポート2》（自身REST→他の味方1体AP+2・ターン終了まで）",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                },
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "Support1_RestSelf_BuffAllyOtherAp1_OnMain",
+            "displayName": "起動・メイン：《サポート1》（自身REST→他の味方1体AP+1・ターン終了まで）",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                },
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelfAp2_WhileDamaged",
+            "displayName": "ダメージを受けている間、このユニットはAP+2",
+            "effects": []
+        },
+        {
+            "effectSetName": "Breach1",
+            "displayName": "突破1（敵ユニット破壊時・シールドエリア先頭に1ダメージ）",
+            "effects": [
+                {
+                    "type": 31,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "AttackActiveEnemyUnit_Lv4OrLess_Permanent",
+            "displayName": "アクティブ攻撃（Lv.4以下のACTIVE敵ユニットも攻撃可）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
         }
     ]
 }

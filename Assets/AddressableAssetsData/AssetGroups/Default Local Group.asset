@@ -1306,6 +1306,191 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 85b2a8d336474ba19fa8306210b4b8d4
+    m_Address: Data/Images/ST01-002_Gundam (MA Form)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d45e80502317440cab5a31175957fa9f
+    m_Address: Data/Images/ST01-003_Guncannon
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3a72da6b3fcb44778e788876565a3898
+    m_Address: Data/Images/ST01-004_Guntank
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 34cc7acdd55740ce80475f062e02fe96
+    m_Address: Data/Images/ST02-001_Wing Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 10f83c37a53e460b928e892828a26afe
+    m_Address: Data/Images/ST02-002_Wing Gundam (Bird Mode)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fac0847ab849458b9937e5a455ea59cb
+    m_Address: Data/Images/ST02-003_Gundam Heavyarms
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 156ff76d5c0a4eed929bb7e3b242c703
+    m_Address: Data/Images/ST02-004_Gundam Sandrock
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 409c843f2fbe42a1b93486694d2f0e87
+    m_Address: Data/Images/ST02-005_Maganac
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f3bacb3054e54d47b5afd01830d729b7
+    m_Address: Data/Images/ST03-003_Geara Zulu
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f9e66f1589e54965b463ab24a457ffab
+    m_Address: Data/Images/ST03-004_Gaza D (Sleeves)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1ec4ecc542094357bfa2d99be1fc0d09
+    m_Address: Data/Images/ST03-005_Dra-C (Sleeves)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e281bb10bd7445398cef51fd5b7c8ed0
+    m_Address: Data/Images/ST04-002_Strike Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: be9c7f15ae8541309a2ad304b4ce7055
+    m_Address: Data/Images/ST04-003_Moebius Zero
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7cc1eb51b3924841b71452c579e4e707
+    m_Address: Data/Images/ST04-004_Moebius
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 909bcec91237472db9aab0a1acbacaa4
+    m_Address: Data/Images/ST04-005_Strike Dagger
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 54f83d048f9d4b678776aa265ae4d4a3
+    m_Address: Data/Images/ST05-001_Gundam Barbatos 4th Form
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4fc94bd4619844f6ba49287b249bb3cd
+    m_Address: Data/Images/ST05-002_Gundam Barbatos 2nd Form
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fc1dd3e7683440c7bcbbd6e2343e7b26
+    m_Address: Data/Images/ST05-003_CGS Mobile Worker
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 20e8f84ac741456d8af9b6d17e195772
+    m_Address: Data/Images/ST05-005_Gundam Gusion Rebake
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 58926fb67beb451eb7de13e3be2793d4
+    m_Address: Data/Images/ST06-001_GQuuuuuuX (Omega Psycommu)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ae012dc078294b35b3a2c6f8d2355d7b
+    m_Address: Data/Images/ST06-002_GQuuuuuuX (Omega Psycommu)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 26cffe00408e408e8a8977bfd3464d01
+    m_Address: Data/Images/ST06-003_Gaia's Rick Dom (GQ)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 690834851664464baef3d162940a812f
+    m_Address: Data/Images/ST06-004_Gelgoog (GQ)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9cd39b7a35d741888fe9cdea00bae3d9
+    m_Address: Data/Images/ST06-005_Red Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e6c3eafa35bc4c24b6a0a0d9a3fdc517
+    m_Address: Data/Images/ST07-001_Gundam Exia
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1a91888ef9446ee9bf85e8953cbeca5
+    m_Address: Data/Images/ST07-002_Gundam Exia
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 846e0312859d48ef9ec203cb3e537a6c
+    m_Address: Data/Images/ST07-003_Gundam Virtue
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1081057fd44448feb61233c0d0675d6c
+    m_Address: Data/Images/ST07-004_Gundam Virtue
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 03b6f4f6e64c4a39924db9acd9301a22
+    m_Address: Data/Images/ST07-005_Gundam Dynames
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e3672910824845a29e3ae03421e0d338
+    m_Address: Data/Images/ST08-001_Ξ Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 265471e8737b4802bd10b79aefe6390a
+    m_Address: Data/Images/ST08-002_Ξ Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5a1b23bcbeb648c1bba46d3a453458fe
+    m_Address: Data/Images/ST08-003_Messer (Type-F Naked) (Commander Type)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 99f5d35c8f634ecf8cd6461dd5b6dd6a
+    m_Address: Data/Images/ST08-004_Messer Type-F01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 82029b838b8647aeab46e98e7e3293bc
+    m_Address: Data/Images/ST08-005_Messer Type-F02 Minelayer
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 16818330a73049de81b8425767d9bc1f
+    m_Address: Data/Images/ST09-001_Impulse Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 04a2c1fe2b844e76a49a3d7cfb29dde9
+    m_Address: Data/Images/ST09-003_Saviour Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3f3c70733fa940778393118e67c38730
+    m_Address: Data/Images/ST09-004_Freedom Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

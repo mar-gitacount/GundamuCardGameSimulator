@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 191Gundam Barbatos Lupus
   m_EditorClassIdentifier: 
   id: 191
-  gcgOfficialId: 
+  gcgOfficialId: GD05-059
   cardName: Gundam Barbatos Lupus
   cost: 6
   level: 7
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Gundam Barbatos Lupus(GD03)"
+  imageAddress: Data/Images/Gundam Barbatos Lupus(GD03)
   version: 3
   sourceType: 1
   productLine: 1
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects:
   - timing: 12
@@ -63,3 +64,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 59

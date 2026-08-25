@@ -55,6 +55,9 @@ public sealed class EffectActivationContext
     /// <summary>オーナーの配備ベースが生存している。</summary>
     public bool OwnerHasDeployedBase { get; }
 
+    /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
+    public bool SourceAttackingEnemyUnit { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -75,7 +78,8 @@ public sealed class EffectActivationContext
         BattleGameMain.PlayerType destroyingCardOwner = default,
         bool destroyedByBattleDamage = false,
         bool ownerActivatedSpecialMoveCommandThisTurn = false,
-        bool ownerHasDeployedBase = false)
+        bool ownerHasDeployedBase = false,
+        bool sourceAttackingEnemyUnit = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -97,6 +101,7 @@ public sealed class EffectActivationContext
         DestroyedByBattleDamage = destroyedByBattleDamage;
         OwnerActivatedSpecialMoveCommandThisTurn = ownerActivatedSpecialMoveCommandThisTurn;
         OwnerHasDeployedBase = ownerHasDeployedBase;
+        SourceAttackingEnemyUnit = sourceAttackingEnemyUnit;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -126,7 +131,8 @@ public sealed class EffectActivationContext
             DestroyingCardOwner,
             DestroyedByBattleDamage,
             OwnerActivatedSpecialMoveCommandThisTurn,
-            OwnerHasDeployedBase);
+            OwnerHasDeployedBase,
+            SourceAttackingEnemyUnit);
     }
 }
 
@@ -291,6 +297,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.SourceDeployedFromTrash)
         {
             return ctx != null && ctx.SourceCard != null && ctx.SourceCard.WasDeployedFromTrash;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.SourceAttackingEnemyUnit)
+        {
+            return ctx != null && ctx.SourceAttackingEnemyUnit;
         }
 
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
@@ -1076,7 +1087,6 @@ public static class EffectActivationEvaluator
             }
             case EffectLevelAggregate.CountUnitsWithLevelAtLeast:
             {
-                int need = Mathf.Max(1, c.minimumCount);
                 int thr = c.compareValue;
                 int cnt = 0;
                 for (int i = 0; i < levels.Count; i++)
@@ -1087,7 +1097,14 @@ public static class EffectActivationEvaluator
                     }
                 }
 
-                return cnt >= need;
+                // minimumCount <= 0 のときは unitCountCompareOp / unitCountThreshold で比較
+                // （例: 自場に Lv.6 以上が 0 体 → Equal + threshold 0）
+                if (c.minimumCount <= 0)
+                {
+                    return CompareInts(cnt, c.unitCountThreshold, c.unitCountCompareOp);
+                }
+
+                return cnt >= Mathf.Max(1, c.minimumCount);
             }
             case EffectLevelAggregate.AnyUnitLevelCompare:
             {

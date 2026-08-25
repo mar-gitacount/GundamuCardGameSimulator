@@ -663,7 +663,12 @@ public enum EffectActivationCheckKind
     /// <summary>オーナーの配備ベースが場にあり、HP が 1 以上。</summary>
     OwnerHasDeployedBase,
     /// <summary>発動元ユニットが今回トラッシュから配備された。</summary>
-    SourceDeployedFromTrash
+    SourceDeployedFromTrash,
+    /// <summary>
+    /// OnAttack 時、このユニットが敵ユニット（シールド攻撃ではない）を攻撃対象にしている。
+    /// ブロックで対象が変わっても、最終的な対戦相手が敵ユニットなら真。
+    /// </summary>
+    SourceAttackingEnemyUnit
 }
 
 public enum EffectTurnCheckKind
@@ -1113,6 +1118,9 @@ public class EffectData
 
     [Tooltip("true のとき対象候補から targetUnitFilterStat（未指定時は Lv）が最も低いユニット1体を自動選択。")]
     public bool autoSelectLowestUnitStat;
+
+    [Tooltip("true のとき対象候補から targetUnitFilterStat（未指定時は Lv）が最も高いユニット1体を自動選択（同値は候補残し）。")]
+    public bool autoSelectHighestUnitStat;
 
     [Tooltip(
         "true のとき、オーナー墓地に発動元と同 ID のカードが trashRelaxFilterMinCopies 枚以上あると、"

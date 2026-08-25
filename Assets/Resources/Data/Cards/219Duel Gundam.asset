@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 219Duel Gundam
   m_EditorClassIdentifier: 
   id: 219
-  gcgOfficialId: 
+  gcgOfficialId: GD01-054
   cardName: Duel Gundam
   cost: 2
   level: 3
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Duel Gundam"
+  imageAddress: Data/Images/Duel Gundam
   version: 9
   sourceType: 2
   productLine: 2
@@ -83,3 +83,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 54

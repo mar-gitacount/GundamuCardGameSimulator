@@ -13,25 +13,26 @@ MonoBehaviour:
   m_Name: 160At the Risk of One's Life
   m_EditorClassIdentifier: 
   id: 160
-  gcgOfficialId: 
-  cardName: 'At the Risk of One''s Life'
+  gcgOfficialId: GD05-104
+  cardName: At the Risk of One's Life
   cost: 0
   level: 0
   power: 0
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/At the Risk of One\u0027s Life"
+  imageAddress: Data/Images/At the Risk of One's Life
   version: 5
   sourceType: 1
   productLine: 1
   boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 5
   filterType: 0
   color: 2
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
@@ -47,3 +48,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 1
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 104

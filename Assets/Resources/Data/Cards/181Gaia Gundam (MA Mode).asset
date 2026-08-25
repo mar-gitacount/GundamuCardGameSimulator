@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 181Gaia Gundam (MA Mode)
   m_EditorClassIdentifier: 
   id: 181
-  gcgOfficialId: 
+  gcgOfficialId: GD05-041
   cardName: Gaia Gundam (MA Mode)
   cost: 0
   level: 0
@@ -21,17 +21,18 @@ MonoBehaviour:
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Gaia Gundam (MA Mode)"
+  imageAddress: Data/Images/Gaia Gundam (MA Mode)
   version: 5
   sourceType: 1
   productLine: 1
   boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 12
   filterType: 0
   color: 0
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects: []
   features: []
@@ -47,3 +48,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 1
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 41

@@ -31,12 +31,6 @@
             "description": ""
         },
         {
-            "id": 10000,
-            "featureKey": "test",
-            "displayName": "test",
-            "description": ""
-        },
-        {
             "id": 6,
             "featureKey": "Neo_Zeon",
             "displayName": "ネオジオン",
@@ -196,6 +190,30 @@
             "id": 32,
             "featureKey": "Coordinator",
             "displayName": "コーディネイター",
+            "description": ""
+        },
+        {
+            "id": 33,
+            "featureKey": "White_Base_Team",
+            "displayName": "ホワイトベース隊",
+            "description": ""
+        },
+        {
+            "id": 34,
+            "featureKey": "Maganac_Corps",
+            "displayName": "マグアナック隊",
+            "description": ""
+        },
+        {
+            "id": 35,
+            "featureKey": "Mafty",
+            "displayName": "マフティー",
+            "description": ""
+        },
+        {
+            "id": 10000,
+            "featureKey": "test",
+            "displayName": "test",
             "description": ""
         }
     ]

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 212Hyakuren
   m_EditorClassIdentifier: 
   id: 212
-  gcgOfficialId: 
+  gcgOfficialId: ST05-006
   cardName: Hyakuren
   cost: 2
   level: 3
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Hyakuren"
+  imageAddress: Data/Images/Hyakuren
   version: 5
   sourceType: 2
   productLine: 2
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features:
@@ -48,3 +49,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 5
+    cardNumber: 6

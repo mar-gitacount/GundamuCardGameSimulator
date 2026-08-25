@@ -9859,7 +9859,29 @@ public partial class BattleGameMain : MonoBehaviour
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
-            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(attacker));
+    }
+
+    /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
+    private bool IsSourceAttackingEnemyUnit(CardController attacker)
+    {
+        if (attacker == null)
+        {
+            return false;
+        }
+
+        CardController defender = attackFlowBlockRedirectUnit != null
+            ? attackFlowBlockRedirectUnit
+            : attackFlowDeclaredDefenderUnit;
+        if (defender == null || defender.Data == null || !defender.Data.IsUnitLike() || defender.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        PlayerType attackerOwner = ResolveCardOwner(attacker.transform);
+        PlayerType defenderOwner = ResolveCardOwner(defender.transform);
+        return attackerOwner != defenderOwner;
     }
 
     private EffectActivationContext BuildPilotMountActivationContext(
@@ -12324,7 +12346,7 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case TargetType.EnemyUnit:
                 
-                if (effect.autoSelectLowestUnitStat)
+                if (effect.autoSelectLowestUnitStat || effect.autoSelectHighestUnitStat)
                 {
                     AddAllAliveUnits(enemies, result, null, requiredFeatures);
                 }
@@ -12358,6 +12380,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         FilterToLowestStatTiedUnitsIfNeeded(result, effect);
+        FilterToHighestStatTiedUnitsIfNeeded(result, effect);
 
         return result;
     }

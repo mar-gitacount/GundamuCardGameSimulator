@@ -171,6 +171,40 @@ public partial class BattleGameMain
         return best;
     }
 
+    private static CardController PickHighestStatUnit(List<CardController> candidates, EffectData effect)
+    {
+        if (candidates == null || candidates.Count == 0 || effect == null)
+        {
+            return null;
+        }
+
+        EffectTargetUnitFilterStat stat = effect.GetTargetUnitFilterStat();
+        if (stat == EffectTargetUnitFilterStat.Unset)
+        {
+            stat = EffectTargetUnitFilterStat.Level;
+        }
+
+        CardController best = null;
+        int bestValue = int.MinValue;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            CardController candidate = candidates[i];
+            if (candidate == null || candidate.Data == null)
+            {
+                continue;
+            }
+
+            int value = EffectDataExtensions.GetTargetUnitFilterStatValue(candidate, stat);
+            if (value > bestValue)
+            {
+                bestValue = value;
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
     /// <summary>
     /// autoSelectLowestUnitStat 時、最低値以外を除外する。
     /// 同値が複数いる場合は候補を残し、呼び出し側で選択 UI を出す。
@@ -201,6 +235,42 @@ public partial class BattleGameMain
             CardController candidate = targets[i];
             if (candidate == null
                 || EffectDataExtensions.GetTargetUnitFilterStatValue(candidate, stat) != minValue)
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// autoSelectHighestUnitStat 時、最高値以外を除外する。
+    /// 同値が複数いる場合は候補を残し、呼び出し側で選択 UI を出す。
+    /// </summary>
+    private static void FilterToHighestStatTiedUnitsIfNeeded(List<CardController> targets, EffectData effect)
+    {
+        if (targets == null || effect == null || !effect.autoSelectHighestUnitStat || targets.Count <= 1)
+        {
+            return;
+        }
+
+        CardController highest = PickHighestStatUnit(targets, effect);
+        if (highest == null)
+        {
+            targets.Clear();
+            return;
+        }
+
+        EffectTargetUnitFilterStat stat = effect.GetTargetUnitFilterStat();
+        if (stat == EffectTargetUnitFilterStat.Unset)
+        {
+            stat = EffectTargetUnitFilterStat.Level;
+        }
+
+        int maxValue = EffectDataExtensions.GetTargetUnitFilterStatValue(highest, stat);
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            CardController candidate = targets[i];
+            if (candidate == null
+                || EffectDataExtensions.GetTargetUnitFilterStatValue(candidate, stat) != maxValue)
             {
                 targets.RemoveAt(i);
             }

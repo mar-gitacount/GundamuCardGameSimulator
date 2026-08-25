@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 187Gundam Exia Repair
   m_EditorClassIdentifier: 
   id: 187
-  gcgOfficialId: 50
+  gcgOfficialId: GD02-050
   cardName: Gundam Exia Repair
   cost: 1
   level: 2
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Gundam Exia Repair"
+  imageAddress: Data/Images/Gundam Exia Repair
   version: 5
   sourceType: 1
   productLine: 1
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 3
@@ -195,3 +196,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 2
+    cardNumber: 50

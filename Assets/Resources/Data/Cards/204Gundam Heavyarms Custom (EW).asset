@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 204Gundam Heavyarms Custom (EW)
   m_EditorClassIdentifier: 
   id: 204
-  gcgOfficialId: 
+  gcgOfficialId: GD05-079
   cardName: Gundam Heavyarms Custom (EW)
   cost: 0
   level: 0
@@ -21,17 +21,18 @@ MonoBehaviour:
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Gundam Heavyarms Custom (EW)"
+  imageAddress: Data/Images/Gundam Heavyarms Custom (EW)
   version: 5
   sourceType: 1
   productLine: 1
   boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 9
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
@@ -47,3 +48,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 1
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 79

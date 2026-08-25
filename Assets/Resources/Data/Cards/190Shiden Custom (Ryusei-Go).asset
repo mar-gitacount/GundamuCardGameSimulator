@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 190Shiden Custom (Ryusei-Go)
   m_EditorClassIdentifier: 
   id: 190
-  gcgOfficialId: 
+  gcgOfficialId: GD05-058
   cardName: Shiden Custom (Ryusei-Go)
   cost: 3
   level: 4
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Shiden Custom (Ryusei-Go)"
+  imageAddress: Data/Images/Shiden Custom (Ryusei-Go)
   version: 5
   sourceType: 1
   productLine: 1
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects: []
   features:
@@ -54,3 +55,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 58

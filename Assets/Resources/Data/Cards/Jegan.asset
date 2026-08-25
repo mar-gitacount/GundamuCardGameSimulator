@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Jegan
   m_EditorClassIdentifier: 
   id: 23
+  gcgOfficialId: GD01-016
   cardName: Jegan
   cost: 2
   level: 3
@@ -20,25 +21,44 @@ MonoBehaviour:
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/23_Jegan"
-  version: 4
+  imageAddress: Data/Images/23_Jegan
+  version: 1
   sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 14
   filterType: 0
   color: 2
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 9
     activationConditions:
     - boardSide: 0
       checkKind: 0
+      turnCheck: -1
       feature: {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+      featureId: 0
+      features: []
+      featureIds: 
       minimumCount: 2
       levelAggregate: 0
       compareOp: 0
       compareValue: 0
       unitCountCompareOp: 0
       unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: 
     effects:
     - type: 3
       value: 1
@@ -50,9 +70,76 @@ MonoBehaviour:
       valueCountBoardSide: 1
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
       valueCountMinUnitLevel: 0
       valueScaleMaximum: 0
+      shieldTokenCardId: 0
       valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 1
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 1
+    cardNumber: 16

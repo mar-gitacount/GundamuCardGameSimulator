@@ -1,0 +1,89 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: ST09-004 Freedom Gundam
+  m_EditorClassIdentifier: 
+  id: 1000037
+  gcgOfficialId: ST09-004
+  cardName: "Freedom Gundam"
+  cost: 5
+  level: 6
+  power: 4
+  hp: 5
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/ST09-004_Freedom Gundam"
+  version: 9
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 9
+  eternalBoosterSet: 0
+  sourceTitle: 12
+  filterType: 0
+  color: 5
+  type: 0
+  battleZones: 3
+  attackFlg: 0
+  timedEffects:
+  - timing: 4
+    activationConditions:
+    - boardSide: -1
+      checkKind: 29
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: Suppress2_OnShieldAttack
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: 5aceb3b89345ddb4fa7d941cd0e87cfe, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 1
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 9
+    cardNumber: 4

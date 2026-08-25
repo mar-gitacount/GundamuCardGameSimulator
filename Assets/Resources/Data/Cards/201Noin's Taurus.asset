@@ -13,15 +13,15 @@ MonoBehaviour:
   m_Name: 201Noin's Taurus
   m_EditorClassIdentifier: 
   id: 201
-  gcgOfficialId: 
-  cardName: 'Noin''s Taurus'
+  gcgOfficialId: GD05-074
+  cardName: Noin's Taurus
   cost: 0
   level: 0
   power: 0
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Noin\u0027s Taurus"
+  imageAddress: Data/Images/Noin's Taurus
   version: 5
   sourceType: 1
   productLine: 1
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
   features: []
@@ -47,3 +48,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 1
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 74

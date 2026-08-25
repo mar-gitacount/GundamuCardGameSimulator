@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 178Gundam Throne Eins (GN High Mega Launcher)
   m_EditorClassIdentifier: 
   id: 178
-  gcgOfficialId: 
+  gcgOfficialId: GD05-038
   cardName: Gundam Throne Eins (GN High Mega Launcher)
   cost: 0
   level: 0
@@ -21,17 +21,18 @@ MonoBehaviour:
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Gundam Throne Eins (GN High Mega Launcher)"
+  imageAddress: Data/Images/Gundam Throne Eins (GN High Mega Launcher)
   version: 5
   sourceType: 1
   productLine: 1
   boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 13
   filterType: 0
   color: 0
   type: 0
+  battleZones: -1
   attackFlg: 0
   timedEffects: []
   features: []
@@ -47,3 +48,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 1
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 38

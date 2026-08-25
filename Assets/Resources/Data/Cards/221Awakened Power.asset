@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 221Awakened Power
   m_EditorClassIdentifier: 
   id: 221
-  gcgOfficialId: 
+  gcgOfficialId: GD02-110
   cardName: Awakened Power
   cost: 2
   level: 6
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Awakened Power"
+  imageAddress: Data/Images/Awakened Power
   version: 9
   sourceType: 2
   productLine: 2
@@ -56,3 +56,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 2
+    cardNumber: 110

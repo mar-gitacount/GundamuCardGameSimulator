@@ -54,8 +54,62 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         {
             int basePower = Data != null ? Data.power : 0;
             int modified = basePower + pilotPowerBonus + SumModifierValues(powerModifiers);
+            if (IsDamagedForWhileDamagedEffects())
+            {
+                modified += GetWhileDamagedApBonusFromData(Data);
+            }
+
             return Mathf.Max(0, modified);
         }
+    }
+
+    /// <summary>ダメージを受けている（現在 HP &lt; 最大 HP）か。While Damaged AP 等で使用。</summary>
+    public bool IsDamagedForWhileDamagedEffects()
+    {
+        if (Data == null || !Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        return CurrentHp < GetRepairHpCap();
+    }
+
+    /// <summary>
+    /// timedEffects の effectsName「BuffSelfApN_WhileDamaged」から、ダメージ中の AP ボーナスを得る。
+    /// </summary>
+    public static int GetWhileDamagedApBonusFromData(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return 0;
+        }
+
+        int total = 0;
+        const string prefix = "BuffSelfAp";
+        const string suffix = "_WhileDamaged";
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || string.IsNullOrWhiteSpace(timed.effectsName))
+            {
+                continue;
+            }
+
+            string name = timed.effectsName.Trim();
+            if (!name.StartsWith(prefix, System.StringComparison.Ordinal)
+                || !name.EndsWith(suffix, System.StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string mid = name.Substring(prefix.Length, name.Length - prefix.Length - suffix.Length);
+            if (int.TryParse(mid, out int amount) && amount > 0)
+            {
+                total += amount;
+            }
+        }
+
+        return total;
     }
 
     /// <summary>実効コスト（Data.cost + ランタイム補正）。アセットは変更しない。</summary>
@@ -617,6 +671,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         }
 
         CurrentHp = Mathf.Max(0, CurrentHp - applied);
+        RefreshBattleStatOverlay(force: true);
     }
 
     /// <summary>シールドとして裏向き表示する（カード画像の上に全面カバーを重ねる）。</summary>

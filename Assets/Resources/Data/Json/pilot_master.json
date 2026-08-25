@@ -71,6 +71,72 @@
             "pilotKey": "Nicol_Amalfi",
             "displayName": "ニコル・アマルフィ",
             "description": ""
+        },
+        {
+            "id": 13,
+            "pilotKey": "Kai_Shiden",
+            "displayName": "カイ・シデン",
+            "description": ""
+        },
+        {
+            "id": 14,
+            "pilotKey": "Hayato_Kobayashi",
+            "displayName": "ハヤト・コバヤシ",
+            "description": ""
+        },
+        {
+            "id": 15,
+            "pilotKey": "Heero_Yuy",
+            "displayName": "ヒイロ・ユイ",
+            "description": ""
+        },
+        {
+            "id": 16,
+            "pilotKey": "Trowa_Barton",
+            "displayName": "トロワ・バートン",
+            "description": ""
+        },
+        {
+            "id": 17,
+            "pilotKey": "Quatre_Raberba_Winner",
+            "displayName": "カトル・ラバーバ・ウィナー",
+            "description": ""
+        },
+        {
+            "id": 18,
+            "pilotKey": "Amate_Yuzuriha_Machu",
+            "displayName": "アマテ・ユズリハ（マチュ）",
+            "description": ""
+        },
+        {
+            "id": 19,
+            "pilotKey": "Gaia",
+            "displayName": "ガイア",
+            "description": ""
+        },
+        {
+            "id": 20,
+            "pilotKey": "Shuji_Ito",
+            "displayName": "シュウジ・イトウ",
+            "description": ""
+        },
+        {
+            "id": 21,
+            "pilotKey": "Tieria_Erde",
+            "displayName": "ティエリア・アーデ",
+            "description": ""
+        },
+        {
+            "id": 22,
+            "pilotKey": "Lockon_Stratos",
+            "displayName": "ロックオン・ストラトス",
+            "description": ""
+        },
+        {
+            "id": 23,
+            "pilotKey": "Hathaway_Noa",
+            "displayName": "ハサウェイ・ノア",
+            "description": ""
         }
     ]
 }

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 216Saviour Gundam
   m_EditorClassIdentifier: 
   id: 216
-  gcgOfficialId: 
+  gcgOfficialId: ST09-003
   cardName: Saviour Gundam
   cost: 5
   level: 6
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Saviour Gundam"
+  imageAddress: Data/Images/Saviour Gundam
   version: 9
   sourceType: 2
   productLine: 2
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 0
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 0
@@ -91,3 +92,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 9
+    cardNumber: 3

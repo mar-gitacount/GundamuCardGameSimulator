@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Minerva
   m_EditorClassIdentifier: 
   id: 13
-  gcgOfficialId: 
+  gcgOfficialId: ST09-010
   cardName: "\u30DF\u30CD\u30EB\u30D0"
   cost: 1
   level: 2
@@ -32,6 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 3
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -102,3 +103,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 1
+    setNumber: 9
+    cardNumber: 10

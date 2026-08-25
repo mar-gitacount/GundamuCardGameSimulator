@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 220Buster Gundam
   m_EditorClassIdentifier: 
   id: 220
-  gcgOfficialId: 
+  gcgOfficialId: GD02-076
   cardName: Buster Gundam
   cost: 3
   level: 4
@@ -22,11 +22,11 @@ MonoBehaviour:
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Buster Gundam
-  version: 0
-  sourceType: 0
-  productLine: 0
+  version: 9
+  sourceType: 2
+  productLine: 2
   boosterSet: 0
-  starterSet: 0
+  starterSet: 9
   eternalBoosterSet: 0
   sourceTitle: 11
   filterType: 0
@@ -83,3 +83,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 2
+    cardNumber: 76

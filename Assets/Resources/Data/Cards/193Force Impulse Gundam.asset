@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 193Force Impulse Gundam
   m_EditorClassIdentifier: 
   id: 193
-  gcgOfficialId: 
+  gcgOfficialId: GD05-060
   cardName: Force Impulse Gundam
   cost: 3
   level: 4
@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/Force Impulse Gundam"
+  imageAddress: Data/Images/Force Impulse Gundam
   version: 5
   sourceType: 1
   productLine: 1
@@ -84,3 +84,7 @@ MonoBehaviour:
   repairAmount: 0
   notUsedOnline: 0
   cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 5
+    cardNumber: 60

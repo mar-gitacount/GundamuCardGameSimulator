@@ -136,6 +136,7 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   - {fileID: 11400000, guid: f708192a3b4c5d6e7f8012a3b4c5d6e7, type: 2}
+  - {fileID: 11400000, guid: f0c82074998e4041ad8df737c3b47303, type: 2}
   pilotIds:
   - {fileID: 11400000, guid: e1a825d6f2c17c4e3d7a9b0c1e5f6a7b, type: 2}
   link: []
