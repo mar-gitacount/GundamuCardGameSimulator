@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD04-069 ∀ Gundam
+  m_EditorClassIdentifier: 
+  id: 1000452
+  gcgOfficialId: GD04-069
+  cardName: "\u2200 Gundam"
+  cost: 3
+  level: 5
+  power: 4
+  hp: 3
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD04-069_\u2200 Gundam"
+  version: 4
+  sourceType: 1
+  productLine: 1
+  boosterSet: 4
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 10
+  filterType: 0
+  color: 5
+  type: 0
+  battleZones: 3
+  attackFlg: 0
+  timedEffects: []
+  features:
+  - {fileID: 11400000, guid: 2e1f316227c4430c860faebb0d37ee18, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: e4a559174dec4a63bf975f12b1325f91, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 1
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 4
+    cardNumber: 69

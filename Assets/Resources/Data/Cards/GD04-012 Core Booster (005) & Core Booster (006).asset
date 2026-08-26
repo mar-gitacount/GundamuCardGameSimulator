@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD04-012 Core Booster (005) & Core Booster (006)
+  m_EditorClassIdentifier: 
+  id: 1000399
+  gcgOfficialId: GD04-012
+  cardName: "Core Booster (005) & Core Booster (006)"
+  cost: 2
+  level: 3
+  power: 3
+  hp: 3
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD04-012_Core Booster (005) & Core Booster (006)"
+  version: 4
+  sourceType: 1
+  productLine: 1
+  boosterSet: 4
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 1
+  filterType: 0
+  color: 2
+  type: 0
+  battleZones: 3
+  attackFlg: 0
+  timedEffects: []
+  features:
+  - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
+  - {fileID: 11400000, guid: f0c82074998e4041ad8df737c3b47303, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: 4f30fd32714a4672b279c2ef42c73392, type: 2}
+    - {fileID: 11400000, guid: 0ba524765acc4dda8d86ba45b17e3bb6, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 4
+    cardNumber: 12

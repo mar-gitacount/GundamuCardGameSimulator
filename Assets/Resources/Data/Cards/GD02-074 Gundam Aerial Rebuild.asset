@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD02-074 Gundam Aerial Rebuild
+  m_EditorClassIdentifier: 
+  id: 1000217
+  gcgOfficialId: GD02-074
+  cardName: "Gundam Aerial Rebuild"
+  cost: 5
+  level: 7
+  power: 5
+  hp: 5
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD02-074_Gundam Aerial Rebuild"
+  version: 2
+  sourceType: 1
+  productLine: 1
+  boosterSet: 2
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 18
+  filterType: 0
+  color: 5
+  type: 0
+  battleZones: 3
+  attackFlg: 0
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: HighMobility
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: a23c0d1e2f3a4b5c6d7e8f9a0b1c2d3e, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: a5b6c7d8e9f0a1b2c3d4e5f607182930, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 2
+    cardNumber: 74

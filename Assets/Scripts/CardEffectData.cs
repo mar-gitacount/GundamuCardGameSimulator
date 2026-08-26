@@ -245,7 +245,13 @@ public enum EffectType
     /// OnLook 専用。見たカードから value 枚を選び山札の上に戻す（選んだ順・先頭が一番上）。
     /// 選ばなかった見た枚はオーナーのトラッシュへ置く。
     /// </summary>
-    ChooseLookedToDeckTopThenTrashRemainder
+    ChooseLookedToDeckTopThenTrashRemainder,
+    /// <summary>
+    /// OnLook 専用。見た山札から条件に合うユニットを value 体までバトルゾーンへ配備する（コストなし）。
+    /// targetFeature / filterByTargetCardType / targetUnitFilterStat で候補を絞る。
+    /// deployUnitTriggerOnPlayed で配備時効果を発動できる。Skip 可（してもよい）。
+    /// </summary>
+    DeployUnitFromLooked
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -668,7 +674,12 @@ public enum EffectActivationCheckKind
     /// OnAttack 時、このユニットが敵ユニット（シールド攻撃ではない）を攻撃対象にしている。
     /// ブロックで対象が変わっても、最終的な対戦相手が敵ユニットなら真。
     /// </summary>
-    SourceAttackingEnemyUnit
+    SourceAttackingEnemyUnit,
+    /// <summary>
+    /// OnEnemyUnitDestroyed 時、破壊されたユニットがリンク中だった（搭乗パイロットが Link 条件を満たす）。
+    /// EffectActivationContext.DestroyedUnitWasLinked を参照。
+    /// </summary>
+    DestroyedUnitIsLinked
 }
 
 public enum EffectTurnCheckKind
@@ -1100,6 +1111,11 @@ public class EffectData
         "DiscardFromHand: true のとき手札選択 UI のキャンセル（Skip）を出さない。"
         + "手札がある限り必ず1枚選んで捨てる。JsonUtility 既定 false のため未指定カードは従来どおり Skip 可。")]
     public bool forbidSkipHandDiscard;
+
+    [Tooltip(
+        "true のとき、この効果だけ1ターンに1回（例: 《援護》後の自身アクティブ化）。"
+        + "TimedEffectData.oncePerTurn（ブロック全体）とは独立。")]
+    public bool oncePerTurn;
 
     [Tooltip("Draw: true のとき引いたカードをプレイヤーに公開してから次の効果へ進む。")]
     public bool revealDrawnToPlayer;
@@ -1830,6 +1846,30 @@ public static class EffectDataExtensions
         }
 
         return effect.MatchesTargetFeatureOnCard(card);
+    }
+
+    /// <summary>
+    /// Look 直後の配備候補フィルタ（種類＋Feature＋印刷ステータス）。
+    /// Feature 必須の AddToHandFromLooked とは別に、DeployUnitFromLooked 用。
+    /// </summary>
+    public static bool MatchesLookedCardDataDeployFilter(this EffectData effect, CardData card)
+    {
+        if (effect == null || card == null || !card.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (!effect.MatchesTargetCardTypeFilter(card))
+        {
+            return false;
+        }
+
+        if (effect.HasTargetFeatureFilter() && !effect.MatchesTargetFeatureOnCard(card))
+        {
+            return false;
+        }
+
+        return effect.MatchesCardDataStatFilter(card);
     }
 
     /// <summary>DeployUnit の配備体数（value≤0 は 1）。</summary>

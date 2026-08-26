@@ -4210,8 +4210,13 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         CardController detachedPilot = null;
+        bool destroyedUnitWasLinked = false;
         if (cardController.Data.IsUnitLike() && cardController.MountedPilot != null)
         {
+            // パイロット切り離し前にリンク状態を確定（OnEnemyUnitDestroyed 条件用）
+            destroyedUnitWasLinked = UnitLinkExtensions.HasValidLinkPilot(
+                cardController.Data,
+                cardController.MountedPilot);
             detachedPilot = cardController.DetachMountedPilotWithoutDestroy();
         }
 
@@ -4240,6 +4245,7 @@ public partial class BattleGameMain : MonoBehaviour
                 ownerType,
                 destroyedBy,
                 destroyedByBattleDamage,
+                destroyedUnitWasLinked,
                 () =>
             {
                 if (TryResolveEnemyUnitKillContext(
@@ -7037,6 +7043,18 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect.type != EffectType.Activate && targets != null && targets.Count > 0)
         {
             SetEffectChainLastPickedTargets(targets);
+            // 《援護》等: Buff/Debuff 対象をチェーン観測へ載せ、後続の ObservedCardHasFeature 判定に使う
+            if (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+            {
+                for (int oi = 0; oi < targets.Count; oi++)
+                {
+                    CardController observedUnit = targets[oi];
+                    if (observedUnit?.Data != null)
+                    {
+                        ObserveCardInEffectChain(observedUnit.Data);
+                    }
+                }
+            }
         }
 
         if (!nestedBatch)
@@ -9864,9 +9882,19 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
-    private bool IsSourceAttackingEnemyUnit(CardController attacker)
+    /// <param name="allowDestroyedDefender">
+    /// true のとき、破壊処理中で対戦相手 HP が 0 以下でも敵ユニット攻撃とみなす
+    /// （OnEnemyUnitDestroyed の「アタックしている間」判定用）。
+    /// </param>
+    private bool IsSourceAttackingEnemyUnit(CardController attacker, bool allowDestroyedDefender = false)
     {
-        if (attacker == null)
+        if (attacker == null || attackFlowAttackerUnit == null)
+        {
+            return false;
+        }
+
+        // 攻撃フロー中の攻撃者と同一ユニットであること（「このユニットがアタックしている間」）
+        if (!IsSameBattleUnit(attacker, attackFlowAttackerUnit))
         {
             return false;
         }
@@ -9874,7 +9902,12 @@ public partial class BattleGameMain : MonoBehaviour
         CardController defender = attackFlowBlockRedirectUnit != null
             ? attackFlowBlockRedirectUnit
             : attackFlowDeclaredDefenderUnit;
-        if (defender == null || defender.Data == null || !defender.Data.IsUnitLike() || defender.CurrentHp <= 0)
+        if (defender == null || defender.Data == null || !defender.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (!allowDestroyedDefender && defender.CurrentHp <= 0)
         {
             return false;
         }
@@ -10599,6 +10632,7 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType destroyedOwner,
         CardController destroyedBy,
         bool destroyedByBattleDamage,
+        bool destroyedUnitWasLinked,
         System.Action onComplete)
     {
         if (!TryResolveEnemyUnitKillContext(destroyedUnit, destroyedOwner, destroyedBy, out CardController killer, out PlayerType killerOwner))
@@ -10624,14 +10658,16 @@ public partial class BattleGameMain : MonoBehaviour
             destroyingCard: destroyedBy,
             hasDestroyingCardOwner: true,
             destroyingCardOwner: killerOwner,
-            destroyedByBattleDamage: destroyedByBattleDamage);
+            destroyedByBattleDamage: destroyedByBattleDamage,
+            sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(killer, allowDestroyedDefender: true),
+            destroyedUnitWasLinked: destroyedUnitWasLinked);
         List<TimedEffectData> unitBlocks = new List<TimedEffectData>();
         List<TimedEffectData> pilotBlocks = new List<TimedEffectData>();
-        AppendOnEnemyUnitDestroyedBlocks(killer.Data, activationContext, unitBlocks);
+        AppendOnEnemyUnitDestroyedBlocks(killer, activationContext, unitBlocks);
         CardController killerPilot = killer.MountedPilot;
         if (killerPilot != null)
         {
-            AppendOnEnemyUnitDestroyedBlocks(killerPilot.Data, activationContext, pilotBlocks);
+            AppendOnEnemyUnitDestroyedBlocks(killerPilot, activationContext, pilotBlocks);
         }
 
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
@@ -10644,6 +10680,8 @@ public partial class BattleGameMain : MonoBehaviour
         Debug.Log(
             $"[OnEnemyUnitDestroyed] キル:{killer.Data.cardName}(id:{killer.Data.id}) pilot:{pilotName} "
             + $"→ 破壊:{destroyedUnit.Data.cardName}(id:{destroyedUnit.Data.id}) "
+            + $"battleDmg:{destroyedByBattleDamage} linked:{destroyedUnitWasLinked} "
+            + $"attackingEnemy:{activationContext.SourceAttackingEnemyUnit} "
             + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
 
         ResolveUnitPilotEffectOrder(
@@ -10689,6 +10727,7 @@ public partial class BattleGameMain : MonoBehaviour
         RunOnEnemyUnitDestroyedTimedBlocks(
             killer,
             killerOwner,
+            entry.Source,
             entry.Blocks,
             0,
             () => RunOrderedOnEnemyUnitDestroyedEntries(
@@ -10699,11 +10738,12 @@ public partial class BattleGameMain : MonoBehaviour
                 onComplete));
     }
 
-    private static void AppendOnEnemyUnitDestroyedBlocks(
-        CardData data,
+    private void AppendOnEnemyUnitDestroyedBlocks(
+        CardController effectSource,
         EffectActivationContext activationContext,
         List<TimedEffectData> blocks)
     {
+        CardData data = effectSource?.Data;
         if (data?.timedEffects == null || blocks == null)
         {
             return;
@@ -10713,6 +10753,11 @@ public partial class BattleGameMain : MonoBehaviour
         {
             TimedEffectData timed = data.timedEffects[i];
             if (timed == null || !timed.IsOnEnemyUnitDestroyedResolutionBlock())
+            {
+                continue;
+            }
+
+            if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(activationContext.OwnerType, effectSource, i))
             {
                 continue;
             }
@@ -10729,6 +10774,7 @@ public partial class BattleGameMain : MonoBehaviour
     private void RunOnEnemyUnitDestroyedTimedBlocks(
         CardController sourceCard,
         PlayerType beneficiary,
+        CardController effectOwner,
         List<TimedEffectData> blocks,
         int blockIndex,
         System.Action onComplete)
@@ -10740,12 +10786,27 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TimedEffectData block = blocks[blockIndex];
+        if (block != null && block.oncePerTurn && effectOwner != null)
+        {
+            int timedIndex = IndexOfTimedEffectOnCard(effectOwner, block);
+            if (timedIndex >= 0)
+            {
+                MarkPaidActivationUsedThisTurn(beneficiary, effectOwner, timedIndex);
+            }
+        }
+
         TryExecuteOnEnemyUnitDestroyedEffectChain(
             sourceCard,
             beneficiary,
             block.GetResolvedEffects(),
             0,
-            () => RunOnEnemyUnitDestroyedTimedBlocks(sourceCard, beneficiary, blocks, blockIndex + 1, onComplete));
+            () => RunOnEnemyUnitDestroyedTimedBlocks(
+                sourceCard,
+                beneficiary,
+                effectOwner,
+                blocks,
+                blockIndex + 1,
+                onComplete));
     }
 
     private void TryExecuteOnEnemyUnitDestroyedEffectChain(
@@ -11990,6 +12051,11 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.AddToHandFromLooked:
                 Debug.LogWarning(
                     $"[Effect] AddToHandFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.DeployUnitFromLooked:
+                Debug.LogWarning(
+                    $"[Effect] DeployUnitFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
                 break;
 
             case EffectType.ReturnLookedRemainderToDeckTop:
@@ -13245,6 +13311,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (effect.type == EffectType.Draw || effect.type == EffectType.Look || effect.type == EffectType.AddToHandFromLooked
+            || effect.type == EffectType.DeployUnitFromLooked
             || effect.type == EffectType.ReturnLookedRemainderToDeckTop
             || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
             || effect.type == EffectType.ChooseLookedRemainderDisposition
@@ -13829,6 +13896,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             if (eff.type == EffectType.Draw || eff.type == EffectType.Look || eff.type == EffectType.AddToHandFromLooked
+                || eff.type == EffectType.DeployUnitFromLooked
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
@@ -15997,12 +16065,22 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         EffectActivationContext activationContext = chainActivationContext ?? BuildActivationContext(side, source);
+        if (ShouldSkipChainedEffectOncePerTurn(side, source, effect, index))
+        {
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+            return;
+        }
+
         if (!ShouldApplyChainedEffect(effect, activationContext, "OnMain"))
         {
             TryExecuteOnMainEffectChain(
                 side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
             return;
         }
+
+        // 条件を満たして実行する oncePerTurn 効果は、ここで消費（スキップ時は消費しない）
+        TryMarkChainedEffectOncePerTurn(side, source, effect, index);
 
         // トラッシュ送付後に解決（コマンド自身が搭乗元になるため）。
         if (effect.type == EffectType.MountSelfFromTrashAsPilot)
