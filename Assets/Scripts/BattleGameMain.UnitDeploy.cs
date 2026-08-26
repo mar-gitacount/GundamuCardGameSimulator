@@ -996,7 +996,8 @@ public partial class BattleGameMain
             return false;
         }
 
-        // 戦闘中の AP/HP 修飾は「このバトル中」扱いでユニット戦に載せる（プレコンバットでは付与しない）
+        // 戦闘中の AP/HP 修飾は「このバトル中」扱いでユニット戦に載せる（プレコンバットでは付与しない）。
+        // Self AP の UntilEndOfBattle は ComputeOnAttackSelfApBonus（ストライク加算）で反映する。
         if (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
         {
             return false;
@@ -1014,6 +1015,12 @@ public partial class BattleGameMain
                 && (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)))
         {
             return true;
+        }
+
+        // 条件付き《先制攻撃》は戦闘交換時に再評価（ZnO 等）。OnAttack 付与経路に載せない。
+        if (effect.type == EffectType.FirstStrike)
+        {
+            return false;
         }
 
         // GrantAttackFlag は TryOpenOnAttackAllyGrantAttackFlagSelection で攻撃前に解決。
@@ -1409,7 +1416,9 @@ public partial class BattleGameMain
         if (EffectRequiresManualHandSelection(effect))
         {
             PlayerType handOwner = ResolveHandDiscardOwner(ownerType, effect);
-            List<CardController> handCandidates = CollectSelectableHandCards(handOwner);
+            List<CardController> handCandidates = CollectSelectableHandCards(
+                handOwner,
+                excludeSource: sourceCard);
             if (handCandidates.Count == 0)
             {
                 Debug.Log("[OnAttackPreCombat] 捨てる手札がありません (DiscardFromHand)。山札下送りを抑止。");
@@ -1639,6 +1648,14 @@ public partial class BattleGameMain
         PlayerType attackerOwner,
         PlayerType defenderOwner)
     {
+        // OnAttack 条件（SourceAttackingEnemyUnit / AP 等）評価のため、ユニット攻撃コンテキストを先に登録する。
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            defender,
+            null);
+
         void ProceedUnitAttack()
         {
             // OnAttack 完了後はブロック→アクションの順で続行する

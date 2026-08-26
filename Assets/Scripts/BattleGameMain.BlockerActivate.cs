@@ -282,6 +282,10 @@ public partial class BattleGameMain
             {
                 unit.AddBreachUntilEndOfTurnGrant(amount);
             }
+            else if (effect.duration == EffectDuration.UntilEndOfBattle)
+            {
+                unit.AddBreachUntilEndOfBattleGrant(amount);
+            }
 
             applied++;
             Debug.Log(
@@ -297,6 +301,12 @@ public partial class BattleGameMain
         ClearBreachUntilEndOfTurnGrantsOnZone(enemyBattleZoneCards);
     }
 
+    private void ClearBreachUntilEndOfBattleGrantsForAllInPlayUnits()
+    {
+        ClearBreachUntilEndOfBattleGrantsOnZone(playerBattleZoneCards);
+        ClearBreachUntilEndOfBattleGrantsOnZone(enemyBattleZoneCards);
+    }
+
     private static void ClearBreachUntilEndOfTurnGrantsOnZone(List<CardController> zone)
     {
         if (zone == null)
@@ -307,6 +317,19 @@ public partial class BattleGameMain
         for (int i = 0; i < zone.Count; i++)
         {
             zone[i]?.ClearBreachUntilEndOfTurnGrants();
+        }
+    }
+
+    private static void ClearBreachUntilEndOfBattleGrantsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearBreachUntilEndOfBattleGrants();
         }
     }
 

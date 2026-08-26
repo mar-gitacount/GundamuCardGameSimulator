@@ -58,7 +58,7 @@ MonoBehaviour:
       destroyedByOwnerRelation: 0
       cardNameContains: 
     - boardSide: -1
-      checkKind: 5
+      checkKind: 34
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 0
@@ -80,7 +80,7 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 46
+    - type: 47
       value: 1
       target: 0
       selectionMode: -1

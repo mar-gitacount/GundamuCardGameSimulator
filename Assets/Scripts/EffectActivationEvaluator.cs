@@ -58,6 +58,12 @@ public sealed class EffectActivationContext
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
+    /// <summary>OnAttack 時、攻撃先が相手プレイヤー（シールド攻撃）。</summary>
+    public bool SourceAttackingEnemyPlayer { get; }
+
+    /// <summary>現在バトル中の相手ユニット（ブロック後の最終対戦相手）。</summary>
+    public CardController BattlingEnemyUnit { get; }
+
     /// <summary>
     /// OnEnemyUnitDestroyed 時、破壊されたユニットがリンク中だったか
     /// （パイロット切り離し前に確定した値）。
@@ -86,7 +92,9 @@ public sealed class EffectActivationContext
         bool ownerActivatedSpecialMoveCommandThisTurn = false,
         bool ownerHasDeployedBase = false,
         bool sourceAttackingEnemyUnit = false,
-        bool destroyedUnitWasLinked = false)
+        bool destroyedUnitWasLinked = false,
+        bool sourceAttackingEnemyPlayer = false,
+        CardController battlingEnemyUnit = null)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -110,6 +118,8 @@ public sealed class EffectActivationContext
         OwnerHasDeployedBase = ownerHasDeployedBase;
         SourceAttackingEnemyUnit = sourceAttackingEnemyUnit;
         DestroyedUnitWasLinked = destroyedUnitWasLinked;
+        SourceAttackingEnemyPlayer = sourceAttackingEnemyPlayer;
+        BattlingEnemyUnit = battlingEnemyUnit;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -166,7 +176,9 @@ public sealed class EffectActivationContext
             OwnerActivatedSpecialMoveCommandThisTurn,
             OwnerHasDeployedBase,
             SourceAttackingEnemyUnit,
-            DestroyedUnitWasLinked);
+            DestroyedUnitWasLinked,
+            SourceAttackingEnemyPlayer,
+            BattlingEnemyUnit);
     }
 }
 
@@ -336,6 +348,16 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.SourceAttackingEnemyUnit)
         {
             return ctx != null && ctx.SourceAttackingEnemyUnit;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.SourceAttackingEnemyPlayer)
+        {
+            return ctx != null && ctx.SourceAttackingEnemyPlayer;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.BattlingEnemyUnitStat)
+        {
+            return EvaluateBattlingEnemyUnitStat(c, ctx);
         }
 
         if (c.checkKind == EffectActivationCheckKind.DestroyedUnitIsLinked)
@@ -786,6 +808,22 @@ public static class EffectActivationEvaluator
         }
 
         int statValue = GetActivationStatValue(ctx.SourceCard, c.activationStatTarget);
+        return CompareInts(statValue, c.compareValue, c.compareOp);
+    }
+
+    private static bool EvaluateBattlingEnemyUnitStat(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx?.BattlingEnemyUnit == null || ctx.BattlingEnemyUnit.Data == null)
+        {
+            return false;
+        }
+
+        if (!ctx.BattlingEnemyUnit.Data.IsUnitLike() || ctx.BattlingEnemyUnit.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        int statValue = GetActivationStatValue(ctx.BattlingEnemyUnit, c.activationStatTarget);
         return CompareInts(statValue, c.compareValue, c.compareOp);
     }
 

@@ -11,7 +11,7 @@ COND_TMPL = """    - boardSide: {boardSide}
       feature: {{fileID: 0}}
       featureId: {featureId}
       features: []
-      featureIds: 
+      featureIds: {featureIds}
       minimumCount: {minimumCount}
       levelAggregate: {levelAggregate}
       compareOp: {compareOp}
@@ -67,8 +67,8 @@ EFF_TMPL = """    - type: {type}
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: {revealDiscardedToOpponent}
       forbidSkipHandDiscard: {forbidSkipHandDiscard}
-      revealDrawnToPlayer: 0
-      filterTargetIsBlocker: 0
+      revealDrawnToPlayer: {revealDrawnToPlayer}
+      filterTargetIsBlocker: {filterTargetIsBlocker}
       selectMinCount: {selectMinCount}
       selectMaxCount: {selectMaxCount}
       observedUnitTriggerKind: -1
@@ -82,6 +82,7 @@ EFF_TMPL = """    - type: {type}
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: {requireTargetDamaged}
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -96,6 +97,7 @@ def cond(**kw):
         checkKind=-1,
         turnCheck=-1,
         featureId=0,
+        featureIds="",
         minimumCount=1,
         levelAggregate=0,
         compareOp=0,
@@ -129,6 +131,8 @@ def effect(**kw):
         abortRemainingChainOnSkip=0,
         revealDiscardedToOpponent=0,
         forbidSkipHandDiscard=0,
+        revealDrawnToPlayer=0,
+        filterTargetIsBlocker=0,
         filterByTargetCardType=0,
         targetCardType=0,
         deployUnitSource=0,
@@ -139,6 +143,7 @@ def effect(**kw):
         selectMaxCount=0,
         autoSelectHighestUnitStat=0,
         targetCardNameContains="",
+        requireTargetDamaged=0,
         econds="      effectActivationConditions: []\n",
     )
     extra_conds = kw.pop("effectActivationConditions", None)
@@ -210,7 +215,7 @@ REPAIR = {}
 SKIP = {
     "GD01-002", "GD01-006", "GD01-008", "GD01-015", "GD01-016", "GD01-020", "GD01-023",
     "GD01-025", "GD01-030", "GD01-049", "GD01-054", "GD01-065", "GD01-066", "GD01-068",
-    "GD01-073", "GD01-086", "GD01-090", "GD01-100", "GD01-118",
+    "GD01-073", "GD01-086", "GD01-090", "GD01-100",
 }
 
 ALL = [f"GD01-{i:03d}" for i in range(1, 131) if f"GD01-{i:03d}" not in SKIP]
@@ -225,7 +230,7 @@ EFFECTS["GD01-003"] = [
     timed(3, [
         effect(type=20, value=12, target=5, selectionMode=1),
         effect(type=35, value=1, target=0),
-        effect(type=46, value=1, target=0, duration=1),
+        effect(type=47, value=1, target=0, duration=1),
     ], conds=[cond(checkKind=25)]),
 ]
 EFFECTS["GD01-004"] = [
@@ -278,9 +283,17 @@ EFFECTS["GD01-026"] = [
         conds=[cond(checkKind=4, minimumCount=1)],
     ),
 ]
+# 【Deploy】トラッシュに〈ジオン〉/〈ネオ・ジオン〉ユニット10枚以上 → 《ブロッカー》持ち全員に4ダメージ（味方含む）
 EFFECTS["GD01-027"] = [
     timed(0, [effect(type=31, value=4, target=0)]),
-    timed(0, [effect(type=0, value=4, target=4, selectionMode=0, filterTargetIsBlocker=1)], conds=[cond(boardSide=4, checkKind=15, featureId=ZEON, minimumCount=10)]),
+    timed(
+        0,
+        [
+            effect(type=0, value=4, target=3, selectionMode=-1, filterTargetIsBlocker=1),
+            effect(type=0, value=4, target=4, selectionMode=-1, filterTargetIsBlocker=1),
+        ],
+        conds=[cond(boardSide=4, checkKind=15, featureId=0, featureIds="0500000006000000", minimumCount=10)],
+    ),
 ]
 EFFECTS["GD01-028"] = [
     timed(0, [effect(type=8, value=1, target=5, selectionMode=1, targetFeatureId=MC, filterByTargetCardType=1, targetCardType=0, deployUnitSource=1)]),
@@ -351,16 +364,29 @@ EFFECTS["GD01-047"] = [
 ]
 EFFECTS["GD01-048"] = [
     timed(12, effects_name="Support1_RestSelf_BuffAllyOtherAp1_OnMain"),
-    timed(0, effects_name="LookTop1_SelfDeck"),
+    timed(0, [effect(type=13, value=1, target=5)]),
+    # OnLook: 〔ジオン〕/〔ネオ・ジオン〕ユニットなら公開して手札へ（してもよい）→ 残り下へ
+    timed(17, [
+        effect(type=14, value=1, target=5, selectionMode=1, filterByTargetCardType=1,
+               targetCardType=0, revealDiscardedToOpponent=1, targetFeatureId=ZEON),
+        effect(type=16, value=1, target=5),
+    ]),
 ]
 EFFECTS["GD01-050"] = [
-    timed(3, [effect(type=0, value=2, target=2, selectionMode=1)], conds=[cond(checkKind=5, activationStatTarget=0, compareOp=4, compareValue=5)]),
+    timed(3, [effect(type=0, value=2, target=2, selectionMode=1)],
+           conds=[cond(checkKind=5, activationStatTarget=0, compareOp=0, compareValue=5),
+                  cond(checkKind=31)]),
 ]
 EFFECTS["GD01-052"] = [
     timed(0, [effect(type=0, value=1, target=2, selectionMode=1)]),
 ]
 EFFECTS["GD01-053"] = [
-    timed(12, [effect(type=0, value=1, target=2, selectionMode=1, targetUnitFilterStat=0, targetUnitStatCompareOp=3, targetUnitStatCompareValue=2)], once_per_turn=1),
+    timed(
+        12,
+        [effect(type=0, value=1, target=2, selectionMode=1, targetUnitFilterStat=0, targetUnitStatCompareOp=3, targetUnitStatCompareValue=2)],
+        once_per_turn=1,
+        activation_cost=1,
+    ),
 ]
 EFFECTS["GD01-055"] = [
     timed(12, effects_name="Support2_RestSelf_BuffAllyOtherAp2_OnMain"),
@@ -368,17 +394,41 @@ EFFECTS["GD01-055"] = [
 EFFECTS["GD01-056"] = [
     timed(9, [effect(type=0, value=1, target=2, selectionMode=1, targetUnitFilterStat=0, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)]),
 ]
+# 【起動・アクション】【ターン1回】①：Lv.4以上のユニット1つ（味方・敵可）を選び、このバトル中 AP+1
 EFFECTS["GD01-058"] = [
-    timed(8, [effect(type=2, value=1, target=4, selectionMode=1, targetUnitFilterStat=3, targetUnitStatCompareOp=4, targetUnitStatCompareValue=4, duration=1)], once_per_turn=1, activation_cost=1),
+    timed(
+        8,
+        [effect(
+            type=2,
+            value=1,
+            target=10,  # AnyUnit
+            selectionMode=1,
+            targetUnitFilterStat=3,
+            targetUnitStatCompareOp=0,  # GreaterOrEqual
+            targetUnitStatCompareValue=4,
+            duration=2,  # UntilEndOfBattle
+        )],
+        once_per_turn=1,
+        activation_cost=1,
+    ),
 ]
 EFFECTS["GD01-059"] = [
-    timed(3, [effect(type=2, value=2, target=0, duration=1)], conds=[cond(checkKind=30)]),
+    # SourceAttackingEnemyPlayer=33 / UntilEndOfBattle Self AP+2
+    timed(3, [effect(type=2, value=2, target=0, duration=1)], conds=[cond(checkKind=33)]),
 ]
 EFFECTS["GD01-061"] = [
     timed(12, effects_name="Support1_RestSelf_BuffAllyOtherAp1_OnMain"),
 ]
 EFFECTS["GD01-063"] = [
-    timed(3, [effect(type=46, value=1, target=0, duration=1)], conds=[cond(checkKind=-1, turnCheck=0), cond(checkKind=5, activationStatTarget=3, compareOp=3, compareValue=2)]),
+    # OwnerTurn + BattlingEnemyUnitStat(Lv<=2) → FirstStrike=47（戦闘時に再評価）
+    timed(
+        3,
+        [effect(type=47, value=1, target=0, duration=1)],
+        conds=[
+            cond(checkKind=-1, turnCheck=0),
+            cond(checkKind=34, activationStatTarget=3, compareOp=3, compareValue=2),
+        ],
+    ),
 ]
 EFFECTS["GD01-067"] = [
     timed(15, [effect(type=26, value=1, target=5, selectionMode=1, filterByTargetCardType=1, targetCardType=2, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)]),
@@ -501,8 +551,11 @@ EFFECTS["GD01-109"] = [timed(12, effects_name="LookTop5_SelfDeck")]
 EFFECTS["GD01-110"] = main_action([timed(12, [effect(type=12, value=1, target=4, selectionMode=1, targetUnitFilterStat=3, targetUnitStatCompareOp=4, targetUnitStatCompareValue=4, duration=1)])])
 EFFECTS["GD01-111"] = [
     timed(5, [effect(type=0, value=2, target=2, selectionMode=1)]),
-] + main_action([timed(12, [effect(type=0, value=3, target=2, selectionMode=1)], conds=[cond(checkKind=33)])])
-EFFECTS["GD01-112"] = [timed(12, [effect(type=10, value=1, target=1, selectionMode=5, selectMinCount=2, selectMaxCount=2), effect(type=0, value=3, target=2, selectionMode=1)])]
+] + main_action([timed(12, [effect(type=0, value=3, target=2, selectionMode=1, requireTargetDamaged=1)])])
+EFFECTS["GD01-112"] = [timed(12, [
+    effect(type=10, value=1, target=1, selectionMode=5, selectMinCount=2, selectMaxCount=2, abortRemainingChainOnSkip=1),
+    effect(type=0, value=3, target=2, selectionMode=1),
+])]
 EFFECTS["GD01-113"] = main_action([timed(12, [effect(type=2, value=3, target=1, selectionMode=1, duration=1, targetFeatureId=ZAFT)])])
 EFFECTS["GD01-114"] = [timed(8, [effect(type=2, value=1, target=3, selectionMode=5, selectMinCount=2, selectMaxCount=2, duration=1)])]
 EFFECTS["GD01-115"] = main_action([timed(12, [effect(type=0, value=1, target=2, selectionMode=1)])])
@@ -510,6 +563,20 @@ EFFECTS["GD01-116"] = main_action([timed(12, [effect(type=0, value=2, target=2, 
 EFFECTS["GD01-117"] = [
     timed(5, effects_name="ActivateSelfOnMain_OnBurst"),
 ] + main_action([timed(12, [effect(type=7, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)])])
+# 【メイン】2枚ドロー。その後、1枚捨てる（Skip不可。発動元自身はコード側で捨て札候補外）
+EFFECTS["GD01-118"] = [
+    timed(12, [
+        effect(type=1, value=2, target=5, revealDrawnToPlayer=1),
+        effect(
+            type=24,
+            value=1,
+            target=5,
+            selectionMode=0,
+            forbidSkipHandDiscard=1,
+            revealDiscardedToOpponent=1,
+        ),
+    ]),
+]
 EFFECTS["GD01-119"] = main_action([timed(12, [effect(type=3, value=2, target=2, selectionMode=1, duration=1, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=4)])])
 EFFECTS["GD01-120"] = [
     timed(5, [effect(type=3, value=3, target=2, selectionMode=1, duration=1)]),
@@ -533,7 +600,26 @@ EFFECTS["GD01-123"][1] = timed(6, [
 ])
 EFFECTS["GD01-124"].append(timed(12, [effect(type=32, value=1, target=1, selectionMode=1)]))
 EFFECTS["GD01-125"][1] = timed(6, [effect(type=6, value=1, target=5)])
-EFFECTS["GD01-127"].append(timed(8, [effect(type=36, value=3, target=1, selectionMode=1, duration=1, targetFeatureId=ZAFT)], activation_cost=0))
+EFFECTS["GD01-127"].append(
+    timed(
+        8,
+        [
+            effect(type=10, value=1, target=0),  # Rest Self（このベースをレスト）
+            # GrantBreach=48 / UntilEndOfBattle=2 / Ally ZAFT AP>=5
+            effect(
+                type=48,
+                value=3,
+                target=1,
+                selectionMode=1,
+                duration=2,
+                targetFeatureId=ZAFT,
+                targetUnitFilterStat=0,
+                targetUnitStatCompareOp=0,
+                targetUnitStatCompareValue=5,
+            ),
+        ],
+    )
+)
 EFFECTS["GD01-129"][1] = timed(6, [
     effect(type=6, value=1, target=5),
     effect(type=7, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3),
@@ -546,7 +632,8 @@ for gid in ALL:
 
 
 def replace_block(text, new_timed, is_blocker, is_repair=0, repair_amount=0):
-    m = re.search(r"  timedEffects:.*?\n\s+features:", text, re.S)
+    # カード直下の「  features:」のみ（条件内の「      features:」は除外）
+    m = re.search(r"  timedEffects:.*?\n  features:", text, re.S)
     if not m:
         raise SystemExit("timedEffects block not found")
     if new_timed:

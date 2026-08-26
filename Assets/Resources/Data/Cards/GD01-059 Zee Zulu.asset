@@ -38,7 +38,7 @@ MonoBehaviour:
   - timing: 3
     activationConditions:
     - boardSide: -1
-      checkKind: 30
+      checkKind: 33
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 0

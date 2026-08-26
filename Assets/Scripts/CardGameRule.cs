@@ -675,10 +675,26 @@ public class CardGameRule
         Debug.Log($"リソースレベルが{amount}増加しました。現在のレベル: {resourceLevel}");
     }
 
-   public RectTransform PlayerFieldPanel => fieldPanel.GetComponent<RectTransform>();
-   public RectTransform PlayerDeployPanel => playerDeployPanel != null ? playerDeployPanel.GetComponent<RectTransform>() : fieldPanel.GetComponent<RectTransform>();
-   public RectTransform PlayerHandPanel => HandPanel.GetComponent<RectTransform>();
-   public RectTransform HandScrollContent => ScrollPanel.GetComponent<ScrollRect>().content;
+   public RectTransform PlayerFieldPanel => fieldPanel != null ? fieldPanel.GetComponent<RectTransform>() : null;
+   public RectTransform PlayerDeployPanel => playerDeployPanel != null
+       ? playerDeployPanel.GetComponent<RectTransform>()
+       : (fieldPanel != null ? fieldPanel.GetComponent<RectTransform>() : null);
+   public RectTransform PlayerHandPanel => HandPanel != null ? HandPanel.GetComponent<RectTransform>() : null;
+
+   /// <summary>手札スクロールの content。未セットアップ時は null（Update の手札枚数同期でも安全）。</summary>
+   public RectTransform HandScrollContent
+   {
+       get
+       {
+           if (ScrollPanel == null)
+           {
+               return null;
+           }
+
+           ScrollRect scrollRect = ScrollPanel.GetComponent<ScrollRect>();
+           return scrollRect != null ? scrollRect.content : null;
+       }
+   }
     public RectTransform ShieldCardsContent => shieldCardsContent;
     public RectTransform BaseSlotContent => baseSlotContent;
     public CardController DeployedBase => deployedBase;

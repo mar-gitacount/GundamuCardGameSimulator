@@ -363,6 +363,27 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _breachUntilEndOfTurnAmount = 0;
     }
 
+    /// <summary>《突破》のこのバトル中付与量。0 は未付与。</summary>
+    private int _breachUntilEndOfBattleAmount;
+
+    public bool HasBreachUntilEndOfBattleGrant => _breachUntilEndOfBattleAmount > 0;
+
+    public int BreachUntilEndOfBattleAmount => _breachUntilEndOfBattleAmount;
+
+    public void AddBreachUntilEndOfBattleGrant(int amount)
+    {
+        int next = amount > 0 ? amount : 0;
+        if (next > _breachUntilEndOfBattleAmount)
+        {
+            _breachUntilEndOfBattleAmount = next;
+        }
+    }
+
+    public void ClearBreachUntilEndOfBattleGrants()
+    {
+        _breachUntilEndOfBattleAmount = 0;
+    }
+
     public void AddNotDirectAttackUntilEndOfTurnGrant()
     {
         _notDirectAttackUntilEndOfTurnDepth++;
@@ -514,11 +535,24 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _lastDisplayedPower = power;
         _lastDisplayedHp = hp;
         int turnAp = GetPowerModifierSumByDuration(EffectDuration.UntilEndOfTurn);
-        if (turnAp != 0)
+        int battleAp = GetPowerModifierSumByDuration(EffectDuration.UntilEndOfBattle);
+        if (turnAp != 0 || battleAp != 0)
         {
-            string turnSign = turnAp > 0 ? "+" : string.Empty;
+            string suffix = string.Empty;
+            if (battleAp != 0)
+            {
+                string battleSign = battleAp > 0 ? "+" : string.Empty;
+                suffix += $"<color=#81D4FA>({battleSign}{battleAp}B)</color>";
+            }
+
+            if (turnAp != 0)
+            {
+                string turnSign = turnAp > 0 ? "+" : string.Empty;
+                suffix += $"<color=#FFAB91>({turnSign}{turnAp}T)</color>";
+            }
+
             _battleStatText.text =
-                $"AP <color=#FFD54F>{power}</color><color=#FFAB91>({turnSign}{turnAp}T)</color>  HP <color=#80CBC4>{hp}</color>";
+                $"AP <color=#FFD54F>{power}</color>{suffix}  HP <color=#80CBC4>{hp}</color>";
         }
         else
         {
@@ -633,6 +667,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _notDirectAttackUntilEndOfTurnDepth = 0;
         _firstStrikeUntilEndOfTurnDepth = 0;
         _highMobilityUntilEndOfTurnDepth = 0;
+        _breachUntilEndOfTurnAmount = 0;
+        _breachUntilEndOfBattleAmount = 0;
         _turnEndRepairBonus = 0;
         _ownerEffectDestroyArmed = false;
         _runtimeBlockerAbilityEnabled = Data.IsBlockerUnit();
@@ -886,6 +922,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
                 duration = duration,
                 sourceKey = key
             });
+        }
+
+        if (powerDelta != 0 || hpDelta != 0)
+        {
+            RefreshBattleStatOverlay(force: true);
         }
     }
 

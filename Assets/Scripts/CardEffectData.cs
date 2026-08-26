@@ -356,7 +356,9 @@ public enum TargetType
     /// <summary>味方バトルゾーンの生存ユニットトークン。</summary>
     TokenUnit,
     /// <summary>相手バトルゾーンの生存ユニットトークン。</summary>
-    EnemyTokenUnit
+    EnemyTokenUnit,
+    /// <summary>味方・相手どちらでもよい生存ユニット1体（手動選択）。</summary>
+    AnyUnit
 }
 
 /// <summary><see cref="EffectType"/> のヘルパー。</summary>
@@ -416,6 +418,12 @@ public static class EffectTargetTypeExtensions
     {
         return targetType == TargetType.AllyUnit
             || targetType == TargetType.AllyOtherUnit;
+    }
+
+    /// <summary>味方・敵を問わずユニット1体を選ぶ対象。</summary>
+    public static bool IsAnyUnitPickTarget(this TargetType targetType)
+    {
+        return targetType == TargetType.AnyUnit;
     }
 }
 
@@ -679,7 +687,17 @@ public enum EffectActivationCheckKind
     /// OnEnemyUnitDestroyed 時、破壊されたユニットがリンク中だった（搭乗パイロットが Link 条件を満たす）。
     /// EffectActivationContext.DestroyedUnitWasLinked を参照。
     /// </summary>
-    DestroyedUnitIsLinked
+    DestroyedUnitIsLinked,
+    /// <summary>
+    /// OnAttack 時、このユニットが相手プレイヤー（シールド／プレイヤー攻撃）を攻撃対象にしている。
+    /// 宣言時点でシールド攻撃なら真（その後ブロックされても、宣言時評価の効果は既に付与済み）。
+    /// </summary>
+    SourceAttackingEnemyPlayer,
+    /// <summary>
+    /// 現在バトル中の相手ユニットの実効 AP/HP/Lv/Cost を compareOp + compareValue と比較。
+    /// EffectActivationContext.BattlingEnemyUnit を参照（ブロック後の最終対戦相手）。
+    /// </summary>
+    BattlingEnemyUnitStat
 }
 
 public enum EffectTurnCheckKind
@@ -1172,6 +1190,9 @@ public class EffectData
     [Tooltip("true のときパイロットがセットされていないユニットのみ対象。")]
     public bool requireTargetHasNoPilot;
 
+    [Tooltip("true のときダメージを受けている（現在 HP < 最大 HP）ユニットのみ対象。")]
+    public bool requireTargetDamaged;
+
     [Tooltip(
         "true のとき OnAttack の攻撃対象限定効果を戦闘前ではなく、"
         + "その攻撃で相手ユニットへバトルダメージを与えたあとに解決する（Exia Repair 等）。")]
@@ -1458,7 +1479,8 @@ public static class EffectDataExtensions
                 || !string.IsNullOrWhiteSpace(effect.targetCardNameContains)
                 || !string.IsNullOrWhiteSpace(effect.targetCardNameExcludes)
                 || effect.requireTargetLacksBreach
-                || effect.requireTargetHasNoPilot);
+                || effect.requireTargetHasNoPilot
+                || effect.requireTargetDamaged);
     }
 
     /// <summary>
@@ -1622,6 +1644,11 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.requireTargetDamaged && !unit.IsDamagedForWhileDamagedEffects())
+        {
+            return false;
+        }
+
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
         if (statFilter == EffectTargetUnitFilterStat.Unset
             && (effect.compareTargetStatToSource || effect.compareTargetStatToPriorChainPicked))
@@ -1751,6 +1778,16 @@ public static class EffectDataExtensions
             }
 
             sb.Append(GameLocale.T("突破なし", "no Breach"));
+        }
+
+        if (effect.requireTargetDamaged)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("ダメージ受け", "damaged"));
         }
 
         return sb.ToString();
@@ -1978,6 +2015,11 @@ public static class EffectDataExtensions
         }
 
         if (effect.filterTargetIsBlocker && !unit.HasBlockerAbility)
+        {
+            return false;
+        }
+
+        if (effect.requireTargetDamaged && !unit.IsDamagedForWhileDamagedEffects())
         {
             return false;
         }

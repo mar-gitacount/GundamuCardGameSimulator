@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000084
   gcgOfficialId: GD01-058
-  cardName: "Galluss-K"
+  cardName: Galluss-K
   cost: 2
   level: 3
   power: 3
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD01-058_Galluss-K"
+  imageAddress: Data/Images/GD01-058_Galluss-K
   version: 1
   sourceType: 1
   productLine: 1
@@ -42,10 +42,10 @@ MonoBehaviour:
     effects:
     - type: 2
       value: 1
-      target: 4
+      target: 10
       selectionMode: 1
       statTarget: 0
-      duration: 1
+      duration: 2
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0
@@ -60,7 +60,7 @@ MonoBehaviour:
       targetFeatures: []
       targetFeatureIds: 
       targetUnitFilterStat: 3
-      targetUnitStatCompareOp: 4
+      targetUnitStatCompareOp: 0
       targetUnitStatCompareValue: 4
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
@@ -82,6 +82,7 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
+      oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -118,7 +119,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

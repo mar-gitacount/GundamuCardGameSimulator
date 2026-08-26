@@ -186,7 +186,7 @@ MonoBehaviour:
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    - type: 46
+    - type: 47
       value: 1
       target: 0
       selectionMode: -1

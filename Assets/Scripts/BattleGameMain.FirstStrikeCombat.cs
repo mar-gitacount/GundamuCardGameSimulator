@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -60,6 +61,87 @@ public partial class BattleGameMain
     }
 
     /// <summary>
+    /// ユニット戦の先制判定。付与マーカーに加え、対戦相手を明示して条件付き《先制攻撃》を評価する。
+    /// </summary>
+    private bool UnitHasFirstStrikeInCombat(CardController unit, CardController battleOpponent)
+    {
+        if (unit == null)
+        {
+            return false;
+        }
+
+        if (unit.HasFirstStrike())
+        {
+            return true;
+        }
+
+        return HasOnAttackFirstStrikeEffectActive(unit, battleOpponent);
+    }
+
+    /// <summary>
+    /// OnAttack の《先制攻撃》効果を、現在のバトル相手・ターン条件付きで評価する（ZnO 等）。
+    /// UntilEndOfBattle 付与マーカーは使わず、戦闘時に条件を再評価する。
+    /// </summary>
+    private bool HasOnAttackFirstStrikeEffectActive(CardController unit, CardController battleOpponent)
+    {
+        if (unit?.Data == null)
+        {
+            return false;
+        }
+
+        PlayerType owner = ResolveCardOwner(unit.transform);
+        EffectActivationContext ctx = BuildOnAttackActivationContext(owner, unit, battleOpponent);
+        if (HasOnAttackFirstStrikeInData(unit.Data, ctx))
+        {
+            return true;
+        }
+
+        CardController pilot = unit.MountedPilot;
+        if (pilot?.Data == null)
+        {
+            return false;
+        }
+
+        return HasOnAttackFirstStrikeInData(pilot.Data, ctx);
+    }
+
+    private static bool HasOnAttackFirstStrikeInData(CardData data, EffectActivationContext ctx)
+    {
+        if (data?.timedEffects == null || ctx == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int j = 0; j < effects.Count; j++)
+            {
+                EffectData effect = effects[j];
+                if (effect != null
+                    && effect.type == EffectType.FirstStrike
+                    && effect.target == TargetType.Self)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// ユニット戦の HP 交換。先制のみの場合は攻撃側→防御側の順。先制撃破時は反撃ダメージなし。
     /// </summary>
     private static void ResolveUnitVsUnitCombatHpExchange(
@@ -113,8 +195,8 @@ public partial class BattleGameMain
         int attackerStrike,
         int defenderStrike)
     {
-        bool attackerFirstStrike = attacker != null && attacker.HasFirstStrike();
-        bool defenderFirstStrike = defender != null && defender.HasFirstStrike();
+        bool attackerFirstStrike = UnitHasFirstStrikeInCombat(attacker, defender);
+        bool defenderFirstStrike = UnitHasFirstStrikeInCombat(defender, attacker);
         int defenderHpBefore = defender != null ? defender.CurrentHp : 0;
         attackerStrike = Mathf.Max(0, attackerStrike);
         defenderStrike = Mathf.Max(0, defenderStrike);

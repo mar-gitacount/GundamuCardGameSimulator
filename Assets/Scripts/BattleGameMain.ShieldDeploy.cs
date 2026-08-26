@@ -30,18 +30,41 @@ public partial class BattleGameMain
             return true;
         }
 
+        int cost;
+        int requiredLevel;
+        if (context == "OnAction")
+        {
+            cost = GetOnActionPlayCost(command, side);
+            requiredLevel = GetOnActionRequiredLevelForConsume(command, side);
+            if (cost <= 0)
+            {
+                MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+                return true;
+            }
+        }
+        else
+        {
+            cost = command.CurrentCost;
+            requiredLevel = command.CurrentLevel;
+        }
+
         if (!gundamRule.TryConsumeResource(
                 ToRuleSide(side),
-                command.CurrentCost,
+                cost,
                 exToUse,
                 command.Data.id,
-                command.CurrentLevel))
+                requiredLevel))
         {
             Debug.Log($"[{context}] リソース不足で実行できません。");
             return false;
         }
 
         AfterLocalResourceConsumed(ToRuleSide(side), exToUse);
+        if (context == "OnAction")
+        {
+            MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+        }
+
         return true;
     }
 

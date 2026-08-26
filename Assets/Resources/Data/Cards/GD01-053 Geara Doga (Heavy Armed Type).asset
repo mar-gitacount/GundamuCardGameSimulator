@@ -103,7 +103,7 @@ MonoBehaviour:
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    activationCost: 0
+    activationCost: 1
     oncePerTurn: 1
     observedUnitTriggerKind: -1
   features:

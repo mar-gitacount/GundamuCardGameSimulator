@@ -633,6 +633,16 @@ public partial class BattleGameMain
                     null,
                     requiredFeatures);
                 break;
+            case TargetType.AnyUnit:
+                AddVirtualDeployAliveUnits(working, ownerType, result, null, requiredFeatures);
+                EnsureVirtualDeploySelfCandidate(working, sourceCard, result, requiredFeatures);
+                AddVirtualDeployAliveUnits(
+                    working,
+                    ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+                    result,
+                    null,
+                    requiredFeatures);
+                break;
         }
 
         FilterTargetsByUnitCondition(result, effect, sourceCard);
