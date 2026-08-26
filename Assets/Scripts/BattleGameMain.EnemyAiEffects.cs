@@ -335,6 +335,7 @@ public partial class BattleGameMain
         {
             EffectData eff = effects[ei];
             if (eff == null || eff.type == EffectType.Draw || eff.type == EffectType.Look || eff.type == EffectType.AddToHandFromLooked
+                || eff.type == EffectType.DeployUnitFromLooked
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition

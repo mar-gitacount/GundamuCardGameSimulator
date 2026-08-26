@@ -1,0 +1,129 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD04-095 Lunamaria Hawke
+  m_EditorClassIdentifier: 
+  id: 1000477
+  gcgOfficialId: GD04-095
+  cardName: "Lunamaria Hawke"
+  cost: 1
+  level: 3
+  power: 1
+  hp: 1
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD04-095_Lunamaria Hawke"
+  version: 4
+  sourceType: 1
+  productLine: 1
+  boosterSet: 4
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 12
+  filterType: 0
+  color: 6
+  type: 1
+  battleZones: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: 
+    effects:
+    - type: 27
+      value: 1
+      target: 5
+      selectionMode: -1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 0
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 0
+      requireChainObservationContext: 0
+      effectActivationConditions: []
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 0
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      autoSelectHighestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
+  - {fileID: 11400000, guid: c31d4e5f6a7b8c9d0e1f2a3b4c5d6e7f, type: 2}
+  - {fileID: 11400000, guid: d32e4f5a6b7c8d9e0f1a2b3c4d5e6f70, type: 2}
+  pilotIds:
+  - {fileID: 11400000, guid: c11d12e13f1415161718191a1b1c2d3e, type: 2}
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 4
+    cardNumber: 95

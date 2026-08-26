@@ -147,8 +147,21 @@ public partial class BattleGameMain
             return false;
         }
 
+        EffectActivationContext contextForConditions = activationContext;
+        if (activationContext != null
+            && effect.HasEffectActivationConditions()
+            && EffectActivationEvaluator.ContainsObservedCardCondition(effect.effectActivationConditions))
+        {
+            // OnMain 等はチェーン開始時コンテキストを使い回すため、途中で観測したカードをここで反映する
+            contextForConditions = activationContext
+                .WithObservedCards(GetActiveObservedCardsForActivation())
+                .WithPriorChainDealtDamage(GetEffectChainDealtDamage());
+        }
+
         if (effect.HasEffectActivationConditions()
-            && !EffectActivationEvaluator.AreAllConditionsMet(effect.effectActivationConditions, activationContext))
+            && !EffectActivationEvaluator.AreAllConditionsMet(
+                effect.effectActivationConditions,
+                contextForConditions))
         {
             Debug.Log($"[{logTag}] 効果スキップ: effectActivationConditions 未達 ({effect.type})");
             return false;

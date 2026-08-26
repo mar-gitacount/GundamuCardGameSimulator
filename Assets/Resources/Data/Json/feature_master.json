@@ -211,6 +211,216 @@
             "description": ""
         },
         {
+            "id": 36,
+            "featureKey": "OZ",
+            "displayName": "OZ",
+            "description": ""
+        },
+        {
+            "id": 37,
+            "featureKey": "G_Team",
+            "displayName": "G Team",
+            "description": ""
+        },
+        {
+            "id": 38,
+            "featureKey": "Civilian",
+            "displayName": "Civilian",
+            "description": ""
+        },
+        {
+            "id": 39,
+            "featureKey": "Cyber_Newtype",
+            "displayName": "サイバーニュータイプ",
+            "description": ""
+        },
+        {
+            "id": 40,
+            "featureKey": "Stronghold",
+            "displayName": "Stronghold",
+            "description": ""
+        },
+        {
+            "id": 41,
+            "featureKey": "AEUG",
+            "displayName": "AEUG",
+            "description": ""
+        },
+        {
+            "id": 42,
+            "featureKey": "White_Fang",
+            "displayName": "ホワイトファング",
+            "description": ""
+        },
+        {
+            "id": 43,
+            "featureKey": "Gjallarhorn",
+            "displayName": "ギャラルホルン",
+            "description": ""
+        },
+        {
+            "id": 44,
+            "featureKey": "AGE_System",
+            "displayName": "AGEシステム",
+            "description": ""
+        },
+        {
+            "id": 45,
+            "featureKey": "Alaya_Vijnana",
+            "displayName": "阿頼耶識",
+            "description": ""
+        },
+        {
+            "id": 46,
+            "featureKey": "Biological_CPU",
+            "displayName": "生体CPU",
+            "description": ""
+        },
+        {
+            "id": 47,
+            "featureKey": "Cyclops_Team",
+            "displayName": "サイクロプス隊",
+            "description": ""
+        },
+        {
+            "id": 48,
+            "featureKey": "Dawn_of_Fold",
+            "displayName": "ドーン・オブ・フォールド",
+            "description": ""
+        },
+        {
+            "id": 49,
+            "featureKey": "Jupitris",
+            "displayName": "ジュピターリス",
+            "description": ""
+        },
+        {
+            "id": 50,
+            "featureKey": "Karaba",
+            "displayName": "カラバ",
+            "description": ""
+        },
+        {
+            "id": 51,
+            "featureKey": "Moonrace",
+            "displayName": "ムーンレース",
+            "description": ""
+        },
+        {
+            "id": 52,
+            "featureKey": "New_UNE",
+            "displayName": "新地球連邦",
+            "description": ""
+        },
+        {
+            "id": 53,
+            "featureKey": "Old_UNE",
+            "displayName": "旧地球連邦",
+            "description": ""
+        },
+        {
+            "id": 54,
+            "featureKey": "Phantom_Pain",
+            "displayName": "ファントムペイン",
+            "description": ""
+        },
+        {
+            "id": 55,
+            "featureKey": "Preventer",
+            "displayName": "プリベンター",
+            "description": ""
+        },
+        {
+            "id": 56,
+            "featureKey": "Quiet_Zero",
+            "displayName": "クワイエットゼロ",
+            "description": ""
+        },
+        {
+            "id": 57,
+            "featureKey": "SRA",
+            "displayName": "SRA",
+            "description": ""
+        },
+        {
+            "id": 58,
+            "featureKey": "Satyricon",
+            "displayName": "サティリコン",
+            "description": ""
+        },
+        {
+            "id": 59,
+            "featureKey": "Side_6",
+            "displayName": "サイド6",
+            "description": ""
+        },
+        {
+            "id": 60,
+            "featureKey": "Super_Soldier",
+            "displayName": "強化人間",
+            "description": ""
+        },
+        {
+            "id": 61,
+            "featureKey": "Superpower_Bloc",
+            "displayName": "超大国ブロック",
+            "description": ""
+        },
+        {
+            "id": 62,
+            "featureKey": "Trinity",
+            "displayName": "トリニティ",
+            "description": ""
+        },
+        {
+            "id": 63,
+            "featureKey": "UE",
+            "displayName": "UE",
+            "description": ""
+        },
+        {
+            "id": 64,
+            "featureKey": "UN",
+            "displayName": "UN",
+            "description": ""
+        },
+        {
+            "id": 65,
+            "featureKey": "Vagan",
+            "displayName": "ヴェイガン",
+            "description": ""
+        },
+        {
+            "id": 66,
+            "featureKey": "Vulture",
+            "displayName": "バルチャー",
+            "description": ""
+        },
+        {
+            "id": 67,
+            "featureKey": "X_Rounder",
+            "displayName": "Xラウンダー",
+            "description": ""
+        },
+        {
+            "id": 68,
+            "featureKey": "Zanscare",
+            "displayName": "ザンスカール",
+            "description": ""
+        },
+        {
+            "id": 69,
+            "featureKey": "Asuno_Family",
+            "displayName": "アスノ家",
+            "description": ""
+        },
+        {
+            "id": 70,
+            "featureKey": "Machu",
+            "displayName": "マチュ",
+            "description": ""
+        },
+        {
             "id": 10000,
             "featureKey": "test",
             "displayName": "test",

@@ -58,6 +58,12 @@ public sealed class EffectActivationContext
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
+    /// <summary>
+    /// OnEnemyUnitDestroyed 時、破壊されたユニットがリンク中だったか
+    /// （パイロット切り離し前に確定した値）。
+    /// </summary>
+    public bool DestroyedUnitWasLinked { get; }
+
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
         CardController sourceCard,
@@ -79,7 +85,8 @@ public sealed class EffectActivationContext
         bool destroyedByBattleDamage = false,
         bool ownerActivatedSpecialMoveCommandThisTurn = false,
         bool ownerHasDeployedBase = false,
-        bool sourceAttackingEnemyUnit = false)
+        bool sourceAttackingEnemyUnit = false,
+        bool destroyedUnitWasLinked = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -102,6 +109,7 @@ public sealed class EffectActivationContext
         OwnerActivatedSpecialMoveCommandThisTurn = ownerActivatedSpecialMoveCommandThisTurn;
         OwnerHasDeployedBase = ownerHasDeployedBase;
         SourceAttackingEnemyUnit = sourceAttackingEnemyUnit;
+        DestroyedUnitWasLinked = destroyedUnitWasLinked;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -111,6 +119,31 @@ public sealed class EffectActivationContext
             return this;
         }
 
+        return CloneWith(
+            frozenOwnerBattleAliveUnitCount: count);
+    }
+
+    /// <summary>チェーン途中で増えた観測カードを反映する（援護バフ対象の Feature 判定など）。</summary>
+    public EffectActivationContext WithObservedCards(IReadOnlyList<CardData> observedCards)
+    {
+        return CloneWith(observedCards: observedCards ?? System.Array.Empty<CardData>());
+    }
+
+    public EffectActivationContext WithPriorChainDealtDamage(bool priorChainDealtDamage)
+    {
+        if (priorChainDealtDamage == PriorChainDealtDamage)
+        {
+            return this;
+        }
+
+        return CloneWith(priorChainDealtDamage: priorChainDealtDamage);
+    }
+
+    private EffectActivationContext CloneWith(
+        IReadOnlyList<CardData> observedCards = null,
+        int? frozenOwnerBattleAliveUnitCount = null,
+        bool? priorChainDealtDamage = null)
+    {
         return new EffectActivationContext(
             OwnerType,
             SourceCard,
@@ -121,18 +154,19 @@ public sealed class EffectActivationContext
             IsOwnerTurn,
             MountHostUnit,
             MountedPilot,
-            ObservedCards,
+            observedCards ?? ObservedCards,
             OwnerTrashCardIds,
             OpponentTrashCardIds,
-            count,
-            PriorChainDealtDamage,
+            frozenOwnerBattleAliveUnitCount ?? FrozenOwnerBattleAliveUnitCount,
+            priorChainDealtDamage ?? PriorChainDealtDamage,
             DestroyingCard,
             HasDestroyingCardOwner,
             DestroyingCardOwner,
             DestroyedByBattleDamage,
             OwnerActivatedSpecialMoveCommandThisTurn,
             OwnerHasDeployedBase,
-            SourceAttackingEnemyUnit);
+            SourceAttackingEnemyUnit,
+            DestroyedUnitWasLinked);
     }
 }
 
@@ -302,6 +336,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.SourceAttackingEnemyUnit)
         {
             return ctx != null && ctx.SourceAttackingEnemyUnit;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.DestroyedUnitIsLinked)
+        {
+            return ctx != null && ctx.DestroyedUnitWasLinked;
         }
 
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)

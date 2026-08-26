@@ -231,6 +231,63 @@ public partial class BattleGameMain
             new PaidActivationUseKey(side, card.GetEntityId(), blockIndex));
     }
 
+    /// <summary>
+    /// 効果単位の oncePerTurn 用キー（timed ブロック index と衝突しない負値）。
+    /// </summary>
+    private static int EffectOncePerTurnUseIndex(int effectIndexInChain)
+    {
+        return -1 - Mathf.Max(0, effectIndexInChain);
+    }
+
+    private bool HasUsedEffectOncePerTurnThisTurn(PlayerType side, CardController card, int effectIndexInChain)
+    {
+        return HasUsedPaidActivationThisTurn(side, card, EffectOncePerTurnUseIndex(effectIndexInChain));
+    }
+
+    private void MarkEffectOncePerTurnUsedThisTurn(PlayerType side, CardController card, int effectIndexInChain)
+    {
+        MarkPaidActivationUsedThisTurn(side, card, EffectOncePerTurnUseIndex(effectIndexInChain));
+    }
+
+    /// <summary>
+    /// チェーン内の個別効果 oncePerTurn。未使用なら false（実行可）。使用済みなら true（スキップ）。
+    /// 条件未達でスキップする場合は呼ばないこと。
+    /// </summary>
+    private bool ShouldSkipChainedEffectOncePerTurn(
+        PlayerType side,
+        CardController source,
+        EffectData effect,
+        int effectIndexInChain)
+    {
+        if (effect == null || !effect.oncePerTurn)
+        {
+            return false;
+        }
+
+        if (!HasUsedEffectOncePerTurnThisTurn(side, source, effectIndexInChain))
+        {
+            return false;
+        }
+
+        Debug.Log(
+            $"[Effect] oncePerTurn 済のためスキップ ({effect.type} cardId:{source?.Data?.id} idx:{effectIndexInChain})");
+        return true;
+    }
+
+    private void TryMarkChainedEffectOncePerTurn(
+        PlayerType side,
+        CardController source,
+        EffectData effect,
+        int effectIndexInChain)
+    {
+        if (effect == null || !effect.oncePerTurn)
+        {
+            return;
+        }
+
+        MarkEffectOncePerTurnUsedThisTurn(side, source, effectIndexInChain);
+    }
+
     private void ClearPaidActivationUseThisTurn(PlayerType side, CardController card, int blockIndex)
     {
         if (card == null)
@@ -245,6 +302,12 @@ public partial class BattleGameMain
     private static bool IsOnMainActivatedFromHand(CardController card, PlayerType ownerType, BattleGameMain host)
     {
         if (card?.Data == null || host == null)
+        {
+            return false;
+        }
+
+        // 場のユニット【メイン】（《援護》等）は、同名カードが手札にあっても手札コストを課さない
+        if (card.Data.IsUnitLike() && host.IsCardOnBattleZone(card))
         {
             return false;
         }

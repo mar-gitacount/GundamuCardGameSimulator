@@ -30,7 +30,8 @@ public partial class BattleGameMain
     private enum LookDeckPickCommitKind
     {
         AddToHand,
-        ChooseToDeckTopThenTrashRemainder
+        ChooseToDeckTopThenTrashRemainder,
+        DeployToBattle
     }
 
     private sealed class LookResolutionContext
@@ -387,7 +388,7 @@ public partial class BattleGameMain
         }
 
         if (context.OwnerType == PlayerType.Player
-            && !OnLookBlocksContainAddToHand(blocks)
+            && !OnLookBlocksContainPickFromLooked(blocks)
             && OnLookBlocksContainRemainderDisposition(blocks))
         {
             ShowLookDeckViewOnlyPopup(context, runChain);
@@ -395,6 +396,12 @@ public partial class BattleGameMain
         }
 
         runChain();
+    }
+
+    private static bool OnLookBlocksContainPickFromLooked(List<TimedEffectData> blocks)
+    {
+        return OnLookBlocksContainEffectType(blocks, EffectType.AddToHandFromLooked)
+            || OnLookBlocksContainEffectType(blocks, EffectType.DeployUnitFromLooked);
     }
 
     private static bool OnLookBlocksContainAddToHand(List<TimedEffectData> blocks)
@@ -480,6 +487,15 @@ public partial class BattleGameMain
         if (effect.type == EffectType.AddToHandFromLooked)
         {
             ApplyAddToHandFromLookedEffect(
+                context,
+                effect,
+                () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.DeployUnitFromLooked)
+        {
+            ApplyDeployUnitFromLookedEffect(
                 context,
                 effect,
                 () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
@@ -619,6 +635,167 @@ public partial class BattleGameMain
             handRule,
             () => ContinueAfterAddToHandFromLooked(context, effect, onComplete),
             subtitle);
+    }
+
+    /// <summary>
+    /// 見た山札から条件に合うユニットをバトルゾーンへ配備（コストなし・してもよい）。
+    /// </summary>
+    private void ApplyDeployUnitFromLookedEffect(
+        LookResolutionContext context,
+        EffectData effect,
+        System.Action onComplete)
+    {
+        if (context == null || effect == null || context.Entries.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        int magnitude = ResolveEffectMagnitude(effect, context.OwnerType, context.SourceCard);
+        int pickCount = magnitude > 0 ? magnitude : 1;
+
+        List<LookedDeckEntry> selectable = FilterLookedEntriesForDeployEffect(context.Entries, effect);
+        string filterLabel = FormatLookedDeployFilterLabel(effect);
+
+        if (context.OwnerType == PlayerType.Enemy)
+        {
+            BeginOnlineEffectSyncBatch(context.OwnerType);
+            for (int i = 0; i < pickCount && selectable.Count > 0; i++)
+            {
+                LookedDeckEntry pick = selectable[0];
+                TakeLookedEntryToBattle(context, effect, pick);
+                selectable.RemoveAt(0);
+            }
+
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
+            return;
+        }
+
+        if (selectable.Count == 0)
+        {
+            Debug.Log(
+                $"[OnLook] 配備できるユニットなし（条件:{filterLabel}）— 閲覧のみ");
+            ShowLookDeckViewOnlyPopup(
+                context,
+                onComplete,
+                GameLocale.T(
+                    $"条件「{filterLabel}」に合うユニットはありませんでした",
+                    $"No units matched filter \"{filterLabel}\""));
+            return;
+        }
+
+        string subtitle = GameLocale.T(
+            $"条件に合うユニットを選んで配備してもよい（最大{pickCount}体）— {filterLabel}",
+            $"You may deploy up to {pickCount} matching unit(s) — {filterLabel}");
+
+        ShowLookDeckPickToDeployPopup(
+            context,
+            effect,
+            selectable,
+            pickCount,
+            () => InvokeAfterOnlineDeployConfirmIfNeeded(onComplete),
+            subtitle);
+    }
+
+    private static string FormatLookedDeployFilterLabel(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return GameLocale.T("未指定", "Any");
+        }
+
+        string featureLabel = effect.FormatTargetFeaturesLabel();
+        if (string.IsNullOrEmpty(featureLabel))
+        {
+            featureLabel = GameLocale.T("特徴なし", "Any trait");
+        }
+
+        string typeLabel = effect.filterByTargetCardType
+            ? CardTypeExtensions.GetDisplayName(effect.targetCardType)
+            : GameLocale.T("ユニット", "Unit");
+        string statLabel = effect.FormatTargetUnitFilterDescription();
+        if (string.IsNullOrEmpty(statLabel))
+        {
+            return $"{typeLabel}・{featureLabel}";
+        }
+
+        return $"{typeLabel}・{featureLabel}・{statLabel}";
+    }
+
+    private static List<LookedDeckEntry> FilterLookedEntriesForDeployEffect(
+        List<LookedDeckEntry> entries,
+        EffectData effect)
+    {
+        List<LookedDeckEntry> result = new List<LookedDeckEntry>();
+        if (entries == null)
+        {
+            return result;
+        }
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            LookedDeckEntry entry = entries[i];
+            if (entry?.Data != null && effect.MatchesLookedCardDataDeployFilter(entry.Data))
+            {
+                result.Add(entry);
+            }
+        }
+
+        return result;
+    }
+
+    private void TakeLookedEntryToBattle(
+        LookResolutionContext context,
+        EffectData effect,
+        LookedDeckEntry entry)
+    {
+        if (context?.DeckRule == null || entry?.Data == null || effect == null)
+        {
+            return;
+        }
+
+        if (!entry.Data.IsUnitLike())
+        {
+            Debug.LogWarning($"[OnLook] DeployUnitFromLooked 非ユニット id:{entry.CardId}");
+            return;
+        }
+
+        if (!context.DeckRule.TryTakeCardById(entry.CardId, out _))
+        {
+            Debug.LogWarning($"[OnLook] 山札からの取得に失敗 id:{entry.CardId}");
+            return;
+        }
+
+        context.TakenCardIds.Add(entry.CardId);
+
+        PlayerType recipient = ResolveDeployRecipientPlayerType(context.OwnerType, effect);
+        CardGameRule rule = ResolveDeployRecipientRule(recipient);
+        if (rule?.PlayerDeployPanel == null)
+        {
+            Debug.LogWarning("[OnLook] DeployUnitFromLooked: deploy panel missing");
+            return;
+        }
+
+        CardController spawned = InstantiateBattleUnit(entry.Data, rule.PlayerDeployPanel);
+        if (spawned == null)
+        {
+            Debug.LogWarning($"[OnLook] DeployUnitFromLooked: spawn failed id:{entry.CardId}");
+            return;
+        }
+
+        DeployUnitToBattleZone(
+            spawned,
+            recipient,
+            rule,
+            effect.deployUnitTriggerOnPlayed,
+            fromHand: false,
+            deployAsRested: effect.deployUnitAsRested);
+
+        Debug.Log(
+            $"[Effect] DeployUnitFromLooked {entry.Data.cardName}(id:{entry.CardId}) → {recipient} "
+            + $"by cardId:{context.SourceCard?.Data?.id}");
     }
 
     /// <summary>手札追加後、必要なら相手公開してから OnLook チェーンを続行する。</summary>
@@ -1181,6 +1358,34 @@ public partial class BattleGameMain
             subtitle);
     }
 
+    private void ShowLookDeckPickToDeployPopup(
+        LookResolutionContext context,
+        EffectData deployEffect,
+        List<LookedDeckEntry> selectableEntries,
+        int pickCount,
+        System.Action onComplete,
+        string subtitle = null)
+    {
+        if (string.IsNullOrEmpty(subtitle))
+        {
+            subtitle = GameLocale.T(
+                $"見たカードから{pickCount}体まで配備できます",
+                $"You may deploy up to {pickCount} looked unit(s)");
+        }
+
+        ShowLookDeckPopupCore(
+            context,
+            selectableEntries,
+            pickCount,
+            handOwner: context.OwnerType,
+            handRule: null,
+            addEffect: deployEffect,
+            onComplete,
+            subtitle,
+            LookDeckPickCommitKind.DeployToBattle,
+            allowSkip: true);
+    }
+
     private void ShowLookDeckPopupCore(
         LookResolutionContext context,
         List<LookedDeckEntry> selectableEntries,
@@ -1350,6 +1555,20 @@ public partial class BattleGameMain
                 }
 
                 CommitLookedToDeckTopThenTrashRemainder(context, pendingPicks);
+                ClosePopup();
+                return;
+            }
+
+            if (commitKind == LookDeckPickCommitKind.DeployToBattle)
+            {
+                BeginOnlineEffectSyncBatch(context.OwnerType);
+                for (int i = 0; i < pendingPicks.Count; i++)
+                {
+                    TakeLookedEntryToBattle(context, addEffect, pendingPicks[i]);
+                }
+
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
                 ClosePopup();
                 return;
             }

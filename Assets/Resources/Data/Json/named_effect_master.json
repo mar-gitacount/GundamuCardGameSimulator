@@ -3475,6 +3475,74 @@
                     "targetUnitStatCompareValue": 4
                 }
             ]
+        },
+        {
+            "effectSetName": "Support3_RestSelf_BuffAllyOtherAp3_ActivateSelfIfCoordinatorBuffedZaft_OnMain",
+            "displayName": "《援護3》自身REST→他味方AP+3。〔コーディネイター〕搭乗中かつバフ先が〔ザフト〕なら自身をアクティブ（アクティブ化のみターン1回）",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                },
+                {
+                    "type": 2,
+                    "value": 3,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1
+                },
+                {
+                    "type": 25,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "oncePerTurn": true,
+                    "requireChainObservationContext": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 4,
+                            "turnCheck": -1,
+                            "featureId": 32,
+                            "minimumCount": 1,
+                            "levelAggregate": 0,
+                            "compareOp": 0,
+                            "compareValue": 0,
+                            "unitCountCompareOp": 2,
+                            "unitCountThreshold": 0,
+                            "pilotCardId": 0,
+                            "trashCardId": 0,
+                            "pilotLevelThreshold": 0,
+                            "activationStatTarget": -1,
+                            "observedCardType": 0
+                        },
+                        {
+                            "boardSide": -1,
+                            "checkKind": 7,
+                            "turnCheck": -1,
+                            "featureId": 3,
+                            "minimumCount": 1,
+                            "levelAggregate": 0,
+                            "compareOp": 0,
+                            "compareValue": 0,
+                            "unitCountCompareOp": 2,
+                            "unitCountThreshold": 0,
+                            "pilotCardId": 0,
+                            "trashCardId": 0,
+                            "pilotLevelThreshold": 0,
+                            "activationStatTarget": -1,
+                            "observedCardType": 0
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }
