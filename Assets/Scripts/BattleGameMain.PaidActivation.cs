@@ -343,6 +343,117 @@ public partial class BattleGameMain
         return GetOnMainActivationCost(source, timed, ownerType, this);
     }
 
+    /// <summary>場のユニット／ベース等から OnAction を起動しているか（手札コマンドではない）。</summary>
+    private bool IsOnActionActivatedFromField(CardController card, PlayerType ownerType)
+    {
+        if (card?.Data == null)
+        {
+            return false;
+        }
+
+        if (card.Data.IsCommand())
+        {
+            return false;
+        }
+
+        // バトルゾーン上のユニット、またはベーススロット上のベース、または手札に無い実体
+        if (IsCardOnBattleZone(card) || IsCardInBaseSlot(card))
+        {
+            return true;
+        }
+
+        return !IsOnMainActivatedFromHand(card, ownerType);
+    }
+
+    /// <summary>OnAction 用コスト。activationCost 優先。場起動で未設定なら 0、手札コマンドはカードコスト。</summary>
+    private int GetOnActionPlayCost(CardController source, PlayerType ownerType)
+    {
+        if (source?.Data == null)
+        {
+            return 0;
+        }
+
+        TimedEffectData timed = FindFirstOnActionTimedBlock(source, out _);
+        if (timed != null && timed.activationCost > 0)
+        {
+            return timed.activationCost;
+        }
+
+        if (!IsOnActionActivatedFromField(source, ownerType))
+        {
+            return source.CurrentCost;
+        }
+
+        return 0;
+    }
+
+    /// <summary>支払い UI／可否判定用レベル。場起動は 0（レベルゲートなし）。</summary>
+    private int GetOnActionRequiredLevelForAfford(CardController source, PlayerType ownerType)
+    {
+        if (source == null || IsOnActionActivatedFromField(source, ownerType))
+        {
+            return 0;
+        }
+
+        return source.CurrentLevel;
+    }
+
+    /// <summary>消費時のレベル。場起動は -1（レベルゲートなし）。</summary>
+    private int GetOnActionRequiredLevelForConsume(CardController source, PlayerType ownerType)
+    {
+        if (source == null || IsOnActionActivatedFromField(source, ownerType))
+        {
+            return -1;
+        }
+
+        return source.CurrentLevel;
+    }
+
+    private static TimedEffectData FindFirstOnActionTimedBlock(CardController source, out int blockIndex)
+    {
+        blockIndex = -1;
+        if (source?.Data?.timedEffects == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < source.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = source.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAction || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            blockIndex = i;
+            return timed;
+        }
+
+        return null;
+    }
+
+    private bool IsOnActionOncePerTurnAvailable(PlayerType side, CardController source)
+    {
+        TimedEffectData timed = FindFirstOnActionTimedBlock(source, out int blockIndex);
+        if (timed == null || !timed.oncePerTurn || blockIndex < 0)
+        {
+            return true;
+        }
+
+        return !HasUsedPaidActivationThisTurn(side, source, blockIndex);
+    }
+
+    private void MarkOnActionOncePerTurnUsedIfNeeded(PlayerType side, CardController source)
+    {
+        TimedEffectData timed = FindFirstOnActionTimedBlock(source, out int blockIndex);
+        if (timed == null || !timed.oncePerTurn || blockIndex < 0)
+        {
+            return;
+        }
+
+        MarkPaidActivationUsedThisTurn(side, source, blockIndex);
+    }
+
     private bool CanAffordOnMainActivation(PlayerType side, CardController source, TimedEffectData timed)
     {
         if (source == null || source.Data == null || gundamRule == null)

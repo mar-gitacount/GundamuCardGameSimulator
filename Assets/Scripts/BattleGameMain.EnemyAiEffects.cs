@@ -1349,13 +1349,16 @@ public partial class BattleGameMain
 
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
         Gundam2024RuleScript.PlayerState payState = GetRuleState(ruleSide);
-        int exToUse = Gundam2024RuleScript.GetExNeededForCost(payState, command.CurrentCost);
-        if (!gundamRule.TryConsumeResource(
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForConsume(command, side);
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(payState, onActionCost);
+        if (onActionCost > 0
+            && !gundamRule.TryConsumeResource(
                 ruleSide,
-                command.CurrentCost,
+                onActionCost,
                 exToUse,
                 command.Data.id,
-                command.CurrentLevel))
+                onActionRequiredLevel))
         {
             EndOnDestroyedLatencyHold();
             Debug.Log("[EnemyAI] OnAction: リソース不足で実行できません。");
@@ -1363,7 +1366,12 @@ public partial class BattleGameMain
             yield break;
         }
 
-        AfterLocalResourceConsumed(ruleSide, exToUse);
+        if (onActionCost > 0)
+        {
+            AfterLocalResourceConsumed(ruleSide, exToUse);
+        }
+
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
 
         MarkActionStepCardUsed(side, command);
 

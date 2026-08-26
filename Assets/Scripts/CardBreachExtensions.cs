@@ -28,6 +28,11 @@ public static class CardBreachExtensions
             total += unit.BreachUntilEndOfTurnAmount;
         }
 
+        if (unit.HasBreachUntilEndOfBattleGrant)
+        {
+            total += unit.BreachUntilEndOfBattleAmount;
+        }
+
         return total;
     }
 

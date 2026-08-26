@@ -1323,7 +1323,7 @@ public partial class BattleGameMain
             });
             y -= 52f;
         }
-        else if (cardController.Data.IsUnitLike() || cardController.Data.IsCommand())
+        else if (cardController.Data.IsUnitLike())
         {
             Button deployBtn = filterPanel.CreateChildButton(
                 GameLocale.T("盤面へ出す（無料）", "Play to field (free)"));

@@ -44,7 +44,7 @@ MonoBehaviour:
       value: 2
       target: 5
       selectionMode: -1
-      statTarget: 1
+      statTarget: 0
       duration: 0
       valueMode: 0
       valueCountBoardSide: 0
@@ -59,8 +59,8 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 0
-      targetUnitStatCompareOp: 0
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
@@ -69,7 +69,7 @@ MonoBehaviour:
       effectActivationConditions: []
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
-      targetCardType: 1
+      targetCardType: 0
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -88,6 +88,7 @@ MonoBehaviour:
       selectMaxCount: 0
       observedUnitTriggerKind: -1
       autoSelectLowestUnitStat: 0
+      autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
@@ -105,7 +106,7 @@ MonoBehaviour:
     - type: 24
       value: 1
       target: 5
-      selectionMode: -1
+      selectionMode: 0
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -121,8 +122,8 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 0
-      targetUnitStatCompareOp: 0
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
@@ -131,7 +132,7 @@ MonoBehaviour:
       effectActivationConditions: []
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
-      targetCardType: 1
+      targetCardType: 0
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -143,13 +144,14 @@ MonoBehaviour:
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 1
-      forbidSkipHandDiscard: 0
+      forbidSkipHandDiscard: 1
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
       autoSelectLowestUnitStat: 0
+      autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0

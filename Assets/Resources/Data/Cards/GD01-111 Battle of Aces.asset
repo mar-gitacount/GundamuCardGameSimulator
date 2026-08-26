@@ -107,27 +107,7 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   - timing: 12
-    activationConditions:
-    - boardSide: -1
-      checkKind: 33
-      turnCheck: -1
-      feature: {fileID: 0}
-      featureId: 0
-      features: []
-      featureIds: 
-      minimumCount: 1
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 0
-      unitCountThreshold: 0
-      pilotCardId: 0
-      trashCardId: 0
-      pilotLevelThreshold: 0
-      activationStatTarget: -1
-      observedCardType: 0
-      destroyedByOwnerRelation: 0
-      cardNameContains: 
+    activationConditions: []
     requireChainObservationContext: 0
     effectsName: 
     effects:
@@ -188,6 +168,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 1
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -198,27 +179,7 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   - timing: 8
-    activationConditions:
-    - boardSide: -1
-      checkKind: 33
-      turnCheck: -1
-      feature: {fileID: 0}
-      featureId: 0
-      features: []
-      featureIds: 
-      minimumCount: 1
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 0
-      unitCountThreshold: 0
-      pilotCardId: 0
-      trashCardId: 0
-      pilotLevelThreshold: 0
-      activationStatTarget: -1
-      observedCardType: 0
-      destroyedByOwnerRelation: 0
-      cardNameContains: 
+    activationConditions: []
     requireChainObservationContext: 0
     effectsName: 
     effects:
@@ -279,6 +240,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 1
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

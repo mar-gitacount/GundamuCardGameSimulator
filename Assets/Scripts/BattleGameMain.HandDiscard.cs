@@ -37,19 +37,41 @@ public partial class BattleGameMain
 
     private List<CardController> CollectSelectableHandCards(PlayerType handOwner)
     {
+        return CollectSelectableHandCards(handOwner, excludeSource: null);
+    }
+
+    /// <summary>
+    /// 手札候補。excludeSource があるときはそのインスタンスのみ除外
+    /// （同名の別カードは候補に残す。発動中コマンドの自己捨て防止）。
+    /// </summary>
+    private List<CardController> CollectSelectableHandCards(PlayerType handOwner, CardController excludeSource)
+    {
         CardGameRule rule = ResolveHandRule(handOwner);
         List<CardController> hand = CollectHandControllers(rule);
         List<CardController> result = new List<CardController>(hand.Count);
         for (int i = 0; i < hand.Count; i++)
         {
             CardController card = hand[i];
-            if (card != null && card.Data != null)
+            if (card == null || card.Data == null)
             {
-                result.Add(card);
+                continue;
             }
+
+            if (excludeSource != null && ReferenceEquals(card, excludeSource))
+            {
+                continue;
+            }
+
+            result.Add(card);
         }
 
         return result;
+    }
+
+    /// <summary>手札 UI 表示用（発動元インスタンスも含む）。</summary>
+    private List<CardController> CollectHandCardsForDiscardDisplay(PlayerType handOwner)
+    {
+        return CollectSelectableHandCards(handOwner, excludeSource: null);
     }
 
     /// <summary>
@@ -108,11 +130,12 @@ public partial class BattleGameMain
             yield break;
         }
 
-        List<CardController> candidates = CollectSelectableHandCards(handOwner);
+        List<CardController> candidates = CollectSelectableHandCards(handOwner, excludeSource: sourceCard);
+        List<CardController> displayCards = CollectHandCardsForDiscardDisplay(handOwner);
         if (candidates.Count == 0)
         {
             Debug.LogWarning(
-                $"[DiscardFromHand] 手札が空のため打ち切り (owner:{handOwner} discarded:{discardedCount}/{requiredCount} "
+                $"[DiscardFromHand] 捨てられる手札がありません (owner:{handOwner} discarded:{discardedCount}/{requiredCount} "
                 + $"source:{sourceCard?.Data?.cardName})");
             onDone?.Invoke(discardedCount >= requiredCount && requiredCount > 0);
             yield break;
@@ -146,6 +169,7 @@ public partial class BattleGameMain
             sourceCard,
             handOwner,
             effect,
+            displayCards,
             candidates,
             picked =>
             {
@@ -259,7 +283,8 @@ public partial class BattleGameMain
         CardController source,
         PlayerType handOwner,
         EffectData effect,
-        List<CardController> candidates,
+        List<CardController> displayCards,
+        List<CardController> selectableCandidates,
         Action<CardController> onPicked)
     {
         Canvas canvas = ResolveBattleCanvas();
@@ -297,33 +322,61 @@ public partial class BattleGameMain
         ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
         RectTransform content = sr != null ? sr.content : null;
 
-        bool resolved = false;
-        for (int i = 0; i < candidates.Count; i++)
+        HashSet<CardController> selectableSet = new HashSet<CardController>();
+        if (selectableCandidates != null)
         {
-            CardController handCard = candidates[i];
-            if (handCard == null || handCard.Data == null || content == null)
+            for (int s = 0; s < selectableCandidates.Count; s++)
             {
-                continue;
-            }
-
-            GameObject cardItem = Instantiate(CardImagePrefab, content);
-            CardController preview = cardItem.GetComponent<CardController>();
-            preview.SetUp(handCard.Data, _ => { });
-            CardController pickedRef = handCard;
-            Button btn = cardItem.GetComponent<Button>() ?? cardItem.AddComponent<Button>();
-            btn.onClick.AddListener(() =>
-            {
-                if (resolved)
+                if (selectableCandidates[s] != null)
                 {
-                    return;
+                    selectableSet.Add(selectableCandidates[s]);
+                }
+            }
+        }
+
+        IReadOnlyList<CardController> cardsToShow = displayCards != null && displayCards.Count > 0
+            ? displayCards
+            : selectableCandidates;
+
+        bool resolved = false;
+        if (cardsToShow != null)
+        {
+            for (int i = 0; i < cardsToShow.Count; i++)
+            {
+                CardController handCard = cardsToShow[i];
+                if (handCard == null || handCard.Data == null || content == null)
+                {
+                    continue;
                 }
 
-                resolved = true;
-                Destroy(root);
-                activeOnActionPopupRoot = null;
-                isOnActionPopupOpen = false;
-                onPicked?.Invoke(pickedRef);
-            });
+                GameObject cardItem = Instantiate(CardImagePrefab, content);
+                CardController preview = cardItem.GetComponent<CardController>();
+                preview.SetUp(handCard.Data, _ => { });
+                bool canSelect = selectableSet.Contains(handCard);
+                Button btn = cardItem.GetComponent<Button>() ?? cardItem.AddComponent<Button>();
+                if (!canSelect)
+                {
+                    // 発動元自身など：表示は残すが選べない（グレイアウト）
+                    ApplyHandDiscardUnavailableVisual(cardItem);
+                    btn.interactable = false;
+                    continue;
+                }
+
+                CardController pickedRef = handCard;
+                btn.onClick.AddListener(() =>
+                {
+                    if (resolved)
+                    {
+                        return;
+                    }
+
+                    resolved = true;
+                    Destroy(root);
+                    activeOnActionPopupRoot = null;
+                    isOnActionPopupOpen = false;
+                    onPicked?.Invoke(pickedRef);
+                });
+            }
         }
 
         // forbidSkipHandDiscard: Skip 不可（手札がある限り必ず選択）
@@ -346,6 +399,40 @@ public partial class BattleGameMain
                 isOnActionPopupOpen = false;
                 onPicked?.Invoke(null);
             });
+        }
+    }
+
+    private static void ApplyHandDiscardUnavailableVisual(GameObject cardItem)
+    {
+        if (cardItem == null)
+        {
+            return;
+        }
+
+        Image[] images = cardItem.GetComponentsInChildren<Image>(true);
+        for (int i = 0; i < images.Length; i++)
+        {
+            Image img = images[i];
+            if (img == null)
+            {
+                continue;
+            }
+
+            Color c = img.color;
+            c.a *= 0.45f;
+            c.r *= 0.55f;
+            c.g *= 0.55f;
+            c.b *= 0.55f;
+            img.color = c;
+        }
+
+        TextMeshProUGUI[] labels = cardItem.GetComponentsInChildren<TextMeshProUGUI>(true);
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i] != null)
+            {
+                labels[i].color = new Color(0.55f, 0.55f, 0.55f, 0.85f);
+            }
         }
     }
 

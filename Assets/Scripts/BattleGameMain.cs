@@ -1712,7 +1712,12 @@ public partial class BattleGameMain : MonoBehaviour
         int currentLevel = ownerState.TotalLevel;
 
         float handActionY = -10f;
-        if (TryAddOnMainEffectApplyButton(filterContent, cardController, ownerType, handActionY))
+        bool hasOnMainActivateButton = TryAddOnMainEffectApplyButton(
+            filterContent,
+            cardController,
+            ownerType,
+            handActionY);
+        if (hasOnMainActivateButton)
         {
             handActionY -= 60f;
             PinFilterCloseButton(closeBtnRect);
@@ -1728,6 +1733,24 @@ public partial class BattleGameMain : MonoBehaviour
                 ownerSide,
                 closeBtnRect,
                 handActionY);
+            return;
+        }
+
+        // 純コマンドはレベル／コスト不足でもユニット配備 UI へ落とさない
+        if (cardController.Data.type == Type.Command)
+        {
+            if (!hasOnMainActivateButton)
+            {
+                if (!HasEffectTiming(cardController.Data, EffectTiming.OnMain))
+                {
+                    Debug.Log("このコマンドはメインフェイズでは発動できません（アクション等で使用）。");
+                }
+                else
+                {
+                    Debug.Log("OnMain: 現在は発動できません（ターン/フェイズ/リソース/条件/使用回数）。");
+                }
+            }
+
             return;
         }
 
@@ -1823,9 +1846,15 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
                 }
-                else
+                else if (cardController.Data.IsUnitLike())
                 {
                     SendCardToField(cardController, ownerType, ownerRule);
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[HandDeploy] フィールド配備対象外のカードです: "
+                        + $"{cardController.Data.cardName} type:{cardController.Data.type}");
                 }
 
                 SyncResourceViewsFromRule(ownerSide);
@@ -4220,15 +4249,20 @@ public partial class BattleGameMain : MonoBehaviour
             detachedPilot = cardController.DetachMountedPilotWithoutDestroy();
         }
 
-        // 突破は破壊時効果より先に解決（公式: 攻撃側 Breach → 相手 Destroyed）
-        if (TryResolveEnemyUnitKillContext(
+        // 突破は戦闘ダメージ破壊時のみ（公式 Breach）。配備時効果破壊などでは発動しない。
+        if (destroyedByBattleDamage
+            && TryResolveEnemyUnitKillContext(
                 cardController,
                 ownerType,
                 destroyedBy,
                 out CardController breachKiller,
                 out PlayerType breachKillerOwner))
         {
-            TryTriggerBreachOnEnemyUnitDestroyed(breachKiller, breachKillerOwner, ownerType);
+            TryTriggerBreachOnEnemyUnitDestroyed(
+                breachKiller,
+                breachKillerOwner,
+                ownerType,
+                destroyedByBattleDamage: true);
         }
 
         void ContinueAfterOwnerOnDestroyed()
@@ -4672,6 +4706,17 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (cardController == null || ownerRule == null)
         {
+            return;
+        }
+
+        // コマンドは場に出さず、効果発動後にトラッシュへ送る（誤配備防止）
+        if (cardController.Data != null
+            && cardController.Data.IsCommand()
+            && !cardController.Data.IsUnitLike())
+        {
+            Debug.LogWarning(
+                $"[SendCardToField] コマンドはフィールド配備しません: "
+                + $"{cardController.Data.cardName}(id:{cardController.Data.id})");
             return;
         }
 
@@ -5528,8 +5573,8 @@ public partial class BattleGameMain : MonoBehaviour
             out int attackerPowerForCombat,
             out int defenderPowerForCombat);
 
-        // ストライク値は上で確定済み。修飾は交換前に即解除（被攻撃時へ持ち越さない）
-        ClearEndOfBattleCombatModifiers("unit vs unit before exchange");
+        // ストライク値は上で確定済み。「このバトル中」修飾は交換後（attack finish）まで残し、
+        // OnAction の AP+1 等が盤面表示・与ダメージ確認に反映されるようにする。
 
         int defenderHpBeforeExchange = defender.CurrentHp;
         int attackerHpBeforeExchange = attacker.CurrentHp;
@@ -7162,6 +7207,15 @@ public partial class BattleGameMain : MonoBehaviour
 
         CommitUnitAttackDeclaration(attacker, attackerOwner);
 
+        // OnAttack 条件（SourceAttackingEnemyPlayer 等）評価のため、シールド攻撃コンテキストを先に登録する。
+        // （ユニット攻撃と同様。登録が遅いと Zee Zulu 等の「相手プレイヤーにアタックしているなら」が偽になる）
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.Shield,
+            null,
+            null);
+
         if (!skipOnAttackSelection)
         {
             void ProceedShieldAttack()
@@ -8413,11 +8467,8 @@ public partial class BattleGameMain : MonoBehaviour
             out int blockerPowerForCombat,
             applyOnAttackPairEffects: !attackFlowBlockRedirectFromShieldStrike);
 
-        // ストライク確定後すぐ解除（Self AP バフは加算値のみのため盤面修飾がないが、キラデバフ等は落とす）
-        if (!attackFlowBlockRedirectFromShieldStrike)
-        {
-            ClearEndOfBattleCombatModifiers("block redirect before exchange");
-        }
+        // ストライク確定後も UntilEndOfBattle 修飾は交換完了まで残す（Galluss-K 等の OnAction AP バフ表示用）。
+        // 解除は CoFinishBlockRedirectCombatAfterTrashUi / 中断系 Clear で行う。
 
         int blockerHpBeforeExchange = blocker.CurrentHp;
         int attackerHpBeforeExchange = attacker.CurrentHp;
@@ -8613,6 +8664,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearBreachUntilEndOfBattleGrantsForAllInPlayUnits();
         // ゾーンリスト漏れ対策: 配備パネル直下も走査
         ClearTimedStatModifiersOnDeployPanels(EffectDuration.UntilEndOfBattle);
         if (!string.IsNullOrEmpty(reason))
@@ -8646,7 +8698,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// OnAttack の Self Buff/Debuff（AP）を盤面修飾せず加算値として返す。
-    /// ザクⅡなど「このバトル中」自己AP増はここに載せ、攻撃終了後に残さない。
+    /// Zee Zulu 等「このバトル中」自己 AP 増、および Permanent のストライク専任バフを含む。
     /// </summary>
     private int ComputeOnAttackSelfApBonus(CardController attacker, PlayerType ownerType)
     {
@@ -8729,7 +8781,7 @@ public partial class BattleGameMain : MonoBehaviour
                 bonus += signed;
                 Debug.Log(
                     $"[OnAttack] Strike-only Self AP {effect.type} {signed} (duration:{effect.duration}) "
-                    + $"source:{effectSource.Data?.cardName}");
+                    + $"source:{effectSource.Data?.cardName} attackingPlayer:{activationContext.SourceAttackingEnemyPlayer}");
             }
         }
 
@@ -9858,10 +9910,16 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
-    private EffectActivationContext BuildOnAttackActivationContext(PlayerType ownerType, CardController attacker)
+    private EffectActivationContext BuildOnAttackActivationContext(
+        PlayerType ownerType,
+        CardController attacker,
+        CardController battlingEnemyOverride = null)
     {
         CardController host = attacker;
         CardController pilot = attacker != null ? attacker.MountedPilot : null;
+        CardController battlingEnemy = battlingEnemyOverride != null
+            ? battlingEnemyOverride
+            : ResolveBattlingEnemyUnitFor(attacker);
         return new EffectActivationContext(
             ownerType,
             attacker,
@@ -9878,7 +9936,9 @@ public partial class BattleGameMain : MonoBehaviour
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
-            sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(attacker));
+            sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(attacker),
+            sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(attacker),
+            battlingEnemyUnit: battlingEnemy);
     }
 
     /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
@@ -9915,6 +9975,57 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner = ResolveCardOwner(attacker.transform);
         PlayerType defenderOwner = ResolveCardOwner(defender.transform);
         return attackerOwner != defenderOwner;
+    }
+
+    /// <summary>シールド／プレイヤー攻撃を宣言しているか（ブロック後も宣言種別は Shield のまま）。</summary>
+    private bool IsSourceAttackingEnemyPlayer(CardController attacker)
+    {
+        if (attacker == null || attackFlowAttackerUnit == null)
+        {
+            return false;
+        }
+
+        if (!IsSameBattleUnit(attacker, attackFlowAttackerUnit))
+        {
+            return false;
+        }
+
+        return attackFlowStrikeKind == AttackFlowStrikeKind.Shield;
+    }
+
+    /// <summary>source から見た現在バトルの相手ユニット（ブロック後の最終対戦相手）。</summary>
+    private CardController ResolveBattlingEnemyUnitFor(CardController source)
+    {
+        if (source == null || attackFlowAttackerUnit == null)
+        {
+            return null;
+        }
+
+        CardController defender = attackFlowBlockRedirectUnit != null
+            ? attackFlowBlockRedirectUnit
+            : attackFlowDeclaredDefenderUnit;
+        if (defender == null || defender.Data == null || !defender.Data.IsUnitLike())
+        {
+            return null;
+        }
+
+        CardController host = source;
+        if (source.Data != null && source.Data.IsPilot() && source.MountedUnit != null)
+        {
+            host = source.MountedUnit;
+        }
+
+        if (IsSameBattleUnit(host, attackFlowAttackerUnit))
+        {
+            return defender;
+        }
+
+        if (IsSameBattleUnit(host, defender))
+        {
+            return attackFlowAttackerUnit;
+        }
+
+        return null;
     }
 
     private EffectActivationContext BuildPilotMountActivationContext(
@@ -10609,6 +10720,10 @@ public partial class BattleGameMain : MonoBehaviour
                             effect,
                             new List<CardController> { picked });
                     }
+
+                    // オンライン: 対象選択が終わったら待機中の相手 effectthink を早めに解除し得るよう通知
+                    // （Look OK と同様。完了はチェーン終了時にも送るが二重送信はガード済み）
+                    NotifyOnlineOnDestroyedPlayerAcknowledged();
 
                     TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
                 });
@@ -12428,6 +12543,10 @@ public partial class BattleGameMain : MonoBehaviour
                 AddAllAliveUnits(allies, result, null, requiredFeatures);
                 break;
             case TargetType.EnemyAllUnits:
+                AddAllAliveUnits(enemies, result, null, requiredFeatures);
+                break;
+            case TargetType.AnyUnit:
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
                 AddAllAliveUnits(enemies, result, null, requiredFeatures);
                 break;
         }
@@ -15092,6 +15211,18 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        // 配備ベースの【起動・アクション】（ガモフ等）
+        CardController deployedBase = GetDeployedBaseForRuleSide(ToRuleSide(side));
+        if (deployedBase != null
+            && deployedBase.Data != null
+            && deployedBase.Data.type == Type.Base
+            && deployedBase.CurrentHp > 0
+            && HasEffectTiming(deployedBase.Data, EffectTiming.OnAction)
+            && CanExecuteOnActionCardNow(side, deployedBase))
+        {
+            ownFieldUnitsWithOnAction.Add(deployedBase);
+        }
+
         RectTransform hand = side == PlayerType.Player ? cardGameRule.HandScrollContent : enemyCardGameRule.HandScrollContent;
         List<CardController> commandCards = new List<CardController>();
         if (hand != null)
@@ -15540,10 +15671,12 @@ public partial class BattleGameMain : MonoBehaviour
 
         bool paymentOk = false;
         int exToUse = 0;
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForAfford(command, side);
         yield return WaitForResourcePaymentCoroutine(
             side,
-            command.CurrentCost,
-            command.CurrentLevel,
+            onActionCost,
+            onActionRequiredLevel,
             (ok, chosenEx) =>
             {
                 paymentOk = ok;
@@ -15573,6 +15706,7 @@ public partial class BattleGameMain : MonoBehaviour
         string effectDetail =
             $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
         List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
+        TryApplyOnActionRestSelfCostIfPresent(command, side);
         ApplyEffect(command, side, applied);
         // OK 後: 保留していた破壊時 Look／手札回収を実行
         EndOnDestroyedLatencyHold();
@@ -15713,10 +15847,12 @@ public partial class BattleGameMain : MonoBehaviour
 
         bool paymentOk = false;
         int exToUse = 0;
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForAfford(command, side);
         yield return WaitForResourcePaymentCoroutine(
             side,
-            command.CurrentCost,
-            command.CurrentLevel,
+            onActionCost,
+            onActionRequiredLevel,
             (ok, chosenEx) =>
             {
                 paymentOk = ok;
@@ -15758,6 +15894,7 @@ public partial class BattleGameMain : MonoBehaviour
                 command);
         }
 
+        TryApplyOnActionRestSelfCostIfPresent(command, side);
         ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { picked });
         if (attackingUnitInAttackFlow != null && picked == attackingUnitInAttackFlow)
         {
@@ -16113,7 +16250,9 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (EffectRequiresManualHandSelection(effect))
         {
-            List<CardController> handCandidates = CollectSelectableHandCards(ResolveHandDiscardOwner(side, effect));
+            List<CardController> handCandidates = CollectSelectableHandCards(
+                ResolveHandDiscardOwner(side, effect),
+                excludeSource: source);
             if (handCandidates.Count == 0)
             {
                 Debug.Log("OnMain: 捨てる手札がありません (DiscardFromHand)。");
@@ -16303,7 +16442,8 @@ public partial class BattleGameMain : MonoBehaviour
         return targetType == TargetType.EnemyUnit
             || targetType == TargetType.RestEnemyUnit
             || targetType == TargetType.AllyUnit
-            || targetType == TargetType.AllyOtherUnit;
+            || targetType == TargetType.AllyOtherUnit
+            || targetType == TargetType.AnyUnit;
     }
 
     private List<CardController> ResolveSelectableEffectTargets(
@@ -16351,6 +16491,11 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case TargetType.RestEnemyUnit:
                 AddAllAliveUnits(GetAliveRestEnemyUnitsForOwner(ownerType), result, null, requiredFeatures);
+                break;
+            case TargetType.AnyUnit:
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
+                AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
+                EnsureAllyUnitSelfInCandidateList(sourceCard, result, requiredFeatures);
                 break;
         }
 
@@ -16539,6 +16684,18 @@ public partial class BattleGameMain : MonoBehaviour
                 : GameLocale.T(
                     "味方ユニット1体を選択（自身以外）",
                     "Choose 1 ally Unit (not self)");
+        }
+
+        if (effect.target == TargetType.AnyUnit)
+        {
+            return GameLocale.T(
+                "ユニット1体を選択（味方または相手）",
+                "Choose 1 Unit (friendly or enemy)");
+        }
+
+        if (effect.type == EffectType.Damage)
+        {
+            return GameLocale.T("ダメージを与えるユニットを選択", "Choose a Unit to damage");
         }
 
         return isAttackContext
@@ -16784,6 +16941,30 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// OnAction 先頭が「自身を REST」のコストなら、本効果適用前にソースをレストする（ガモフ等）。
+    /// </summary>
+    private void TryApplyOnActionRestSelfCostIfPresent(CardController source, PlayerType side)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        TimedEffectData timed = FindFirstOnActionTimedBlock(source, out _);
+        if (!TimedStartsWithRestSelf(timed) || source.IsRestState)
+        {
+            return;
+        }
+
+        if (TryApplyRestToUnit(source))
+        {
+            QueueOnlineUnitRest(source);
+            Debug.Log(
+                $"[OnAction] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+        }
+    }
+
     private bool CanExecuteOnActionCardNow(PlayerType ownerType, CardController card)
     {
         if (card == null || card.Data == null)
@@ -16791,13 +16972,47 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        Gundam2024RuleScript.PlayerState state = ownerType == PlayerType.Player
-            ? gundamRule.Player
-            : gundamRule.Enemy;
+        if (!IsOnActionOncePerTurnAvailable(ownerType, card))
+        {
+            return false;
+        }
+
+        TimedEffectData onActionTimed = FindFirstOnActionTimedBlock(card, out _);
+        if (TimedStartsWithRestSelf(onActionTimed) && card.IsRestState)
+        {
+            return false;
+        }
+
+        // 場起動で手動選択が必要な効果がある場合、候補が0なら起動不可（ガモフ等）
+        if (IsOnActionActivatedFromField(card, ownerType) && onActionTimed != null)
+        {
+            IReadOnlyList<EffectData> resolved = onActionTimed.GetResolvedEffects();
+            for (int i = 0; i < resolved.Count; i++)
+            {
+                EffectData e = resolved[i];
+                if (e == null || !EffectRequiresManualUnitSelection(e))
+                {
+                    continue;
+                }
+
+                if (ResolveSelectableEffectTargets(card, ownerType, e).Count == 0)
+                {
+                    return false;
+                }
+            }
+        }
+
+        int cost = GetOnActionPlayCost(card, ownerType);
+        if (cost <= 0)
+        {
+            return true;
+        }
+
+        int requiredLevel = GetOnActionRequiredLevelForAfford(card, ownerType);
         return gundamRule.CanPlayCardWithAnyEx(
             ToRuleSide(ownerType),
-            card.CurrentLevel,
-            card.CurrentCost);
+            requiredLevel,
+            cost);
     }
 
     private static bool HasEffectTiming(CardData data, EffectTiming timing)

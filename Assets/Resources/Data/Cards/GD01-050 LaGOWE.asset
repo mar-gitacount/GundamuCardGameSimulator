@@ -46,7 +46,7 @@ MonoBehaviour:
       featureIds: 
       minimumCount: 1
       levelAggregate: 0
-      compareOp: 4
+      compareOp: 0
       compareValue: 5
       unitCountCompareOp: 0
       unitCountThreshold: 0
@@ -54,6 +54,26 @@ MonoBehaviour:
       trashCardId: 0
       pilotLevelThreshold: 0
       activationStatTarget: 0
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - boardSide: -1
+      checkKind: 31
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
       cardNameContains: 
@@ -117,6 +137,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
