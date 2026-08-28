@@ -48,7 +48,7 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 42
+    - type: 39
       value: 1
       target: 5
       selectionMode: -1

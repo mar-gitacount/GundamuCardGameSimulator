@@ -667,6 +667,13 @@ public partial class BattleGameMain
                     continue;
                 }
 
+                // 手札／トラッシュからの DeployUnit 選択は非同期（してもよい UI）
+                if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+                {
+                    pendingManualEffects.Add(effect);
+                    continue;
+                }
+
                 // 手動選択以外は即時解決（バースト配備→AddShieldToHand がコミット前に終わるようにする）
                 if (!EffectRequiresManualUnitSelection(effect))
                 {
@@ -705,7 +712,14 @@ public partial class BattleGameMain
         int manualTotal = 0;
         for (int i = 0; i < effects.Count; i++)
         {
-            if (EffectRequiresManualUnitSelection(effects[i]))
+            EffectData countEffect = effects[i];
+            if (countEffect == null)
+            {
+                continue;
+            }
+
+            if (EffectRequiresManualUnitSelection(countEffect)
+                || (countEffect.type == EffectType.DeployUnit && countEffect.RequiresDeployUnitZoneSelection()))
             {
                 manualTotal++;
             }
@@ -717,6 +731,15 @@ public partial class BattleGameMain
             EffectData effect = effects[i];
             if (effect == null)
             {
+                continue;
+            }
+
+            if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+            {
+                manualIndex++;
+                bool deployDone = false;
+                ApplyDeployUnitEffect(sourceCard, ownerType, effect, () => deployDone = true);
+                yield return new WaitUntil(() => deployDone);
                 continue;
             }
 

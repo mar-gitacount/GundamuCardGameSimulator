@@ -62,8 +62,8 @@ MonoBehaviour:
     effects:
     - type: 0
       value: 1
-      target: 2
-      selectionMode: 0
+      target: 4
+      selectionMode: -1
       statTarget: 0
       duration: 0
       valueMode: 0

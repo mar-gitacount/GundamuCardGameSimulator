@@ -205,7 +205,7 @@ public partial class BattleGameMain
         // 「AP7・軽減6・HP5」が 7-6=1 ではなく min(7,5)-6=0 になる。
         if (attackerFirstStrike && !defenderFirstStrike)
         {
-            defender?.ApplyDamage(attackerStrike);
+            ApplyCombatDamageIfNotImmune(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
             if (defender != null && defender.CurrentHp <= 0)
             {
                 Debug.Log(
@@ -214,24 +214,50 @@ public partial class BattleGameMain
                 return;
             }
 
-            attacker?.ApplyDamage(defenderStrike);
+            ApplyCombatDamageIfNotImmune(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
             return;
         }
 
         if (defenderFirstStrike && !attackerFirstStrike)
         {
-            attacker?.ApplyDamage(defenderStrike);
+            ApplyCombatDamageIfNotImmune(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
             if (attacker != null && attacker.CurrentHp <= 0)
             {
                 return;
             }
 
-            defender?.ApplyDamage(attackerStrike);
+            ApplyCombatDamageIfNotImmune(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
             return;
         }
 
-        defender?.ApplyDamage(attackerStrike);
-        attacker?.ApplyDamage(defenderStrike);
+        ApplyCombatDamageIfNotImmune(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
+        ApplyCombatDamageIfNotImmune(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
+    }
+
+    private void ApplyCombatDamageIfNotImmune(
+        CardController damageTarget,
+        CardController damageSource,
+        PlayerType damageTargetOwner,
+        PlayerType damageSourceOwner,
+        int damage)
+    {
+        if (damageTarget == null || damage <= 0)
+        {
+            return;
+        }
+
+        bool isTargetOwnerTurn = damageTargetOwner == currentPlayerType;
+        if (CardPilotBattleDamageImmunityExtensions.ShouldIgnoreBattleDamageFromAttacker(
+                damageTarget,
+                damageSource,
+                damageTargetOwner,
+                damageSourceOwner,
+                isTargetOwnerTurn))
+        {
+            return;
+        }
+
+        damageTarget.ApplyDamage(damage);
     }
 
     private static void ApplyVirtualUnitVsUnitCombatHpExchange(

@@ -11866,6 +11866,36 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// AttackActiveEnemyUnit の味方付与候補を Lv 下限で絞る（valueCountMinUnitLevel）。
+    /// 攻撃できる敵の条件（targetUnitFilterStat）とは別用途。
+    /// </summary>
+    private static void FilterAttackActiveEnemyGrantTargetsByMinLevel(
+        List<CardController> targets,
+        int minLevel)
+    {
+        if (targets == null || minLevel <= 0)
+        {
+            return;
+        }
+
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+            {
+                targets.RemoveAt(i);
+                continue;
+            }
+
+            int level = unit.Data.IsUnitToken() ? 0 : unit.CurrentLevel;
+            if (level < minLevel)
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
     private static void FilterSelectableEffectTargets(List<CardController> targets, EffectData effect)
     {
         if (targets == null || effect == null)
@@ -16500,10 +16530,15 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         FilterSelectableEffectTargets(result, effect);
-        // AttackActiveEnemyUnit のステータス条件は「攻撃できる敵」用。付与候補には Feature のみ適用済み。
+        // AttackActiveEnemyUnit のステータス条件は「攻撃できる敵」用。
+        // 付与候補は Feature に加え、valueCountMinUnitLevel>0 なら Lv 下限で絞る。
         if (effect.type != EffectType.AttackActiveEnemyUnit)
         {
             FilterTargetsByUnitCondition(result, effect, sourceCard);
+        }
+        else if (effect.IsAttackActiveEnemyAllyGrant() && effect.valueCountMinUnitLevel > 0)
+        {
+            FilterAttackActiveEnemyGrantTargetsByMinLevel(result, effect.valueCountMinUnitLevel);
         }
 
         if (effect.type == EffectType.Rest)
@@ -16640,8 +16675,18 @@ public partial class BattleGameMain : MonoBehaviour
             string attackFilterEn = effect.HasAttackActiveEnemyTargetStatFilter()
                 ? effect.FormatAttackActiveEnemyTargetStatDescription()
                 : "ACTIVE enemy";
-            string filterHintJa = string.IsNullOrEmpty(featureLabel) ? string.Empty : $"（{featureLabel}）";
-            string filterHintEn = string.IsNullOrEmpty(featureLabel) ? string.Empty : $" ({featureLabel})";
+            string midJa = featureLabel ?? string.Empty;
+            string midEn = featureLabel ?? string.Empty;
+            if (effect.valueCountMinUnitLevel > 0)
+            {
+                string lvJa = $"Lv.{effect.valueCountMinUnitLevel}以上";
+                string lvEn = $"Lv.{effect.valueCountMinUnitLevel}+";
+                midJa = string.IsNullOrEmpty(midJa) ? lvJa : $"{midJa}・{lvJa}";
+                midEn = string.IsNullOrEmpty(midEn) ? lvEn : $"{midEn}, {lvEn}";
+            }
+
+            string filterHintJa = string.IsNullOrEmpty(midJa) ? string.Empty : $"（{midJa}）";
+            string filterHintEn = string.IsNullOrEmpty(midEn) ? string.Empty : $" ({midEn})";
             return isAttackContext
                 ? GameLocale.T(
                     $"アクティブ攻撃（{attackFilterJa}）を付与する味方を選択{filterHintJa}（{attackName} 攻撃中）",

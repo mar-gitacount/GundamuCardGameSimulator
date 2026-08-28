@@ -10,43 +10,34 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 81Duo Maxwell
+  m_Name: T-007 Zaku Ⅱ
   m_EditorClassIdentifier: 
-  id: 81
-  gcgOfficialId: GD01-090
-  cardName: Duo Maxwell
-  cost: 1
-  level: 4
+  id: 1000537
+  gcgOfficialId: T-007
+  cardName: "Zaku Ⅱ"
+  cost: 0
+  level: 0
   power: 1
-  hp: 2
+  hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/81_Duo Maxwell
+  imageAddress: "Data/Images/T-007_Zaku 2"
   version: 1
-  sourceType: 1
-  productLine: 1
-  boosterSet: 1
-  starterSet: 0
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 3
   eternalBoosterSet: 0
-  sourceTitle: 0
+  sourceTitle: 1
   filterType: 0
-  color: 1
-  type: 1
+  color: 4
+  type: 5
   battleZones: 0
   attackFlg: 0
-  timedEffects:
-  - timing: 5
-    activationConditions: []
-    requireChainObservationContext: 0
-    effectsName: AddSelfToHand_OnBurst
-    effects: []
-    activationCost: 0
-    oncePerTurn: 0
-    observedUnitTriggerKind: -1
+  timedEffects: []
   features:
-  - {fileID: 11400000, guid: cd8fb7d0c0bd0e047ad30c5e79268c4e, type: 2}
-  pilotIds:
-  - {fileID: 11400000, guid: 7a5f37827924485ebd2cfcf5e22905fb, type: 2}
+  - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+  pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -59,6 +50,6 @@ MonoBehaviour:
   notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
-    setKind: 2
-    setNumber: 1
-    cardNumber: 90
+    setKind: 4
+    setNumber: 0
+    cardNumber: 7

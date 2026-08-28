@@ -251,7 +251,14 @@ public enum EffectType
     /// targetFeature / filterByTargetCardType / targetUnitFilterStat で候補を絞る。
     /// deployUnitTriggerOnPlayed で配備時効果を発動できる。Skip 可（してもよい）。
     /// </summary>
-    DeployUnitFromLooked
+    DeployUnitFromLooked,
+    /// <summary>
+    /// 搭乗パイロットの常時パッシブ（戦闘ダメージ判定）。
+    /// 自ターン中、搭乗ユニットが《突破》を持つ間、
+    /// AP が value 以下の敵ユニットからの戦闘ダメージを受けない。
+    /// timed.activationConditions に turnCheck:OwnerTurn / checkKind:SourceHasBreach を推奨。
+    /// </summary>
+    BattleDamageImmunityFromLowApEnemy
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -697,7 +704,9 @@ public enum EffectActivationCheckKind
     /// 現在バトル中の相手ユニットの実効 AP/HP/Lv/Cost を compareOp + compareValue と比較。
     /// EffectActivationContext.BattlingEnemyUnit を参照（ブロック後の最終対戦相手）。
     /// </summary>
-    BattlingEnemyUnitStat
+    BattlingEnemyUnitStat,
+    /// <summary>ソースユニット（搭乗ホスト）が《突破》1以上を持つ。</summary>
+    SourceHasBreach
 }
 
 public enum EffectTurnCheckKind
@@ -1025,7 +1034,7 @@ public class EffectData
     [Tooltip("JSON 用。valueCountFeature 未設定時に ID で解決（0=未指定）。")]
     public int valueCountFeatureId;
 
-    [Tooltip("UnitsWithLevelAtLeast のときの最低 Lv（Data.level）。")]
+    [Tooltip("UnitsWithLevelAtLeast の最低 Lv。AttackActiveEnemyUnit の味方付与では付与先の最低 Lv にも流用。")]
     public int valueCountMinUnitLevel;
 
     [Tooltip("MultiplyByBoardCount の上限（0 で上限なし）。")]
@@ -1087,6 +1096,11 @@ public class EffectData
 
     [Tooltip("filterByTargetCardType: 対象とするカード種類（例: Pilot / UnitToken）。")]
     public Type targetCardType = Type.Pilot;
+
+    [Tooltip(
+        "true のときユニット系（Unit/UnitToken）またはパイロット系（Pilot/CommandPilot）のみ対象。"
+        + " filterByTargetCardType より優先（勝敗を分ける道など「ユニット/パイロット」表記用）。")]
+    public bool filterTargetAsUnitOrPilot;
 
     [Tooltip("DeployUnit / DeployBase: 配備するカードの出所（Token=トークン生成 / Hand / Trash）。DeployBase は Trash 時にトラッシュから Base を配備。")]
     public DeployUnitSource deployUnitSource = DeployUnitSource.Token;
@@ -1320,12 +1334,49 @@ public static class EffectDataExtensions
     }
     public static bool MatchesTargetCardTypeFilter(this EffectData effect, CardData card)
     {
-        if (effect == null || !effect.filterByTargetCardType)
+        if (effect == null)
         {
             return true;
         }
 
-        return card != null && CardTypeExtensions.MatchesTypeFilter(effect.targetCardType, card.type);
+        if (card == null)
+        {
+            return false;
+        }
+
+        // ユニット系 OR パイロット系（filterByTargetCardType より優先）
+        if (effect.filterTargetAsUnitOrPilot)
+        {
+            return card.IsUnitOrPilot();
+        }
+
+        if (!effect.filterByTargetCardType)
+        {
+            return true;
+        }
+
+        return CardTypeExtensions.MatchesTypeFilter(effect.targetCardType, card.type);
+    }
+
+    /// <summary>UI 用。Unit/Pilot OR・単一種・未指定の表示ラベル。</summary>
+    public static string FormatTargetCardTypeFilterLabel(this EffectData effect)
+    {
+        if (effect == null)
+        {
+            return string.Empty;
+        }
+
+        if (effect.filterTargetAsUnitOrPilot)
+        {
+            return GameLocale.T("ユニット/パイロット", "Unit/Pilot");
+        }
+
+        if (effect.filterByTargetCardType)
+        {
+            return CardTypeExtensions.GetDisplayName(effect.targetCardType);
+        }
+
+        return string.Empty;
     }
 
     /// <summary>targetPilotId &gt; 0 のとき、カードがその PilotId を持つか。</summary>

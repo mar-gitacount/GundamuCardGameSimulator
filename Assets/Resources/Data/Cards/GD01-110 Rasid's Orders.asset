@@ -31,7 +31,7 @@ MonoBehaviour:
   sourceTitle: 7
   filterType: 0
   color: 1
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
   timedEffects:
@@ -42,7 +42,7 @@ MonoBehaviour:
     effects:
     - type: 12
       value: 1
-      target: 4
+      target: 1
       selectionMode: 1
       statTarget: 0
       duration: 1
@@ -51,7 +51,7 @@ MonoBehaviour:
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
       valueCountFeatureId: 0
-      valueCountMinUnitLevel: 0
+      valueCountMinUnitLevel: 4
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
@@ -59,9 +59,9 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 3
-      targetUnitStatCompareOp: 4
-      targetUnitStatCompareValue: 4
+      targetUnitFilterStat: 0
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 6
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
@@ -97,6 +97,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -113,7 +114,7 @@ MonoBehaviour:
     effects:
     - type: 12
       value: 1
-      target: 4
+      target: 1
       selectionMode: 1
       statTarget: 0
       duration: 1
@@ -122,7 +123,7 @@ MonoBehaviour:
       valueCountKind: 0
       valueCountFeature: {fileID: 0}
       valueCountFeatureId: 0
-      valueCountMinUnitLevel: 0
+      valueCountMinUnitLevel: 4
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
@@ -130,9 +131,9 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 3
-      targetUnitStatCompareOp: 4
-      targetUnitStatCompareValue: 4
+      targetUnitFilterStat: 0
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 6
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
@@ -168,6 +169,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -179,7 +181,8 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: b2a049bc7e0d4691928495d93dda4e87, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: 33bcd1ad491f44988f93d0413998b9c4, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1

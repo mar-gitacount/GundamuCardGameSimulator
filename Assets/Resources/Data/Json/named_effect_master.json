@@ -1602,6 +1602,29 @@
             ]
         },
         {
+            "effectSetName": "OnLook_AddOMOrGTeamUnitOrPilot1_Reveal",
+            "displayName": "OnLook：〔オペレーション・メテオ〕/〔Gチーム〕のユニット/パイロット1枚を公開して手札へ（任意）",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureIds": [9, 37],
+                    "filterTargetAsUnitOrPilot": true,
+                    "revealDiscardedToOpponent": true
+                }
+            ]
+        },
+        {
             "effectSetName": "OnLook_AddLondoBellUnits_UpTo3_Reveal",
             "displayName": "（旧）OnLook：ロンド・ベルのユニットを最大3枚相手に公開して手札へ",
             "effects": [

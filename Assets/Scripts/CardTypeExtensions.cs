@@ -36,6 +36,17 @@ public static class CardTypeExtensions
         return cardType == Type.Pilot || cardType == Type.CommandPilot;
     }
 
+    /// <summary>「ユニットカード／パイロットカード」表記（Unit・UnitToken・Pilot・CommandPilot）。</summary>
+    public static bool IsUnitOrPilot(Type cardType)
+    {
+        return IsUnitLike(cardType) || IsPilot(cardType);
+    }
+
+    public static bool IsUnitOrPilot(this CardData card)
+    {
+        return card != null && IsUnitOrPilot(card.type);
+    }
+
     public static bool IsPilot(this CardData card)
     {
         return card != null && IsPilot(card.type);
