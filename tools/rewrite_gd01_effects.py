@@ -37,7 +37,7 @@ EFF_TMPL = """    - type: {type}
       valueCountKind: {valueCountKind}
       valueCountFeature: {{fileID: 0}}
       valueCountFeatureId: {valueCountFeatureId}
-      valueCountMinUnitLevel: 0
+      valueCountMinUnitLevel: {valueCountMinUnitLevel}
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
@@ -58,7 +58,7 @@ EFF_TMPL = """    - type: {type}
       deployUnitSource: {deployUnitSource}
       deployCardId: {deployCardId}
       filterByDeployCardId: 0
-      filterDeployCandidateByFeature: 0
+      filterDeployCandidateByFeature: {filterDeployCandidateByFeature}
       deployUnitTriggerOnPlayed: {deployUnitTriggerOnPlayed}
       deployUnitAsRested: {deployUnitAsRested}
       deployUnitPayCost: 0
@@ -122,6 +122,7 @@ def effect(**kw):
         valueCountBoardSide=0,
         valueCountKind=0,
         valueCountFeatureId=0,
+        valueCountMinUnitLevel=0,
         targetFeatureId=0,
         targetUnitFilterStat=-1,
         targetUnitStatCompareOp=3,
@@ -139,6 +140,7 @@ def effect(**kw):
         deployCardId=0,
         deployUnitTriggerOnPlayed=0,
         deployUnitAsRested=0,
+        filterDeployCandidateByFeature=0,
         selectMinCount=0,
         selectMaxCount=0,
         autoSelectHighestUnitStat=0,
@@ -202,6 +204,8 @@ OM = 9
 NEWTYPE = 19
 ACAD = 23
 WBT = 33
+SOURCE_HAS_BREACH = 35
+BATTLE_DMG_IMMUNITY_LOW_AP = 52
 MC = 34
 OZ = 36
 GTEAM = 37
@@ -296,7 +300,19 @@ EFFECTS["GD01-027"] = [
     ),
 ]
 EFFECTS["GD01-028"] = [
-    timed(0, [effect(type=8, value=1, target=5, selectionMode=1, targetFeatureId=MC, filterByTargetCardType=1, targetCardType=0, deployUnitSource=1)]),
+    timed(0, [
+        effect(
+            type=22,
+            value=1,
+            target=5,
+            selectionMode=1,
+            targetFeatureId=MC,
+            filterByTargetCardType=1,
+            targetCardType=0,
+            deployUnitSource=1,
+            filterDeployCandidateByFeature=1,
+        ),
+    ]),
 ]
 EFFECTS["GD01-029"] = [
     timed(0, [effect(type=31, value=4, target=0)]),
@@ -311,7 +327,7 @@ EFFECTS["GD01-034"] = [
     timed(18, effects_name="Breach3"),
 ]
 EFFECTS["GD01-038"] = [
-    timed(0, [effect(type=0, value=1, target=2, selectionMode=0)], conds=[cond(boardSide=1, checkKind=1, minimumCount=5)]),
+    timed(0, [effect(type=0, value=1, target=4, selectionMode=-1)], conds=[cond(boardSide=1, checkKind=1, minimumCount=5)]),
 ]
 EFFECTS["GD01-039"] = [
     timed(0, effects_name="LookTop1_PlayDeck"),
@@ -320,7 +336,18 @@ EFFECTS["GD01-041"] = [
     timed(0, effects_name="Breach3"),
 ]
 EFFECTS["GD01-042"] = [
-    timed(0, effects_name="AttackActiveEnemyUnit_Lv4OrLess_Permanent"),
+    timed(0, [
+        effect(
+            type=12,
+            value=0,
+            target=0,
+            selectionMode=-1,
+            duration=0,
+            targetUnitFilterStat=3,
+            targetUnitStatCompareOp=3,
+            targetUnitStatCompareValue=2,
+        ),
+    ]),
 ]
 EFFECTS["GD01-043"] = [
     timed(0, [effect(type=12, value=1, target=1, selectionMode=1, targetUnitFilterStat=0, targetUnitStatCompareOp=3, targetUnitStatCompareValue=4, duration=1)]),
@@ -472,7 +499,13 @@ for gid in ["GD01-087", "GD01-088", "GD01-089", "GD01-091", "GD01-092", "GD01-09
     EFFECTS[gid] = [timed(5, effects_name="AddSelfToHand_OnBurst")]
 EFFECTS["GD01-088"].append(timed(18, effects_name="Draw1_OnLink"))
 EFFECTS["GD01-089"].append(timed(11, [effect(type=2, value=1, target=0)], conds=[cond(checkKind=13)]))
-EFFECTS["GD01-091"].append(timed(11, effects_name="SelfEffectDamageImmunity_OnPlayed"))
+EFFECTS["GD01-091"].append(
+    timed(
+        15,
+        [effect(type=BATTLE_DMG_IMMUNITY_LOW_AP, value=3, target=0)],
+        conds=[cond(turnCheck=0, checkKind=SOURCE_HAS_BREACH)],
+    )
+)
 EFFECTS["GD01-092"].append(timed(11, effects_name="Breach1"))
 # 【During Link】【Attack】Choose 1 enemy Unit whose Lv. <= this Unit. Deal 1 damage.
 # SourceUnitIsLinked=17, OnAttack=3, Level filter + compareTargetStatToSource
@@ -541,14 +574,37 @@ EFFECTS["GD01-105"] = [
     timed(5, effects_name="AddSelfToHand_OnBurst"),
     timed(12, [effect(type=2, value=2, target=3, selectionMode=0, duration=1)]),
 ]
-EFFECTS["GD01-106"] = [timed(12, effects_name="DeployUnitToken1_OnPlayed")]
+EFFECTS["GD01-106"] = [
+    timed(12, [effect(type=22, value=2, target=5, selectionMode=-1, deployUnitSource=0, deployCardId=1000537)]),
+]
 EFFECTS["GD01-107"] = [
     timed(5, effects_name="AddExResource1_Self"),
-    timed(12, [effect(type=42, value=1, target=5)]),
+    timed(12, [effect(type=39, value=1, target=5)]),
 ]
 EFFECTS["GD01-108"] = [timed(12, [effect(type=0, value=2, target=4, selectionMode=0, filterTargetIsBlocker=1)])]
-EFFECTS["GD01-109"] = [timed(12, effects_name="LookTop5_SelfDeck")]
-EFFECTS["GD01-110"] = main_action([timed(12, [effect(type=12, value=1, target=4, selectionMode=1, targetUnitFilterStat=3, targetUnitStatCompareOp=4, targetUnitStatCompareValue=4, duration=1)])])
+EFFECTS["GD01-109"] = [
+    timed(12, effects_name="LookTop5_SelfDeck"),
+    timed(17, effects_name="OnLook_AddOMOrGTeamUnitOrPilot1_Reveal"),
+    timed(17, effects_name="ShuffleLookedRemainderToDeckBottom"),
+]
+EFFECTS["GD01-110"] = main_action([
+    timed(
+        12,
+        [
+            effect(
+                type=12,
+                value=1,
+                target=1,
+                selectionMode=1,
+                duration=1,
+                targetUnitFilterStat=0,
+                targetUnitStatCompareOp=3,
+                targetUnitStatCompareValue=6,
+                valueCountMinUnitLevel=4,
+            ),
+        ],
+    )
+])
 EFFECTS["GD01-111"] = [
     timed(5, [effect(type=0, value=2, target=2, selectionMode=1)]),
 ] + main_action([timed(12, [effect(type=0, value=3, target=2, selectionMode=1, requireTargetDamaged=1)])])
@@ -599,7 +655,25 @@ EFFECTS["GD01-123"][1] = timed(6, [
     effect(type=10, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3),
 ])
 EFFECTS["GD01-124"].append(timed(12, [effect(type=32, value=1, target=1, selectionMode=1)]))
-EFFECTS["GD01-125"][1] = timed(6, [effect(type=6, value=1, target=5)])
+EFFECTS["GD01-125"][1] = timed(6, [
+    effect(type=6, value=1, target=5),
+    effect(
+        type=22,
+        value=1,
+        target=5,
+        selectionMode=1,
+        targetFeatureId=ZEON,
+        filterByTargetCardType=1,
+        targetCardType=0,
+        deployUnitSource=1,
+        filterDeployCandidateByFeature=1,
+        targetUnitFilterStat=3,
+        targetUnitStatCompareOp=3,
+        targetUnitStatCompareValue=4,
+        deployUnitTriggerOnPlayed=1,
+        effectActivationConditions=[cond(turnCheck=0)],
+    ),
+])
 EFFECTS["GD01-127"].append(
     timed(
         8,

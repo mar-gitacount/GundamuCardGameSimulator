@@ -646,7 +646,7 @@ public class CardGameRule
 
         // 一番上のカードを取得して、リストから消す
         int topCardId = deckList[0];
-        deckList.RemoveAt(0);
+        deckList.RemoveAt(0); 
         UpdateDeckAndTrashTexts();
 
         return topCardId;
@@ -668,7 +668,7 @@ public class CardGameRule
         resourceLevel += amount;
         if (LvText != null)
         {
-            LvText.text = "LV:"+resourceLevel.ToString();
+        LvText.text = "LV:"+resourceLevel.ToString();
         }
 
         RebuildResourceTokenVisuals();
@@ -754,7 +754,7 @@ public class CardGameRule
         Vector2 cell = shieldGrid != null ? shieldGrid.cellSize : new Vector2(48f, 26f);
         if (cardRect != null)
         {
-            cardRect.localScale = Vector3.one;
+                    cardRect.localScale = Vector3.one;
             cardRect.localRotation = Quaternion.identity;
             cardRect.sizeDelta = cell;
         }
@@ -1094,8 +1094,8 @@ public class CardGameRule
         if (cc != null)
         {
             if (revealFace)
-            {
-                cc.RevealShieldFace();
+        {
+            cc.RevealShieldFace();
             }
 
             // ゾーン UI から外し、コミット／バースト配備まで一時退避（残像バグ防止）
@@ -1857,7 +1857,7 @@ public class CardGameRule
         shieldGrid.childAlignment = TextAnchor.UpperCenter;
         shieldGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         shieldGrid.constraintCount = 1;
-        shieldGrid.startAxis = GridLayoutGroup.Axis.Vertical;
+        shieldGrid.startAxis = GridLayoutGroup.Axis.Vertical; 
         shieldGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
     }
 
@@ -1936,7 +1936,7 @@ public class CardGameRule
         }
 
         // Exポイントの増加に応じてリソースレベルも増加させる
-        AddResourcePoints(amount);
+        AddResourcePoints(amount); 
         Debug.Log($"Exリソースポイントが{amount}増加しました。現在のExポイント: {ExtraResourcePoints}");
     }
 
@@ -2879,7 +2879,7 @@ public class CardGameRule
                 continue;
             }
 
-            count++;
+                count++;
         }
 
         return count;

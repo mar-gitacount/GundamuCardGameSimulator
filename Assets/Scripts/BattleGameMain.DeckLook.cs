@@ -575,9 +575,7 @@ public partial class BattleGameMain
             featureLabel = GameLocale.T("未指定", "Any");
         }
 
-        string typeLabel = effect.filterByTargetCardType
-            ? CardTypeExtensions.GetDisplayName(effect.targetCardType)
-            : string.Empty;
+        string typeLabel = effect.FormatTargetCardTypeFilterLabel();
         string filterLabel = string.IsNullOrEmpty(typeLabel)
             ? featureLabel
             : $"{typeLabel}・{featureLabel}";
@@ -712,9 +710,12 @@ public partial class BattleGameMain
             featureLabel = GameLocale.T("特徴なし", "Any trait");
         }
 
-        string typeLabel = effect.filterByTargetCardType
-            ? CardTypeExtensions.GetDisplayName(effect.targetCardType)
-            : GameLocale.T("ユニット", "Unit");
+        string typeLabel = effect.FormatTargetCardTypeFilterLabel();
+        if (string.IsNullOrEmpty(typeLabel))
+        {
+            typeLabel = GameLocale.T("ユニット", "Unit");
+        }
+
         string statLabel = effect.FormatTargetUnitFilterDescription();
         if (string.IsNullOrEmpty(statLabel))
         {

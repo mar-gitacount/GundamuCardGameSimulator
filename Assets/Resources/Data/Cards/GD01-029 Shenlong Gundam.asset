@@ -184,7 +184,7 @@ MonoBehaviour:
   - pilotCardId: 0
     linkPilotIds:
     - {fileID: 11400000, guid: cd77170104a045a88b5bb2ab504f39ef, type: 2}
-    linkPilotIdIds: 
+    linkPilotIdIds: 28000000
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0

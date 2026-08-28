@@ -310,6 +310,11 @@ public static class EffectActivationEvaluator
             return EvaluateSourceHasFeature(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceHasBreach)
+        {
+            return EvaluateSourceHasBreach(ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.DestroyedByBattleDamage)
         {
             return ctx.DestroyedByBattleDamage;
@@ -946,6 +951,17 @@ public static class EffectActivationEvaluator
         }
 
         return ctx.SourceCard.Data.HasAnyFeature(required);
+    }
+
+    private static bool EvaluateSourceHasBreach(EffectActivationContext ctx)
+    {
+        CardController unit = ctx?.SourceCard;
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        return unit.GetBreachAmount() > 0;
     }
 
     /// <summary>REST 判定用。リンク条件のユニット解決に加え、Base 自身も対象にする。</summary>

@@ -40,7 +40,7 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 8
+    - type: 22
       value: 1
       target: 5
       selectionMode: 1
@@ -73,7 +73,7 @@ MonoBehaviour:
       deployUnitSource: 1
       deployCardId: 0
       filterByDeployCardId: 0
-      filterDeployCandidateByFeature: 0
+      filterDeployCandidateByFeature: 1
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
       deployUnitPayCost: 0
