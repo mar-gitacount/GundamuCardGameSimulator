@@ -173,7 +173,12 @@ public partial class BattleGameMain
     }
 
     /// <summary>手札からの配備用。CanPlayCard とリソース消費をまとめて行う（バースト配備は使わない）。</summary>
-    private bool TryPayHandDeployCost(Gundam2024RuleScript.PlayerSide side, CardController card, int exToUse = 0)
+    private bool TryPayHandDeployCost(
+        Gundam2024RuleScript.PlayerSide side,
+        CardController card,
+        int exToUse = 0,
+        int? levelOverride = null,
+        int? costOverride = null)
     {
         if (card == null || card.Data == null || gundamRule == null)
         {
@@ -185,8 +190,8 @@ public partial class BattleGameMain
             return true;
         }
 
-        int requiredLevel = card.CurrentLevel;
-        int cost = card.CurrentCost;
+        int requiredLevel = levelOverride ?? card.CurrentLevel;
+        int cost = costOverride ?? card.CurrentCost;
         if (!gundamRule.CanPlayCard(side, requiredLevel, cost, exToUse))
         {
             Gundam2024RuleScript.PlayerState state = GetRuleState(side);

@@ -103,7 +103,7 @@ MonoBehaviour:
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
-      filterTargetIsBlocker: 0
+      filterTargetIsBlocker: 1
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -117,6 +117,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

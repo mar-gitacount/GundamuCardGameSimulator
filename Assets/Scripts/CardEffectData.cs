@@ -263,7 +263,12 @@ public enum EffectType
     /// トラッシュから value 枚を選び持ち主の山札に戻してシャッフルする（SelfPlayer / EnemyPlayer）。
     /// filterByTargetCardType 等で候補を絞れる。requireExactExileCount で枚数不足時はスキップ可。
     /// </summary>
-    ReturnFromTrashToDeckAndShuffle
+    ReturnFromTrashToDeckAndShuffle,
+    /// <summary>
+    /// 破壊されたユニットに搭乗していたパイロットをオーナーの手札へ戻す（ユニット本体は破壊のまま）。
+    /// OnDestroyed 専用。SendCardToTrash で切り離したパイロットを対象とする。
+    /// </summary>
+    ReturnMountedPilotToHand
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

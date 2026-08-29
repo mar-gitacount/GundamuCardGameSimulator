@@ -203,6 +203,7 @@ NEO = 6
 TSA = 8
 OM = 9
 LINKED = 17
+DESTROYED_LINKED = 32
 NEWTYPE = 19
 ACAD = 23
 WBT = 33
@@ -219,7 +220,7 @@ BLOCKER = {}
 REPAIR = {}
 
 SKIP = {
-    "GD01-002", "GD01-006", "GD01-008", "GD01-015", "GD01-016", "GD01-020", "GD01-023",
+    "GD01-006", "GD01-008", "GD01-015", "GD01-016", "GD01-020", "GD01-023",
     "GD01-025", "GD01-030", "GD01-049", "GD01-054", "GD01-065", "GD01-066", "GD01-068",
     "GD01-073", "GD01-086", "GD01-090", "GD01-100",
 }
@@ -231,6 +232,10 @@ ALL = [f"GD01-{i:03d}" for i in range(1, 131) if f"GD01-{i:03d}" not in SKIP]
 EFFECTS["GD01-001"] = [
     timed(0, effects_name="SyncTurnEndRepairFromCalamityWarUnitTokens"),
     timed(15, [effect(type=1, value=1, target=5)], conds=[cond(boardSide=0, checkKind=1, minimumCount=3)]),
+]
+EFFECTS["GD01-002"] = [
+    timed(0, effects_name="HandDeploy_OptionalDestroyLinkedUnicornModeLv5_PlayAsZeroCostLevel"),
+    timed(3, [effect(type=10, value=1, target=2, selectionMode=1)]),
 ]
 EFFECTS["GD01-003"] = [
     timed(
@@ -254,10 +259,10 @@ EFFECTS["GD01-004"] = [
 ]
 REPAIR["GD01-004"] = 1
 EFFECTS["GD01-005"] = [
-    timed(18, [
-        effect(type=25, value=1, target=0),
+    timed(9, [
+        effect(type=54, value=1, target=0),
         effect(type=24, value=1, target=5, selectionMode=1),
-    ], conds=[cond(checkKind=25)]),
+    ], conds=[cond(checkKind=DESTROYED_LINKED)]),
 ]
 EFFECTS["GD01-007"] = [
     timed(9, [effect(type=1, value=1, target=5)], conds=[cond(boardSide=0, checkKind=0, featureId=OZ, minimumCount=2)]),

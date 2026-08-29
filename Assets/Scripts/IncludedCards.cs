@@ -228,6 +228,11 @@ public class IncludedCards : MonoBehaviour
 
 public List<CardData> GetSelectedCards(List<CardData> cards)
 {
+        if (!isActiveAndEnabled)
+        {
+            return cards ?? new List<CardData>();
+        }
+
         if (cards == null)
         {
             return new List<CardData>();

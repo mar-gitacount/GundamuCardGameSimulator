@@ -105,6 +105,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -137,9 +138,7 @@ MonoBehaviour:
       targetFeature: {fileID: 0}
       targetFeatureId: 5
       targetFeatures: []
-      targetFeatureIds:
-      - 5
-      - 6
+      targetFeatureIds: 
       targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
@@ -178,6 +177,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -241,6 +241,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

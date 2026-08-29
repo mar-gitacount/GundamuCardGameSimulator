@@ -97,6 +97,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -160,6 +161,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -231,6 +233,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -294,6 +297,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

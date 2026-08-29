@@ -298,6 +298,13 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.ReturnMountedPilotToHand)
+        {
+            ApplyReturnMountedPilotToHandEffect(sourceCard, ownerType);
+            onChainContinue?.Invoke();
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.DeployBase
             && effect.RequiresDeployBaseFromTrashSelection())
         {
