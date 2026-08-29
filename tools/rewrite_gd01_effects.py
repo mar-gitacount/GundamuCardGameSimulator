@@ -514,6 +514,8 @@ EFFECTS["GD01-082"] = [
 # Pilots
 for gid in ["GD01-087", "GD01-088", "GD01-089", "GD01-091", "GD01-092", "GD01-093", "GD01-094", "GD01-095", "GD01-096", "GD01-097", "GD01-098"]:
     EFFECTS[gid] = [timed(5, effects_name="AddSelfToHand_OnBurst")]
+# 【Burst】手札へ / 搭乗中・青ユニットなら《リペア1》（既存リペアと合算）
+EFFECTS["GD01-087"].append(timed(15, effects_name="GrantRepair1_WhileMountedOnBlueHost"))
 EFFECTS["GD01-088"].append(timed(18, effects_name="Draw1_OnLink"))
 EFFECTS["GD01-089"].append(timed(11, [effect(type=2, value=1, target=0)], conds=[cond(checkKind=13)]))
 EFFECTS["GD01-091"].append(

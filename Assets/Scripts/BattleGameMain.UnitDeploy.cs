@@ -2081,13 +2081,14 @@ public partial class BattleGameMain
         if (_onAttackPreCombatCompletedAttacker == attacker)
         {
             AfterAllyGrantAttackFlag();
-            return isOnActionPopupOpen;
+            // 同期/onResolved 済み、または UI 表示中。呼び出し元は 8116 以降に進まない。
+            return true;
         }
 
         if (HasOnAttackPreCombatEffectsBeenApplied(attacker))
         {
             AfterPreCombatOnAttackChain();
-            return isOnActionPopupOpen;
+            return true;
         }
 
         if (TryBeginOnAttackPreCombatEffectChain(attacker, attackerOwner, AfterPreCombatOnAttackChain))
@@ -2096,7 +2097,7 @@ public partial class BattleGameMain
         }
 
         AfterPreCombatOnAttackChain();
-        return isOnActionPopupOpen;
+        return true;
     }
 
     /// <summary>攻撃対象確定後：OnAttack 効果 UI → ユニット戦へ。</summary>
@@ -2205,13 +2206,14 @@ public partial class BattleGameMain
         Debug.Log(
             $"[AttackFlow] OnAttack 完了 → ブロック→アクションへ "
             + $"attacker:{attacker.Data?.cardName}");
-        // skipAttackedSidePanelPause=false: ブロック UI／オンラインブロック待ちをスキップしない
+        // 戦前 OnAttack は解決済み。宣言→ブロック→OnAction→戦闘のみ再開（先頭からの再入で二重処理しない）。
         TryUnitVsUnitAttack(
             attacker,
             defender,
             attackerOwner,
             defenderOwner,
             skipOnActionPause,
-            skipAttackedSidePanelPause: false);
+            skipAttackedSidePanelPause: false,
+            resumeAfterPreCombatOnAttack: true);
     }
 }

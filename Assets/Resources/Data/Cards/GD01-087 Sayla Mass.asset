@@ -43,6 +43,14 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 15
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: GrantRepair1_WhileMountedOnBlueHost
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   - {fileID: 11400000, guid: f0c82074998e4041ad8df737c3b47303, type: 2}

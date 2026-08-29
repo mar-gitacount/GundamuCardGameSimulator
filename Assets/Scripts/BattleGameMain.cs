@@ -415,6 +415,7 @@ public partial class BattleGameMain : MonoBehaviour
             attackFlowAfterBlockPassCoroutine = null;
         }
 
+        isAttackedSidePanelOpen = false;
         _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
     }
 
@@ -5780,8 +5781,10 @@ public partial class BattleGameMain : MonoBehaviour
         if (IsValidEnemyUnitAttackTarget(pendingUnitAttackAttacker, clicked, attackerOwner))
         {
             PlayerType defenderOwner = ResolveCardOwner(clicked.transform);
+            CardController attacker = pendingUnitAttackAttacker;
+            pendingUnitAttackAttacker = null;
             BeginUnitAttackAfterTargetDeclared(
-                pendingUnitAttackAttacker,
+                attacker,
                 clicked,
                 attackerOwner,
                 defenderOwner);
@@ -5892,10 +5895,10 @@ public partial class BattleGameMain : MonoBehaviour
             CardController selectedUnit = unit;
             btn.onClick.AddListener(() =>
             {
-                pendingUnitAttackAttacker = attacker;
                 Destroy(root);
 
                 PlayerType defenderOwner = ResolveCardOwner(selectedUnit.transform);
+                pendingUnitAttackAttacker = null;
                 BeginUnitAttackAfterTargetDeclared(
                     attacker,
                     selectedUnit,
@@ -8024,20 +8027,24 @@ public partial class BattleGameMain : MonoBehaviour
         bool skipOnActionPause = false,
         bool skipAttackedSidePanelPause = false,
         bool skipOnlineBlockPhase = false,
-        int onlineChosenBlockerInstanceId = 0)
+        int onlineChosenBlockerInstanceId = 0,
+        bool resumeAfterPreCombatOnAttack = false)
     {
         if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
         {
+            Debug.Log("[UnitAttack] Paused — attacked-side block panel is still open.");
             return;
         }
 
-        if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
+        if (isActionThinkPauseOpen && !skipOnActionPause)
         {
+            Debug.Log("[UnitAttack] Paused — action think panel is still open.");
             return;
         }
 
         if (currentPhase != BattlePhase.MainPhase || !IsActingSideForUi(attackerOwner))
         {
+            Debug.Log("[UnitAttack] Cancel — not main phase or not acting side.");
             return;
         }
 
@@ -8090,7 +8097,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         // 攻撃前 OnAttack（Draw / トラッシュ返却等）を1回だけ解決してから宣言する
-        if (!HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        if (!resumeAfterPreCombatOnAttack && !HasOnAttackPreCombatEffectsBeenApplied(attacker))
         {
             ResetOnAttackTrashReturnSession();
             if (TryOpenOnAttackEffectSelectionBeforeCombat(
@@ -8132,21 +8139,35 @@ public partial class BattleGameMain : MonoBehaviour
         // 敵 AI のスコア中止は TryEnemyShieldAttacks およびシールド→ブロック直前のみ（バトル開始後は判定しない。宣言前のみ有効）。
 
         // 攻撃宣言後に、OnAttackの非戦闘効果（GrantAttackFlag 等）→対象選択(デバフ等)を行う。
-        if (_onAttackPreCombatCompletedAttacker != attacker)
+        if (!resumeAfterPreCombatOnAttack)
         {
-            TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, null);
-            _onAttackPreCombatCompletedAttacker = attacker;
-        }
+            if (_onAttackPreCombatCompletedAttacker != attacker)
+            {
+                TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, null);
+                _onAttackPreCombatCompletedAttacker = attacker;
+            }
 
-        if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
+            if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
+            {
+                if (TryOpenOnAttackEnemySelectionPanel(
+                        attacker,
+                        attackerOwner,
+                        defender,
+                        () => ContinueUnitAttackAfterOnAttackEffects(
+                            attacker,
+                            attackerOwner,
+                            defender,
+                            skipOnActionPause)))
+                {
+                    return;
+                }
+
+                pendingOnAttackEffectResolvedAttacker = attacker;
+            }
+        }
+        else if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
         {
-            ResumeUnitVsUnitAttackAfterOnAttackPreCombat(
-                attacker,
-                attackerOwner,
-                defender,
-                skipOnActionPause,
-                skipAttackedSidePanelPause);
-            return;
+            pendingOnAttackEffectResolvedAttacker = attacker;
         }
 
         if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !attackerIgnoresBlock)
@@ -8318,7 +8339,25 @@ public partial class BattleGameMain : MonoBehaviour
                         return;
                     }
 
-                    TryResumeUnitVsUnitAttackAfterOnAction(true, true);
+                    CardController combatAttacker = attackFlowAttackerUnit != null
+                        ? attackFlowAttackerUnit
+                        : attacker;
+                    CardController combatDefender = attackFlowDeclaredDefenderUnit != null
+                        ? attackFlowDeclaredDefenderUnit
+                        : defender;
+                    if (!IsUnitAliveOnAnyDeployField(combatAttacker)
+                        || !IsUnitAliveOnAnyDeployField(combatDefender))
+                    {
+                        Debug.Log("[UnitAttack] Attacker or defender gone after OnAction — cancel.");
+                        CancelPendingUnitAttackFlow();
+                        return;
+                    }
+
+                    ExecuteUnitVsUnitDeclaredCombat(
+                        combatAttacker,
+                        combatDefender,
+                        attackFlowAttackerOwner,
+                        ResolveCardOwner(combatDefender.transform));
                 },
                 attacker))
         {
