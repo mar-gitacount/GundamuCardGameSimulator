@@ -20,6 +20,8 @@ public partial class BattleGameMain
         public CardController Source;
         public List<TimedEffectData> Blocks;
         public bool IsPilot;
+        /// <summary>OnAttack 等で効果を適用できないとき false（UI グレーアウト）。</summary>
+        public bool Selectable = true;
     }
 
     private sealed class UnitPilotEffectOrderChoiceState
@@ -45,7 +47,8 @@ public partial class BattleGameMain
         Action<List<UnitPilotEffectOrderEntry>> onResolved,
         bool autoPilotFirst = false,
         string titleJa = null,
-        string titleEn = null)
+        string titleEn = null,
+        Func<CardController, List<TimedEffectData>, bool> entrySelectable = null)
     {
         List<TimedEffectData> safeUnit = unitBlocks ?? new List<TimedEffectData>();
         List<TimedEffectData> safePilot = pilotBlocks ?? new List<TimedEffectData>();
@@ -60,13 +63,20 @@ public partial class BattleGameMain
 
         if (hasUnit && !hasPilot)
         {
+            if (entrySelectable != null && !entrySelectable(unitCard, safeUnit))
+            {
+                onResolved?.Invoke(new List<UnitPilotEffectOrderEntry>());
+                return;
+            }
+
             onResolved?.Invoke(new List<UnitPilotEffectOrderEntry>
             {
                 new UnitPilotEffectOrderEntry
                 {
                     Source = unitCard,
                     Blocks = safeUnit,
-                    IsPilot = false
+                    IsPilot = false,
+                    Selectable = true
                 }
             });
             return;
@@ -74,13 +84,20 @@ public partial class BattleGameMain
 
         if (!hasUnit && hasPilot)
         {
+            if (entrySelectable != null && !entrySelectable(pilotCard, safePilot))
+            {
+                onResolved?.Invoke(new List<UnitPilotEffectOrderEntry>());
+                return;
+            }
+
             onResolved?.Invoke(new List<UnitPilotEffectOrderEntry>
             {
                 new UnitPilotEffectOrderEntry
                 {
                     Source = pilotCard,
                     Blocks = safePilot,
-                    IsPilot = true
+                    IsPilot = true,
+                    Selectable = true
                 }
             });
             return;
@@ -95,7 +112,8 @@ public partial class BattleGameMain
                 safeUnit,
                 safePilot,
                 orderHintHostData,
-                autoPilotFirst));
+                autoPilotFirst,
+                entrySelectable));
             return;
         }
 
@@ -106,7 +124,8 @@ public partial class BattleGameMain
             safePilot,
             onResolved,
             titleJa,
-            titleEn);
+            titleEn,
+            entrySelectable);
     }
 
     private static List<UnitPilotEffectOrderEntry> BuildAutoUnitPilotEffectOrder(
@@ -115,7 +134,8 @@ public partial class BattleGameMain
         List<TimedEffectData> unitBlocks,
         List<TimedEffectData> pilotBlocks,
         CardData orderHintHostData,
-        bool autoPilotFirst = false)
+        bool autoPilotFirst = false,
+        Func<CardController, List<TimedEffectData>, bool> entrySelectable = null)
     {
         bool unitFirst = !autoPilotFirst;
         if (!autoPilotFirst)
@@ -137,18 +157,32 @@ public partial class BattleGameMain
         {
             Source = unitCard,
             Blocks = unitBlocks,
-            IsPilot = false
+            IsPilot = false,
+            Selectable = entrySelectable == null || entrySelectable(unitCard, unitBlocks)
         };
         var pilotEntry = new UnitPilotEffectOrderEntry
         {
             Source = pilotCard,
             Blocks = pilotBlocks,
-            IsPilot = true
+            IsPilot = true,
+            Selectable = entrySelectable == null || entrySelectable(pilotCard, pilotBlocks)
         };
 
-        return unitFirst
+        var ordered = unitFirst
             ? new List<UnitPilotEffectOrderEntry> { unitEntry, pilotEntry }
             : new List<UnitPilotEffectOrderEntry> { pilotEntry, unitEntry };
+
+        List<UnitPilotEffectOrderEntry> filtered = new List<UnitPilotEffectOrderEntry>();
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            UnitPilotEffectOrderEntry entry = ordered[i];
+            if (entry.Blocks != null && entry.Blocks.Count > 0 && entry.Selectable)
+            {
+                filtered.Add(entry);
+            }
+        }
+
+        return filtered;
     }
 
     /// <summary>ブロック内に optional でない効果が1つでもあれば強制あり。</summary>
@@ -188,7 +222,8 @@ public partial class BattleGameMain
         List<TimedEffectData> pilotBlocks,
         Action<List<UnitPilotEffectOrderEntry>> onResolved,
         string titleJa = null,
-        string titleEn = null)
+        string titleEn = null,
+        Func<CardController, List<TimedEffectData>, bool> entrySelectable = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null || CardImagePrefab == null)
@@ -198,28 +233,46 @@ public partial class BattleGameMain
                 pilotCard,
                 unitBlocks,
                 pilotBlocks,
-                unitCard != null ? unitCard.Data : null));
+                unitCard != null ? unitCard.Data : null,
+                false,
+                entrySelectable));
             return;
         }
 
         DestroyActiveOnActionPopupIfAny();
 
         var state = new UnitPilotEffectOrderChoiceState();
-        state.Candidates.Add(new UnitPilotEffectOrderEntry
+        var unitEntry = new UnitPilotEffectOrderEntry
         {
             Source = unitCard,
             Blocks = unitBlocks,
-            IsPilot = false
-        });
-        state.Candidates.Add(new UnitPilotEffectOrderEntry
+            IsPilot = false,
+            Selectable = entrySelectable == null || entrySelectable(unitCard, unitBlocks)
+        };
+        var pilotEntry = new UnitPilotEffectOrderEntry
         {
             Source = pilotCard,
             Blocks = pilotBlocks,
-            IsPilot = true
-        });
-        state.HasMandatory =
-            TimedBlocksContainMandatoryEffect(unitBlocks)
-            || TimedBlocksContainMandatoryEffect(pilotBlocks);
+            IsPilot = true,
+            Selectable = entrySelectable == null || entrySelectable(pilotCard, pilotBlocks)
+        };
+        state.Candidates.Add(unitEntry);
+        state.Candidates.Add(pilotEntry);
+        state.HasMandatory = false;
+        for (int ci = 0; ci < state.Candidates.Count; ci++)
+        {
+            UnitPilotEffectOrderEntry candidate = state.Candidates[ci];
+            if (!candidate.Selectable)
+            {
+                continue;
+            }
+
+            if (TimedBlocksContainMandatoryEffect(candidate.Blocks))
+            {
+                state.HasMandatory = true;
+                break;
+            }
+        }
 
         GameObject root = new GameObject(
             "UnitPilotEffectOrder",
@@ -282,6 +335,7 @@ public partial class BattleGameMain
         {
             UnitPilotEffectOrderEntry entry = state.Candidates[i];
             CardData data = entry.Source != null ? entry.Source.Data : null;
+            bool selectable = entry.Selectable;
             if (data == null)
             {
                 cardRoots.Add(null);
@@ -317,19 +371,28 @@ public partial class BattleGameMain
             role.alignment = TextAlignmentOptions.Center;
             role.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -8f);
 
-            bool mandatory = TimedBlocksContainMandatoryEffect(entry.Blocks);
+            bool mandatory = selectable && TimedBlocksContainMandatoryEffect(entry.Blocks);
             TextMeshProUGUI forceLabel = cardItem.CreateChildTextCustom(
                 "ForceLabel",
                 UIAnchor.TopCenter,
                 170,
                 24);
-            forceLabel.SetLocalizedText(
-                mandatory ? "強制" : "任意",
-                mandatory ? "Mandatory" : "Optional");
-            forceLabel.fontSize = 14;
-            forceLabel.color = mandatory
-                ? new Color(1f, 0.45f, 0.4f, 1f)
-                : new Color(0.55f, 0.9f, 0.6f, 1f);
+            if (!selectable)
+            {
+                forceLabel.SetLocalizedText("適用不可", "Unavailable");
+                forceLabel.fontSize = 14;
+                forceLabel.color = new Color(0.55f, 0.55f, 0.55f, 1f);
+            }
+            else
+            {
+                forceLabel.SetLocalizedText(
+                    mandatory ? "強制" : "任意",
+                    mandatory ? "Mandatory" : "Optional");
+                forceLabel.fontSize = 14;
+                forceLabel.color = mandatory
+                    ? new Color(1f, 0.45f, 0.4f, 1f)
+                    : new Color(0.55f, 0.9f, 0.6f, 1f);
+            }
             forceLabel.alignment = TextAlignmentOptions.Center;
             forceLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 8f);
 
@@ -340,12 +403,29 @@ public partial class BattleGameMain
             }
 
             int capturedIndex = i;
+            btn.interactable = selectable;
             btn.onClick.AddListener(() =>
             {
+                if (!state.Candidates[capturedIndex].Selectable)
+                {
+                    return;
+                }
+
                 ToggleUnitPilotEffectOrderSelection(state, capturedIndex);
                 RefreshUnitPilotEffectOrderVisuals(cardRoots, state);
                 refreshButtons();
             });
+
+            if (!selectable)
+            {
+                CanvasGroup gray = cardItem.GetComponent<CanvasGroup>();
+                if (gray == null)
+                {
+                    gray = cardItem.AddComponent<CanvasGroup>();
+                }
+
+                gray.alpha = 0.38f;
+            }
         }
 
         okBtn = root.CreateChildButton("OK");
@@ -449,6 +529,12 @@ public partial class BattleGameMain
             return;
         }
 
+        UnitPilotEffectOrderEntry entry = state.Candidates[candidateIndex];
+        if (!entry.Selectable)
+        {
+            return;
+        }
+
         int existing = state.SelectedOrderIndices.IndexOf(candidateIndex);
         if (existing >= 0)
         {
@@ -481,7 +567,13 @@ public partial class BattleGameMain
                 continue;
             }
 
-            result.Add(state.Candidates[idx]);
+            UnitPilotEffectOrderEntry entry = state.Candidates[idx];
+            if (!entry.Selectable)
+            {
+                continue;
+            }
+
+            result.Add(entry);
         }
 
         return result;
@@ -504,7 +596,7 @@ public partial class BattleGameMain
         for (int i = 0; i < state.Candidates.Count; i++)
         {
             UnitPilotEffectOrderEntry entry = state.Candidates[i];
-            if (!TimedBlocksContainMandatoryEffect(entry.Blocks))
+            if (!TimedBlocksContainMandatoryEffect(entry.Blocks) || !entry.Selectable)
             {
                 continue;
             }

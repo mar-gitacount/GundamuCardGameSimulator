@@ -130,6 +130,7 @@ def effect(**kw):
         compareTargetStatToSource=0,
         requireChainObservationContext=0,
         abortRemainingChainOnSkip=0,
+        requireExactExileCount=0,
         revealDiscardedToOpponent=0,
         forbidSkipHandDiscard=0,
         revealDrawnToPlayer=0,
@@ -201,6 +202,7 @@ ZEON = 5
 NEO = 6
 TSA = 8
 OM = 9
+LINKED = 17
 NEWTYPE = 19
 ACAD = 23
 WBT = 33
@@ -231,11 +233,21 @@ EFFECTS["GD01-001"] = [
     timed(15, [effect(type=1, value=1, target=5)], conds=[cond(boardSide=0, checkKind=1, minimumCount=3)]),
 ]
 EFFECTS["GD01-003"] = [
-    timed(3, [
-        effect(type=20, value=12, target=5, selectionMode=1),
-        effect(type=35, value=1, target=0),
-        effect(type=47, value=1, target=0, duration=1),
-    ], conds=[cond(checkKind=25)]),
+    timed(
+        3,
+        [
+            effect(
+                type=53,
+                value=12,
+                target=5,
+                selectionMode=1,
+                abortRemainingChainOnSkip=1,
+            ),
+            effect(type=25, value=1, target=0),
+            effect(type=47, value=1, target=0, duration=1),
+        ],
+        conds=[cond(checkKind=LINKED)],
+    ),
 ]
 EFFECTS["GD01-004"] = [
     timed(15, [effect(type=10, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=2)]),

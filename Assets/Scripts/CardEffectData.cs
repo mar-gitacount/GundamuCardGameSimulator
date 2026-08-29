@@ -258,7 +258,12 @@ public enum EffectType
     /// AP が value 以下の敵ユニットからの戦闘ダメージを受けない。
     /// timed.activationConditions に turnCheck:OwnerTurn / checkKind:SourceHasBreach を推奨。
     /// </summary>
-    BattleDamageImmunityFromLowApEnemy
+    BattleDamageImmunityFromLowApEnemy,
+    /// <summary>
+    /// トラッシュから value 枚を選び持ち主の山札に戻してシャッフルする（SelfPlayer / EnemyPlayer）。
+    /// filterByTargetCardType 等で候補を絞れる。requireExactExileCount で枚数不足時はスキップ可。
+    /// </summary>
+    ReturnFromTrashToDeckAndShuffle
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

@@ -382,6 +382,19 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ClearAttackFlowContext()
     {
+        ClearAttackFlowContextCore();
+    }
+
+    /// <summary>ユニット／シールド攻撃の正常終了：Deferred Activate → セッションリセット → フローコンテキスト消去。</summary>
+    private void FinishUnitAttackSessionAndClearFlowContext()
+    {
+        ApplyDeferredOnAttackTrashReturnActivate();
+        ResetOnAttackTrashReturnSession();
+        ClearAttackFlowContextCore();
+    }
+
+    private void ClearAttackFlowContextCore()
+    {
         attackFlowStrikeKind = AttackFlowStrikeKind.None;
         attackFlowAttackerUnit = null;
         attackFlowAttackerOwner = PlayerType.Player;
@@ -402,7 +415,6 @@ public partial class BattleGameMain : MonoBehaviour
             attackFlowAfterBlockPassCoroutine = null;
         }
 
-        ResetOnAttackPreCombatEffectsAppliedGuard();
         _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
     }
 
@@ -678,7 +690,7 @@ public partial class BattleGameMain : MonoBehaviour
         shieldStrikeAbortedAfterBlockInterrupt = false;
         attackFlowBlockRedirectCombatVoided = false;
         FinishDeferredShieldAttackBlockFlow();
-        ClearAttackFlowContext();
+        FinishUnitAttackSessionAndClearFlowContext();
     }
 
     /// <summary>OnAction 等でブロッカーが消えた時点で交換戦闘を永久に禁止（同一攻撃内）。</summary>
@@ -5090,7 +5102,7 @@ public partial class BattleGameMain : MonoBehaviour
         FinishDeferredShieldAttackBlockFlow();
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
-        ClearOnAttackPreCombatCompletedForNewAttack();
+        ResetOnAttackTrashReturnSession();
         blockExchangeCancelledForCurrentAttack = false;
         shieldStrikeAbortedAfterBlockInterrupt = false;
         attackFlowBlockRedirectCombatVoided = false;
@@ -5632,7 +5644,7 @@ public partial class BattleGameMain : MonoBehaviour
         DumpTurnResourceUsageLogs(attackerOwner, "unit vs unit attack");
         SyncAllResourceViewsFromRule();
         LogAttackPostBattleFieldCompact(attacker, attackerOwner);
-        ClearAttackFlowContext();
+        FinishUnitAttackSessionAndClearFlowContext();
     }
 
     private bool IsUnitAliveOnAnyDeployField(CardController c)
@@ -5728,7 +5740,6 @@ public partial class BattleGameMain : MonoBehaviour
         if (IsValidEnemyUnitAttackTarget(pendingUnitAttackAttacker, clicked, attackerOwner))
         {
             PlayerType defenderOwner = ResolveCardOwner(clicked.transform);
-            CommitUnitAttackDeclaration(pendingUnitAttackAttacker, attackerOwner);
             BeginUnitAttackAfterTargetDeclared(
                 pendingUnitAttackAttacker,
                 clicked,
@@ -5845,7 +5856,6 @@ public partial class BattleGameMain : MonoBehaviour
                 Destroy(root);
 
                 PlayerType defenderOwner = ResolveCardOwner(selectedUnit.transform);
-                CommitUnitAttackDeclaration(attacker, attackerOwner);
                 BeginUnitAttackAfterTargetDeclared(
                     attacker,
                     selectedUnit,
@@ -7218,6 +7228,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (!skipOnAttackSelection)
         {
+            if (!HasOnAttackPreCombatEffectsBeenApplied(attacker))
+            {
+                ResetOnAttackTrashReturnSession();
+            }
+
             void ProceedShieldAttack()
             {
                 pendingOnAttackEffectResolvedAttacker = attacker;
@@ -7568,7 +7583,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         SyncAllResourceViewsFromRule();
-        ClearAttackFlowContext();
+        FinishUnitAttackSessionAndClearFlowContext();
     }
 
     private IEnumerator FinishUnitShieldAttackAfterBreakCoroutine(
@@ -7870,8 +7885,6 @@ public partial class BattleGameMain : MonoBehaviour
         SetUnitRestAndTriggerEffects(attacker, attackerOwner);
         SyncOnlineRestFromAttackAuthority(attacker);
         ClearOnAttackPreCombatResolvedState();
-        ClearOnAttackPreCombatCompletedForNewAttack();
-        pendingOnAttackEffectResolvedAttacker = null;
         Debug.Log($"[AttackDeclare] {attacker.Data.cardName} attack declared — REST + attack right consumed.");
     }
 
@@ -8036,6 +8049,24 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // 攻撃前 OnAttack（Draw / トラッシュ返却等）を1回だけ解決してから宣言する
+        if (!HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        {
+            ResetOnAttackTrashReturnSession();
+            if (TryOpenOnAttackEffectSelectionBeforeCombat(
+                attacker,
+                attackerOwner,
+                defender,
+                () => ContinueUnitAttackAfterOnAttackEffects(
+                    attacker,
+                    attackerOwner,
+                    defender,
+                    skipOnActionPause)))
+            {
+                return;
+            }
+        }
+
         bool attackerIgnoresBlock = AttackerIgnoresBlockRedirect(attacker);
         if (attackerIgnoresBlock)
         {
@@ -8067,7 +8098,7 @@ public partial class BattleGameMain : MonoBehaviour
             _onAttackPreCombatCompletedAttacker = attacker;
         }
 
-        if (pendingOnAttackEffectResolvedAttacker != attacker)
+        if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
         {
             ResumeUnitVsUnitAttackAfterOnAttackPreCombat(
                 attacker,
@@ -8594,7 +8625,7 @@ public partial class BattleGameMain : MonoBehaviour
             blockerHpAfterExchange);
         LogAttackPostBattleFieldCompact(attacker, attackerOwner);
         FinishDeferredShieldAttackBlockFlow();
-        ClearAttackFlowContext();
+        FinishUnitAttackSessionAndClearFlowContext();
     }
 
     /// <summary>ユニット対ユニット攻防の処理が終わった直後の味方・敵フィールド 1 行ずつ（<c>[AttackPostBattle]</c>）。</summary>
@@ -10204,6 +10235,16 @@ public partial class BattleGameMain : MonoBehaviour
                 // 非戦闘 OnAttack（除外→シールドダメージ等）はプレコンバットチェーン専任。
                 // ここでの再適用は観測リークにより「除外なしダメージ」が他ユニット／翌ターンへ残る。
                 if (timing == EffectTiming.OnAttack && IsOnAttackNonCombatEffect(effect))
+                {
+                    continue;
+                }
+
+                // トラッシュ返却チェーン（Return→Activate→FirstStrike）は専用経路のみ。
+                if (timing == EffectTiming.OnAttack
+                    && TimedBlockContainsReturnFromTrash(timed)
+                    && (effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
+                        || effect.type == EffectType.Activate
+                        || effect.type == EffectType.FirstStrike))
                 {
                     continue;
                 }
@@ -12189,6 +12230,11 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyExileFromTrashEffect(sourceCard, ownerType, effect);
                 break;
 
+            case EffectType.ReturnFromTrashToDeckAndShuffle:
+                Debug.LogWarning(
+                    $"[Effect] ReturnFromTrashToDeckAndShuffle は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
+                break;
+
             case EffectType.AddObservedToHandFromTrash:
                 ApplyAddObservedToHandFromTrashEffect(sourceCard, ownerType, effect);
                 break;
@@ -13468,6 +13514,8 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.MillTopToTrash
             || effect.type == EffectType.ExileFromDeck
             || effect.type == EffectType.ExileFromTrash
+            || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
+            || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.AttackActiveEnemyUnit
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand
@@ -14053,6 +14101,7 @@ public partial class BattleGameMain : MonoBehaviour
                 || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.ExileFromDeck
                 || eff.type == EffectType.ExileFromTrash
+                || eff.type == EffectType.ReturnFromTrashToDeckAndShuffle
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit)
             {

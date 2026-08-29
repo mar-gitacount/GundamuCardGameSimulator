@@ -749,6 +749,394 @@ public partial class BattleGameMain
         (onSkipped ?? onComplete)?.Invoke();
     }
 
+    private void ApplyReturnFromTrashToDeckAndShuffleEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        Action onComplete = null,
+        Action onSkipped = null)
+    {
+        int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+        if (magnitude <= 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        CardGameRule trashRule = ResolveTrashRuleForEffect(ownerType, effect);
+        if (trashRule == null)
+        {
+            (onSkipped ?? onComplete)?.Invoke();
+            return;
+        }
+
+        PlayerType trashOwner = effect != null && effect.target == TargetType.EnemyPlayer
+            ? (ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
+            : ownerType;
+        string trashLabel = FormatTrashOwnerLabel(trashOwner);
+        List<TrashExileCandidate> candidates = CollectTrashExileCandidates(trashRule, effect);
+        if (candidates.Count == 0)
+        {
+            Debug.Log(
+                $"[Effect] ReturnFromTrashToDeck skipped — no candidates by cardId:{sourceCard?.Data?.id}");
+            (onSkipped ?? onComplete)?.Invoke();
+            return;
+        }
+
+        if (candidates.Count < magnitude)
+        {
+            Debug.Log(
+                $"[Effect] ReturnFromTrashToDeck skipped — need at least {magnitude} but candidates:{candidates.Count} "
+                + $"by cardId:{sourceCard?.Data?.id}");
+            (onSkipped ?? onComplete)?.Invoke();
+            return;
+        }
+
+        int batchSize = magnitude;
+        int maxPick = effect.requireExactExileCount
+            ? batchSize
+            : (candidates.Count / batchSize) * batchSize;
+        if (maxPick < batchSize)
+        {
+            Debug.Log(
+                $"[Effect] ReturnFromTrashToDeck skipped — maxPick:{maxPick} < batch:{batchSize} "
+                + $"by cardId:{sourceCard?.Data?.id}");
+            (onSkipped ?? onComplete)?.Invoke();
+            return;
+        }
+
+        SetEffectChainReturnFromTrashBatchSize(batchSize);
+        SetEffectChainLastReturnFromTrashCount(0);
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            int returned = ApplyReturnFromTrashToDeckAuto(
+                trashRule,
+                candidates,
+                maxPick,
+                trashLabel,
+                sourceCard,
+                trashOwner);
+            MarkOnAttackTrashReturnedForCurrentAttack(returned, batchSize);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            onComplete?.Invoke();
+            return;
+        }
+
+        StartCoroutine(ShowReturnFromTrashToDeckSelectionCoroutine(
+            sourceCard,
+            ownerType,
+            trashRule,
+            effect,
+            trashLabel,
+            trashOwner,
+            candidates,
+            batchSize,
+            maxPick,
+            effect.requireExactExileCount,
+            onComplete,
+            onSkipped));
+    }
+
+    private int ApplyReturnFromTrashToDeckAuto(
+        CardGameRule trashRule,
+        List<TrashExileCandidate> candidates,
+        int pickCount,
+        string trashLabel,
+        CardController sourceCard,
+        PlayerType trashOwner)
+    {
+        List<TrashExileCandidate> ordered = new List<TrashExileCandidate>(candidates);
+        ordered.Sort((a, b) => b.TrashIndex.CompareTo(a.TrashIndex));
+        List<int> indices = new List<int>();
+        for (int i = 0; i < ordered.Count && indices.Count < pickCount; i++)
+        {
+            indices.Add(ordered[i].TrashIndex);
+        }
+
+        return CommitTrashReturnToDeckAtIndices(trashRule, indices, candidates, trashLabel, sourceCard, trashOwner);
+    }
+
+    private int CommitTrashReturnToDeckAtIndices(
+        CardGameRule trashRule,
+        List<int> trashIndicesHighToLow,
+        List<TrashExileCandidate> candidates,
+        string trashLabel,
+        CardController sourceCard,
+        PlayerType trashOwner)
+    {
+        if (trashRule == null || trashIndicesHighToLow == null || trashIndicesHighToLow.Count == 0)
+        {
+            return 0;
+        }
+
+        List<int> removedIds = new List<int>();
+        WithZoneSyncSuppressed(() =>
+        {
+            for (int i = 0; i < trashIndicesHighToLow.Count; i++)
+            {
+                int trashIndex = trashIndicesHighToLow[i];
+                if (trashRule.TryRemoveCardFromTrashAt(trashIndex, out int removedId) && removedId >= 0)
+                {
+                    removedIds.Add(removedId);
+                }
+            }
+
+            if (removedIds.Count > 0)
+            {
+                trashRule.ReturnCardIdsToDeckAndShuffle(removedIds);
+            }
+        });
+
+        for (int i = 0; i < removedIds.Count; i++)
+        {
+            CardData resolved = DeckSettinObject.Instance.GetCardDataById(removedIds[i]);
+            Debug.Log(
+                $"[Effect] ReturnFromTrashToDeck {resolved?.cardName ?? "?"}(id:{removedIds[i]}) trash:{trashLabel} "
+                + $"by cardId:{sourceCard?.Data?.id}");
+        }
+
+        return removedIds.Count;
+    }
+
+    private IEnumerator ShowReturnFromTrashToDeckSelectionCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        CardGameRule trashRule,
+        EffectData effect,
+        string trashLabel,
+        PlayerType trashOwner,
+        List<TrashExileCandidate> candidates,
+        int batchSize,
+        int maxPick,
+        bool requireExactPickCount,
+        Action onComplete,
+        Action onSkipped = null)
+    {
+        if (trashRule == null || candidates == null || candidates.Count == 0 || CardImagePrefab == null)
+        {
+            (onSkipped ?? onComplete)?.Invoke();
+            yield break;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            (onSkipped ?? onComplete)?.Invoke();
+            yield break;
+        }
+
+        string filterLabel = FormatExileFromTrashFilterLabel(effect);
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "ReturnFromTrashToDeckSelect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.62f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ReturnTrashTitle", UIAnchor.TopCenter, 760, 48);
+        title.text = GameLocale.T("トラッシュから山札へ", "Return from trash to deck");
+        title.fontSize = 26;
+        title.fontStyle = FontStyles.Bold;
+        title.color = Color.white;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
+
+        TextMeshProUGUI subtitle = root.CreateChildTextCustom("ReturnTrashSubtitle", UIAnchor.TopCenter, 760, 36);
+        if (requireExactPickCount && maxPick <= 1)
+        {
+            subtitle.text = GameLocale.T(
+                $"{trashLabel}のトラッシュから{filterLabel}を1枚選んで山札に戻す",
+                $"Choose 1 {filterLabel} from {trashLabel} trash to return to deck");
+        }
+        else if (requireExactPickCount)
+        {
+            subtitle.text = GameLocale.T(
+                $"{trashLabel}のトラッシュから{filterLabel}を{maxPick}枚選んで山札に戻す",
+                $"Choose {maxPick} {filterLabel} card(s) from {trashLabel} trash to return to deck");
+        }
+        else
+        {
+            subtitle.text = GameLocale.T(
+                $"{trashLabel}のトラッシュから{filterLabel}を{batchSize}枚ずつ選んで山札に戻す（最大{maxPick}枚）",
+                $"Choose {batchSize} cards at a time from {trashLabel} trash to return to deck (max {maxPick})");
+        }
+        subtitle.fontSize = 17;
+        subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
+        subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
+
+        GameObject scrollGo = root.CreateGridScrollView(760, 400, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -96f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        HashSet<int> selectedTrashIndices = new HashSet<int>();
+        Dictionary<int, GameObject> cardObjectsByTrashIndex = new Dictionary<int, GameObject>();
+        bool dismissed = false;
+        bool confirmed = false;
+        Button okBtn = null;
+        TextMeshProUGUI okLabel = null;
+
+        void RefreshSelectionVisuals()
+        {
+            int selectedCount = selectedTrashIndices.Count;
+            bool atMaxSelection = selectedCount >= maxPick;
+            // トラッシュが12〜23枚など1バッチのみ返却可能なとき、12枚選んだ時点で未選択をグレーアウト
+            bool atSingleBatchCap = maxPick == batchSize
+                && selectedCount >= batchSize;
+            bool grayUnselectedCards = atMaxSelection || atSingleBatchCap;
+
+            foreach (KeyValuePair<int, GameObject> pair in cardObjectsByTrashIndex)
+            {
+                bool isSelected = selectedTrashIndices.Contains(pair.Key);
+                SetExileTrashSelectionHighlight(pair.Value, isSelected);
+                ApplyTrashSelectionCardGrayedOut(pair.Value, !isSelected && grayUnselectedCards);
+            }
+
+            bool ready = requireExactPickCount
+                ? selectedTrashIndices.Count >= maxPick
+                : selectedTrashIndices.Count >= batchSize
+                    && selectedTrashIndices.Count % batchSize == 0;
+            if (okBtn != null)
+            {
+                okBtn.interactable = ready;
+            }
+
+            if (okLabel != null)
+            {
+                okLabel.color = ready ? Color.white : new Color(0.55f, 0.55f, 0.55f, 1f);
+            }
+        }
+
+        void ClosePopup()
+        {
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+        }
+
+        if (content != null)
+        {
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                TrashExileCandidate candidate = candidates[i];
+                if (candidate.Data == null)
+                {
+                    continue;
+                }
+
+                GameObject go = Instantiate(CardImagePrefab, content);
+                cardObjectsByTrashIndex[candidate.TrashIndex] = go;
+                CardController cc = go.GetComponent<CardController>();
+                if (cc != null)
+                {
+                    int capturedIndex = candidate.TrashIndex;
+                    cc.SetUp(candidate.Data, _ =>
+                    {
+                        if (requireExactPickCount && maxPick <= 1)
+                        {
+                            selectedTrashIndices.Clear();
+                            selectedTrashIndices.Add(capturedIndex);
+                        }
+                        else if (selectedTrashIndices.Contains(capturedIndex))
+                        {
+                            selectedTrashIndices.Remove(capturedIndex);
+                        }
+                        else if (selectedTrashIndices.Count < maxPick)
+                        {
+                            selectedTrashIndices.Add(capturedIndex);
+                        }
+
+                        RefreshSelectionVisuals();
+                    });
+                    go.transform.localScale = new Vector3(0.42f, 0.42f, 1f);
+                }
+
+                SetExileTrashSelectionHighlight(go, false);
+            }
+        }
+
+        Button cancelBtn = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
+        RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(180f, 50f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(-110f, 36f);
+
+        cancelBtn.onClick.AddListener(() =>
+        {
+            dismissed = true;
+            confirmed = false;
+            ClearOnMainPaidBlock();
+            ClosePopup();
+        });
+
+        okBtn = root.CreateChildButton(GameLocale.T("OK", "OK"));
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(180f, 50f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = new Vector2(110f, 36f);
+        okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+
+        okBtn.interactable = false;
+        okBtn.onClick.AddListener(() =>
+        {
+            if (!okBtn.interactable)
+            {
+                return;
+            }
+
+            dismissed = true;
+            confirmed = true;
+            ClosePopup();
+        });
+
+        RefreshSelectionVisuals();
+        yield return new WaitUntil(() => dismissed);
+
+        if (confirmed)
+        {
+            List<int> orderedIndices = new List<int>(selectedTrashIndices);
+            orderedIndices.Sort((a, b) => b.CompareTo(a));
+            BeginOnlineEffectSyncBatch(ownerType);
+            int returned = CommitTrashReturnToDeckAtIndices(
+                trashRule,
+                orderedIndices,
+                candidates,
+                trashLabel,
+                sourceCard,
+                trashOwner);
+            MarkOnAttackTrashReturnedForCurrentAttack(returned, batchSize);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+
+            if (returned <= 0)
+            {
+                (onSkipped ?? onComplete)?.Invoke();
+                yield break;
+            }
+
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        (onSkipped ?? onComplete)?.Invoke();
+    }
+
     private void ApplyAddObservedToHandFromTrashEffect(
         CardController sourceCard,
         PlayerType ownerType,
@@ -1153,5 +1541,29 @@ public partial class BattleGameMain
         }
 
         outline.gameObject.SetActive(selected);
+    }
+
+    /// <summary>選択上限到達時、未選択のトラッシュカードをグレーアウトしてタップ不可にする。</summary>
+    private static void ApplyTrashSelectionCardGrayedOut(GameObject cardGo, bool grayedOut)
+    {
+        if (cardGo == null)
+        {
+            return;
+        }
+
+        CanvasGroup canvasGroup = cardGo.GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+        {
+            canvasGroup = cardGo.AddComponent<CanvasGroup>();
+        }
+
+        canvasGroup.alpha = grayedOut ? 0.38f : 1f;
+        canvasGroup.blocksRaycasts = !grayedOut;
+
+        Button button = cardGo.GetComponent<Button>();
+        if (button != null)
+        {
+            button.interactable = !grayedOut;
+        }
     }
 }

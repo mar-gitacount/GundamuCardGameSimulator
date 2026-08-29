@@ -15,6 +15,8 @@ public partial class BattleGameMain
     private EffectChainObservation _effectChainObservation;
     private int _effectChainObservationDepth;
     private bool _effectChainDealtDamage;
+    private int _effectChainLastReturnFromTrashCount;
+    private int _effectChainReturnFromTrashBatchSize;
     private List<TrashExileCandidate> _effectChainLastMilledTrashCandidates;
     private PlayerType _effectChainLastMilledTrashOwner = PlayerType.Player;
 
@@ -38,6 +40,8 @@ public partial class BattleGameMain
         {
             _effectChainObservation = new EffectChainObservation();
             _effectChainDealtDamage = false;
+            _effectChainLastReturnFromTrashCount = 0;
+            _effectChainReturnFromTrashBatchSize = 0;
             _effectChainLastMilledTrashCandidates = null;
             ClearEffectChainLastPickedTargets();
         }
@@ -72,9 +76,25 @@ public partial class BattleGameMain
         _effectChainObservation?.Clear();
         _effectChainObservation = null;
         _effectChainDealtDamage = false;
+        _effectChainLastReturnFromTrashCount = 0;
+        _effectChainReturnFromTrashBatchSize = 0;
         _effectChainLastMilledTrashCandidates = null;
         ClearEffectChainLastPickedTargets();
     }
+
+    private void SetEffectChainLastReturnFromTrashCount(int count)
+    {
+        _effectChainLastReturnFromTrashCount = Mathf.Max(0, count);
+    }
+
+    private int GetEffectChainLastReturnFromTrashCount() => _effectChainLastReturnFromTrashCount;
+
+    private void SetEffectChainReturnFromTrashBatchSize(int batchSize)
+    {
+        _effectChainReturnFromTrashBatchSize = Mathf.Max(0, batchSize);
+    }
+
+    private int GetEffectChainReturnFromTrashBatchSize() => _effectChainReturnFromTrashBatchSize;
 
     private IReadOnlyList<CardData> GetActiveObservedCardsForActivation()
     {

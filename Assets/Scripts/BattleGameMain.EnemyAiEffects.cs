@@ -343,6 +343,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.ExileFromDeck
                 || eff.type == EffectType.ExileFromTrash
+                || eff.type == EffectType.ReturnFromTrashToDeckAndShuffle
                 || eff.type == EffectType.EffectBattle
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit
