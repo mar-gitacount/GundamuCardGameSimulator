@@ -17,6 +17,357 @@ public partial class BattleGameMain
     /// <summary>同一攻撃宣言内で OnAttack 非戦闘効果（GrantAttackFlag 等）を解決済みか。</summary>
     private CardController _onAttackPreCombatCompletedAttacker;
 
+    /// <summary>1攻撃中のトラッシュ→山札返却（バンシー等）の進行フラグ。</summary>
+    private struct OnAttackTrashReturnAttackState
+    {
+        public EntityId AttackerId;
+        /// <summary>トラッシュ返却済み（返却成功で ON）。</summary>
+        public bool TrashReturned;
+        public int ReturnedCount;
+        public int BatchSize;
+        /// <summary>返却に伴う Activate を適用済み。</summary>
+        public bool ActivateFollowUpApplied;
+        /// <summary>返却に伴う FirstStrike を適用済み。</summary>
+        public bool FirstStrikeFollowUpApplied;
+    }
+
+    private OnAttackTrashReturnAttackState _onAttackTrashReturnAttackState;
+
+    /// <summary>同一攻撃セッションでトラッシュ返却 Activate を1回だけ（ClearAttackFlowContext 複数回対策）。</summary>
+    private bool _onAttackTrashReturnActivateConsumed;
+
+    private void BeginOnAttackTrashReturnAttackTracking(CardController attacker)
+    {
+        if (attacker == null)
+        {
+            return;
+        }
+
+        if (IsOnAttackTrashReturnAttackTracking(attacker))
+        {
+            return;
+        }
+
+        _onAttackTrashReturnActivateConsumed = false;
+        _onAttackTrashReturnAttackState = new OnAttackTrashReturnAttackState
+        {
+            AttackerId = attacker.GetEntityId()
+        };
+    }
+
+    private bool IsOnAttackTrashReturnEffectConsumedForAttack(CardController attacker)
+    {
+        return IsOnAttackTrashReturnAttackTracking(attacker)
+            && _onAttackTrashReturnAttackState.TrashReturned;
+    }
+
+    private static bool TimedBlockContainsReturnFromTrash(TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (effects[i]?.type == EffectType.ReturnFromTrashToDeckAndShuffle)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsOnAttackPreCombatSourceSelectable(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController source,
+        List<TimedEffectData> blocks)
+    {
+        if (attacker == null || source == null || blocks == null || blocks.Count == 0)
+        {
+            return false;
+        }
+
+        if (IsOnAttackTrashReturnEffectConsumedForAttack(attacker))
+        {
+            for (int i = 0; i < blocks.Count; i++)
+            {
+                if (TimedBlockContainsReturnFromTrash(blocks[i]))
+                {
+                    return false;
+                }
+            }
+        }
+
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            TimedEffectData timed = blocks[i];
+            if (timed == null)
+            {
+                continue;
+            }
+
+            if (TimedBlockContainsReturnFromTrash(timed))
+            {
+                if (ShouldOfferOnAttackReturnFromTrashBlock(attacker, attackerOwner, timed))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ClearOnAttackTrashReturnAttackTracking()
+    {
+        _onAttackTrashReturnAttackState = default;
+    }
+
+    /// <summary>トラッシュ返却フォローアップ（Activate 等）とチェーン観測の返却枚数をリセット。</summary>
+    private void ClearOnAttackTrashReturnFollowUpState()
+    {
+        ClearOnAttackTrashReturnAttackTracking();
+        SetEffectChainLastReturnFromTrashCount(0);
+        SetEffectChainReturnFromTrashBatchSize(0);
+    }
+
+    /// <summary>攻撃セッション終了／キャンセル時。次の攻撃でトラッシュ返却フェーズから再開。</summary>
+    private void ResetOnAttackTrashReturnSession()
+    {
+        _onAttackTrashReturnActivateConsumed = false;
+        ClearOnAttackTrashReturnFollowUpState();
+        ResetOnAttackPreCombatEffectsAppliedGuard();
+        ClearOnAttackPreCombatCompletedForNewAttack();
+        ClearOnAttackPreCombatResolvedState();
+    }
+
+    private bool IsOnAttackTrashReturnChainSelfActivateBlocked(CardController unit, EffectData effect)
+    {
+        if (effect == null
+            || effect.type != EffectType.Activate
+            || effect.target != TargetType.Self
+            || unit == null)
+        {
+            return false;
+        }
+
+        if (_onAttackTrashReturnActivateConsumed)
+        {
+            return true;
+        }
+
+        return IsOnAttackTrashReturnAttackTracking(unit);
+    }
+
+    private bool IsOnAttackTrashReturnAttackTracking(CardController attacker)
+    {
+        return attacker != null
+            && _onAttackTrashReturnAttackState.AttackerId != default
+            && _onAttackTrashReturnAttackState.AttackerId == attacker.GetEntityId();
+    }
+
+    private void MarkOnAttackTrashReturnedForCurrentAttack(int returnedCount, int batchSize)
+    {
+        if (returnedCount <= 0 || batchSize <= 0 || _onAttackTrashReturnAttackState.AttackerId == default)
+        {
+            return;
+        }
+
+        _onAttackTrashReturnAttackState.TrashReturned = true;
+        _onAttackTrashReturnAttackState.ReturnedCount = returnedCount;
+        _onAttackTrashReturnAttackState.BatchSize = batchSize;
+        SetEffectChainLastReturnFromTrashCount(returnedCount);
+        SetEffectChainReturnFromTrashBatchSize(batchSize);
+    }
+
+    /// <summary>アタック時効果選択で ReturnFromTrash 付きブロックを出してよいか（未返却かつ候補十分）。</summary>
+    private bool ShouldOfferOnAttackReturnFromTrashBlock(
+        CardController attacker,
+        PlayerType attackerOwner,
+        TimedEffectData timed)
+    {
+        if (attacker == null || timed == null || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        if (IsOnAttackTrashReturnAttackTracking(attacker)
+            && _onAttackTrashReturnAttackState.TrashReturned)
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null || effect.type != EffectType.ReturnFromTrashToDeckAndShuffle)
+            {
+                continue;
+            }
+
+            int batchSize = effect.value > 0 ? effect.value : 1;
+            CardController source = ResolveOnAttackBlockSource(attacker, attackerOwner, timed) ?? attacker;
+            CardGameRule trashRule = ResolveTrashRuleForEffect(attackerOwner, effect);
+            if (trashRule == null)
+            {
+                return false;
+            }
+
+            List<TrashExileCandidate> candidates = CollectTrashExileCandidates(trashRule, effect);
+            return candidates.Count >= batchSize;
+        }
+
+        return true;
+    }
+
+    private bool TryApplyOnAttackTrashReturnFollowUpEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null
+            || (effect.type != EffectType.Activate && effect.type != EffectType.FirstStrike)
+            || effect.target != TargetType.Self)
+        {
+            return false;
+        }
+
+        CardController attackHost = _pendingOnAttackPreCombatResolvedAttacker ?? sourceCard;
+        if (!IsOnAttackTrashReturnAttackTracking(attackHost))
+        {
+            return false;
+        }
+
+        if (!_onAttackTrashReturnAttackState.TrashReturned)
+        {
+            return true;
+        }
+
+        int batchSize = _onAttackTrashReturnAttackState.BatchSize;
+        int returned = _onAttackTrashReturnAttackState.ReturnedCount;
+        if (batchSize <= 0 || returned < batchSize)
+        {
+            return true;
+        }
+
+        if (effect.type == EffectType.Activate)
+        {
+            // アクティブ化はトラッシュ返却チェーンでは行わず、攻撃フロー完了時に適用する。
+            return true;
+        }
+
+        if (_onAttackTrashReturnAttackState.FirstStrikeFollowUpApplied)
+        {
+            return true;
+        }
+
+        ApplyEffect(sourceCard, ownerType, effect);
+        _onAttackTrashReturnAttackState.FirstStrikeFollowUpApplied = true;
+        return true;
+    }
+
+    /// <summary>トラッシュ返却済みなら攻撃フロー完了時に REST→ACTIVE を1回だけ適用する。</summary>
+    private void ApplyDeferredOnAttackTrashReturnActivate()
+    {
+        if (_onAttackTrashReturnActivateConsumed)
+        {
+            return;
+        }
+
+        OnAttackTrashReturnAttackState state = _onAttackTrashReturnAttackState;
+        if (state.AttackerId == default
+            || !state.TrashReturned
+            || state.ActivateFollowUpApplied)
+        {
+            return;
+        }
+
+        int batchSize = state.BatchSize;
+        int returned = state.ReturnedCount;
+        if (batchSize <= 0 || returned < batchSize)
+        {
+            return;
+        }
+
+        _onAttackTrashReturnActivateConsumed = true;
+        _onAttackTrashReturnAttackState.ActivateFollowUpApplied = true;
+
+        CardController attacker = ResolveOnAttackTrashReturnAttackerUnit(state.AttackerId);
+        if (attacker != null && attacker.CurrentHp > 0)
+        {
+            if (TryApplyActivateToUnit(attacker))
+            {
+                QueueOnlineUnitActivate(attacker);
+                SyncAllResourceViewsFromRule();
+                Debug.Log(
+                    "[OnAttackTrashReturn] Deferred Activate at attack end (once) "
+                    + $"attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id}) returned:{returned} batch:{batchSize}");
+            }
+        }
+
+        ClearOnAttackTrashReturnFollowUpState();
+    }
+
+    private CardController ResolveOnAttackTrashReturnAttackerUnit(EntityId attackerEntityId)
+    {
+        if (attackerEntityId == default)
+        {
+            return null;
+        }
+
+        if (IsCardControllerInstanceValid(attackFlowAttackerUnit)
+            && attackFlowAttackerUnit.GetEntityId() == attackerEntityId)
+        {
+            return attackFlowAttackerUnit;
+        }
+
+        CardController fromPlayer = FindBattleUnitByEntityId(playerBattleZoneCards, attackerEntityId);
+        if (fromPlayer != null)
+        {
+            return fromPlayer;
+        }
+
+        return FindBattleUnitByEntityId(enemyBattleZoneCards, attackerEntityId);
+    }
+
+    private static CardController FindBattleUnitByEntityId(List<CardController> units, EntityId entityId)
+    {
+        if (units == null || entityId == default)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < units.Count; i++)
+        {
+            CardController unit = units[i];
+            if (unit != null && unit.CurrentHp > 0 && unit.GetEntityId() == entityId)
+            {
+                return unit;
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsPendingOnAttackEffectResolvedForAttacker(CardController attacker)
+    {
+        if (attacker == null || pendingOnAttackEffectResolvedAttacker == null)
+        {
+            return false;
+        }
+
+        return IsSameBattleUnit(attacker, pendingOnAttackEffectResolvedAttacker);
+    }
+
     private PlayerType ResolveDeployRecipientPlayerType(PlayerType sourceOwner, EffectData effect)
     {
         if (effect != null && effect.target == TargetType.EnemyPlayer)
@@ -1005,6 +1356,8 @@ public partial class BattleGameMain
 
         if (effect.type == EffectType.DeployUnit
             || effect.type == EffectType.ExileFromTrash
+            || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
+            || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
             || effect.type == EffectType.Draw
             || effect.type == EffectType.MillTopToTrash
             || effect.type == EffectType.ExileFromDeck
@@ -1114,6 +1467,11 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (!ShouldOfferOnAttackReturnFromTrashBlock(attacker, attackerOwner, timed))
+            {
+                continue;
+            }
+
             blocks.Add(timed);
         }
 
@@ -1148,6 +1506,28 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        {
+            return false;
+        }
+
+        if (IsOnAttackTrashReturnEffectConsumedForAttack(attacker))
+        {
+            Debug.Log(
+                "[OnAttackPreCombat] Trash-return effect already consumed this attack — skip chain "
+                + $"(cardId:{attacker.Data?.id})");
+            return false;
+        }
+
+        if (IsOnAttackTrashReturnAttackTracking(attacker)
+            && !HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        {
+            Debug.Log(
+                "[OnAttackPreCombat] OnAttack chain already in progress — skip duplicate "
+                + $"(cardId:{attacker.Data?.id})");
+            return false;
+        }
+
         _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
         List<TimedEffectData> unitBlocks = CollectOnAttackPreCombatBlocksForSource(
             attacker,
@@ -1168,6 +1548,7 @@ public partial class BattleGameMain
             + $"attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id}) "
             + $"pilot:{pilot?.Data?.cardName ?? "none"}");
 
+        BeginOnAttackTrashReturnAttackTracking(attacker);
         _pendingOnAttackPreCombatResolvedAttacker = attacker;
         // 前攻撃の観測リークで「除外しなくてもダメージ」が他ユニット／翌ターンへ残らないようルートを毎回新規にする。
         BeginEffectChainObservationScope(forceNewRoot: true);
@@ -1204,7 +1585,9 @@ public partial class BattleGameMain
             },
             autoPilotFirst: false,
             titleJa: "アタック時効果の解決順を選択",
-            titleEn: "Choose On Attack effect order");
+            titleEn: "Choose On Attack effect order",
+            entrySelectable: (source, blocks) =>
+                IsOnAttackPreCombatSourceSelectable(attacker, attackerOwner, source, blocks));
         return true;
     }
 
@@ -1343,6 +1726,38 @@ public partial class BattleGameMain
             return;
         }
 
+        // CombatPair 経路では Activate（UsesTargetCountValue）がスキップされるため、自身対象はここで解決
+        if ((effect.type == EffectType.Activate || effect.type == EffectType.FirstStrike)
+            && effect.target == TargetType.Self)
+        {
+            CardController attackHost = _pendingOnAttackPreCombatResolvedAttacker ?? sourceCard;
+            EffectActivationContext selfActivationContext = BuildOnAttackActivationContext(
+                ownerType,
+                attackHost);
+            if (!ShouldApplyChainedEffect(effect, selfActivationContext, "OnAttackPreCombat"))
+            {
+                TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            if (TryApplyOnAttackTrashReturnFollowUpEffect(sourceCard, ownerType, effect))
+            {
+                TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            // バンシー等：トラッシュ返却チェーン内の Self Activate/FirstStrike は専用経路のみ（二重適用防止）
+            if (IsOnAttackTrashReturnAttackTracking(attackHost))
+            {
+                TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            ApplyEffect(sourceCard, ownerType, effect);
+            TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
         if (!IsOnAttackNonCombatEffect(effect))
         {
             TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
@@ -1378,6 +1793,49 @@ public partial class BattleGameMain
         }
 
         // 「してもよい。そうしたなら…」除外：Cancel／候補不足は後続ダメージを打ち切る
+        if (effect.type == EffectType.ReturnFromTrashToDeckAndShuffle)
+        {
+            CardController attackHost = _pendingOnAttackPreCombatResolvedAttacker ?? sourceCard;
+            if (IsOnAttackTrashReturnAttackTracking(attackHost)
+                && _onAttackTrashReturnAttackState.TrashReturned)
+            {
+                TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            bool abortRemainingOnSkip = effect.abortRemainingChainOnSkip;
+            ApplyReturnFromTrashToDeckAndShuffleEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                onComplete: () => TryExecuteOnAttackPreCombatEffectChain(
+                    sourceCard,
+                    ownerType,
+                    effects,
+                    index + 1,
+                    onDone),
+                onSkipped: () =>
+                {
+                    if (abortRemainingOnSkip)
+                    {
+                        Debug.Log(
+                            "[OnAttackPreCombat] ReturnFromTrashToDeck skipped — abort remaining chain "
+                            + $"(cardId:{sourceCard?.Data?.id})");
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        TryExecuteOnAttackPreCombatEffectChain(
+                            sourceCard,
+                            ownerType,
+                            effects,
+                            index + 1,
+                            onDone);
+                    }
+                });
+            return;
+        }
+
         if (effect.type == EffectType.ExileFromTrash)
         {
             bool abortRemainingOnSkip = effect.abortRemainingChainOnSkip;
@@ -1656,18 +2114,8 @@ public partial class BattleGameMain
             defender,
             null);
 
-        void ProceedUnitAttack()
-        {
-            // OnAttack 完了後はブロック→アクションの順で続行する
-            ContinueUnitAttackAfterOnAttackEffects(attacker, attackerOwner, defender, skipOnActionPause: false);
-        }
-
-        if (TryOpenOnAttackEffectSelectionBeforeCombat(attacker, attackerOwner, defender, ProceedUnitAttack))
-        {
-            return;
-        }
-
-        ProceedUnitAttack();
+        // OnAttack は TryUnitVsUnitAttack 先頭で1回だけ解決（二重起動防止）
+        TryUnitVsUnitAttack(attacker, defender, attackerOwner, defenderOwner);
     }
 
     private void ResumeUnitVsUnitAttackAfterOnAttackPreCombat(
@@ -1682,7 +2130,7 @@ public partial class BattleGameMain
             return;
         }
 
-        if (pendingOnAttackEffectResolvedAttacker != attacker)
+        if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
         {
             if (TryOpenOnAttackEnemySelectionPanel(
                 attacker,

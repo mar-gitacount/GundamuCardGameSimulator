@@ -38,7 +38,7 @@ MonoBehaviour:
   - timing: 3
     activationConditions:
     - boardSide: -1
-      checkKind: 25
+      checkKind: 17
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 0
@@ -60,7 +60,7 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 20
+    - type: 53
       value: 12
       target: 5
       selectionMode: 1
@@ -84,7 +84,7 @@ MonoBehaviour:
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
-      abortRemainingChainOnSkip: 0
+      abortRemainingChainOnSkip: 1
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -117,13 +117,14 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    - type: 35
+    - type: 25
       value: 1
       target: 0
       selectionMode: -1
@@ -180,6 +181,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -243,6 +245,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

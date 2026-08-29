@@ -103,10 +103,16 @@ public partial class BattleGameMain
         List<CardController> activated = new List<CardController>();
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
-            if (TryApplyActivateToUnit(targets[i]))
+            CardController target = targets[i];
+            if (IsOnAttackTrashReturnChainSelfActivateBlocked(target, effect))
             {
-                QueueOnlineUnitActivate(targets[i]);
-                activated.Add(targets[i]);
+                continue;
+            }
+
+            if (TryApplyActivateToUnit(target))
+            {
+                QueueOnlineUnitActivate(target);
+                activated.Add(target);
                 applied++;
             }
         }
