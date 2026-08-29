@@ -168,7 +168,49 @@ public partial class BattleGameMain
             amount += GetWhileLinkedRepairAmount(unit.Data);
         }
 
+        amount += GetWhileMountedPilotRepairAmount(unit);
+
         return amount;
+    }
+
+    private const string GrantRepair1WhileMountedOnBlueHostEffectName = "GrantRepair1_WhileMountedOnBlueHost";
+
+    /// <summary>
+    /// 搭乗パイロットの常時効果（GD01-087 セイラ等）。
+    /// ホストが青ユニットの間、《リペア1》を加算（ユニット定義の isRepair と合算）。
+    /// </summary>
+    private static int GetWhileMountedPilotRepairAmount(CardController hostUnit)
+    {
+        if (hostUnit?.Data == null || hostUnit.Data.color != CardColor.Blue)
+        {
+            return 0;
+        }
+
+        CardController pilot = hostUnit.MountedPilot;
+        if (pilot?.Data?.timedEffects == null)
+        {
+            return 0;
+        }
+
+        int total = 0;
+        for (int i = 0; i < pilot.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = pilot.Data.timedEffects[i];
+            if (timed == null || string.IsNullOrWhiteSpace(timed.effectsName))
+            {
+                continue;
+            }
+
+            if (string.Equals(
+                    timed.effectsName.Trim(),
+                    GrantRepair1WhileMountedOnBlueHostEffectName,
+                    StringComparison.Ordinal))
+            {
+                total += 1;
+            }
+        }
+
+        return total;
     }
 
     /// <summary>【リンク中】に得る《リペア》量。名前付き効果 GrantRepair1_WhileLinked をマーカーとして読む。</summary>

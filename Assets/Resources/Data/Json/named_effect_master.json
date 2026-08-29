@@ -2809,6 +2809,11 @@
             "effects": []
         },
         {
+            "effectSetName": "GrantRepair1_WhileMountedOnBlueHost",
+            "displayName": "【搭乗中・青ユニット】《リペア1》を得る（ターン終了時、既存リペアと合算）",
+            "effects": []
+        },
+        {
             "effectSetName": "BuffSelfAp1_Permanent_OnLink",
             "displayName": "【リンク時】このユニットAP+1（搭乗解除まで）",
             "effects": [
