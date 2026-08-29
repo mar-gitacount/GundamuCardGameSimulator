@@ -488,7 +488,8 @@ public class ScrollBottomChecker : MonoBehaviour
     {
         if (Searchcanvas != null)
         {
-            return Searchcanvas.GetComponentsInChildren<IncludedCards>(true);
+            // 非表示の旧「収録カード」色トグル（赤固定など）を検索に混ぜない
+            return Searchcanvas.GetComponentsInChildren<IncludedCards>(false);
         }
 
         if (IncludedCardsObj != null)
@@ -566,7 +567,7 @@ public class ScrollBottomChecker : MonoBehaviour
     public void SerchButtonClickedToFind()
     {
         string keyword = SearchInputField != null ? SearchInputField.text : string.Empty;
-        List<CardData> results = CardDatabase.Instance.FindByNameContains(keyword);
+        List<CardData> results = CardDatabase.Instance.SearchCards(keyword);
         results = ApplyAllIncludedCardFilters(results);
 
         Debug.Log($"検索キーワード: {keyword}, 件数: {results.Count}");

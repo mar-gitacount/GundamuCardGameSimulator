@@ -281,29 +281,180 @@ public CardData FindById(int id)
     return null;
 }
 
-    public List<CardData> FindByNameContains(string keyword)
+    /// <summary>
+    /// カード名・公式ID（GD01-003 等）・色キーワード（blue / 青 等）で検索する。
+    /// 複数トークンは AND（例: "GD01 blue" → GD01 かつ青）。
+    /// </summary>
+    public List<CardData> SearchCards(string keyword)
     {
         var result = new List<CardData>();
-        // JSONから CreateInstance すると画像は imageAddress のみ。表示は CardSpriteLoader 経由。
-        string key = keyword ?? string.Empty;
+        string raw = keyword ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            foreach (CardData card in cardDict.Values)
+            {
+                if (card != null)
+                {
+                    result.Add(card);
+                }
+            }
+
+            result.Sort((a, b) => a.id.CompareTo(b.id));
+            return result;
+        }
+
+        ParseSearchKeyword(raw, out List<CardColor> colors, out List<string> textTokens);
+
         foreach (CardData card in cardDict.Values)
         {
-            if (card == null || string.IsNullOrEmpty(card.cardName))
+            if (card == null)
             {
                 continue;
             }
 
-            if (card.cardName.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0)
+            if (colors.Count > 0 && !SearchColorsContain(card.color, colors))
+            {
+                continue;
+            }
+
+            if (textTokens.Count == 0)
             {
                 result.Add(card);
-                Debug.Log(
-                    $"検索ヒット: ID={card.id}, 名前={card.cardName}, 画像={(string.IsNullOrEmpty(card.imageAddress) ? "null" : card.imageAddress)}");
+                continue;
+            }
+
+            bool allTokensMatch = true;
+            for (int i = 0; i < textTokens.Count; i++)
+            {
+                if (!CardMatchesTextToken(card, textTokens[i]))
+                {
+                    allTokensMatch = false;
+                    break;
+                }
+            }
+
+            if (allTokensMatch)
+            {
+                result.Add(card);
             }
         }
 
         result.Sort((a, b) => a.id.CompareTo(b.id));
         Debug.Log($"検索結果数: {result.Count} / cardDict:{cardDict.Count}");
         return result;
+    }
+
+    public List<CardData> FindByNameContains(string keyword)
+    {
+        return SearchCards(keyword);
+    }
+
+    private static bool SearchColorsContain(CardColor cardColor, List<CardColor> colors)
+    {
+        for (int i = 0; i < colors.Count; i++)
+        {
+            if (cardColor == colors[i])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool CardMatchesTextToken(CardData card, string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(card.cardName)
+            && card.cardName.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(card.gcgOfficialId)
+            && card.gcgOfficialId.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void ParseSearchKeyword(string keyword, out List<CardColor> colors, out List<string> textTokens)
+    {
+        colors = new List<CardColor>();
+        textTokens = new List<string>();
+        string[] parts = keyword.Split(
+            new[] { ' ', '\u3000', '\t' },
+            StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            string part = parts[i].Trim();
+            if (part.Length == 0)
+            {
+                continue;
+            }
+
+            if (TryParseColorKeyword(part, out CardColor color))
+            {
+                if (!colors.Contains(color))
+                {
+                    colors.Add(color);
+                }
+
+                continue;
+            }
+
+            textTokens.Add(part);
+        }
+    }
+
+    private static bool TryParseColorKeyword(string token, out CardColor color)
+    {
+        color = CardColor.Red;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        switch (token.Trim().ToLowerInvariant())
+        {
+            case "red":
+            case "赤":
+                color = CardColor.Red;
+                return true;
+            case "green":
+            case "緑":
+                color = CardColor.Green;
+                return true;
+            case "blue":
+            case "青":
+                color = CardColor.Blue;
+                return true;
+            case "yellow":
+            case "黄":
+                color = CardColor.Yellow;
+                return true;
+            case "white":
+            case "白":
+                color = CardColor.White;
+                return true;
+            case "purple":
+            case "紫":
+                color = CardColor.Purple;
+                return true;
+            case "colorless":
+            case "無色":
+                color = CardColor.Colorless;
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>

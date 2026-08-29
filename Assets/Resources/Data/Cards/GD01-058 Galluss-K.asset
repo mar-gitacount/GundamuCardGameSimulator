@@ -82,7 +82,6 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
-      oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0
@@ -98,6 +97,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

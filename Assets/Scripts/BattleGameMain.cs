@@ -1768,8 +1768,39 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (currentLevel < cardController.CurrentLevel)
         {
+            bool allowNormalDeploy = false;
+            if (TryOpenHandDeployAlternateCostFlow(
+                    FilterPanel,
+                    filterContent,
+                    cardController,
+                    ownerType,
+                    ownerRule,
+                    ownerSide,
+                    closeBtnRect,
+                    handActionY,
+                    currentLevel,
+                    allowNormalDeploy))
+            {
+                return;
+            }
+
             Debug.Log("レベルが足りません。");
             Destroy(FilterPanel);
+            return;
+        }
+
+        if (TryOpenHandDeployAlternateCostFlow(
+                FilterPanel,
+                filterContent,
+                cardController,
+                ownerType,
+                ownerRule,
+                ownerSide,
+                closeBtnRect,
+                handActionY,
+                currentLevel,
+                allowNormalDeploy: true))
+        {
             return;
         }
 
@@ -4259,6 +4290,7 @@ public partial class BattleGameMain : MonoBehaviour
                 cardController.Data,
                 cardController.MountedPilot);
             detachedPilot = cardController.DetachMountedPilotWithoutDestroy();
+            _onDestroyedPendingDetachedPilot = detachedPilot;
         }
 
         // 突破は戦闘ダメージ破壊時のみ（公式 Breach）。配備時効果破壊などでは発動しない。
@@ -4282,7 +4314,15 @@ public partial class BattleGameMain : MonoBehaviour
             // 破壊時効果解決後に搭乗パイロットを墓地へ（OnDestroyed は再実行しない）
             if (detachedPilot != null)
             {
-                FinishSendCardToTrash(detachedPilot, ownerType);
+                if (IsCardInOwnerHand(detachedPilot, ownerType))
+                {
+                    _onDestroyedPendingDetachedPilot = null;
+                }
+                else
+                {
+                    FinishSendCardToTrash(detachedPilot, ownerType);
+                }
+
                 detachedPilot = null;
             }
 
@@ -10661,6 +10701,12 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        bool destroyedUnitWasLinked = mountHost != null
+            && mountHost.Data != null
+            && mountedPilot != null
+            && mountedPilot.Data != null
+            && UnitLinkExtensions.HasValidLinkPilot(mountHost.Data, mountedPilot);
+
         return new EffectActivationContext(
             ownerType,
             sourceCard,
@@ -10677,7 +10723,8 @@ public partial class BattleGameMain : MonoBehaviour
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             destroyingCard: destroyedBy,
             hasDestroyingCardOwner: hasDestroyerOwner,
-            destroyingCardOwner: destroyerOwner);
+            destroyingCardOwner: destroyerOwner,
+            destroyedUnitWasLinked: destroyedUnitWasLinked);
     }
 
     private void RunOnDestroyedTimedBlocks(
@@ -10718,6 +10765,32 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect = effects[index];
         if (effect == null)
         {
+            TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            TryExecuteManualHandSelectionEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                success =>
+                {
+                    if (!success && effect.abortRemainingChainOnSkip)
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                });
+            return;
+        }
+
+        if (effect.type == EffectType.ReturnMountedPilotToHand)
+        {
+            ApplyReturnMountedPilotToHandEffect(sourceCard, ownerType);
             TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
             return;
         }
@@ -12429,6 +12502,10 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case EffectType.Destroy:
                 ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
+                break;
+
+            case EffectType.ReturnMountedPilotToHand:
+                ApplyReturnMountedPilotToHandEffect(sourceCard, ownerType);
                 break;
 
             case EffectType.DeployUnit:
