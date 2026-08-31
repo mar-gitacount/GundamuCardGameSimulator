@@ -524,7 +524,8 @@ EFFECTS["GD01-063"] = [
     ),
 ]
 EFFECTS["GD01-067"] = [
-    timed(18, [effect(type=ADD_FROM_TRASH, value=1, target=5, selectionMode=1, filterByTargetCardType=1, targetCardType=COMMAND_CARD_TYPE, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)]),
+    # 【When Paired】= パイロット搭乗時（Link 限定ではない）
+    timed(15, [effect(type=ADD_FROM_TRASH, value=1, target=5, selectionMode=1, filterByTargetCardType=1, targetCardType=COMMAND_CARD_TYPE, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)]),
 ]
 EFFECTS["GD01-069"] = [
     timed(12, effects_name="ActivateWhiteRestedBlocker_NotDirectAttack_OnMain", once_per_turn=1, activation_cost=1),

@@ -1509,7 +1509,7 @@ public partial class BattleGameMain
         CardGameRule handRule = handOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         AddCardIdToHand(handRule, handOwner, removedId);
         Debug.Log(
-            $"[Effect] AddObservedToHandFromTrash {candidate.Data?.cardName ?? "?"}(id:{removedId}) "
+            $"[Effect] AddFromTrashToHand {candidate.Data?.cardName ?? "?"}(id:{removedId}) "
             + $"handOwner:{handOwner}");
         return true;
     }

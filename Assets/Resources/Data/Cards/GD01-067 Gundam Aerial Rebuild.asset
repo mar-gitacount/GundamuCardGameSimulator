@@ -35,7 +35,7 @@ MonoBehaviour:
   battleZones: 3
   attackFlg: 0
   timedEffects:
-  - timing: 18
+  - timing: 15
     activationConditions: []
     requireChainObservationContext: 0
     effectsName: 
@@ -121,8 +121,8 @@ MonoBehaviour:
     linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
-  pilotMountOnPilotMountedSource: 0
-  pilotMountOnPilotMountedOrder: 1
+  pilotMountOnPilotMountedSource: 1
+  pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
