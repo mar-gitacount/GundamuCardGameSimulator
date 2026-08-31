@@ -641,6 +641,16 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (EffectRequiresManualUnitSelection(effect))
+            {
+                if (ResolveSelectableEffectTargets(source, side, effect).Count > 0)
+                {
+                    hasAny = true;
+                }
+
+                continue;
+            }
+
             hasAny = true;
         }
 

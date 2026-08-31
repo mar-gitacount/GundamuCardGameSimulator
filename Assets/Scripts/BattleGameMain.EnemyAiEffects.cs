@@ -1444,6 +1444,28 @@ public partial class BattleGameMain
             List<CardController> candidates = effect.target.IsSingleOpponentUnitPickTarget()
                 ? GetAliveEnemyUnitsForEffectTarget(side, effect.target)
                 : ResolveSelectableEffectTargets(command, side, effect);
+            if (effect.selectionMode.IsMultipleUnitPickMode())
+            {
+                List<CardController> aiPicks = PickEnemyAiEffectTargets(effect, ctx, candidates);
+                if (aiPicks.Count == 0)
+                {
+                    Debug.Log(
+                        $"[EnemyAI] OnAction skip effect (no target) cmd:{command.Data.cardName} target:{effect.target}");
+                    ExecuteEnemyOnActionEffectsChain(command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow);
+                    return;
+                }
+
+                ApplyEffectToSpecificTargets(command, side, effect, aiPicks);
+                LogOnActionCommandAppliedToUnitsBattleOutcome(
+                    command,
+                    side,
+                    effect,
+                    "EnemyAI_OnAction_AfterApplyEnemyUnitTarget",
+                    SnapUnitStatsForOnActionCommandLog(aiPicks));
+                ExecuteEnemyOnActionEffectsChain(command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow);
+                return;
+            }
+
             CardController picked = PickEnemyAiEffectTarget(effect, ctx, candidates);
             if (picked == null)
             {

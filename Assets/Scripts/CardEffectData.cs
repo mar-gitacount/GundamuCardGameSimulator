@@ -716,7 +716,12 @@ public enum EffectActivationCheckKind
     /// </summary>
     BattlingEnemyUnitStat,
     /// <summary>ソースユニット（搭乗ホスト）が《突破》1以上を持つ。</summary>
-    SourceHasBreach
+    SourceHasBreach,
+    /// <summary>
+    /// 搭乗ホスト（パイロット効果時）またはソースユニットが《リペア》を持つ。
+    /// MountHostUnit / SourceCard の isRepair・付与リペア・リンク中リペア・搭乗パイロット付与を含む。
+    /// </summary>
+    SourceMountHostHasRepair
 }
 
 public enum EffectTurnCheckKind

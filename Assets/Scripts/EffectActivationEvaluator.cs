@@ -315,6 +315,11 @@ public static class EffectActivationEvaluator
             return EvaluateSourceHasBreach(ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceMountHostHasRepair)
+        {
+            return EvaluateSourceMountHostHasRepair(ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.DestroyedByBattleDamage)
         {
             return ctx.DestroyedByBattleDamage;
@@ -962,6 +967,95 @@ public static class EffectActivationEvaluator
         }
 
         return unit.GetBreachAmount() > 0;
+    }
+
+    private const string GrantRepair1WhileMountedOnBlueHostEffectName = "GrantRepair1_WhileMountedOnBlueHost";
+    private const string GrantRepair1WhileLinkedEffectName = "GrantRepair1_WhileLinked";
+
+    private static bool EvaluateSourceMountHostHasRepair(EffectActivationContext ctx)
+    {
+        CardController host = ctx?.MountHostUnit;
+        if (host == null && ctx?.SourceCard?.Data != null && ctx.SourceCard.Data.IsPilot())
+        {
+            host = ctx.MountHostUnit;
+        }
+
+        if (host == null)
+        {
+            host = ctx?.SourceCard;
+        }
+
+        return HostUnitHasRepairKeyword(host);
+    }
+
+    private static bool HostUnitHasRepairKeyword(CardController host)
+    {
+        if (host == null || !host.IsRepairEligibleUnit())
+        {
+            return false;
+        }
+
+        if (host.GetTurnEndRepairAmount() > 0)
+        {
+            return true;
+        }
+
+        if (host.Data != null
+            && UnitLinkExtensions.HasValidLinkPilot(host.Data, host.MountedPilot)
+            && HostCardDataHasNamedRepairEffect(host.Data, GrantRepair1WhileLinkedEffectName))
+        {
+            return true;
+        }
+
+        if (host.Data != null
+            && host.Data.color == CardColor.Blue
+            && host.MountedPilot?.Data?.timedEffects != null
+            && PilotHasNamedRepairEffect(host.MountedPilot.Data, GrantRepair1WhileMountedOnBlueHostEffectName))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HostCardDataHasNamedRepairEffect(CardData data, string effectName)
+    {
+        if (data?.timedEffects == null || string.IsNullOrWhiteSpace(effectName))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed != null
+                && string.Equals(timed.effectsName?.Trim(), effectName, System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool PilotHasNamedRepairEffect(CardData pilotData, string effectName)
+    {
+        if (pilotData?.timedEffects == null || string.IsNullOrWhiteSpace(effectName))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < pilotData.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = pilotData.timedEffects[i];
+            if (timed != null
+                && string.Equals(timed.effectsName?.Trim(), effectName, System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>REST 判定用。リンク条件のユニット解決に加え、Base 自身も対象にする。</summary>
