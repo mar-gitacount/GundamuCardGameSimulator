@@ -36,9 +36,29 @@ MonoBehaviour:
   attackFlg: 0
   timedEffects:
   - timing: 13
-    activationConditions: []
+    activationConditions:
+    - boardSide: 4
+      checkKind: 9
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 4
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 2
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
-    effectsName: ScaleSelfCostLevelByOwnerOrbUnits
+    effectsName: ScaleSelfCostReduce2_WhenOwnerTrashHas4Commands
     effects: []
     activationCost: 0
     oncePerTurn: 0

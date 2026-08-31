@@ -92,6 +92,8 @@ MonoBehaviour:
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -99,6 +101,8 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 
@@ -112,7 +116,7 @@ MonoBehaviour:
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    - type: 7
+    - type: 9
       value: 1
       target: 2
       selectionMode: 1
@@ -156,6 +160,8 @@ MonoBehaviour:
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -163,6 +169,8 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 

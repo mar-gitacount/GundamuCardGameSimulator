@@ -331,6 +331,18 @@ public partial class BattleGameMain
             return;
         }
 
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            TryExecuteManualUnitSelectionEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                null,
+                onChainContinue ?? (() => { }),
+                onChainContinue);
+            return;
+        }
+
         ApplyEffect(sourceCard, ownerType, effect);
         onChainContinue?.Invoke();
     }

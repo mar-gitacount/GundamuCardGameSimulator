@@ -44,7 +44,27 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   - timing: 8
-    activationConditions: []
+    activationConditions:
+    - boardSide: 1
+      checkKind: 6
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 3
+      compareValue: 1
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: 0
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: 
     effects:
@@ -92,6 +112,8 @@ MonoBehaviour:
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -99,6 +121,8 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 

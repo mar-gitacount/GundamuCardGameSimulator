@@ -43,6 +43,14 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ChooseLookedRemainderDisposition
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   pilotIds: []
