@@ -15897,6 +15897,7 @@ public partial class BattleGameMain : MonoBehaviour
             "OnAction",
             null);
         MarkActionStepCardUsed(side, command);
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
         string effectDetail =
             $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
@@ -16073,6 +16074,7 @@ public partial class BattleGameMain : MonoBehaviour
             "OnAction",
             picked);
         MarkActionStepCardUsed(side, command);
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
         string detail =
             $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{picked.Data.cardName}(id:{picked.Data.id})";
@@ -17182,47 +17184,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (!IsOnActionOncePerTurnAvailable(ownerType, card))
-        {
-            return false;
-        }
-
-        TimedEffectData onActionTimed = FindFirstOnActionTimedBlock(card, out _);
-        if (TimedStartsWithRestSelf(onActionTimed) && card.IsRestState)
-        {
-            return false;
-        }
-
-        // 場起動で手動選択が必要な効果がある場合、候補が0なら起動不可（ガモフ等）
-        if (IsOnActionActivatedFromField(card, ownerType) && onActionTimed != null)
-        {
-            IReadOnlyList<EffectData> resolved = onActionTimed.GetResolvedEffects();
-            for (int i = 0; i < resolved.Count; i++)
-            {
-                EffectData e = resolved[i];
-                if (e == null || !EffectRequiresManualUnitSelection(e))
-                {
-                    continue;
-                }
-
-                if (ResolveSelectableEffectTargets(card, ownerType, e).Count == 0)
-                {
-                    return false;
-                }
-            }
-        }
-
-        int cost = GetOnActionPlayCost(card, ownerType);
-        if (cost <= 0)
-        {
-            return true;
-        }
-
-        int requiredLevel = GetOnActionRequiredLevelForAfford(card, ownerType);
-        return gundamRule.CanPlayCardWithAnyEx(
-            ToRuleSide(ownerType),
-            requiredLevel,
-            cost);
+        return FindFirstAvailableOnActionTimedBlock(ownerType, card, out _) != null;
     }
 
     private static bool HasEffectTiming(CardData data, EffectTiming timing)
