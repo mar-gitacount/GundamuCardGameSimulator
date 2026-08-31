@@ -432,6 +432,97 @@ public partial class BattleGameMain
         return null;
     }
 
+    private TimedEffectData FindFirstAvailableOnActionTimedBlock(
+        PlayerType side,
+        CardController source,
+        out int blockIndex)
+    {
+        blockIndex = -1;
+        if (source?.Data?.timedEffects == null)
+        {
+            return null;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(side, source);
+        for (int i = 0; i < source.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = source.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAction || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!IsOnActionTimedBlockAvailableNow(side, source, timed, i, activationContext))
+            {
+                continue;
+            }
+
+            blockIndex = i;
+            return timed;
+        }
+
+        return null;
+    }
+
+    private bool IsOnActionTimedBlockAvailableNow(
+        PlayerType side,
+        CardController source,
+        TimedEffectData timed,
+        int blockIndex,
+        EffectActivationContext activationContext)
+    {
+        if (timed == null || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(side, source, blockIndex))
+        {
+            return false;
+        }
+
+        if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+        {
+            return false;
+        }
+
+        if (TimedStartsWithRestSelf(timed) && source.IsRestState)
+        {
+            return false;
+        }
+
+        if (IsOnActionActivatedFromField(source, side))
+        {
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            int startIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
+            for (int i = startIndex; i < resolved.Count; i++)
+            {
+                EffectData effectData = resolved[i];
+                if (effectData == null || !EffectRequiresManualUnitSelection(effectData))
+                {
+                    continue;
+                }
+
+                if (ResolveSelectableEffectTargets(source, side, effectData).Count == 0)
+                {
+                    return false;
+                }
+            }
+        }
+
+        int cost = timed.activationCost > 0
+            ? timed.activationCost
+            : (IsOnActionActivatedFromField(source, side) ? 0 : source.CurrentCost);
+        if (cost <= 0)
+        {
+            return true;
+        }
+
+        int requiredLevel = IsOnActionActivatedFromField(source, side) ? 0 : source.CurrentLevel;
+        return gundamRule != null
+            && gundamRule.CanPlayCardWithAnyEx(ToRuleSide(side), requiredLevel, cost);
+    }
+
     private bool IsOnActionOncePerTurnAvailable(PlayerType side, CardController source)
     {
         TimedEffectData timed = FindFirstOnActionTimedBlock(source, out int blockIndex);

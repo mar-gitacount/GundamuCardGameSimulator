@@ -2921,6 +2921,28 @@
             ]
         },
         {
+            "effectSetName": "GrantAllyHighMobility1_UntilEndOfTurn_WBT",
+            "displayName": "【配備】自分の〔ホワイトベース隊〕ユニット1体を選び、《高機動》を得る（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 11,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountFeatureId": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 33
+                }
+            ]
+        },
+        {
             "effectSetName": "AddExResource3_Self",
             "displayName": "自分にEXリソースを3追加",
             "effects": [

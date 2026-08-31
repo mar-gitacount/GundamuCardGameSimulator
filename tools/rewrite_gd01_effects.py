@@ -268,7 +268,7 @@ EFFECTS["GD01-007"] = [
     timed(9, [effect(type=1, value=1, target=5)], conds=[cond(boardSide=0, checkKind=0, featureId=OZ, minimumCount=2)]),
 ]
 EFFECTS["GD01-009"] = [
-    timed(0, [effect(type=13, value=1, target=1, selectionMode=1, targetFeatureId=WBT)], effects_name="GrantSelfHighMobility_UntilEndOfTurn"),
+    timed(0, effects_name="GrantAllyHighMobility1_UntilEndOfTurn_WBT"),
 ]
 EFFECTS["GD01-010"] = [
     timed(15, [effect(type=10, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3)]),
@@ -276,8 +276,14 @@ EFFECTS["GD01-010"] = [
 for gid in ["GD01-011", "GD01-013", "GD01-018", "GD01-021", "GD01-022", "GD01-031", "GD01-035", "GD01-036", "GD01-037", "GD01-040", "GD01-051", "GD01-057", "GD01-060", "GD01-062", "GD01-064", "GD01-077", "GD01-079", "GD01-083", "GD01-084", "GD01-085"]:
     EFFECTS[gid] = []
 EFFECTS["GD01-012"] = EFFECTS["GD01-010"]
+# 【During Link】【Activate·Action】【Once per Turn】ユニット1体を選び HP+1
 EFFECTS["GD01-014"] = [
-    timed(18, [effect(type=32, value=1, target=4, selectionMode=1)], activation_cost=0, once_per_turn=1),
+    timed(
+        8,
+        [effect(type=32, value=1, target=11, selectionMode=1)],  # target 11 = AnyUnit
+        conds=[cond(checkKind=17)],
+        once_per_turn=1,
+    ),
 ]
 REPAIR["GD01-017"] = 1
 EFFECTS["GD01-017"] = []
