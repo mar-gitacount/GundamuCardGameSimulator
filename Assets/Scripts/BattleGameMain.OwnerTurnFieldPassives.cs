@@ -52,6 +52,92 @@ public partial class BattleGameMain
     {
         RefreshConditionalBlockerAbilitiesOnZone(playerBattleZoneCards, PlayerType.Player);
         RefreshConditionalBlockerAbilitiesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+        RefreshMountedPilotConditionalHostApBonuses();
+    }
+
+    private static string MakeMountedPilotHostApBonusSourceKey(CardController pilot)
+    {
+        return pilot != null ? $"MountedPilotHostAp:{pilot.GetEntityId()}" : string.Empty;
+    }
+
+    /// <summary>
+    /// 搭乗パイロットの条件付き AP 付与（GD01-089 リディ等）。ホストユニットの実効 AP に反映する。
+    /// </summary>
+    private void RefreshMountedPilotConditionalHostApBonuses()
+    {
+        RefreshMountedPilotConditionalHostApBonusesOnZone(playerBattleZoneCards, PlayerType.Player);
+        RefreshMountedPilotConditionalHostApBonusesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+    }
+
+    private void RefreshMountedPilotConditionalHostApBonusesOnZone(
+        List<CardController> zone,
+        PlayerType ownerType)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController host = zone[i];
+            if (host == null || host.Data == null || !host.Data.IsUnitLike() || host.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            CardController pilot = host.MountedPilot;
+            if (pilot?.Data?.timedEffects == null)
+            {
+                continue;
+            }
+
+            string sourceKey = MakeMountedPilotHostApBonusSourceKey(pilot);
+            if (string.IsNullOrEmpty(sourceKey))
+            {
+                continue;
+            }
+
+            host.RemoveStatModifiersBySource(sourceKey);
+            EffectActivationContext ctx = BuildPilotMountActivationContext(ownerType, pilot, host, host);
+            for (int bi = 0; bi < pilot.Data.timedEffects.Count; bi++)
+            {
+                TimedEffectData timed = pilot.Data.timedEffects[bi];
+                if (timed == null
+                    || timed.timing != EffectTiming.OnEnemyAttack
+                    || !timed.HasResolvedEffects()
+                    || !EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+                {
+                    continue;
+                }
+
+                IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+                for (int ei = 0; ei < effects.Count; ei++)
+                {
+                    EffectData effect = effects[ei];
+                    if (effect == null
+                        || effect.type != EffectType.Buff
+                        || effect.target != TargetType.Self
+                        || effect.statTarget != EffectStatTarget.AP)
+                    {
+                        continue;
+                    }
+
+                    int magnitude = ResolveEffectMagnitude(effect, ownerType, pilot);
+                    if (magnitude <= 0)
+                    {
+                        continue;
+                    }
+
+                    ApplyStatEffect(
+                        host,
+                        magnitude,
+                        EffectStatTarget.AP,
+                        effect.duration,
+                        sourceKey);
+                }
+            }
+        }
     }
 
     private void RefreshConditionalBlockerAbilitiesOnZone(

@@ -208,6 +208,7 @@ NEWTYPE = 19
 ACAD = 23
 WBT = 33
 SOURCE_HAS_BREACH = 35
+SOURCE_MOUNT_HOST_HAS_REPAIR = 36
 BATTLE_DMG_IMMUNITY_LOW_AP = 52
 MC = 34
 OZ = 36
@@ -220,7 +221,7 @@ BLOCKER = {}
 REPAIR = {}
 
 SKIP = {
-    "GD01-006", "GD01-008", "GD01-015", "GD01-016", "GD01-020", "GD01-023",
+    "GD01-006", "GD01-008", "GD01-020", "GD01-023",
     "GD01-025", "GD01-030", "GD01-049", "GD01-054", "GD01-065", "GD01-066", "GD01-068",
     "GD01-073", "GD01-086", "GD01-090", "GD01-100",
 }
@@ -283,6 +284,16 @@ EFFECTS["GD01-014"] = [
         [effect(type=32, value=1, target=11, selectionMode=1)],  # target 11 = AnyUnit
         conds=[cond(checkKind=17)],
         once_per_turn=1,
+    ),
+]
+EFFECTS["GD01-015"] = [
+    timed(3, [effect(type=32, value=1, target=1, selectionMode=1)]),
+]
+EFFECTS["GD01-016"] = [
+    timed(
+        13,
+        [effect(type=3, value=1, target=0, statTarget=2)],
+        conds=[cond(boardSide=0, checkKind=0, featureId=EF, minimumCount=2)],
     ),
 ]
 REPAIR["GD01-017"] = 1
@@ -523,7 +534,13 @@ for gid in ["GD01-087", "GD01-088", "GD01-089", "GD01-091", "GD01-092", "GD01-09
 # 【Burst】手札へ / 搭乗中・青ユニットなら《リペア1》（既存リペアと合算）
 EFFECTS["GD01-087"].append(timed(15, effects_name="GrantRepair1_WhileMountedOnBlueHost"))
 EFFECTS["GD01-088"].append(timed(18, effects_name="Draw1_OnLink"))
-EFFECTS["GD01-089"].append(timed(11, [effect(type=2, value=1, target=0)], conds=[cond(checkKind=13)]))
+EFFECTS["GD01-089"].append(
+    timed(
+        11,
+        [effect(type=2, value=1, target=0, statTarget=0)],
+        conds=[cond(checkKind=SOURCE_MOUNT_HOST_HAS_REPAIR)],
+    )
+)
 EFFECTS["GD01-091"].append(
     timed(
         15,
@@ -586,9 +603,22 @@ EFFECTS["GD01-098"].append(timed(8, [effect(type=32, value=1, target=0)], once_p
 EFFECTS["GD01-099"] = [
     timed(5, [effect(type=10, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)]),
 ] + main_action([
-    timed(12, [effect(type=10, value=1, target=2, selectionMode=5, selectMinCount=1, selectMaxCount=2, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3)]),
+    timed(12, [effect(type=10, value=0, target=2, selectionMode=5, selectMinCount=1, selectMaxCount=2, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3)]),
 ])
-EFFECTS["GD01-101"] = main_action([timed(12, [effect(type=32, value=3, target=1, selectionMode=1)])])
+EFFECTS["GD01-101"] = main_action([
+    timed(
+        12,
+        [
+            effect(
+                type=32,
+                value=3,
+                target=1,
+                selectionMode=1,
+                effectActivationConditions=[cond(checkKind=17)],
+            ),
+        ],
+    ),
+])
 EFFECTS["GD01-102"] = [timed(12, [effect(type=32, value=2, target=3, selectionMode=0, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=4)])]
 EFFECTS["GD01-103"] = main_action([timed(12, [effect(type=10, value=1, target=1, selectionMode=1, targetFeatureId=EF), effect(type=10, value=1, target=2, selectionMode=1)])])
 EFFECTS["GD01-104"] = [
@@ -679,7 +709,16 @@ EFFECTS["GD01-123"][1] = timed(6, [
     effect(type=6, value=1, target=5),
     effect(type=10, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3),
 ])
-EFFECTS["GD01-124"].append(timed(12, [effect(type=32, value=1, target=1, selectionMode=1)]))
+EFFECTS["GD01-124"].append(
+    timed(
+        12,
+        [
+            effect(type=10, value=1, target=0),
+            effect(type=32, value=1, target=1, selectionMode=1),
+        ],
+        once_per_turn=1,
+    )
+)
 EFFECTS["GD01-125"][1] = timed(6, [
     effect(type=6, value=1, target=5),
     effect(
@@ -728,6 +767,27 @@ EFFECTS["GD01-130"].append(timed(12, [effect(type=3, value=1, target=2, selectio
 for gid in ALL:
     EFFECTS.setdefault(gid, [])
 
+# コマンドパイロット（type=6 + pilotIds）。効果は EFFECTS、メタはここで上書き。
+COMMAND_PILOT_META = {
+    "GD01-101": {
+        "pilot_guid": "087a81ce002444d39410b40fe595df13",  # Lucrezia Noin
+    },
+}
+
+
+def apply_command_pilot_meta(text: str, gid: str) -> str:
+    meta = COMMAND_PILOT_META.get(gid)
+    if not meta:
+        return text
+    text = re.sub(r"  type: \d+", "  type: 6", text, count=1)
+    pilot_line = f"  - {{fileID: 11400000, guid: {meta['pilot_guid']}, type: 2}}"
+    text = re.sub(
+        r"  pilotIds: \[\]\n",
+        f"  pilotIds:\n{pilot_line}\n",
+        text,
+        count=1,
+    )
+    return text
 
 
 def replace_block(text, new_timed, is_blocker, is_repair=0, repair_amount=0):
@@ -748,7 +808,14 @@ def replace_block(text, new_timed, is_blocker, is_repair=0, repair_amount=0):
 
 def main():
     n = 0
-    for p in sorted(CARDS_DIR.glob("GD01-*.asset")):
+    paths = sorted(CARDS_DIR.glob("GD01-*.asset"))
+    extra = {
+        "GD01-016": CARDS_DIR / "Jegan.asset",
+    }
+    for gid, extra_path in extra.items():
+        if extra_path.exists() and extra_path not in paths:
+            paths.append(extra_path)
+    for p in sorted(set(paths), key=lambda x: x.name):
         text = p.read_text(encoding="utf-8")
         m = re.search(r"^  gcgOfficialId: (.+)$", text, re.M)
         if not m:
@@ -759,6 +826,7 @@ def main():
         repair_amount = REPAIR.get(gid, 0)
         is_repair = 1 if repair_amount > 0 else 0
         new_text = replace_block(text, EFFECTS[gid], BLOCKER.get(gid, 0), is_repair, repair_amount)
+        new_text = apply_command_pilot_meta(new_text, gid)
         new_text = new_text.replace("\r\n", "\n").replace("\n", "\r\n")
         p.write_bytes(new_text.encode("utf-8"))
         n += 1

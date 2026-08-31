@@ -31,7 +31,7 @@ MonoBehaviour:
   sourceTitle: 7
   filterType: 0
   color: 2
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
   timedEffects:
@@ -66,7 +66,27 @@ MonoBehaviour:
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
-      effectActivationConditions: []
+      effectActivationConditions:
+      - boardSide: -1
+        checkKind: 17
+        turnCheck: -1
+        feature: {fileID: 0}
+        featureId: 0
+        features: []
+        featureIds: 
+        minimumCount: 1
+        levelAggregate: 0
+        compareOp: 0
+        compareValue: 0
+        unitCountCompareOp: 0
+        unitCountThreshold: 0
+        pilotCardId: 0
+        trashCardId: 0
+        pilotLevelThreshold: 0
+        activationStatTarget: -1
+        observedCardType: 0
+        destroyedByOwnerRelation: 0
+        cardNameContains: 
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 0
@@ -138,7 +158,27 @@ MonoBehaviour:
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
-      effectActivationConditions: []
+      effectActivationConditions:
+      - boardSide: -1
+        checkKind: 17
+        turnCheck: -1
+        feature: {fileID: 0}
+        featureId: 0
+        features: []
+        featureIds: 
+        minimumCount: 1
+        levelAggregate: 0
+        compareOp: 0
+        compareValue: 0
+        unitCountCompareOp: 0
+        unitCountThreshold: 0
+        pilotCardId: 0
+        trashCardId: 0
+        pilotLevelThreshold: 0
+        activationStatTarget: -1
+        observedCardType: 0
+        destroyedByOwnerRelation: 0
+        cardNameContains: 
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 0
@@ -181,7 +221,8 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 4bb26f38ef0e490da4dd7c6adae5d4d2, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: 087a81ce002444d39410b40fe595df13, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1

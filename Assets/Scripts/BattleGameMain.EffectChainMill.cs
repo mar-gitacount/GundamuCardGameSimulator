@@ -167,6 +167,13 @@ public partial class BattleGameMain
             return false;
         }
 
+        // 手動ユニット選択は ResolveSelectableEffectTargets で候補ごとに effectActivationConditions を評価する。
+        // ここで効果元（コマンド等）に対して評価すると SourceUnitIsLinked 等が誤って false になる。
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            return true;
+        }
+
         EffectActivationContext contextForConditions = activationContext;
         if (activationContext != null
             && effect.HasEffectActivationConditions()

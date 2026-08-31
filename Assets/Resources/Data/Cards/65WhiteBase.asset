@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 65WhiteBase
   m_EditorClassIdentifier: 
   id: 65
-  gcgOfficialId: GD01-015
+  gcgOfficialId: 
   cardName: WhiteBase
   cost: 2
   level: 3

@@ -306,8 +306,13 @@ public partial class BattleGameMain
             return false;
         }
 
-        // 場のユニット【メイン】（《援護》等）は、同名カードが手札にあっても手札コストを課さない
+        // 場のユニット／ベース【メイン】は手札コスト・レベル要件を課さない
         if (card.Data.IsUnitLike() && host.IsCardOnBattleZone(card))
+        {
+            return false;
+        }
+
+        if (card.Data.type == Type.Base && host.IsCardInBaseSlot(card))
         {
             return false;
         }
@@ -328,6 +333,11 @@ public partial class BattleGameMain
         if (timed != null && timed.activationCost > 0)
         {
             return timed.activationCost;
+        }
+
+        if (source != null && host.IsOnActionActivatedFromField(source, ownerType))
+        {
+            return 0;
         }
 
         if (source != null && IsOnMainActivatedFromHand(source, ownerType, host))
@@ -679,6 +689,22 @@ public partial class BattleGameMain
         if (TimedStartsWithRestSelf(timed) && source.IsRestState)
         {
             return false;
+        }
+
+        IReadOnlyList<EffectData> resolvedOnMain = timed.GetResolvedEffects();
+        int manualTargetStartIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
+        for (int i = manualTargetStartIndex; i < resolvedOnMain.Count; i++)
+        {
+            EffectData effectData = resolvedOnMain[i];
+            if (effectData == null || !EffectRequiresManualUnitSelection(effectData))
+            {
+                continue;
+            }
+
+            if (ResolveSelectableEffectTargets(source, side, effectData).Count == 0)
+            {
+                return false;
+            }
         }
 
         if (!HasOnMainDeployZoneCandidatesIfRequired(side, timed))

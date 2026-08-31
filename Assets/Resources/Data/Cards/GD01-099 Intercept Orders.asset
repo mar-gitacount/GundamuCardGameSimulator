@@ -113,7 +113,7 @@ MonoBehaviour:
     effectsName: 
     effects:
     - type: 10
-      value: 1
+      value: 0
       target: 2
       selectionMode: 5
       statTarget: 0
@@ -185,7 +185,7 @@ MonoBehaviour:
     effectsName: 
     effects:
     - type: 10
-      value: 1
+      value: 0
       target: 2
       selectionMode: 5
       statTarget: 0

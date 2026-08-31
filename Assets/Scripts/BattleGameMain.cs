@@ -1655,6 +1655,19 @@ public partial class BattleGameMain : MonoBehaviour
                     ownerType,
                     fieldActionY);
             }
+            else if (cardController.Data != null
+                && cardController.Data.type == Type.Base
+                && currentPhase == BattlePhase.MainPhase
+                && IsActingSideForUi(ownerType))
+            {
+                float baseActionY = -10f;
+                if (TryAddOnMainEffectApplyButton(filterContent, cardController, ownerType, baseActionY))
+                {
+                    baseActionY -= 60f;
+                    PinFilterCloseButton(closeBtnRect);
+                    return;
+                }
+            }
 
             PinFilterCloseButton(closeBtnRect);
             return;
@@ -4585,13 +4598,22 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        int limit = effect.value > 0 ? effect.value : targets.Count;
+        int limit = ResolveRestEffectApplyLimit(effect, targets.Count);
         int applied = 0;
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
-            if (TryApplyRestToUnit(targets[i]))
+            CardController liveTarget = ResolveLiveBattleZoneUnit(targets[i]);
+            if (liveTarget == null
+                || liveTarget.Data == null
+                || !liveTarget.Data.IsUnitLike()
+                || !IsCardOnBattleZone(liveTarget))
             {
-                QueueOnlineUnitRest(targets[i]);
+                continue;
+            }
+
+            if (TryApplyRestToUnit(liveTarget))
+            {
+                QueueOnlineUnitRest(liveTarget);
                 applied++;
             }
         }
@@ -4600,6 +4622,70 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log($"[Effect] Rest applied:{applied} target:{effect.target}");
         }
+    }
+
+    /// <summary>
+    /// Rest の適用体数上限。複数手動選択時は選んだ体数すべて REST（value は単体選択時の上限）。
+    /// </summary>
+    private static int ResolveRestEffectApplyLimit(EffectData effect, int selectedCount)
+    {
+        if (effect == null || selectedCount <= 0)
+        {
+            return 0;
+        }
+
+        if (effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            return selectedCount;
+        }
+
+        return effect.value > 0 ? Mathf.Min(effect.value, selectedCount) : selectedCount;
+    }
+
+    /// <summary>手動選択 UI 後もバトルゾーン上の現行インスタンスへ解決する。</summary>
+    private CardController ResolveLiveBattleZoneUnit(CardController unit)
+    {
+        if (unit == null)
+        {
+            return null;
+        }
+
+        if (IsCardOnBattleZone(unit))
+        {
+            return unit;
+        }
+
+        int instanceId = unit.BattleInstanceId;
+        if (instanceId <= 0)
+        {
+            return unit;
+        }
+
+        if (playerBattleZoneCards != null)
+        {
+            for (int i = 0; i < playerBattleZoneCards.Count; i++)
+            {
+                CardController candidate = playerBattleZoneCards[i];
+                if (candidate != null && candidate.BattleInstanceId == instanceId)
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        if (enemyBattleZoneCards != null)
+        {
+            for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+            {
+                CardController candidate = enemyBattleZoneCards[i];
+                if (candidate != null && candidate.BattleInstanceId == instanceId)
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return unit;
     }
 
     private void ApplyGrantAttackFlagEffect(EffectData effect, PlayerType ownerType, List<CardController> targets)
@@ -13616,7 +13702,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (magnitude == 0)
+        if (magnitude == 0 && !effect.type.UsesTargetCountValue())
         {
             return;
         }
@@ -13679,7 +13765,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect.type == EffectType.Rest)
         {
-            int limit = effect.value > 0 ? effect.value : targets.Count;
+            int limit = ResolveRestEffectApplyLimit(effect, targets.Count);
             int rested = 0;
             for (int i = 0; i < targets.Count && rested < limit; i++)
             {
@@ -15822,14 +15908,29 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (manualTargetEffect != null)
         {
-            OpenOnActionUnitTargetSelection(
-                side,
-                command,
-                manualTargetEffect,
-                onDone,
-                attackingUnitInAttackFlow,
-                commandQueueIndex,
-                commandQueueCount);
+            if (manualTargetEffect.selectionMode.IsMultipleUnitPickMode())
+            {
+                OpenOnActionMultiUnitTargetSelection(
+                    side,
+                    command,
+                    manualTargetEffect,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+            }
+            else
+            {
+                OpenOnActionUnitTargetSelection(
+                    side,
+                    command,
+                    manualTargetEffect,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+            }
+
             return;
         }
 
@@ -15922,6 +16023,58 @@ public partial class BattleGameMain : MonoBehaviour
             effectDetail,
             unitTargetsForEvalLog);
         onDone?.Invoke();
+    }
+
+    private void OpenOnActionMultiUnitTargetSelection(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow = null,
+        int commandQueueIndex = -1,
+        int commandQueueCount = -1)
+    {
+        List<CardController> candidates = ResolveSelectableEffectTargets(command, side, effect);
+        int selectMin = effect != null ? effect.GetSelectMinCount() : 1;
+        if (candidates.Count < selectMin)
+        {
+            Debug.Log($"OnAction: 選択可能な対象ユニットが足りません ({effect?.FormatEffectSelectionSummary()}).");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoUnitTargets",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:ResolveSelectableEffectTargets empty (multi)");
+            onDone?.Invoke();
+            return;
+        }
+
+        OpenManualMultiUnitTargetSelectionUI(
+            command,
+            side,
+            effect,
+            candidates,
+            attackingUnitInAttackFlow,
+            selected =>
+            {
+                if (selected == null || selected.Count < selectMin)
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
+                StartCoroutine(CoApplyOnActionUnitTargetsAfterAcknowledgement(
+                    side,
+                    command,
+                    effect,
+                    selected,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount,
+                    onDone));
+            });
     }
 
     private void OpenOnActionUnitTargetSelection(
@@ -16027,18 +16180,47 @@ public partial class BattleGameMain : MonoBehaviour
         int commandQueueCount,
         System.Action onDone)
     {
-        if (picked == null || command == null || command.Data == null || effect == null)
+        if (picked == null)
         {
             onDone?.Invoke();
             yield break;
         }
+
+        yield return CoApplyOnActionUnitTargetsAfterAcknowledgement(
+            side,
+            command,
+            effect,
+            new List<CardController> { picked },
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            onDone);
+    }
+
+    private IEnumerator CoApplyOnActionUnitTargetsAfterAcknowledgement(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        List<CardController> pickedTargets,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (pickedTargets == null || pickedTargets.Count == 0 || command == null || command.Data == null || effect == null)
+        {
+            onDone?.Invoke();
+            yield break;
+        }
+
+        CardController revealTarget = pickedTargets[0];
 
         // 了承表示〜効果適用まで破壊時効果を保留し、OK 後の適用直後に Look／回収をフラッシュ
         BeginOnDestroyedLatencyHold();
         yield return ShowCommandUseAcknowledgementCoroutine(
             command,
             attackingUnitInAttackFlow,
-            new List<CardController> { picked },
+            pickedTargets,
             GameLocale.T("コマンド発動", "Command activated"));
 
         bool paymentOk = false;
@@ -16072,32 +16254,33 @@ public partial class BattleGameMain : MonoBehaviour
         yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
             command,
             "OnAction",
-            picked);
+            revealTarget);
         MarkActionStepCardUsed(side, command);
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
+        string pickedSummary = FormatOnActionPickedTargetsSummary(pickedTargets);
         string detail =
-            $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{picked.Data.cardName}(id:{picked.Data.id})";
-        List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(new List<CardController> { picked });
+            $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{pickedSummary}";
+        List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(pickedTargets);
 
         if (IsCloseCombatCard(command) && attackFlowBlockRedirectFromShieldStrike)
         {
             LogArgamaShieldBlockCloseCombatDebug(
                 "CloseCombatOnActionPick",
                 $"side:{side} {detail} redirectBlocker:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)} "
-                + $"pickedIsBlocker:{picked == attackFlowBlockRedirectUnit}",
+                + $"pickedContainsBlocker:{pickedTargets.Contains(attackFlowBlockRedirectUnit)}",
                 attackFlowAttackerUnit,
                 attackFlowBlockRedirectUnit,
                 command);
         }
 
         TryApplyOnActionRestSelfCostIfPresent(command, side);
-        ApplyEffectToSpecificTargets(command, side, effect, new List<CardController> { picked });
-        if (attackingUnitInAttackFlow != null && picked == attackingUnitInAttackFlow)
+        ApplyEffectToSpecificTargets(command, side, effect, pickedTargets);
+        if (attackingUnitInAttackFlow != null && pickedTargets.Contains(attackingUnitInAttackFlow))
         {
             Debug.Log(
-                $"[OnActionUnitTarget] effect applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(picked)} "
-                + $"(card:{picked.Data.cardName})");
+                $"[OnActionUnitTarget] effect applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(attackingUnitInAttackFlow)} "
+                + $"(card:{attackingUnitInAttackFlow.Data.cardName})");
         }
 
         // OK 後: 保留していた破壊時 Look／手札回収を実行し、完了まで待機
@@ -16107,7 +16290,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
         FinalizeOnActionSourceCard(command, side);
-        List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(new List<CardController> { picked });
+        List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(pickedTargets);
         LogCommandUseResultWithBoard(
             "OnAction_AfterApplyUnitTarget",
             side,
@@ -16118,6 +16301,33 @@ public partial class BattleGameMain : MonoBehaviour
             detail,
             pickedForEval);
         onDone?.Invoke();
+    }
+
+    private static string FormatOnActionPickedTargetsSummary(List<CardController> pickedTargets)
+    {
+        if (pickedTargets == null || pickedTargets.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(128);
+        for (int i = 0; i < pickedTargets.Count; i++)
+        {
+            CardController picked = pickedTargets[i];
+            if (picked?.Data == null)
+            {
+                continue;
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append(';');
+            }
+
+            sb.Append(picked.Data.cardName).Append("(id:").Append(picked.Data.id).Append(')');
+        }
+
+        return sb.ToString();
     }
 
     private bool TryAddOnMainEffectApplyButton(
@@ -16283,11 +16493,14 @@ public partial class BattleGameMain : MonoBehaviour
         _chooseOneCancelled = false;
         BeginEffectChainObservationScope();
         EffectActivationContext chainActivationContext = BuildOnMainChainActivationContext(side, source);
+        TryApplyOnMainRestSelfCostIfPresent(source, side, timed);
+        IReadOnlyList<EffectData> resolvedMainEffects = timed.GetResolvedEffects();
+        int mainEffectStartIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
         TryExecuteOnMainEffectChain(
             side,
             source,
-            timed.GetResolvedEffects(),
-            0,
+            resolvedMainEffects,
+            mainEffectStartIndex,
             !deferPayment,
             chainActivationContext,
             () =>
@@ -16717,6 +16930,27 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect.type == EffectType.Activate && effect.target != TargetType.Self)
         {
             FilterOutNonRestedUnits(result);
+        }
+
+        if (effect.HasEffectActivationConditions())
+        {
+            for (int i = result.Count - 1; i >= 0; i--)
+            {
+                CardController candidate = result[i];
+                if (candidate == null)
+                {
+                    result.RemoveAt(i);
+                    continue;
+                }
+
+                EffectActivationContext candidateContext = BuildActivationContext(ownerType, candidate);
+                if (!EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        candidateContext))
+                {
+                    result.RemoveAt(i);
+                }
+            }
         }
 
         return result;
@@ -17156,6 +17390,32 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>
     /// OnAction 先頭が「自身を REST」のコストなら、本効果適用前にソースをレストする（ガモフ等）。
     /// </summary>
+    /// <summary>
+    /// OnMain 先頭が「自身を REST」のコストなら、本効果適用前にソースをレストする（サイド7等）。
+    /// </summary>
+    private void TryApplyOnMainRestSelfCostIfPresent(
+        CardController source,
+        PlayerType side,
+        TimedEffectData timed)
+    {
+        if (source == null || timed == null)
+        {
+            return;
+        }
+
+        if (!TimedStartsWithRestSelf(timed) || source.IsRestState)
+        {
+            return;
+        }
+
+        if (TryApplyRestToUnit(source))
+        {
+            QueueOnlineUnitRest(source);
+            Debug.Log(
+                $"[OnMain] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+        }
+    }
+
     private void TryApplyOnActionRestSelfCostIfPresent(CardController source, PlayerType side)
     {
         if (source == null)
