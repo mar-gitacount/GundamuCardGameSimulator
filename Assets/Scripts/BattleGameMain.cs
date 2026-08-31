@@ -11501,6 +11501,16 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.AddFromTrashToHand)
+        {
+            ApplyAddFromTrashToHandEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
         if (EffectRequiresManualHandSelection(effect))
         {
             TryExecuteManualHandSelectionEffect(
