@@ -46,7 +46,7 @@ MonoBehaviour:
   - timing: 11
     activationConditions:
     - boardSide: -1
-      checkKind: 13
+      checkKind: 37
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 0
@@ -55,7 +55,7 @@ MonoBehaviour:
       minimumCount: 1
       levelAggregate: 0
       compareOp: 0
-      compareValue: 0
+      compareValue: 5
       unitCountCompareOp: 0
       unitCountThreshold: 0
       pilotCardId: 0

@@ -35,12 +35,12 @@ MonoBehaviour:
   battleZones: 3
   attackFlg: 0
   timedEffects:
-  - timing: 15
+  - timing: 18
     activationConditions: []
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 26
+    - type: 40
       value: 1
       target: 5
       selectionMode: 1
@@ -84,6 +84,8 @@ MonoBehaviour:
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -91,6 +93,8 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 

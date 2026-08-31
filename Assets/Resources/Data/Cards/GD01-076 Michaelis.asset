@@ -38,7 +38,7 @@ MonoBehaviour:
   - timing: 11
     activationConditions:
     - boardSide: 4
-      checkKind: 28
+      checkKind: 9
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 0
@@ -47,14 +47,14 @@ MonoBehaviour:
       minimumCount: 4
       levelAggregate: 0
       compareOp: 0
-      compareValue: 2
+      compareValue: 0
       unitCountCompareOp: 0
       unitCountThreshold: 0
       pilotCardId: 0
       trashCardId: 0
       pilotLevelThreshold: 0
       activationStatTarget: -1
-      observedCardType: 0
+      observedCardType: 2
       destroyedByOwnerRelation: 0
       cardNameContains: 
     requireChainObservationContext: 0
@@ -104,6 +104,8 @@ MonoBehaviour:
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -111,6 +113,8 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 
@@ -124,11 +128,11 @@ MonoBehaviour:
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    - type: 4
+    - type: 2
       value: 1
       target: 0
       selectionMode: -1
-      statTarget: 0
+      statTarget: 1
       duration: 0
       valueMode: 0
       valueCountBoardSide: 0
@@ -168,6 +172,8 @@ MonoBehaviour:
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -175,6 +181,8 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 

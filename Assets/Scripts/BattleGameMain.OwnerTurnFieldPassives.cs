@@ -52,24 +52,25 @@ public partial class BattleGameMain
     {
         RefreshConditionalBlockerAbilitiesOnZone(playerBattleZoneCards, PlayerType.Player);
         RefreshConditionalBlockerAbilitiesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
-        RefreshMountedPilotConditionalHostApBonuses();
+        RefreshConditionalFieldSelfStatPassives();
     }
 
-    private static string MakeMountedPilotHostApBonusSourceKey(CardController pilot)
+    private static string MakeFieldConditionalSelfStatSourceKey(CardController unit, int blockIndex)
     {
-        return pilot != null ? $"MountedPilotHostAp:{pilot.GetEntityId()}" : string.Empty;
+        return unit != null ? $"FieldConditionalSelfStat:{unit.GetEntityId()}:{blockIndex}" : string.Empty;
     }
 
     /// <summary>
-    /// 搭乗パイロットの条件付き AP 付与（GD01-089 リディ等）。ホストユニットの実効 AP に反映する。
+    /// 盤面条件付き Self Buff/Debuff（OnEnemyAttack + activationConditions）。
+    /// ユニット自身（Michaelis 等）および搭乗パイロットのホスト AP 付与（Riddhe 等）を再評価する。
     /// </summary>
-    private void RefreshMountedPilotConditionalHostApBonuses()
+    private void RefreshConditionalFieldSelfStatPassives()
     {
-        RefreshMountedPilotConditionalHostApBonusesOnZone(playerBattleZoneCards, PlayerType.Player);
-        RefreshMountedPilotConditionalHostApBonusesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+        RefreshConditionalFieldSelfStatPassivesOnZone(playerBattleZoneCards, PlayerType.Player);
+        RefreshConditionalFieldSelfStatPassivesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
     }
 
-    private void RefreshMountedPilotConditionalHostApBonusesOnZone(
+    private void RefreshConditionalFieldSelfStatPassivesOnZone(
         List<CardController> zone,
         PlayerType ownerType)
     {
@@ -86,58 +87,89 @@ public partial class BattleGameMain
                 continue;
             }
 
+            ApplyConditionalFieldSelfStatFromTimedBlocks(host, host, ownerType, host.Data.timedEffects, isPilotSource: false);
+
             CardController pilot = host.MountedPilot;
-            if (pilot?.Data?.timedEffects == null)
+            if (pilot?.Data?.timedEffects != null)
+            {
+                ApplyConditionalFieldSelfStatFromTimedBlocks(pilot, host, ownerType, pilot.Data.timedEffects, isPilotSource: true);
+            }
+        }
+    }
+
+    private void ApplyConditionalFieldSelfStatFromTimedBlocks(
+        CardController effectSource,
+        CardController statTarget,
+        PlayerType ownerType,
+        IReadOnlyList<TimedEffectData> blocks,
+        bool isPilotSource)
+    {
+        if (effectSource == null || statTarget == null || blocks == null)
+        {
+            return;
+        }
+
+        for (int bi = 0; bi < blocks.Count; bi++)
+        {
+            TimedEffectData timed = blocks[bi];
+            if (timed == null
+                || timed.timing != EffectTiming.OnEnemyAttack
+                || !timed.HasResolvedEffects()
+                || !timed.HasActivationConditions()
+                || !timed.ContainsOnlySelfStatBuffDebuffEffects())
             {
                 continue;
             }
 
-            string sourceKey = MakeMountedPilotHostApBonusSourceKey(pilot);
+            string sourceKey = isPilotSource
+                ? MakeMountedPilotHostApBonusSourceKey(effectSource)
+                : MakeFieldConditionalSelfStatSourceKey(statTarget, bi);
             if (string.IsNullOrEmpty(sourceKey))
             {
                 continue;
             }
 
-            host.RemoveStatModifiersBySource(sourceKey);
-            EffectActivationContext ctx = BuildPilotMountActivationContext(ownerType, pilot, host, host);
-            for (int bi = 0; bi < pilot.Data.timedEffects.Count; bi++)
+            statTarget.RemoveStatModifiersBySource(sourceKey);
+
+            EffectActivationContext ctx = isPilotSource
+                ? BuildPilotMountActivationContext(ownerType, effectSource, statTarget, statTarget)
+                : BuildActivationContext(ownerType, statTarget);
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
             {
-                TimedEffectData timed = pilot.Data.timedEffects[bi];
-                if (timed == null
-                    || timed.timing != EffectTiming.OnEnemyAttack
-                    || !timed.HasResolvedEffects()
-                    || !EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int ei = 0; ei < effects.Count; ei++)
+            {
+                EffectData effect = effects[ei];
+                if (effect == null
+                    || (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+                    || effect.target != TargetType.Self)
                 {
                     continue;
                 }
 
-                IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
-                for (int ei = 0; ei < effects.Count; ei++)
+                int magnitude = ResolveEffectMagnitude(effect, ownerType, effectSource);
+                if (magnitude == 0)
                 {
-                    EffectData effect = effects[ei];
-                    if (effect == null
-                        || effect.type != EffectType.Buff
-                        || effect.target != TargetType.Self
-                        || effect.statTarget != EffectStatTarget.AP)
-                    {
-                        continue;
-                    }
-
-                    int magnitude = ResolveEffectMagnitude(effect, ownerType, pilot);
-                    if (magnitude <= 0)
-                    {
-                        continue;
-                    }
-
-                    ApplyStatEffect(
-                        host,
-                        magnitude,
-                        EffectStatTarget.AP,
-                        effect.duration,
-                        sourceKey);
+                    continue;
                 }
+
+                int signedValue = (effect.type == EffectType.Buff ? 1 : -1) * magnitude;
+                ApplyStatEffect(
+                    statTarget,
+                    signedValue,
+                    effect.statTarget,
+                    effect.duration,
+                    sourceKey);
             }
         }
+    }
+
+    private static string MakeMountedPilotHostApBonusSourceKey(CardController pilot)
+    {
+        return pilot != null ? $"MountedPilotHostAp:{pilot.GetEntityId()}" : string.Empty;
     }
 
     private void RefreshConditionalBlockerAbilitiesOnZone(

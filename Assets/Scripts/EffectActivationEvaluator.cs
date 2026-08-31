@@ -320,6 +320,26 @@ public static class EffectActivationEvaluator
             return EvaluateSourceMountHostHasRepair(ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceUnitIsColor)
+        {
+            return EvaluateSourceUnitIsColor(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.MountHostIsSelfOrOwnerWhiteUnit)
+        {
+            return EvaluateMountHostIsSelfOrOwnerWhiteUnit(ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OpponentHandCountAtLeast)
+        {
+            return EvaluateOpponentHandCountAtLeast(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerHasLinkedUnit)
+        {
+            return EvaluateOwnerHasLinkedUnit(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.DestroyedByBattleDamage)
         {
             return ctx.DestroyedByBattleDamage;
@@ -956,6 +976,140 @@ public static class EffectActivationEvaluator
         }
 
         return ctx.SourceCard.Data.HasAnyFeature(required);
+    }
+
+    private static bool EvaluateSourceUnitIsColor(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx?.SourceCard?.Data == null)
+        {
+            return false;
+        }
+
+        CardColor required = (CardColor)c.compareValue;
+        return ctx.SourceCard.Data.color == required;
+    }
+
+    /// <summary>
+    /// オーナーのバトルゾーンにリンク中の生存ユニットが minimumCount 体以上いるか。
+    /// </summary>
+    public static bool OwnerHasAnyLinkedUnit(EffectActivationContext ctx)
+    {
+        if (ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardController> zone = ctx.OwnerType == BattleGameMain.PlayerType.Player
+            ? ctx.PlayerBattleZone
+            : ctx.EnemyBattleZone;
+        if (zone == null || zone.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool EvaluateOwnerHasLinkedUnit(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        if (!OwnerHasAnyLinkedUnit(ctx))
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        IReadOnlyList<CardController> zone = ctx.OwnerType == BattleGameMain.PlayerType.Player
+            ? ctx.PlayerBattleZone
+            : ctx.EnemyBattleZone;
+        if (zone == null || zone.Count == 0)
+        {
+            return false;
+        }
+
+        int matched = 0;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+            {
+                continue;
+            }
+
+            matched++;
+            if (matched >= need)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool EvaluateOpponentHandCountAtLeast(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardController> hand = ResolveZone(ctx, EffectBoardSide.OpponentHand);
+        int count = 0;
+        if (hand != null)
+        {
+            for (int i = 0; i < hand.Count; i++)
+            {
+                if (hand[i] != null)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return CompareInts(count, c.unitCountThreshold, c.unitCountCompareOp);
+    }
+
+    private static bool EvaluateMountHostIsSelfOrOwnerWhiteUnit(EffectActivationContext ctx)
+    {
+        if (ctx?.SourceCard == null || ctx.MountHostUnit?.Data == null)
+        {
+            return false;
+        }
+
+        CardController host = ctx.MountHostUnit;
+        CardController watcher = ctx.SourceCard;
+        if (host == watcher
+            || (host.BattleInstanceId > 0
+                && watcher.BattleInstanceId > 0
+                && host.BattleInstanceId == watcher.BattleInstanceId))
+        {
+            return true;
+        }
+
+        return host.Data.color == CardColor.White;
     }
 
     private static bool EvaluateSourceHasBreach(EffectActivationContext ctx)

@@ -902,7 +902,20 @@ public partial class BattleGameMain
             picked =>
             {
                 selectionFinished = true;
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                System.Action applyPick = () =>
+                    ApplyEffectToSpecificTargets(
+                        sourceCard,
+                        ownerType,
+                        effect,
+                        new List<CardController> { picked });
+                if (ownerType == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyPick);
+                }
+                else
+                {
+                    applyPick();
+                }
             },
             () => { selectionFinished = true; });
 

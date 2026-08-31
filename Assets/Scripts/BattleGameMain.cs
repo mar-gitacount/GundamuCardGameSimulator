@@ -118,6 +118,8 @@ public partial class BattleGameMain : MonoBehaviour
     private bool shieldBreakQueueRunning;
     private readonly Queue<PendingShieldBreakBatch> pendingShieldBreakBatches = new Queue<PendingShieldBreakBatch>();
     private GameObject activeOnActionPopupRoot;
+    /// <summary>プレイヤーが手動選択 UI 経由で ApplyEffectToSpecificTargets している間だけ &gt; 0。</summary>
+    private int _playerManualUnitSelectionApplyDepth;
     private GameObject activeAttackFlowDebugPanelRoot;
     private bool isAttackedSidePanelOpen;
     /// <summary>攻撃フロー中のテスト用「actionthink」表示中。true の間は進行を止める。</summary>
@@ -5081,21 +5083,46 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[Pilot] {pilotCard.Data.cardName} を {target.Data.cardName} に搭乗。AP:{target.CurrentPower} HP:{target.CurrentHp}");
                 ApplyUnitAttackFlgFromLink(target, ownerType);
                 TryGrantOperationMeteorFirstStrikeOnPilotMount(target, pilotCard, ownerType);
-                TriggerOnPilotMountedEffects(target, pilotCard, ownerType, () =>
-                {
-                    TriggerOnLinkEffects(target, pilotCard, ownerType, () =>
-                    {
-                        TriggerOnPlayedEffects(pilotCard, ownerType, () =>
-                        {
-                            RefreshAllHandsConditionalOnHandAuto();
-                            StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
-                        });
-                    });
-                });
                 SyncResourceViewsFromRule(ownerSide);
+                // 搭乗先決定 UI を即閉じ、クリックが敵選択 UI に漏れないようにする
                 DestroyCardFilterOverlay(filterPanel);
+                StartCoroutine(CoResolvePilotMountChainAfterAttachCoroutine(
+                    target,
+                    pilotCard,
+                    ownerType,
+                    ownerSide));
             });
         }
+    }
+
+    /// <summary>
+    /// 搭乗直後の効果チェーン（OnPilotMounted → AllyPilotMount 監視 → OnLink → OnPlayed）を
+    /// 手動選択 UI 完了まで待ってからフィルターを閉じる。
+    /// </summary>
+    private IEnumerator CoResolvePilotMountChainAfterAttachCoroutine(
+        CardController hostUnit,
+        CardController pilotCard,
+        PlayerType ownerType,
+        Gundam2024RuleScript.PlayerSide ownerSide)
+    {
+        yield return null;
+
+        bool pilotMountEffectsDone = false;
+        TriggerOnPilotMountedEffects(hostUnit, pilotCard, ownerType, () => pilotMountEffectsDone = true);
+        yield return new WaitUntil(() => pilotMountEffectsDone);
+
+        bool postMountChainDone = false;
+        TriggerOnLinkEffects(hostUnit, pilotCard, ownerType, () =>
+        {
+            TriggerOnPlayedEffects(pilotCard, ownerType, () =>
+            {
+                RefreshAllHandsConditionalOnHandAuto();
+                StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
+                postMountChainDone = true;
+            });
+        });
+        yield return new WaitUntil(() => postMountChainDone);
+        SyncResourceViewsFromRule(ownerSide);
     }
 
     /// <summary>
@@ -6449,7 +6476,16 @@ public partial class BattleGameMain : MonoBehaviour
                             continue;
                         }
 
-                        ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
+                        System.Action applyAttackedTarget = () =>
+                            ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
+                        if (attackerOwner == PlayerType.Player)
+                        {
+                            InvokePlayerManualUnitSelectionCallback(applyAttackedTarget);
+                        }
+                        else
+                        {
+                            applyAttackedTarget();
+                        }
                         continue;
                     }
 
@@ -6727,11 +6763,19 @@ public partial class BattleGameMain : MonoBehaviour
                 if (immediateSinglePick)
                 {
                     consumed = true;
-                    ApplyEffectToSpecificTargets(
+                    System.Action applyPick = () => ApplyEffectToSpecificTargets(
                         effectSourceCard,
                         attackerOwner,
                         effect,
                         new List<CardController> { unit });
+                    if (chooserSide == PlayerType.Player)
+                    {
+                        InvokePlayerManualUnitSelectionCallback(applyPick);
+                    }
+                    else
+                    {
+                        applyPick();
+                    }
                     Debug.Log(
                         $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName}) "
                         + $"chooser:{chooserSide}");
@@ -6781,12 +6825,24 @@ public partial class BattleGameMain : MonoBehaviour
                     Debug.Log("効果対象を1体以上選択してください。");
                     return;
                 }
-                ApplyEffectToSpecificTargets(effectSourceCard, attackerOwner, effect, selected);
-                Debug.Log(
-                    $"[OnAttack] 効果対象を複数選択 ({effectSourceCard?.Data?.cardName})。");
-                ReleaseOnActionPopupState(root);
-                Destroy(root);
-                ContinueOnAttackAfterAppliedEffect(attackUnit, effect, onResolved);
+
+                System.Action applyPicks = () =>
+                {
+                    ApplyEffectToSpecificTargets(effectSourceCard, attackerOwner, effect, selected);
+                    Debug.Log(
+                        $"[OnAttack] 効果対象を複数選択 ({effectSourceCard?.Data?.cardName})。");
+                    ReleaseOnActionPopupState(root);
+                    Destroy(root);
+                    ContinueOnAttackAfterAppliedEffect(attackUnit, effect, onResolved);
+                };
+                if (chooserSide == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyPicks);
+                }
+                else
+                {
+                    applyPicks();
+                }
             });
         }
 
@@ -6912,8 +6968,98 @@ public partial class BattleGameMain : MonoBehaviour
         return EffectMagnitudeResolver.Resolve(effect, BuildActivationContext(ownerType, sourceCard), sourceCard);
     }
 
+    private void InvokePlayerManualUnitSelectionCallback(System.Action callback)
+    {
+        _playerManualUnitSelectionApplyDepth++;
+        try
+        {
+            callback?.Invoke();
+        }
+        finally
+        {
+            _playerManualUnitSelectionApplyDepth--;
+        }
+    }
+
+    /// <summary>
+    /// オンライン相手搭乗ミラー等、リモート適用中は AllyPilotMount をローカル解決しない。
+    /// （ミラー側 AI 自動選択 → EffectSync で相手盤面へ誤デバフ、を防ぐ）
+    /// </summary>
+    private bool ShouldRunAllyPilotMountWatchEffects(PlayerType ownerType)
+    {
+        if (_applyingRemoteBattleAction)
+        {
+            Debug.Log(
+                $"[AllyPilotMountWatch] skip remote mirror (owner:{ownerType})");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 手動ユニット選択 UI を出すべき操作側か（TestPlay 両サイド／ローカル Player）。
+    /// ownerType=Enemy のオンライン受信ミラーは false（AI 自動選択禁止）。
+    /// </summary>
+    private bool RequiresInteractiveManualUnitSelectionUi(PlayerType effectOwnerType)
+    {
+        if (_applyingRemoteBattleAction)
+        {
+            return false;
+        }
+
+        if (IsTestPlayBattle())
+        {
+            return IsActingSideForUi(effectOwnerType);
+        }
+
+        if (IsOnlineBattle())
+        {
+            return effectOwnerType == PlayerType.Player && currentPlayerType == PlayerType.Player;
+        }
+
+        return effectOwnerType == PlayerType.Player;
+    }
+
+    /// <summary>
+    /// プレイヤー操作時に UI なしで ApplyEffectToSpecificTargets してはいけない効果か。
+    /// UsePriorChainPickedTarget / 攻撃対象限定の非手動選択タイプのみ自動適用を許可する。
+    /// </summary>
+    private static bool ShouldBlockPlayerManualEffectWithoutSelectionUi(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return false;
+        }
+
+        if (effect.selectionMode == EffectSelectionMode.UsePriorChainPickedTarget)
+        {
+            return false;
+        }
+
+        // 攻撃対象限定かつ手動選択不要タイプのみ例外（攻撃フロー専用）
+        if (effect.selectionMode == EffectSelectionMode.AttackedTargetOnly
+            && !effect.type.RequiresManualUnitSelection())
+        {
+            return false;
+        }
+
+        return EffectRequiresManualUnitSelection(effect);
+    }
+
     private void ApplyEffectToSpecificTargets(CardController sourceCard, PlayerType ownerType, EffectData effect, List<CardController> targets)
     {
+        if (ownerType == PlayerType.Player
+            && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect)
+            && _playerManualUnitSelectionApplyDepth <= 0)
+        {
+            Debug.LogWarning(
+                $"[Effect] Blocked player manual unit effect without selection UI "
+                + $"(type:{effect.type} target:{effect.target} cardId:{sourceCard?.Data?.id} "
+                + $"targets:{targets?.Count ?? 0}).");
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.AttackActiveEnemyUnit)
         {
             if (effect.IsAttackActiveEnemyAllyGrant())
@@ -9848,7 +9994,16 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+                System.Action applyDefenderTarget = () =>
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+                if (ownerType == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyDefenderTarget);
+                }
+                else
+                {
+                    applyDefenderTarget();
+                }
 
                 if (!IsUnitAliveOnAnyDeployField(defender))
                 {
@@ -9905,7 +10060,16 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+                System.Action applyDefenderTarget = () =>
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+                if (ownerType == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyDefenderTarget);
+                }
+                else
+                {
+                    applyDefenderTarget();
+                }
             }
         }
     }
@@ -10251,6 +10415,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         RefreshHandConditionalOnHandAuto(PlayerType.Player);
         RefreshHandConditionalOnHandAuto(PlayerType.Enemy);
+        RefreshConditionalFieldSelfStatPassives();
     }
 
     private void RefreshHandConditionalOnHandAuto(PlayerType side)
@@ -10463,9 +10628,18 @@ public partial class BattleGameMain : MonoBehaviour
             ? CollectMountTimedBlocks(pilot, ownerType, hostUnit, pilot, EffectTiming.OnPilotMounted)
             : new List<TimedEffectData>();
 
+        void FinishAllyPilotMountWatchAndComplete()
+        {
+            NotifyAllyPilotMounted(ownerType, hostUnit, pilot, () =>
+            {
+                RefreshAllFieldOwnerTurnPassives();
+                onComplete?.Invoke();
+            });
+        }
+
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
         {
-            onComplete?.Invoke();
+            FinishAllyPilotMountWatchAndComplete();
             return;
         }
 
@@ -10478,8 +10652,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             _pilotMountEffectHostUnit = null;
             EndEffectChainObservationScope();
-            RefreshAllFieldOwnerTurnPassives();
-            onComplete?.Invoke();
+            FinishAllyPilotMountWatchAndComplete();
         }
 
         _pilotMountEffectHostUnit = hostUnit;
@@ -11467,6 +11640,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // オンライン相手搭乗ミラー等：AI 自動選択で EffectSync 誤送信しない
+        if (_applyingRemoteBattleAction)
+        {
+            onSkipped?.Invoke();
+            return;
+        }
+
         List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
         if (candidates.Count == 0)
         {
@@ -11476,7 +11656,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (ownerType == PlayerType.Enemy)
+        if (ownerType == PlayerType.Enemy && !RequiresInteractiveManualUnitSelectionUi(ownerType))
         {
             EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
             if (effect.selectionMode.IsMultipleUnitPickMode())
@@ -11532,13 +11712,66 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // 「してもよい」系（abortRemainingChainOnSkip / optionalPlayerConfirm）は候補1体でも UI＋キャンセルを出す
+        // 人間操作側は SelectSingle 系を常に UI 経由（候補1体の自動適用を禁止）
+        if (RequiresInteractiveManualUnitSelectionUi(ownerType) && effect.selectionMode.RequiresManualUnitPick())
+        {
+            OpenManualUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                attackingUnitInAttackFlow,
+                picked =>
+                {
+                    if (picked != null)
+                    {
+                        ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        onSkipped?.Invoke();
+                    }
+                });
+            return;
+        }
+
+        // 人間操作側は Debuff/Damage 等も常に UI（selectionMode 未設定でも）
+        if (RequiresInteractiveManualUnitSelectionUi(ownerType) && effect.type.RequiresManualUnitSelection())
+        {
+            OpenManualUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                attackingUnitInAttackFlow,
+                picked =>
+                {
+                    if (picked != null)
+                    {
+                        ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        onSkipped?.Invoke();
+                    }
+                });
+            return;
+        }
+
+        // 「Choose 1 …」系は候補1体でも UI を出し、キャンセルで不発にできる
         bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag
             || effect.type == EffectType.EffectBattle
             || effect.IsAttackActiveEnemyAllyGrant()
+            || effect.type == EffectType.Debuff
+            || effect.type == EffectType.Damage
+            || effect.type == EffectType.Bounce
+            || effect.type == EffectType.RecoverHp
             || effect.abortRemainingChainOnSkip
             || effect.optionalPlayerConfirm;
-        if (!forceSelectionUi && candidates.Count == 1)
+        // 人間操作側は候補1体でも自動適用禁止（必ず UI で明示選択）
+        if (!forceSelectionUi && candidates.Count == 1 && !RequiresInteractiveManualUnitSelectionUi(ownerType))
         {
             ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, candidates);
             onDone?.Invoke();
@@ -11659,6 +11892,8 @@ public partial class BattleGameMain : MonoBehaviour
         RectTransform content = sr != null ? sr.content : null;
 
         bool resolved = false;
+        bool acceptPickInput = false;
+        List<Button> pickButtons = new List<Button>();
         for (int i = 0; i < candidates.Count; i++)
         {
             CardController candidate = candidates[i];
@@ -11702,10 +11937,13 @@ public partial class BattleGameMain : MonoBehaviour
                 btn = go.AddComponent<Button>();
             }
 
+            btn.interactable = false;
+            pickButtons.Add(btn);
+
             CardController pickedRef = candidate;
             btn.onClick.AddListener(() =>
             {
-                if (resolved)
+                if (resolved || !acceptPickInput)
                 {
                     return;
                 }
@@ -11714,9 +11952,11 @@ public partial class BattleGameMain : MonoBehaviour
                 Destroy(root);
                 activeOnActionPopupRoot = null;
                 isOnActionPopupOpen = false;
-                onPicked?.Invoke(pickedRef);
+                InvokePlayerManualUnitSelectionCallback(() => onPicked?.Invoke(pickedRef));
             });
         }
+
+        StartCoroutine(CoEnableManualUnitPickButtonsAfterOpen(pickButtons, () => acceptPickInput = true));
 
         Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
         RectTransform cancelRt = cancel.GetComponent<RectTransform>();
@@ -11738,6 +11978,28 @@ public partial class BattleGameMain : MonoBehaviour
             isOnActionPopupOpen = false;
             onPicked?.Invoke(null);
         });
+    }
+
+    /// <summary>手動選択 UI 表示直後のクリック漏れ（搭乗ボタン等）を防ぐ。</summary>
+    private IEnumerator CoEnableManualUnitPickButtonsAfterOpen(List<Button> pickButtons, System.Action onReady)
+    {
+        yield return null;
+        yield return null;
+        yield return null;
+        onReady?.Invoke();
+        if (pickButtons == null)
+        {
+            yield break;
+        }
+
+        for (int i = 0; i < pickButtons.Count; i++)
+        {
+            Button btn = pickButtons[i];
+            if (btn != null)
+            {
+                btn.interactable = true;
+            }
+        }
     }
 
     private static readonly Color ManualMultiSelectHighlightColor = new Color(1f, 0.45f, 0.45f, 1f);
@@ -11845,7 +12107,15 @@ public partial class BattleGameMain : MonoBehaviour
             Destroy(root);
             activeOnActionPopupRoot = null;
             isOnActionPopupOpen = false;
-            onConfirmed?.Invoke(picks ?? new List<CardController>());
+            List<CardController> confirmed = picks ?? new List<CardController>();
+            if (confirmed.Count > 0)
+            {
+                InvokePlayerManualUnitSelectionCallback(() => onConfirmed?.Invoke(confirmed));
+            }
+            else
+            {
+                onConfirmed?.Invoke(confirmed);
+            }
         }
 
         for (int i = 0; i < candidates.Count; i++)
@@ -12096,9 +12366,22 @@ public partial class BattleGameMain : MonoBehaviour
             priorChainStatCompareValue = EffectDataExtensions.GetTargetUnitFilterStatValue(prior[0], statFilter);
         }
 
+        bool ownerHasLinkedUnit = false;
+        if (effect.relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit && sourceCard != null)
+        {
+            PlayerType sourceOwner = ResolveCardOwner(sourceCard.transform);
+            ownerHasLinkedUnit = EffectActivationEvaluator.OwnerHasAnyLinkedUnit(
+                BuildActivationContext(sourceOwner, sourceCard));
+        }
+
         for (int i = targets.Count - 1; i >= 0; i--)
         {
-            if (!effect.MatchesTargetUnitFilter(targets[i], sourceCard, ownerTrashIds, priorChainStatCompareValue))
+            if (!effect.MatchesTargetUnitFilter(
+                    targets[i],
+                    sourceCard,
+                    ownerTrashIds,
+                    priorChainStatCompareValue,
+                    ownerHasLinkedUnit))
             {
                 targets.RemoveAt(i);
             }
@@ -16275,7 +16558,15 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TryApplyOnActionRestSelfCostIfPresent(command, side);
-        ApplyEffectToSpecificTargets(command, side, effect, pickedTargets);
+        if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
+        {
+            InvokePlayerManualUnitSelectionCallback(() =>
+                ApplyEffectToSpecificTargets(command, side, effect, pickedTargets));
+        }
+        else
+        {
+            ApplyEffectToSpecificTargets(command, side, effect, pickedTargets);
+        }
         if (attackingUnitInAttackFlow != null && pickedTargets.Contains(attackingUnitInAttackFlow))
         {
             Debug.Log(
@@ -17267,7 +17558,16 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
-                ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
+                System.Action applyPick = () =>
+                    ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
+                if (side == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyPick);
+                }
+                else
+                {
+                    applyPick();
+                }
                 TryExecuteOnMainEffectChain(
                     side,
                     source,
@@ -17300,7 +17600,15 @@ public partial class BattleGameMain : MonoBehaviour
             yield break;
         }
 
-        ApplyEffectToSpecificTargets(source, side, effect, targets);
+        if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
+        {
+            InvokePlayerManualUnitSelectionCallback(() =>
+                ApplyEffectToSpecificTargets(source, side, effect, targets));
+        }
+        else
+        {
+            ApplyEffectToSpecificTargets(source, side, effect, targets);
+        }
         TryExecuteOnMainEffectChain(
             side,
             source,

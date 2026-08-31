@@ -2433,7 +2433,15 @@ public partial class BattleGameMain
 
         ApplyUnitAttackFlgFromLink(hostUnit, hostOwner);
         TryGrantOperationMeteorFirstStrikeOnPilotMount(hostUnit, pilotController, hostOwner);
-        RefreshAllFieldOwnerTurnPassives();
+        CardController mountHostForEffects = hostUnit;
+        CardController mountedPilotForEffects = pilotController;
+        TriggerOnPilotMountedEffects(mountHostForEffects, mountedPilotForEffects, hostOwner, () =>
+        {
+            TriggerOnLinkEffects(mountHostForEffects, mountedPilotForEffects, hostOwner, () =>
+            {
+                RefreshAllFieldOwnerTurnPassives();
+            });
+        });
         ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
         if (!action.includeResourceSnapshot)
         {

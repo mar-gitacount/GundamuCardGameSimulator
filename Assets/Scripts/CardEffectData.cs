@@ -54,6 +54,10 @@ public enum EffectTiming
     /// メイン／アクションいずれの支払いでも誘発する。
     /// </summary>
     OnExResourceRemoved = 24,
+    /// <summary>
+    /// 自分のユニット（または白の味方ユニット）にパイロットがセットされたとき、場の監視ユニットが効果を解決する。
+    /// </summary>
+    OnAllyPilotMounted = 25,
 }
 
 public enum EffectType
@@ -402,7 +406,11 @@ public static class EffectTypeExtensions
             || type == EffectType.MarkObservedUnit
             || type == EffectType.EffectBattle
             || type == EffectType.FirstStrike
-            || type == EffectType.GrantBreach;
+            || type == EffectType.GrantBreach
+            || type == EffectType.Debuff
+            || type == EffectType.Buff
+            || type == EffectType.Damage
+            || type == EffectType.RecoverHp;
     }
 
     /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>
@@ -721,7 +729,27 @@ public enum EffectActivationCheckKind
     /// 搭乗ホスト（パイロット効果時）またはソースユニットが《リペア》を持つ。
     /// MountHostUnit / SourceCard の isRepair・付与リペア・リンク中リペア・搭乗パイロット付与を含む。
     /// </summary>
-    SourceMountHostHasRepair
+    SourceMountHostHasRepair,
+    /// <summary>
+    /// ソースユニット（搭乗ホスト）の色が compareValue の CardColor と一致する。
+    /// パイロットの「このユニットが〔色〕の間」条件（搭乗ホストを Source にして評価）に使用。
+    /// </summary>
+    SourceUnitIsColor,
+    /// <summary>
+    /// OnAllyPilotMounted 時、MountHostUnit が SourceCard（監視ユニット）自身、
+    /// または白の味方ユニットである。
+    /// </summary>
+    MountHostIsSelfOrOwnerWhiteUnit,
+    /// <summary>
+    /// 相手の手札枚数を unitCountThreshold と unitCountCompareOp で比較（例: 8 枚以上）。
+    /// boardSide は不要（常に OpponentHand）。
+    /// </summary>
+    OpponentHandCountAtLeast,
+    /// <summary>
+    /// オーナーのバトルゾーンにリンク中の生存ユニットが minimumCount 体以上いる。
+    /// Feature 指定は不要（任意のリンクユニット）。
+    /// </summary>
+    OwnerHasLinkedUnit
 }
 
 public enum EffectTurnCheckKind
@@ -1169,6 +1197,20 @@ public class EffectData
 
     [Tooltip("Activate 等: true のとき isBlocker の味方ユニットのみ候補。")]
     public bool filterTargetIsBlocker;
+
+    [Tooltip("true のとき CardData.color が filterTargetUnitColorValue（CardColor 整数）と一致するユニットのみ候補。")]
+    public bool filterTargetUnitColor;
+
+    [Tooltip("filterTargetUnitColor 時の色（CardColor: 0=Red … 5=White 等）。")]
+    public int filterTargetUnitColorValue;
+
+    [Tooltip(
+        "true のとき、オーナーのバトルゾーンにリンクユニットがいると "
+        + "targetUnitStatCompareValue の代わりに relaxedTargetUnitStatCompareValue で HP/AP 等を比較する。")]
+    public bool relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit;
+
+    [Tooltip("relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit 時の緩和後 compare 値（0 以下は通常値のまま）。")]
+    public int relaxedTargetUnitStatCompareValue;
 
     [Tooltip("SelectMultipleUnits 等: 最低選択体数（0 なら複数選択時は 1）。")]
     public int selectMinCount;
@@ -1674,7 +1716,8 @@ public static class EffectDataExtensions
         CardController unit,
         CardController sourceCard = null,
         IReadOnlyList<int> ownerTrashCardIds = null,
-        int? priorChainStatCompareValue = null)
+        int? priorChainStatCompareValue = null,
+        bool ownerHasLinkedUnit = false)
     {
         if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
@@ -1730,6 +1773,13 @@ public static class EffectDataExtensions
             }
 
             int compareValue = effect.targetUnitStatCompareValue;
+            if (effect.relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit && ownerHasLinkedUnit)
+            {
+                compareValue = effect.relaxedTargetUnitStatCompareValue > 0
+                    ? effect.relaxedTargetUnitStatCompareValue
+                    : compareValue;
+            }
+
             if (effect.compareTargetStatToPriorChainPicked)
             {
                 if (!priorChainStatCompareValue.HasValue)
@@ -2081,6 +2131,12 @@ public static class EffectDataExtensions
         }
 
         if (effect.filterTargetIsBlocker && !unit.HasBlockerAbility)
+        {
+            return false;
+        }
+
+        if (effect.filterTargetUnitColor
+            && unit.Data.color != (CardColor)effect.filterTargetUnitColorValue)
         {
             return false;
         }
@@ -2458,6 +2514,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnExResourceRemoved
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>味方パイロットセット時（OnAllyPilotMounted）に解決するブロック。</summary>
+    public static bool IsOnAllyPilotMountedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnAllyPilotMounted
             || !timed.HasResolvedEffects())
         {
             return false;

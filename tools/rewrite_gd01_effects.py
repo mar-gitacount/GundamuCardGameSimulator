@@ -22,7 +22,7 @@ COND_TMPL = """    - boardSide: {boardSide}
       trashCardId: 0
       pilotLevelThreshold: 0
       activationStatTarget: {activationStatTarget}
-      observedCardType: 0
+      observedCardType: {observedCardType}
       destroyedByOwnerRelation: 0
       cardNameContains: """
 
@@ -69,13 +69,17 @@ EFF_TMPL = """    - type: {type}
       forbidSkipHandDiscard: {forbidSkipHandDiscard}
       revealDrawnToPlayer: {revealDrawnToPlayer}
       filterTargetIsBlocker: {filterTargetIsBlocker}
+      filterTargetUnitColor: {filterTargetUnitColor}
+      filterTargetUnitColorValue: {filterTargetUnitColorValue}
       selectMinCount: {selectMinCount}
       selectMaxCount: {selectMaxCount}
       observedUnitTriggerKind: -1
       autoSelectLowestUnitStat: 0
       autoSelectHighestUnitStat: {autoSelectHighestUnitStat}
-      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: {relaxTargetUnitStatFilterWhenTrashHasSourceCopies}
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: {relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit}
+      relaxedTargetUnitStatCompareValue: {relaxedTargetUnitStatCompareValue}
       requireExactExileCount: 0
       targetCardNameContains: {targetCardNameContains}
       targetCardNameExcludes: 
@@ -105,6 +109,7 @@ def cond(**kw):
         unitCountCompareOp=0,
         unitCountThreshold=0,
         activationStatTarget=-1,
+        observedCardType=0,
     )
     d.update(kw)
     return COND_TMPL.format(**d)
@@ -135,6 +140,8 @@ def effect(**kw):
         forbidSkipHandDiscard=0,
         revealDrawnToPlayer=0,
         filterTargetIsBlocker=0,
+        filterTargetUnitColor=0,
+        filterTargetUnitColorValue=0,
         filterByTargetCardType=0,
         targetCardType=0,
         deployUnitSource=0,
@@ -147,6 +154,9 @@ def effect(**kw):
         autoSelectHighestUnitStat=0,
         targetCardNameContains="",
         requireTargetDamaged=0,
+        relaxTargetUnitStatFilterWhenTrashHasSourceCopies=0,
+        relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit=0,
+        relaxedTargetUnitStatCompareValue=0,
         econds="      effectActivationConditions: []\n",
     )
     extra_conds = kw.pop("effectActivationConditions", None)
@@ -209,6 +219,8 @@ ACAD = 23
 WBT = 33
 SOURCE_HAS_BREACH = 35
 SOURCE_MOUNT_HOST_HAS_REPAIR = 36
+SOURCE_UNIT_IS_COLOR = 37
+MOUNT_HOST_SELF_OR_WHITE = 38
 BATTLE_DMG_IMMUNITY_LOW_AP = 52
 MC = 34
 OZ = 36
@@ -216,13 +228,32 @@ GTEAM = 37
 CYBER = 39
 COORD = 32
 
+# EffectType（CardEffectData.cs の enum 順）
+BOUNCE = 9
+REST = 10
+DEBUFF = 3
+BUFF = 2
+ACTIVATE = 25
+NOT_DIRECT_ATTACK = 26
+RECOVER_HP = 32
+ADD_FROM_TRASH = 40
+
+# EffectActivationCheckKind
+TRASH_HAS_CARD_TYPE = 9
+UNIT_STAT_ON_FIELD = 6
+OPP_HAND_COUNT = 39
+OWNER_HAS_LINKED = 40
+OWNER_TRASH = 4
+COMMAND_CARD_TYPE = 2
+CARD_COLOR_WHITE = 5
+
 EFFECTS = {}
 BLOCKER = {}
 REPAIR = {}
 
 SKIP = {
     "GD01-006", "GD01-008", "GD01-020", "GD01-023",
-    "GD01-025", "GD01-030", "GD01-049", "GD01-054", "GD01-065", "GD01-066", "GD01-068",
+    "GD01-025", "GD01-030", "GD01-049", "GD01-054", "GD01-066",
     "GD01-073", "GD01-086", "GD01-090", "GD01-100",
 }
 
@@ -365,6 +396,7 @@ EFFECTS["GD01-038"] = [
 ]
 EFFECTS["GD01-039"] = [
     timed(0, effects_name="LookTop1_PlayDeck"),
+    timed(17, effects_name="ChooseLookedRemainderDisposition"),
 ]
 EFFECTS["GD01-041"] = [
     timed(0, effects_name="Breach3"),
@@ -492,13 +524,17 @@ EFFECTS["GD01-063"] = [
     ),
 ]
 EFFECTS["GD01-067"] = [
-    timed(15, [effect(type=26, value=1, target=5, selectionMode=1, filterByTargetCardType=1, targetCardType=2, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)]),
+    timed(18, [effect(type=ADD_FROM_TRASH, value=1, target=5, selectionMode=1, filterByTargetCardType=1, targetCardType=COMMAND_CARD_TYPE, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)]),
 ]
 EFFECTS["GD01-069"] = [
-    timed(12, [effect(type=35, value=1, target=1, selectionMode=1, filterTargetIsBlocker=1)], once_per_turn=1, activation_cost=1),
+    timed(12, effects_name="ActivateWhiteRestedBlocker_NotDirectAttack_OnMain", once_per_turn=1, activation_cost=1),
 ]
 EFFECTS["GD01-070"] = [
-    timed(13, effects_name="ScaleSelfCostLevelByOwnerOrbUnits"),
+    timed(
+        13,
+        effects_name="ScaleSelfCostReduce2_WhenOwnerTrashHas4Commands",
+        conds=[cond(boardSide=OWNER_TRASH, checkKind=TRASH_HAS_CARD_TYPE, minimumCount=4, observedCardType=COMMAND_CARD_TYPE)],
+    ),
 ]
 EFFECTS["GD01-071"] = [
     timed(18, [effect(type=3, value=2, target=2, selectionMode=1, duration=1)], conds=[cond(checkKind=25)]),
@@ -513,16 +549,32 @@ EFFECTS["GD01-074"] = [
     timed(3, [effect(type=1, value=1, target=5), effect(type=24, value=1, target=5, selectionMode=1)]),
 ]
 EFFECTS["GD01-075"] = [
-    timed(0, [effect(type=7, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=1)]),
+    timed(0, [effect(type=BOUNCE, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=1)]),
+]
+BLOCKER["GD01-065"] = 1
+EFFECTS["GD01-065"] = [
+    timed(
+        25,
+        [effect(type=DEBUFF, value=2, target=2, selectionMode=1, duration=1)],
+        conds=[cond(checkKind=MOUNT_HOST_SELF_OR_WHITE)],
+    ),
+]
+BLOCKER["GD01-068"] = 1
+EFFECTS["GD01-068"] = [
+    timed(0, [effect(type=BOUNCE, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=1)]),
 ]
 EFFECTS["GD01-076"] = [
-    timed(11, [effect(type=2, value=1, target=0), effect(type=4, value=1, target=0)], conds=[cond(boardSide=4, checkKind=28, compareValue=2, minimumCount=4)]),
+    timed(
+        11,
+        [effect(type=BUFF, value=1, target=0, statTarget=0), effect(type=BUFF, value=1, target=0, statTarget=1)],
+        conds=[cond(boardSide=OWNER_TRASH, checkKind=TRASH_HAS_CARD_TYPE, minimumCount=4, observedCardType=COMMAND_CARD_TYPE)],
+    ),
 ]
 EFFECTS["GD01-078"] = [
     timed(0, [effect(type=3, value=1, target=2, selectionMode=1, duration=1)]),
 ]
 EFFECTS["GD01-080"] = [
-    timed(9, [effect(type=7, value=1, target=2, selectionMode=1, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=2)]),
+    timed(9, [effect(type=BOUNCE, value=1, target=2, selectionMode=1, targetUnitFilterStat=3, targetUnitStatCompareOp=3, targetUnitStatCompareValue=2)]),
 ]
 EFFECTS["GD01-082"] = [
     timed(18, [effect(type=3, value=1, target=2, selectionMode=1, duration=1)], once_per_turn=1, activation_cost=2),
@@ -595,9 +647,27 @@ EFFECTS["GD01-095"].append(
     )
 )
 BLOCKER["GD01-096"] = 1
-EFFECTS["GD01-096"].append(timed(11, [], conds=[cond(checkKind=13)]))
-EFFECTS["GD01-097"].append(timed(12, [effect(type=35, value=1, target=0)], once_per_turn=1))
-EFFECTS["GD01-098"].append(timed(8, [effect(type=32, value=1, target=0)], once_per_turn=1))
+EFFECTS["GD01-096"].append(timed(11, [], conds=[cond(checkKind=37, compareValue=5)]))
+EFFECTS["GD01-097"].append(
+    timed(
+        12,
+        [
+            effect(type=ACTIVATE, value=1, target=0),
+            effect(type=NOT_DIRECT_ATTACK, value=1, target=0, selectionMode=4, duration=1),
+        ],
+        conds=[cond(checkKind=OPP_HAND_COUNT, unitCountCompareOp=0, unitCountThreshold=8)],
+        once_per_turn=1,
+        activation_cost=1,
+    )
+)
+EFFECTS["GD01-098"].append(
+    timed(
+        8,
+        [effect(type=RECOVER_HP, value=1, target=0)],
+        conds=[cond(boardSide=1, checkKind=UNIT_STAT_ON_FIELD, activationStatTarget=0, compareOp=3, compareValue=1)],
+        once_per_turn=1,
+    )
+)
 
 # Commands
 EFFECTS["GD01-099"] = [
@@ -673,7 +743,7 @@ EFFECTS["GD01-115"] = main_action([timed(12, [effect(type=0, value=1, target=2, 
 EFFECTS["GD01-116"] = main_action([timed(12, [effect(type=0, value=2, target=2, selectionMode=1, targetUnitFilterStat=0, targetUnitStatCompareOp=3, targetUnitStatCompareValue=2)])])
 EFFECTS["GD01-117"] = [
     timed(5, effects_name="ActivateSelfOnMain_OnBurst"),
-] + main_action([timed(12, [effect(type=7, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)])])
+] + main_action([timed(12, [effect(type=BOUNCE, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=5)])])
 # 【メイン】2枚ドロー。その後、1枚捨てる（Skip不可。発動元自身はコード側で捨て札候補外）
 EFFECTS["GD01-118"] = [
     timed(12, [
@@ -695,9 +765,26 @@ EFFECTS["GD01-120"] = [
 ]
 EFFECTS["GD01-121"] = [
     timed(5, effects_name="ActivateSelfOnMain_OnBurst"),
-    timed(12, [effect(type=35, value=1, target=4, selectionMode=1, filterTargetIsBlocker=1)]),
+    timed(12, effects_name="ActivateBlocker_NotDirectAttack_OnMain"),
 ]
-EFFECTS["GD01-122"] = [timed(12, [effect(type=7, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=2)])]
+EFFECTS["GD01-122"] = [
+    timed(
+        12,
+        [
+            effect(
+                type=BOUNCE,
+                value=1,
+                target=2,
+                selectionMode=1,
+                targetUnitFilterStat=1,
+                targetUnitStatCompareOp=3,
+                targetUnitStatCompareValue=2,
+                relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit=1,
+                relaxedTargetUnitStatCompareValue=4,
+            )
+        ],
+    )
+]
 
 # Bases
 for gid in ["GD01-123", "GD01-124", "GD01-125", "GD01-126", "GD01-127", "GD01-128", "GD01-129", "GD01-130"]:
@@ -760,9 +847,18 @@ EFFECTS["GD01-127"].append(
 )
 EFFECTS["GD01-129"][1] = timed(6, [
     effect(type=6, value=1, target=5),
-    effect(type=7, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3),
+    effect(type=BOUNCE, value=1, target=2, selectionMode=1, targetUnitFilterStat=1, targetUnitStatCompareOp=3, targetUnitStatCompareValue=3),
 ])
-EFFECTS["GD01-130"].append(timed(12, [effect(type=3, value=1, target=2, selectionMode=1, duration=1)], conds=[cond(boardSide=0, checkKind=0, featureId=ACAD, minimumCount=1)]))
+EFFECTS["GD01-130"].append(
+    timed(
+        12,
+        [
+            effect(type=REST, value=1, target=0),
+            effect(type=DEBUFF, value=1, target=2, selectionMode=1, duration=1),
+        ],
+        conds=[cond(boardSide=0, checkKind=0, featureId=ACAD, minimumCount=1)],
+    )
+)
 
 for gid in ALL:
     EFFECTS.setdefault(gid, [])
@@ -771,6 +867,12 @@ for gid in ALL:
 COMMAND_PILOT_META = {
     "GD01-101": {
         "pilot_guid": "087a81ce002444d39410b40fe595df13",  # Lucrezia Noin
+    },
+    "GD01-119": {
+        "pilot_guid": "48902e7066b34df0bebe315d2c0ac9f1",  # Chuatury Panlunch
+    },
+    "GD01-122": {
+        "pilot_guid": "2130ab2399114dce87e001c0dab90187",  # Shaddiq Zenelli
     },
 }
 
@@ -811,6 +913,7 @@ def main():
     paths = sorted(CARDS_DIR.glob("GD01-*.asset"))
     extra = {
         "GD01-016": CARDS_DIR / "Jegan.asset",
+        "GD01-068": CARDS_DIR / "38Perfect Strike Gundam.asset",
     }
     for gid, extra_path in extra.items():
         if extra_path.exists() and extra_path not in paths:
