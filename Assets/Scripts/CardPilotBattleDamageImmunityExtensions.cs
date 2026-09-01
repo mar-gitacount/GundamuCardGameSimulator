@@ -2,13 +2,14 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 搭乗パイロットの「低AP敵からの戦闘ダメージ無効」パッシブ判定。
+/// ユニット本体／搭乗パイロットの「低AP／低Lv敵からの戦闘ダメージ無効」パッシブ判定。
 /// </summary>
 public static class CardPilotBattleDamageImmunityExtensions
 {
     /// <summary>
-    /// 搭乗パイロットの BattleDamageImmunityFromLowApEnemy により、
-    /// 敵ユニット（AP≤value）からの戦闘ダメージを無効化するか。
+    /// BattleDamageImmunityFromLowApEnemy により、
+    /// 敵ユニット（AP または Lv が value 以下）からの戦闘ダメージを無効化するか。
+    /// statTarget=Level のときは CardData.level 基準の CurrentLevel を比較する。
     /// </summary>
     public static bool ShouldIgnoreBattleDamageFromAttacker(
         CardController damageTarget,
@@ -26,22 +27,48 @@ public static class CardPilotBattleDamageImmunityExtensions
             return false;
         }
 
-        CardController pilot = damageTarget.MountedPilot;
-        if (pilot?.Data == null || pilot.Data.timedEffects == null)
-        {
-            return false;
-        }
-
-        int attackerAp = damageSource.CurrentPower;
         EffectActivationContext ctx = BuildCombatImmunityContext(
             damageTarget,
-            pilot,
+            damageTarget.MountedPilot,
             damageTargetOwner,
             isDamageTargetOwnerTurn);
 
-        for (int ti = 0; ti < pilot.Data.timedEffects.Count; ti++)
+        if (damageTarget.Data?.timedEffects != null
+            && TryIgnoreFromTimedEffects(
+                damageTarget.Data.timedEffects,
+                damageTarget,
+                damageSource,
+                ctx,
+                damageTarget.Data.cardName))
         {
-            TimedEffectData timed = pilot.Data.timedEffects[ti];
+            return true;
+        }
+
+        CardController pilot = damageTarget.MountedPilot;
+        if (pilot?.Data?.timedEffects != null
+            && TryIgnoreFromTimedEffects(
+                pilot.Data.timedEffects,
+                pilot,
+                damageSource,
+                ctx,
+                pilot.Data.cardName))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryIgnoreFromTimedEffects(
+        IReadOnlyList<TimedEffectData> timedEffects,
+        CardController effectOwner,
+        CardController damageSource,
+        EffectActivationContext ctx,
+        string ownerLabel)
+    {
+        for (int ti = 0; ti < timedEffects.Count; ti++)
+        {
+            TimedEffectData timed = timedEffects[ti];
             if (timed == null || !EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
             {
                 continue;
@@ -56,18 +83,35 @@ public static class CardPilotBattleDamageImmunityExtensions
                     continue;
                 }
 
-                int maxAp = effect.value > 0 ? effect.value : 3;
-                if (attackerAp <= maxAp)
+                int threshold = effect.value > 0 ? effect.value : 3;
+                int attackerStat = ResolveAttackerStatForImmunity(damageSource, effect);
+                if (attackerStat <= threshold)
                 {
+                    string statLabel = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
                     Debug.Log(
-                        $"[BattleDamageImmunity] {damageTarget.Data?.cardName} ignores {attackerAp} dmg "
-                        + $"from {damageSource.Data.cardName} (pilot:{pilot.Data.cardName}, maxAp:{maxAp})");
+                        $"[BattleDamageImmunity] {ctx.SourceCard?.Data?.cardName} ignores {attackerStat} dmg "
+                        + $"from {damageSource.Data.cardName} (owner:{ownerLabel}, max{statLabel}:{threshold})");
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    private static int ResolveAttackerStatForImmunity(CardController attacker, EffectData effect)
+    {
+        if (effect != null && effect.statTarget == EffectStatTarget.Level)
+        {
+            if (attacker?.Data != null && attacker.Data.IsUnitToken())
+            {
+                return 0;
+            }
+
+            return attacker != null ? attacker.CurrentLevel : 0;
+        }
+
+        return attacker != null ? attacker.CurrentPower : 0;
     }
 
     private static EffectActivationContext BuildCombatImmunityContext(

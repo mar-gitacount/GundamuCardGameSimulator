@@ -55,6 +55,9 @@ public sealed class EffectActivationContext
     /// <summary>オーナーの配備ベースが生存している。</summary>
     public bool OwnerHasDeployedBase { get; }
 
+    /// <summary>効果オーナーの TotalLevel（level + exResource）。-1 なら未設定。</summary>
+    public int OwnerTotalLevel { get; }
+
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
@@ -94,7 +97,8 @@ public sealed class EffectActivationContext
         bool sourceAttackingEnemyUnit = false,
         bool destroyedUnitWasLinked = false,
         bool sourceAttackingEnemyPlayer = false,
-        CardController battlingEnemyUnit = null)
+        CardController battlingEnemyUnit = null,
+        int ownerTotalLevel = -1)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -120,6 +124,7 @@ public sealed class EffectActivationContext
         DestroyedUnitWasLinked = destroyedUnitWasLinked;
         SourceAttackingEnemyPlayer = sourceAttackingEnemyPlayer;
         BattlingEnemyUnit = battlingEnemyUnit;
+        OwnerTotalLevel = ownerTotalLevel;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -178,7 +183,8 @@ public sealed class EffectActivationContext
             SourceAttackingEnemyUnit,
             DestroyedUnitWasLinked,
             SourceAttackingEnemyPlayer,
-            BattlingEnemyUnit);
+            BattlingEnemyUnit,
+            OwnerTotalLevel);
     }
 }
 
@@ -340,9 +346,19 @@ public static class EffectActivationEvaluator
             return EvaluateOwnerHasLinkedUnit(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.OwnerTotalLevel)
+        {
+            return EvaluateOwnerTotalLevel(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.DestroyedByBattleDamage)
         {
             return ctx.DestroyedByBattleDamage;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.DestroyedByEffectDamage)
+        {
+            return ctx.HasDestroyingCardOwner && !ctx.DestroyedByBattleDamage;
         }
 
         if (c.checkKind == EffectActivationCheckKind.OwnerActivatedSpecialMoveCommandThisTurn)
@@ -1069,6 +1085,16 @@ public static class EffectActivationEvaluator
         return false;
     }
 
+    private static bool EvaluateOwnerTotalLevel(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null || ctx.OwnerTotalLevel < 0)
+        {
+            return false;
+        }
+
+        return CompareInts(ctx.OwnerTotalLevel, c.compareValue, c.compareOp);
+    }
+
     private static bool EvaluateOpponentHandCountAtLeast(EffectActivationCondition c, EffectActivationContext ctx)
     {
         if (c == null || ctx == null)
@@ -1289,11 +1315,21 @@ public static class EffectActivationEvaluator
             return matched >= need;
         }
 
-        CardController host = ctx.MountHostUnit;
-        if (host == null && ctx.SourceCard != null && ctx.SourceCard.Data != null
-            && ctx.SourceCard.Data.IsUnitLike())
+        CardController host;
+        if (ctx.SourceCard != null && ctx.SourceCard.Data != null && ctx.SourceCard.Data.IsUnitLike()
+            && ctx.SourceCard != ctx.MountHostUnit)
         {
+            // OnAllyUnitAttack 等: 効果源ユニット自身の During Pair（The-O 本体にパイロットがいるか）。
             host = ctx.SourceCard;
+        }
+        else
+        {
+            host = ctx.MountHostUnit;
+            if (host == null && ctx.SourceCard != null && ctx.SourceCard.Data != null
+                && ctx.SourceCard.Data.IsUnitLike())
+            {
+                host = ctx.SourceCard;
+            }
         }
 
         if (host == null)

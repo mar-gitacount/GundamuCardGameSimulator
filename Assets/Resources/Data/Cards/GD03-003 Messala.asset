@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD03-003 Messala
+  m_EditorClassIdentifier: 
+  id: 1000542
+  gcgOfficialId: GD03-003
+  cardName: "Messala"
+  cost: 4
+  level: 6
+  power: 5
+  hp: 4
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD03-003_Messala"
+  version: 3
+  sourceType: 1
+  productLine: 1
+  boosterSet: 3
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 2
+  filterType: 0
+  color: 2
+  type: 0
+  battleZones: 3
+  attackFlg: 0
+  timedEffects: []
+  features:
+  - {fileID: 11400000, guid: c21f0a1b2c3d4e5f6a7b8c9d0e1f2a3b, type: 2}
+  - {fileID: 11400000, guid: a174bf8c4e0f41edac6f80c667cf4e92, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
+    pilotFeatures:
+    - {fileID: 11400000, guid: a174bf8c4e0f41edac6f80c667cf4e92, type: 2}
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 1
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 1
+  repairAmount: 1
+  notUsedOnline: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 2
+    setNumber: 3
+    cardNumber: 3

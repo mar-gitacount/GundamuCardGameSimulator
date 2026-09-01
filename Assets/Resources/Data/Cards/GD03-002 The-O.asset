@@ -35,7 +35,7 @@ MonoBehaviour:
   battleZones: 3
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 26
     activationConditions:
     - boardSide: -1
       checkKind: 4
@@ -79,14 +79,35 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: -1
+      targetUnitFilterStat: 3
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToMountHostUnit: 1
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
-      effectActivationConditions: []
+      effectActivationConditions:
+      - boardSide: -1
+        checkKind: 36
+        turnCheck: -1
+        feature: {fileID: 0}
+        featureId: 0
+        features: []
+        featureIds: 
+        minimumCount: 1
+        levelAggregate: 0
+        compareOp: 0
+        compareValue: 0
+        unitCountCompareOp: 0
+        unitCountThreshold: 0
+        pilotCardId: 0
+        trashCardId: 0
+        pilotLevelThreshold: 0
+        activationStatTarget: -1
+        observedCardType: 0
+        destroyedByOwnerRelation: 0
+        cardNameContains: 
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 0
@@ -104,6 +125,8 @@ MonoBehaviour:
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -111,12 +134,15 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

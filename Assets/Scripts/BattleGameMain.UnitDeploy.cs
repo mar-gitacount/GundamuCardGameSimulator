@@ -2070,12 +2070,15 @@ public partial class BattleGameMain
 
         void AfterPreCombatOnAttackChain()
         {
-            if (TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, AfterAllyGrantAttackFlag))
+            NotifyAllyUnitAttack(attackerOwner, attacker, () =>
             {
-                return;
-            }
+                if (TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, AfterAllyGrantAttackFlag))
+                {
+                    return;
+                }
 
-            AfterAllyGrantAttackFlag();
+                AfterAllyGrantAttackFlag();
+            });
         }
 
         if (_onAttackPreCombatCompletedAttacker == attacker)

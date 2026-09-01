@@ -6736,7 +6736,15 @@ public partial class BattleGameMain : MonoBehaviour
             statBgImg.raycastTarget = false;
 
             TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
-            statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}";
+            string scoreLabel = FormatOnAttackEnemyTargetScoreLabelEnglish(
+                attackingUnit,
+                unit,
+                attackerOwner,
+                effectSourceCard,
+                effect);
+            statText.text = string.IsNullOrEmpty(scoreLabel)
+                ? $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}"
+                : $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")} | {scoreLabel}";
             statText.fontSize = 14;
             statText.color = Color.white;
             statText.alignment = TextAlignmentOptions.Center;
@@ -6898,6 +6906,11 @@ public partial class BattleGameMain : MonoBehaviour
             return "Select effect target unit";
         }
 
+        if (effect.type == EffectType.Damage)
+        {
+            return "Damage — Choose an enemy Unit";
+        }
+
         if (effect.type == EffectType.Bounce)
         {
             return "Bounce — Choose a Unit to return to hand";
@@ -6946,6 +6959,36 @@ public partial class BattleGameMain : MonoBehaviour
         return effect.target == TargetType.RestEnemyUnit
             ? "Select REST enemy unit"
             : "Select effect target unit";
+    }
+
+    /// <summary>OnAttack 敵選択 UI：効果ダメージ量などを英語ラベルで返す（Providence 等）。</summary>
+    private string FormatOnAttackEnemyTargetScoreLabelEnglish(
+        CardController attacker,
+        CardController target,
+        PlayerType attackerOwner,
+        CardController effectSource,
+        EffectData effect)
+    {
+        if (effect == null || effect.type != EffectType.Damage || target == null)
+        {
+            return string.Empty;
+        }
+
+        CardController magnitudeSource = effectSource ?? attacker;
+        if (magnitudeSource == null)
+        {
+            return string.Empty;
+        }
+
+        int magnitude = ResolveEffectMagnitude(effect, attackerOwner, magnitudeSource);
+        int damage = ResolveEffectDamageAmount(magnitude, target);
+        if (damage <= 0)
+        {
+            return "Pts:0";
+        }
+
+        bool kill = damage >= target.CurrentHp;
+        return kill ? $"Pts:{damage} (Kill)" : $"Pts:{damage}";
     }
 
     private List<CardController> GetAliveEnemyUnits(PlayerType attackerOwner)
@@ -10253,6 +10296,10 @@ public partial class BattleGameMain : MonoBehaviour
 
     private EffectActivationContext BuildActivationContext(PlayerType ownerType, CardController sourceCard)
     {
+        Gundam2024RuleScript.PlayerState ownerState = ownerType == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+
         return new EffectActivationContext(
             ownerType,
             sourceCard,
@@ -10266,7 +10313,8 @@ public partial class BattleGameMain : MonoBehaviour
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
-            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            ownerTotalLevel: ownerState.TotalLevel);
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -12391,7 +12439,8 @@ public partial class BattleGameMain : MonoBehaviour
                     sourceCard,
                     ownerTrashIds,
                     priorChainStatCompareValue,
-                    ownerHasLinkedUnit))
+                    ownerHasLinkedUnit,
+                    _allyUnitAttackStatCompareReference))
             {
                 targets.RemoveAt(i);
             }
