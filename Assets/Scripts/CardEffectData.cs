@@ -58,6 +58,11 @@ public enum EffectTiming
     /// 自分のユニット（または白の味方ユニット）にパイロットがセットされたとき、場の監視ユニットが効果を解決する。
     /// </summary>
     OnAllyPilotMounted = 25,
+    /// <summary>
+    /// 自分の他ユニットが攻撃宣言したとき、場の監視ユニット（例: The-O）が効果を解決する。
+    /// MountHostUnit に攻撃ユニット、SourceCard に監視ユニットを載せる。
+    /// </summary>
+    OnAllyUnitAttack = 26,
 }
 
 public enum EffectType
@@ -257,10 +262,10 @@ public enum EffectType
     /// </summary>
     DeployUnitFromLooked,
     /// <summary>
-    /// 搭乗パイロットの常時パッシブ（戦闘ダメージ判定）。
-    /// 自ターン中、搭乗ユニットが《突破》を持つ間、
-    /// AP が value 以下の敵ユニットからの戦闘ダメージを受けない。
-    /// timed.activationConditions に turnCheck:OwnerTurn / checkKind:SourceHasBreach を推奨。
+    /// ユニット本体／搭乗パイロットの常時パッシブ（戦闘ダメージ判定）。
+    /// statTarget=AP（既定）: AP が value 以下の敵からの戦闘ダメージを無効。
+    /// statTarget=Level: Lv が value 以下の敵からの戦闘ダメージを無効。
+    /// timed.activationConditions に turnCheck:OwnerTurn 等を指定する。
     /// </summary>
     BattleDamageImmunityFromLowApEnemy,
     /// <summary>
@@ -749,7 +754,17 @@ public enum EffectActivationCheckKind
     /// オーナーのバトルゾーンにリンク中の生存ユニットが minimumCount 体以上いる。
     /// Feature 指定は不要（任意のリンクユニット）。
     /// </summary>
-    OwnerHasLinkedUnit
+    OwnerHasLinkedUnit,
+    /// <summary>
+    /// オーナーの TotalLevel（level + exResource）を compareOp + compareValue と比較。
+    /// 「あなたが Lv.7 以上」等のプレイヤーレベル条件用。
+    /// </summary>
+    OwnerTotalLevel,
+    /// <summary>
+    /// ユニット戦闘ダメージ以外（効果ダメージ等）で敵ユニットを破壊したとき。
+    /// DestroyedByBattleDamage の否定。OnEnemyUnitDestroyed 等と組み合わせる。
+    /// </summary>
+    DestroyedByEffectDamage
 }
 
 public enum EffectTurnCheckKind
@@ -813,7 +828,12 @@ public enum EffectValueCountKind
     /// <summary>指定 Feature を持つカード枚数（ユニット以外も含む）。</summary>
     CardsWithFeature,
     /// <summary>Data.level が valueCountMinUnitLevel 以上の生存ユニット体数。</summary>
-    UnitsWithLevelAtLeast
+    UnitsWithLevelAtLeast,
+    /// <summary>
+    /// 効果源ユニットの AP ÷ valueCountMinUnitLevel（切り捨て）。
+    /// MultiplyByBoardCount と組み合わせ、value が 1 体あたり量（例: Providence AP/4 ダメージ）。
+    /// </summary>
+    SourceUnitApPerEvery
 }
 
 [Serializable]
@@ -1112,6 +1132,11 @@ public class EffectData
 
     [Tooltip("true のとき targetUnitFilterStat（未指定時は AP）を発動元カードの実効値と比較する（例: 敵AP ≤ 自AP）。")]
     public bool compareTargetStatToSource;
+
+    [Tooltip(
+        "true のとき targetUnitFilterStat の比較値に MountHostUnit（OnAllyUnitAttack の攻撃ユニット等）の実効値を使う。"
+        + "compareTargetStatToSource より優先。")]
+    public bool compareTargetStatToMountHostUnit;
 
     [Tooltip(
         "true のとき targetUnitFilterStat をチェーン直前に選択したユニットの実効値と比較する。"
@@ -1717,7 +1742,8 @@ public static class EffectDataExtensions
         CardController sourceCard = null,
         IReadOnlyList<int> ownerTrashCardIds = null,
         int? priorChainStatCompareValue = null,
-        bool ownerHasLinkedUnit = false)
+        bool ownerHasLinkedUnit = false,
+        CardController statCompareReference = null)
     {
         if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
@@ -1788,6 +1814,15 @@ public static class EffectDataExtensions
                 }
 
                 compareValue = priorChainStatCompareValue.Value;
+            }
+            else if (effect.compareTargetStatToMountHostUnit)
+            {
+                if (statCompareReference == null)
+                {
+                    return false;
+                }
+
+                compareValue = GetTargetUnitFilterStatValue(statCompareReference, statFilter);
             }
             else if (effect.compareTargetStatToSource)
             {
@@ -2149,6 +2184,37 @@ public static class EffectDataExtensions
         if (effect.type == EffectType.GrantAttackFlag
             && effect.grantAttackFlagOnlyIfOff
             && unit.AttackFlgState != AttackFlg.False)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>DiscardFromHand の手札候補が種類・色・Feature フィルタを満たすか。</summary>
+    public static bool MatchesHandDiscardCandidate(this EffectData effect, CardData card)
+    {
+        if (effect == null || card == null)
+        {
+            return false;
+        }
+
+        if (effect.filterByTargetCardType && !effect.MatchesTargetCardTypeFilter(card))
+        {
+            return false;
+        }
+
+        if (effect.filterTargetUnitColor && card.color != (CardColor)effect.filterTargetUnitColorValue)
+        {
+            return false;
+        }
+
+        if (effect.HasTargetFeatureFilter() && !effect.MatchesTargetFeatureOnCard(card))
+        {
+            return false;
+        }
+
+        if (!effect.MatchesCardDataStatFilter(card))
         {
             return false;
         }
@@ -2527,6 +2593,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnAllyPilotMounted
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>味方ユニット攻撃宣言時（OnAllyUnitAttack）に解決するブロック。</summary>
+    public static bool IsOnAllyUnitAttackResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnAllyUnitAttack
             || !timed.HasResolvedEffects())
         {
             return false;

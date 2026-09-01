@@ -44,7 +44,7 @@ EFF_TMPL = """    - type: {type}
       targetFeature: {{fileID: 0}}
       targetFeatureId: {targetFeatureId}
       targetFeatures: []
-      targetFeatureIds: 
+      targetFeatureIds: {targetFeatureIds}
       targetUnitFilterStat: {targetUnitFilterStat}
       targetUnitStatCompareOp: {targetUnitStatCompareOp}
       targetUnitStatCompareValue: {targetUnitStatCompareValue}
@@ -129,6 +129,7 @@ def effect(**kw):
         valueCountFeatureId=0,
         valueCountMinUnitLevel=0,
         targetFeatureId=0,
+        targetFeatureIds="",
         targetUnitFilterStat=-1,
         targetUnitStatCompareOp=3,
         targetUnitStatCompareValue=0,

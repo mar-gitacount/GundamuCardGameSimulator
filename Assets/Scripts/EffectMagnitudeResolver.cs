@@ -53,10 +53,22 @@ public static class EffectMagnitudeResolver
                     sourceCard);
             case EffectValueCountKind.UnitsWithLevelAtLeast:
                 return CountAliveUnitsWithLevelAtLeast(zone, effect.valueCountMinUnitLevel, effect, sourceCard);
+            case EffectValueCountKind.SourceUnitApPerEvery:
+                return CountSourceUnitApPerEvery(sourceCard, effect.valueCountMinUnitLevel);
             case EffectValueCountKind.AliveUnits:
             default:
                 return CountAliveUnits(zone, effect, sourceCard);
         }
+    }
+
+    private static int CountSourceUnitApPerEvery(CardController sourceCard, int everyAp)
+    {
+        if (sourceCard == null || everyAp <= 0)
+        {
+            return 0;
+        }
+
+        return Mathf.Max(0, sourceCard.CurrentPower / everyAp);
     }
 
     private static IReadOnlyList<CardController> ResolveZone(EffectActivationContext ctx, EffectBoardSide side)

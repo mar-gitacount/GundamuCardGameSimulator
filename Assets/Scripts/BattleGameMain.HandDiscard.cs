@@ -131,6 +131,18 @@ public partial class BattleGameMain
         }
 
         List<CardController> candidates = CollectSelectableHandCards(handOwner, excludeSource: sourceCard);
+        if (effect != null)
+        {
+            for (int ci = candidates.Count - 1; ci >= 0; ci--)
+            {
+                CardController candidate = candidates[ci];
+                if (candidate?.Data == null || !effect.MatchesHandDiscardCandidate(candidate.Data))
+                {
+                    candidates.RemoveAt(ci);
+                }
+            }
+        }
+
         List<CardController> displayCards = CollectHandCardsForDiscardDisplay(handOwner);
         if (candidates.Count == 0)
         {
