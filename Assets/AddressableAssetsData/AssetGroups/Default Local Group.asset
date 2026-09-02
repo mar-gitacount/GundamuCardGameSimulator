@@ -4002,6 +4002,16 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 060ab4736e9d44a1a32ef53404b3a724
+    m_Address: Data/Images/T-021_Parts
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: cb72c94f610247a6a05f4b9c73ab81dc
+    m_Address: Data/Images/GD04-006_V-Dash Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

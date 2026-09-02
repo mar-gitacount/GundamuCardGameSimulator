@@ -75,8 +75,9 @@ public partial class BattleGameMain
     }
 
     /// <summary>
-    /// 盤面条件付き Self Buff/Debuff（OnEnemyAttack + activationConditions）。
-    /// ユニット自身（Michaelis 等）および搭乗パイロットのホスト AP 付与（Riddhe 等）を再評価する。
+    /// 盤面条件付き Self Buff/Debuff。
+    /// ユニット自身（OnEnemyAttack 条件付き）および搭乗パイロットの
+    /// 《リペア》持ちホスト向け常時 AP（リディ等）を再評価する。
     /// </summary>
     private void RefreshConditionalFieldSelfStatPassives()
     {
@@ -101,14 +102,65 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (ResolveBattleZoneUnitOwner(host) != ownerType)
+            {
+                continue;
+            }
+
             ApplyConditionalFieldSelfStatFromTimedBlocks(host, host, ownerType, host.Data.timedEffects, isPilotSource: false);
 
             CardController pilot = host.MountedPilot;
             if (pilot?.Data?.timedEffects != null)
             {
-                ApplyConditionalFieldSelfStatFromTimedBlocks(pilot, host, ownerType, pilot.Data.timedEffects, isPilotSource: true);
+                ApplyConditionalFieldSelfStatFromTimedBlocks(
+                    pilot,
+                    host,
+                    ownerType,
+                    pilot.Data.timedEffects,
+                    isPilotSource: true);
             }
         }
+    }
+
+    private static bool TimedHasSourceMountHostHasRepairCondition(TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.SourceMountHostHasRepair)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>搭乗中・ホストが《リペア》なら Self AP 等（リディ GD01-089）。常時表示。</summary>
+    private static bool IsMountedPilotWhileHostHasRepairSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && TimedHasSourceMountHostHasRepairCondition(timed);
+    }
+
+    /// <summary>ユニット自身の OnEnemyAttack 条件付き Self stat（Michaelis 等）。</summary>
+    private static bool IsFieldUnitOnEnemyAttackSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.timing == EffectTiming.OnEnemyAttack
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects();
     }
 
     private void ApplyConditionalFieldSelfStatFromTimedBlocks(
@@ -126,11 +178,8 @@ public partial class BattleGameMain
         for (int bi = 0; bi < blocks.Count; bi++)
         {
             TimedEffectData timed = blocks[bi];
-            if (timed == null
-                || timed.timing != EffectTiming.OnEnemyAttack
-                || !timed.HasResolvedEffects()
-                || !timed.HasActivationConditions()
-                || !timed.ContainsOnlySelfStatBuffDebuffEffects())
+            if (!IsMountedPilotWhileHostHasRepairSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitOnEnemyAttackSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }
@@ -145,8 +194,9 @@ public partial class BattleGameMain
 
             statTarget.RemoveStatModifiersBySource(sourceKey);
 
+            CardController mountPilot = isPilotSource ? effectSource : statTarget.MountedPilot;
             EffectActivationContext ctx = isPilotSource
-                ? BuildPilotMountActivationContext(ownerType, effectSource, statTarget, statTarget)
+                ? BuildPilotMountActivationContext(ownerType, effectSource, statTarget, mountPilot)
                 : BuildActivationContext(ownerType, statTarget);
             if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
             {

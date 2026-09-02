@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000341
   gcgOfficialId: GD03-081
-  cardName: "AEU Enact Demonstration Color"
+  cardName: AEU Enact Demonstration Color
   cost: 1
   level: 2
   power: 2
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-081_AEU Enact Demonstration Color"
+  imageAddress: Data/Images/GD03-081_AEU Enact Demonstration Color
   version: 3
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

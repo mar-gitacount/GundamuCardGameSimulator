@@ -10,38 +10,109 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: GD03-050 Gundam Barbatos Lupus
+  m_Name: GD04-006 V-Dash Gundam
   m_EditorClassIdentifier: 
-  id: 1000311
-  gcgOfficialId: GD03-050
-  cardName: "Gundam Barbatos Lupus"
-  cost: 6
-  level: 7
-  power: 5
+  id: 1000544
+  gcgOfficialId: GD04-006
+  cardName: "V-Dash Gundam"
+  cost: 4
+  level: 6
+  power: 4
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-050_Gundam Barbatos Lupus"
-  version: 3
+  imageAddress: "Data/Images/GD04-006_V-Dash Gundam"
+  version: 4
   sourceType: 1
   productLine: 1
-  boosterSet: 3
+  boosterSet: 4
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 16
+  sourceTitle: 5
   filterType: 0
-  color: 6
+  color: 2
   type: 0
   battleZones: 3
   attackFlg: 0
   timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Breach3
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   - timing: 12
     activationConditions: []
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 0
-      value: 2
+    - type: 10
+      value: 1
+      target: 8
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      valueCountBoardSide: 0
+      valueCountKind: 0
+      valueCountFeature: {fileID: 0}
+      valueCountFeatureId: 0
+      valueCountMinUnitLevel: 0
+      valueScaleMaximum: 0
+      shieldTokenCardId: 0
+      valueCountExcludeSource: 0
+      targetFeature: {fileID: 0}
+      targetFeatureId: 16
+      targetFeatures: []
+      targetFeatureIds: 
+      targetUnitFilterStat: -1
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 0
+      compareTargetStatToSource: 0
+      compareTargetStatToPriorChainPicked: 0
+      abortRemainingChainOnSkip: 1
+      requireChainObservationContext: 0
+      effectActivationConditions: []
+      filterTargetUnitLevel: 0
+      filterByTargetCardType: 0
+      targetCardType: 0
+      deployUnitSource: 0
+      deployCardId: 0
+      filterByDeployCardId: 0
+      filterDeployCandidateByFeature: 0
+      deployUnitTriggerOnPlayed: 0
+      deployUnitAsRested: 0
+      deployUnitPayCost: 0
+      deployUnitOverrideAp: 0
+      deployUnitOverrideHp: 0
+      grantAttackFlagOnlyIfOff: 1
+      revealDiscardedToOpponent: 0
+      forbidSkipHandDiscard: 0
+      revealDrawnToPlayer: 0
+      filterTargetIsBlocker: 0
+      selectMinCount: 0
+      selectMaxCount: 0
+      observedUnitTriggerKind: -1
+      autoSelectLowestUnitStat: 0
+      autoSelectHighestUnitStat: 0
+      relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      trashRelaxFilterMinCopies: 2
+      requireExactExileCount: 0
+      targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
+      requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
+      optionalPlayerConfirm: 0
+      opponentChoosesTarget: 0
+      choiceBranches: []
+      choicePromptJa: 
+      choicePromptEn: 
+    - type: 10
+      value: 1
       target: 2
       selectionMode: 1
       statTarget: 0
@@ -59,9 +130,9 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: -1
+      targetUnitFilterStat: 1
       targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 0
+      targetUnitStatCompareValue: 4
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
@@ -104,16 +175,16 @@ MonoBehaviour:
       choicePromptJa: 
       choicePromptEn: 
     activationCost: 0
-    oncePerTurn: 0
+    oncePerTurn: 1
     observedUnitTriggerKind: -1
   features:
-  - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
-  - {fileID: 11400000, guid: bd413e1e04b1425b9fe43d31098a94f3, type: 2}
+  - {fileID: 11400000, guid: b2c3d4e5f60718293a4b5c6d7e8f9012, type: 2}
+  - {fileID: 11400000, guid: c3d4e5f60718293a4b5c6d7e8f9012a3, type: 2}
   pilotIds: []
   link:
   - pilotCardId: 0
     linkPilotIds:
-    - {fileID: 11400000, guid: fdc8169e418f4bbbbe2337e1d8282762, type: 2}
+    - {fileID: 11400000, guid: 805cabaeb17b472ea8f18786a0c86f5e, type: 2}
     linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
@@ -129,5 +200,5 @@ MonoBehaviour:
   cannotMountPilot: 0
   gcgId:
     setKind: 2
-    setNumber: 3
-    cardNumber: 50
+    setNumber: 4
+    cardNumber: 6

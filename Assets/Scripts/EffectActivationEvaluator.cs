@@ -37,6 +37,9 @@ public sealed class EffectActivationContext
     /// <summary>同一チェーン内で直前までに実ダメージが1以上入ったか。</summary>
     public bool PriorChainDealtDamage { get; }
 
+    /// <summary>直前チェーンで手動選択したユニット（PriorChainPickedHasFeature 等）。</summary>
+    public IReadOnlyList<CardController> PriorChainPickedUnits { get; }
+
     /// <summary>破壊時効果用。このカードを破壊したカード（未設定可）。</summary>
     public CardController DestroyingCard { get; }
 
@@ -88,6 +91,7 @@ public sealed class EffectActivationContext
         IReadOnlyList<int> opponentTrashCardIds = null,
         int frozenOwnerBattleAliveUnitCount = -1,
         bool priorChainDealtDamage = false,
+        IReadOnlyList<CardController> priorChainPickedUnits = null,
         CardController destroyingCard = null,
         bool hasDestroyingCardOwner = false,
         BattleGameMain.PlayerType destroyingCardOwner = default,
@@ -114,6 +118,7 @@ public sealed class EffectActivationContext
         OpponentTrashCardIds = opponentTrashCardIds ?? System.Array.Empty<int>();
         FrozenOwnerBattleAliveUnitCount = frozenOwnerBattleAliveUnitCount;
         PriorChainDealtDamage = priorChainDealtDamage;
+        PriorChainPickedUnits = priorChainPickedUnits ?? System.Array.Empty<CardController>();
         DestroyingCard = destroyingCard;
         HasDestroyingCardOwner = hasDestroyingCardOwner;
         DestroyingCardOwner = destroyingCardOwner;
@@ -154,10 +159,16 @@ public sealed class EffectActivationContext
         return CloneWith(priorChainDealtDamage: priorChainDealtDamage);
     }
 
+    public EffectActivationContext WithPriorChainPickedUnits(IReadOnlyList<CardController> priorChainPickedUnits)
+    {
+        return CloneWith(priorChainPickedUnits: priorChainPickedUnits ?? System.Array.Empty<CardController>());
+    }
+
     private EffectActivationContext CloneWith(
         IReadOnlyList<CardData> observedCards = null,
         int? frozenOwnerBattleAliveUnitCount = null,
-        bool? priorChainDealtDamage = null)
+        bool? priorChainDealtDamage = null,
+        IReadOnlyList<CardController> priorChainPickedUnits = null)
     {
         return new EffectActivationContext(
             OwnerType,
@@ -174,6 +185,7 @@ public sealed class EffectActivationContext
             OpponentTrashCardIds,
             frozenOwnerBattleAliveUnitCount ?? FrozenOwnerBattleAliveUnitCount,
             priorChainDealtDamage ?? PriorChainDealtDamage,
+            priorChainPickedUnits ?? PriorChainPickedUnits,
             DestroyingCard,
             HasDestroyingCardOwner,
             DestroyingCardOwner,
@@ -202,6 +214,25 @@ public static class EffectActivationEvaluator
             EffectActivationCondition c = conditions[i];
             if (c != null && (c.checkKind == EffectActivationCheckKind.ObservedCardHasFeature
                 || c.checkKind == EffectActivationCheckKind.ObservedCardIsType))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool ContainsPriorChainPickedCondition(IList<EffectActivationCondition> conditions)
+    {
+        if (conditions == null || conditions.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < conditions.Count; i++)
+        {
+            EffectActivationCondition c = conditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.PriorChainPickedHasFeature)
             {
                 return true;
             }
@@ -359,6 +390,16 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.DestroyedByEffectDamage)
         {
             return ctx.HasDestroyingCardOwner && !ctx.DestroyedByBattleDamage;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.TrashHasCardNameContains)
+        {
+            return EvaluateTrashHasCardNameContains(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.PriorChainPickedHasFeature)
+        {
+            return EvaluatePriorChainPickedHasFeature(c, ctx);
         }
 
         if (c.checkKind == EffectActivationCheckKind.OwnerActivatedSpecialMoveCommandThisTurn)
@@ -848,13 +889,80 @@ public static class EffectActivationEvaluator
 
     private static bool EvaluateSourceUnitStat(EffectActivationCondition c, EffectActivationContext ctx)
     {
-        if (c == null || ctx?.SourceCard == null || ctx.SourceCard.Data == null)
+        if (c == null || ctx == null)
         {
             return false;
         }
 
-        int statValue = GetActivationStatValue(ctx.SourceCard, c.activationStatTarget);
+        CardController statUnit = ResolveSourceUnitStatCard(ctx);
+        if (statUnit == null || statUnit.Data == null)
+        {
+            return false;
+        }
+
+        int statValue = GetActivationStatValue(statUnit, c.activationStatTarget);
         return CompareInts(statValue, c.compareValue, c.compareOp);
+    }
+
+    private static CardController ResolveSourceUnitStatCard(EffectActivationContext ctx)
+    {
+        if (ctx?.SourceCard?.Data == null)
+        {
+            return null;
+        }
+
+        if (ctx.SourceCard.Data.type == Type.Base
+            && ctx.MountHostUnit != null
+            && ctx.MountHostUnit.Data != null
+            && ctx.MountHostUnit.Data.IsUnitLike())
+        {
+            return ctx.MountHostUnit;
+        }
+
+        return ctx.SourceCard;
+    }
+
+    private static bool EvaluateTrashHasCardNameContains(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null || string.IsNullOrWhiteSpace(c.cardNameContains))
+        {
+            return false;
+        }
+
+        IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+        int need = Mathf.Max(1, c.minimumCount);
+        return TrashCardQuery.HasCardNameContainsAtLeast(trashIds, c.cardNameContains, need);
+    }
+
+    private static bool EvaluatePriorChainPickedHasFeature(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+        if (required.Count == 0)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardController> picks = ctx.PriorChainPickedUnits;
+        if (picks == null || picks.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < picks.Count; i++)
+        {
+            CardController unit = picks[i];
+            if (unit?.Data != null && CardMatchesAnyActivationFeature(unit.Data, required))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool EvaluateBattlingEnemyUnitStat(EffectActivationCondition c, EffectActivationContext ctx)
@@ -991,7 +1099,17 @@ public static class EffectActivationEvaluator
             return false;
         }
 
-        return ctx.SourceCard.Data.HasAnyFeature(required);
+        // パイロットの When Paired 等: 搭乗ホスト側の Feature を参照する（例: 〔League Militaire〕Unit へのセット時）。
+        CardController featureHost = ctx.SourceCard;
+        if (ctx.SourceCard.Data.IsPilot()
+            && ctx.MountHostUnit != null
+            && ctx.MountHostUnit.Data != null
+            && ctx.MountHostUnit.Data.IsUnitLike())
+        {
+            featureHost = ctx.MountHostUnit;
+        }
+
+        return featureHost.Data.HasAnyFeature(required);
     }
 
     private static bool EvaluateSourceUnitIsColor(EffectActivationCondition c, EffectActivationContext ctx)

@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000308
   gcgOfficialId: GD03-047
-  cardName: "DINN (Commander Type)"
+  cardName: DINN (Commander Type)
   cost: 2
   level: 4
   power: 3
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-047_DINN (Commander Type)"
+  imageAddress: Data/Images/GD03-047_DINN (Commander Type)
   version: 3
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

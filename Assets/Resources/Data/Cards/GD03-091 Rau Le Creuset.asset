@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000351
   gcgOfficialId: GD03-091
-  cardName: "Rau Le Creuset"
+  cardName: Rau Le Creuset
   cost: 1
   level: 4
   power: 2
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-091_Rau Le Creuset"
+  imageAddress: Data/Images/GD03-091_Rau Le Creuset
   version: 3
   sourceType: 1
   productLine: 1
@@ -46,7 +46,7 @@ MonoBehaviour:
   - timing: 18
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: AddFromTrashToHand_ZaftBase_OnLink
     effects:
     - type: 40
       value: 1
@@ -63,7 +63,7 @@ MonoBehaviour:
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
-      targetFeature: {fileID: 0}
+      targetFeature: {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
       targetFeatureId: 3
       targetFeatures: []
       targetFeatureIds: 
@@ -71,6 +71,7 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToMountHostUnit: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
@@ -78,6 +79,7 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 1
       targetCardType: 3
+      filterTargetAsUnitOrPilot: 0
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -88,10 +90,15 @@ MonoBehaviour:
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
-      revealDiscardedToOpponent: 0
+      revealDiscardedToOpponent: 1
       forbidSkipHandDiscard: 0
+      oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -99,14 +106,13 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
-      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
-      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0

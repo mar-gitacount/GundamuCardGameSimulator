@@ -100,6 +100,40 @@ public partial class BattleGameMain
         }
     }
 
+    /// <summary>
+    /// ターン終了リペア適用後、効果付与分のボーナスを解除し SyncTurnEndRepairBonus を再計算する。
+    /// </summary>
+    private void ClearTemporaryTurnEndRepairBonusesForAllInPlay()
+    {
+        ClearTurnEndRepairBonusOnZone(playerBattleZoneCards);
+        ClearTurnEndRepairBonusOnZone(enemyBattleZoneCards);
+        TryClearTurnEndRepairBonus(GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Player));
+        TryClearTurnEndRepairBonus(GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Enemy));
+        RefreshSyncTurnEndRepairBonusesForSide(PlayerType.Player);
+        RefreshSyncTurnEndRepairBonusesForSide(PlayerType.Enemy);
+    }
+
+    private static void ClearTurnEndRepairBonusOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            TryClearTurnEndRepairBonus(zone[i]);
+        }
+    }
+
+    private static void TryClearTurnEndRepairBonus(CardController card)
+    {
+        if (card != null)
+        {
+            card.ClearTurnEndRepairBonus();
+        }
+    }
+
     private List<CardController> CollectTurnEndRepairTargets()
     {
         List<CardController> result = new List<CardController>();

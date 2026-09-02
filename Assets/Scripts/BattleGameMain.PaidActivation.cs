@@ -696,14 +696,28 @@ public partial class BattleGameMain
         for (int i = manualTargetStartIndex; i < resolvedOnMain.Count; i++)
         {
             EffectData effectData = resolvedOnMain[i];
-            if (effectData == null || !EffectRequiresManualUnitSelection(effectData))
+            if (!EffectRequiresManualUnitSelection(effectData))
+            {
+                continue;
+            }
+
+            if (effectData.HasEffectActivationConditions()
+                && !EffectActivationEvaluator.AreAllConditionsMet(
+                    effectData.effectActivationConditions,
+                    activationContext))
             {
                 continue;
             }
 
             if (ResolveSelectableEffectTargets(source, side, effectData).Count == 0)
             {
-                return false;
+                // 条件付き手動効果（Healthy Curiosity の REST 等）は候補0でも他効果があれば発動可
+                if (!effectData.HasEffectActivationConditions())
+                {
+                    return false;
+                }
+
+                continue;
             }
         }
 

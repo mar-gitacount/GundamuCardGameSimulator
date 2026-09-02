@@ -3861,6 +3861,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             ApplyTurnEndRepairForAllInPlayUnits();
+            ClearTemporaryTurnEndRepairBonusesForAllInPlay();
             TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
             // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
             ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
@@ -4350,6 +4351,13 @@ public partial class BattleGameMain : MonoBehaviour
                 destroyedUnitWasLinked,
                 () =>
             {
+                NotifyDeployedBaseOnAllyEnemyUnitDestroyed(
+                    cardController,
+                    ownerType,
+                    destroyedBy,
+                    destroyedByBattleDamage,
+                    () =>
+                {
                 if (TryResolveEnemyUnitKillContext(
                         cardController,
                         ownerType,
@@ -4369,6 +4377,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     CompleteSendCardToTrashPipeline(cardController, ownerType);
                 }
+                });
             });
         }
 
@@ -6857,14 +6866,12 @@ public partial class BattleGameMain : MonoBehaviour
             });
         }
 
-        // 任意効果の Cancel＝効果スキップして攻撃続行。相手選択 Destroy は必須。
+        // 任意効果の Cancel＝効果スキップして攻撃続行。必須の Damage / Destroy は Cancel で攻撃中断しない。
         bool optionalSkip = effect != null
             && effect.optionalPlayerConfirm
             && !effect.opponentChoosesTarget
             && chooserSide == attackerOwner;
-        bool showCancel = optionalSkip
-            || effect == null
-            || effect.type != EffectType.Destroy;
+        bool showCancel = optionalSkip;
 
         if (showCancel)
         {
@@ -7156,6 +7163,15 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (TryApplyGrantBreachMarker(effect, targets))
+        {
+            SetEffectChainLastPickedTargets(targets);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (TryApplyGrantTurnEndRepair(effect, targets))
         {
             SetEffectChainLastPickedTargets(targets);
             BeginOnlineEffectSyncBatch(ownerType);
@@ -12727,6 +12743,20 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.GrantTurnEndRepair)
+        {
+            List<CardController> repairTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyGrantTurnEndRepair(effect, repairTargets))
+            {
+                SetEffectChainLastPickedTargets(repairTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
@@ -17393,6 +17423,14 @@ public partial class BattleGameMain : MonoBehaviour
             return GameLocale.T(
                 $"《突破{amount}》付与 — 味方ユニットを選択{lackHint}",
                 $"Grant <Breach {amount}> — Choose an ally Unit{lackHint}");
+        }
+
+        if (effect.type == EffectType.GrantTurnEndRepair)
+        {
+            int amount = effect.value > 0 ? effect.value : 1;
+            return GameLocale.T(
+                $"ターン終了時《リペア{amount}》付与 — 味方ユニットを選択",
+                $"Grant <Repair {amount}> at turn end — Choose an ally Unit");
         }
 
         if (effect.type == EffectType.GrantAttackFlag)

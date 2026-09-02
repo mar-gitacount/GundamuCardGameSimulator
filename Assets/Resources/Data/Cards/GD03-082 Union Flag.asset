@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000342
   gcgOfficialId: GD03-082
-  cardName: "Union Flag"
+  cardName: Union Flag
   cost: 2
   level: 3
   power: 4
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-082_Union Flag"
+  imageAddress: Data/Images/GD03-082_Union Flag
   version: 3
   sourceType: 1
   productLine: 1
@@ -47,7 +47,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

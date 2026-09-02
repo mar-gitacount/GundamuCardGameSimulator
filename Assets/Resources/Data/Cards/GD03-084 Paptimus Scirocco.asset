@@ -38,14 +38,22 @@ MonoBehaviour:
   - timing: 5
     activationConditions: []
     requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 18
+    activationConditions: []
+    requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 27
-      value: 1
-      target: 5
-      selectionMode: -1
+    - type: 55
+      value: 2
+      target: 8
+      selectionMode: 1
       statTarget: 0
-      duration: 0
+      duration: 1
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0
@@ -103,14 +111,6 @@ MonoBehaviour:
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    activationCost: 0
-    oncePerTurn: 0
-    observedUnitTriggerKind: -1
-  - timing: 18
-    activationConditions: []
-    requireChainObservationContext: 0
-    effectsName: 
-    effects:
     - type: 1
       value: 1
       target: 5
@@ -137,7 +137,27 @@ MonoBehaviour:
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
-      effectActivationConditions: []
+      effectActivationConditions:
+      - boardSide: -1
+        checkKind: 44
+        turnCheck: -1
+        feature: {fileID: 0}
+        featureId: 49
+        features: []
+        featureIds: 
+        minimumCount: 1
+        levelAggregate: 0
+        compareOp: 0
+        compareValue: 0
+        unitCountCompareOp: 0
+        unitCountThreshold: 0
+        pilotCardId: 0
+        trashCardId: 0
+        pilotLevelThreshold: 0
+        activationStatTarget: -1
+        observedCardType: 0
+        destroyedByOwnerRelation: 0
+        cardNameContains: 
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 0

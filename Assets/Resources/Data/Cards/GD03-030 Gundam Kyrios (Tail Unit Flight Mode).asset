@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000294
   gcgOfficialId: GD03-030
-  cardName: "Gundam Kyrios (Tail Unit Flight Mode)"
+  cardName: Gundam Kyrios (Tail Unit Flight Mode)
   cost: 3
   level: 3
   power: 3
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-030_Gundam Kyrios (Tail Unit Flight Mode)"
+  imageAddress: Data/Images/GD03-030_Gundam Kyrios (Tail Unit Flight Mode)
   version: 3
   sourceType: 1
   productLine: 1
@@ -55,7 +55,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

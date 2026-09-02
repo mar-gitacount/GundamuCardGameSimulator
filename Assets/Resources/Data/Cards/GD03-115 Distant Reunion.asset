@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000372
   gcgOfficialId: GD03-115
-  cardName: "Distant Reunion"
+  cardName: Distant Reunion
   cost: 1
   level: 3
   power: 1
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-115_Distant Reunion"
+  imageAddress: Data/Images/GD03-115_Distant Reunion
   version: 3
   sourceType: 1
   productLine: 1
@@ -49,7 +49,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

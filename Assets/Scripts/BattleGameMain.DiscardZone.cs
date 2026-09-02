@@ -1209,7 +1209,7 @@ public partial class BattleGameMain
         selectable.Sort((a, b) => b.TrashIndex.CompareTo(a.TrashIndex));
         for (int i = 0; i < selectable.Count && taken < pickCount; i++)
         {
-            if (TryMoveTrashCandidateToHand(trashRule, handOwner, selectable[i]))
+            if (TryMoveTrashCandidateToHand(trashRule, handOwner, selectable[i]) >= 0)
             {
                 taken++;
             }
@@ -1434,7 +1434,7 @@ public partial class BattleGameMain
                         continue;
                     }
 
-                    if (TryMoveTrashCandidateToHand(trashRule, trashOwner, observedCandidates[c]))
+                    if (TryMoveTrashCandidateToHand(trashRule, trashOwner, observedCandidates[c]) >= 0)
                     {
                         taken++;
                     }
@@ -1485,25 +1485,26 @@ public partial class BattleGameMain
         return result;
     }
 
-    private bool TryMoveTrashCandidateToHand(
+    /// <summary>成功時は手札に加えたカード id。失敗時は -1。</summary>
+    private int TryMoveTrashCandidateToHand(
         CardGameRule trashRule,
         PlayerType handOwner,
         TrashExileCandidate candidate)
     {
         if (trashRule == null || candidate.CardId < 0)
         {
-            return false;
+            return -1;
         }
 
         if (!trashRule.TryRemoveCardFromTrashAt(candidate.TrashIndex, out int removedId))
         {
-            return false;
+            return -1;
         }
 
         if (removedId != candidate.CardId)
         {
             trashRule.AddCardToTrash(removedId);
-            return false;
+            return -1;
         }
 
         CardGameRule handRule = handOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
@@ -1511,7 +1512,7 @@ public partial class BattleGameMain
         Debug.Log(
             $"[Effect] AddFromTrashToHand {candidate.Data?.cardName ?? "?"}(id:{removedId}) "
             + $"handOwner:{handOwner}");
-        return true;
+        return removedId;
     }
 
     private static void SetExileTrashSelectionHighlight(GameObject cardGo, bool selected)

@@ -185,6 +185,14 @@ public partial class BattleGameMain
                 .WithPriorChainDealtDamage(GetEffectChainDealtDamage());
         }
 
+        if (activationContext != null
+            && effect.HasEffectActivationConditions()
+            && EffectActivationEvaluator.ContainsPriorChainPickedCondition(effect.effectActivationConditions))
+        {
+            contextForConditions = (contextForConditions ?? activationContext)
+                .WithPriorChainPickedUnits(GetAliveEffectChainLastPickedTargets());
+        }
+
         if (effect.HasEffectActivationConditions()
             && !EffectActivationEvaluator.AreAllConditionsMet(
                 effect.effectActivationConditions,

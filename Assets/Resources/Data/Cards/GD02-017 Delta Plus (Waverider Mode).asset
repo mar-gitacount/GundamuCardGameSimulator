@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000163
   gcgOfficialId: GD02-017
-  cardName: "Delta Plus (Waverider Mode)"
+  cardName: Delta Plus (Waverider Mode)
   cost: 2
   level: 3
   power: 2
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-017_Delta Plus (Waverider Mode)"
+  imageAddress: Data/Images/GD02-017_Delta Plus (Waverider Mode)
   version: 2
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 1
   repairAmount: 2
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

@@ -156,12 +156,6 @@ public partial class BattleGameMain
 
         Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
         Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
-        if (cost <= 0)
-        {
-            onPaid?.Invoke(0);
-            return;
-        }
-
         if (!gundamRule.CanPlayCardWithAnyEx(ruleSide, requiredLevel, cost))
         {
             Debug.Log("[ResourcePay] リソース不足です。");

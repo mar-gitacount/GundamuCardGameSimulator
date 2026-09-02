@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 36Aegis Gundam
   m_EditorClassIdentifier: 
   id: 36
-  gcgOfficialId: GD04-006
+  gcgOfficialId: 
   cardName: Aegis Gundam
   cost: 3
   level: 4
@@ -50,6 +50,6 @@ MonoBehaviour:
   notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
-    setKind: 2
-    setNumber: 4
-    cardNumber: 6
+    setKind: 0
+    setNumber: 0
+    cardNumber: 36

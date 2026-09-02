@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -611,6 +612,7 @@ public partial class BattleGameMain
         }
 
         int? resourceAfterCost = EstimateResourceAfterOnMainCost(side, source, timed);
+        EffectActivationContext activationContext = BuildActivationContext(side, source);
         bool hasAny = false;
         for (int i = 0; i < effects.Count; i++)
         {
@@ -643,6 +645,14 @@ public partial class BattleGameMain
 
             if (EffectRequiresManualUnitSelection(effect))
             {
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
                 if (ResolveSelectableEffectTargets(source, side, effect).Count > 0)
                 {
                     hasAny = true;
@@ -789,8 +799,14 @@ public partial class BattleGameMain
         int pickCount = Mathf.Max(1, ResolveEffectMagnitude(effect, ownerType, sourceCard));
         if (ownerType == PlayerType.Enemy)
         {
-            ResolveAddFromTrashToHandAuto(trashRule, trashOwner, candidates, pickCount);
-            onComplete?.Invoke();
+            StartCoroutine(ApplyAddFromTrashToHandEnemyCoroutine(
+                trashRule,
+                trashOwner,
+                ownerType,
+                effect,
+                candidates,
+                pickCount,
+                onComplete));
             return;
         }
 
@@ -804,12 +820,31 @@ public partial class BattleGameMain
             onComplete));
     }
 
-    private void ResolveAddFromTrashToHandAuto(
+    private IEnumerator ApplyAddFromTrashToHandEnemyCoroutine(
+        CardGameRule trashRule,
+        PlayerType handOwner,
+        PlayerType effectOwner,
+        EffectData effect,
+        List<TrashExileCandidate> candidates,
+        int pickCount,
+        Action onComplete)
+    {
+        List<int> takenCardIds = ResolveAddFromTrashToHandAuto(trashRule, handOwner, candidates, pickCount);
+        if (takenCardIds.Count > 0 && effect != null && effect.revealDiscardedToOpponent)
+        {
+            yield return RevealTrashToHandAddedCardsCoroutine(handOwner, effectOwner, takenCardIds);
+        }
+
+        onComplete?.Invoke();
+    }
+
+    private List<int> ResolveAddFromTrashToHandAuto(
         CardGameRule trashRule,
         PlayerType handOwner,
         List<TrashExileCandidate> candidates,
         int pickCount)
     {
+        List<int> takenCardIds = new List<int>();
         List<TrashExileCandidate> ordered = new List<TrashExileCandidate>(candidates);
         ordered.Sort((a, b) =>
         {
@@ -820,10 +855,54 @@ public partial class BattleGameMain
         int taken = 0;
         for (int i = 0; i < ordered.Count && taken < pickCount; i++)
         {
-            if (TryMoveTrashCandidateToHand(trashRule, handOwner, ordered[i]))
+            int movedId = TryMoveTrashCandidateToHand(trashRule, handOwner, ordered[i]);
+            if (movedId >= 0)
             {
+                takenCardIds.Add(movedId);
                 taken++;
             }
+        }
+
+        return takenCardIds;
+    }
+
+    private IEnumerator RevealTrashToHandAddedCardsCoroutine(
+        PlayerType handOwner,
+        PlayerType effectOwner,
+        List<int> takenCardIds)
+    {
+        if (takenCardIds == null || takenCardIds.Count == 0)
+        {
+            yield break;
+        }
+
+        for (int i = 0; i < takenCardIds.Count; i++)
+        {
+            int cardId = takenCardIds[i];
+            CardData data = DeckSettinObject.Instance != null
+                ? DeckSettinObject.Instance.GetCardDataById(cardId)
+                : null;
+            string cardName = data != null ? data.cardName : $"id:{cardId}";
+
+            if (handOwner == PlayerType.Player && data != null)
+            {
+                MemorizeEnemyAiPlayerPlayedCard(data, "AddFromTrashToHand");
+            }
+
+            string revealTitle = handOwner == PlayerType.Enemy
+                ? GameLocale.T(
+                    "相手がトラッシュから手札に加えたカード（公開）",
+                    "Opponent added a card from Trash to hand (revealed)")
+                : GameLocale.T(
+                    "トラッシュから手札に加えたカードを相手に公開",
+                    "Reveal card added from Trash to hand");
+            yield return WaitForHandDiscardRevealAcknowledgedCoroutine(
+                cardId,
+                cardName,
+                handOwner,
+                effectOwner,
+                isInitiator: handOwner == PlayerType.Player && effectOwner == PlayerType.Player,
+                revealTitle);
         }
     }
 
@@ -874,9 +953,18 @@ public partial class BattleGameMain
 
         string sourceName = sourceCard?.Data?.cardName ?? GameLocale.T("このカード", "this card");
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("TrashToHandSubtitle", UIAnchor.TopCenter, 780, 40);
-        subtitle.SetLocalizedText(
-            $"{sourceName}: {filterLabel} を選んで OK",
-            $"{sourceName}: choose {filterLabel}, then OK");
+        if (effect != null && effect.revealDiscardedToOpponent)
+        {
+            subtitle.SetLocalizedText(
+                $"{sourceName}: {filterLabel} を選んで OK（相手に公開）",
+                $"{sourceName}: choose {filterLabel}, then OK (reveal to opponent)");
+        }
+        else
+        {
+            subtitle.SetLocalizedText(
+                $"{sourceName}: {filterLabel} を選んで OK",
+                $"{sourceName}: choose {filterLabel}, then OK");
+        }
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
@@ -889,6 +977,7 @@ public partial class BattleGameMain
         RectTransform content = sr != null ? sr.content : null;
 
         HashSet<int> selectedTrashIndices = new HashSet<int>();
+        List<int> takenCardIds = new List<int>();
         Dictionary<int, GameObject> cardObjectsByTrashIndex = new Dictionary<int, GameObject>();
         bool dismissed = false;
         bool confirmed = false;
@@ -984,7 +1073,12 @@ public partial class BattleGameMain
                         continue;
                     }
 
-                    TryMoveTrashCandidateToHand(trashRule, trashOwner, candidates[c]);
+                    int movedId = TryMoveTrashCandidateToHand(trashRule, trashOwner, candidates[c]);
+                    if (movedId >= 0)
+                    {
+                        takenCardIds.Add(movedId);
+                    }
+
                     break;
                 }
             }
@@ -996,6 +1090,11 @@ public partial class BattleGameMain
         while (!dismissed && root != null)
         {
             yield return null;
+        }
+
+        if (takenCardIds.Count > 0 && effect != null && effect.revealDiscardedToOpponent)
+        {
+            yield return RevealTrashToHandAddedCardsCoroutine(trashOwner, PlayerType.Player, takenCardIds);
         }
 
         onComplete?.Invoke();

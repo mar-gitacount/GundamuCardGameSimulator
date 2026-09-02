@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000267
   gcgOfficialId: GD02-128
-  cardName: "Hammerhead"
+  cardName: Hammerhead
   cost: 2
   level: 4
   power: 0
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-128_Hammerhead"
+  imageAddress: Data/Images/GD02-128_Hammerhead
   version: 2
   sourceType: 1
   productLine: 1
@@ -64,7 +64,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

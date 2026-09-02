@@ -62,8 +62,7 @@ public partial class BattleGameMain
         {
             Debug.LogWarning(
                 $"[Effect] 直前の選択対象がありません ({effect.type} cardId:{sourceCard?.Data?.id})。");
-            onChainContinue?.Invoke();
-            return true;
+            return false;
         }
 
         ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, targets);
@@ -296,6 +295,36 @@ public partial class BattleGameMain
             applied++;
             Debug.Log(
                 $"[GrantBreach] {effect.duration} Breach{amount} 付与: {unit.Data.cardName}(id:{unit.Data.id})");
+        }
+
+        return applied > 0;
+    }
+
+    private bool TryApplyGrantTurnEndRepair(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null
+            || effect.type != EffectType.GrantTurnEndRepair
+            || targets == null
+            || targets.Count == 0)
+        {
+            return false;
+        }
+
+        int amount = effect.value > 0 ? effect.value : 1;
+        int applied = 0;
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || !unit.IsRepairEligibleUnit())
+            {
+                continue;
+            }
+
+            unit.AddTurnEndRepairBonus(amount);
+            applied++;
+            Debug.Log(
+                $"[GrantTurnEndRepair] {unit.Data?.cardName}(id:{unit.Data?.id}) "
+                + $"+{amount} (total turn-end repair:{unit.GetTurnEndRepairAmount()})");
         }
 
         return applied > 0;

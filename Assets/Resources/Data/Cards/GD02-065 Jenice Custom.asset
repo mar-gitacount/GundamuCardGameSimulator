@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000208
   gcgOfficialId: GD02-065
-  cardName: "Jenice Custom"
+  cardName: Jenice Custom
   cost: 1
   level: 1
   power: 1
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-065_Jenice Custom"
+  imageAddress: Data/Images/GD02-065_Jenice Custom
   version: 2
   sourceType: 1
   productLine: 1
@@ -47,7 +47,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2
