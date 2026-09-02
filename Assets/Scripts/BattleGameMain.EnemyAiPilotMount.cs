@@ -165,6 +165,7 @@ public partial class BattleGameMain
             return false;
         }
 
+        ApplyOnPilotMountedAllyBuffsDirect(unit, pilot, PlayerType.Enemy);
         ApplyUnitAttackFlgFromLink(unit, PlayerType.Enemy);
         TryGrantOperationMeteorFirstStrikeOnPilotMount(unit, pilot, PlayerType.Enemy);
         TriggerOnPilotMountedEffects(unit, pilot, PlayerType.Enemy, () =>

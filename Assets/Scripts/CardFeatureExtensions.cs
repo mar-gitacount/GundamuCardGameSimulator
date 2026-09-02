@@ -37,6 +37,8 @@ public static class CardFeatureExtensions
             return false;
         }
 
+        card.EnsureFeaturesResolved();
+
         for (int i = 0; i < features.Count; i++)
         {
             CardFeatureData required = features[i];
@@ -56,17 +58,37 @@ public static class CardFeatureExtensions
 
     public static bool HasFeatureId(this CardData card, int featureId)
     {
-        if (card == null || card.features == null)
+        if (card == null || featureId <= 0)
         {
             return false;
         }
 
-        for (int i = 0; i < card.features.Count; i++)
+        card.EnsureFeaturesResolved();
+
+        if (card.features != null)
         {
-            CardFeatureData feature = card.features[i];
-            if (feature != null && feature.id == featureId)
+            for (int i = 0; i < card.features.Count; i++)
             {
-                return true;
+                CardFeatureData feature = card.features[i];
+                if (feature != null && feature.id == featureId)
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (CardDatabase.Instance != null)
+        {
+            int[] featureIds = CardDatabase.Instance.GetFeatureIdsFromMasterJson(card.id);
+            if (featureIds != null)
+            {
+                for (int i = 0; i < featureIds.Length; i++)
+                {
+                    if (featureIds[i] == featureId)
+                    {
+                        return true;
+                    }
+                }
             }
         }
 

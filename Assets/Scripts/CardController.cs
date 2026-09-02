@@ -416,6 +416,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     public void SetUp(CardData carddata,Action<CardController> callback)
     {
+        if (carddata != null)
+        {
+            carddata.EnsureFeaturesResolved();
+        }
+
         this.Data = carddata;
         
         this.onClickCallback = callback;
