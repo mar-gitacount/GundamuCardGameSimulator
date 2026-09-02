@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000215
   gcgOfficialId: GD02-072
-  cardName: "Hyaku-Shiki"
+  cardName: Hyaku-Shiki
   cost: 3
   level: 5
   power: 4
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-072_Hyaku-Shiki"
+  imageAddress: Data/Images/GD02-072_Hyaku-Shiki
   version: 2
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

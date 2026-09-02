@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000330
   gcgOfficialId: GD03-070
-  cardName: "Freedom Gundam"
+  cardName: Freedom Gundam
   cost: 5
   level: 6
   power: 4
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-070_Freedom Gundam"
+  imageAddress: Data/Images/GD03-070_Freedom Gundam
   version: 3
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

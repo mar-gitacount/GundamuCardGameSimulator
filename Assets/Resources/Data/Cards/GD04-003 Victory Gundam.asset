@@ -36,7 +36,27 @@ MonoBehaviour:
   attackFlg: 0
   timedEffects:
   - timing: 3
-    activationConditions: []
+    activationConditions:
+    - boardSide: 0
+      checkKind: 0
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 16
+      features: []
+      featureIds: 
+      minimumCount: 3
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: 
     effects:

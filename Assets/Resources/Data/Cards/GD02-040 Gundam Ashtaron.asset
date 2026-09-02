@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000186
   gcgOfficialId: GD02-040
-  cardName: "Gundam Ashtaron"
+  cardName: Gundam Ashtaron
   cost: 3
   level: 4
   power: 3
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-040_Gundam Ashtaron"
+  imageAddress: Data/Images/GD02-040_Gundam Ashtaron
   version: 2
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

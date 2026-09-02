@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000225
   gcgOfficialId: GD02-084
-  cardName: "Lauda's Dilanza"
+  cardName: Lauda's Dilanza
   cost: 2
   level: 2
   power: 1
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-084_Lauda's Dilanza"
+  imageAddress: Data/Images/GD02-084_Lauda's Dilanza
   version: 2
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

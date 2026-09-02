@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000328
   gcgOfficialId: GD03-068
-  cardName: "Gundam Hajiroboshi"
+  cardName: Gundam Hajiroboshi
   cost: 2
   level: 3
   power: 3
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-068_Gundam Hajiroboshi"
+  imageAddress: Data/Images/GD03-068_Gundam Hajiroboshi
   version: 3
   sourceType: 1
   productLine: 1
@@ -54,7 +54,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

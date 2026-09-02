@@ -15,8 +15,8 @@ MonoBehaviour:
   id: 69
   gcgOfficialId: GD02-054
   cardName: Gundam Barbatos 1st Form
-  cost: 0
-  level: 0
+  cost: 2
+  level: 3
   power: 3
   hp: 2
   imageName: {fileID: 0}
@@ -125,7 +125,8 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
-  features: []
+  features:
+  - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
   pilotIds: []
   link:
   - pilotCardId: 70

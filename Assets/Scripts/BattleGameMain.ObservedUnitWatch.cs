@@ -446,6 +446,7 @@ public partial class BattleGameMain
             baseContext.OpponentTrashCardIds,
             baseContext.FrozenOwnerBattleAliveUnitCount,
             baseContext.PriorChainDealtDamage,
+            baseContext.PriorChainPickedUnits,
             baseContext.DestroyingCard,
             baseContext.HasDestroyingCardOwner,
             baseContext.DestroyingCardOwner,

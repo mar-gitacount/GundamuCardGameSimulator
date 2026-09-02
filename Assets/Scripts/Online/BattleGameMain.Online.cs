@@ -2264,16 +2264,29 @@ public partial class BattleGameMain
                     break;
                 }
                 case OnlineBattleEffectSyncPayload.ChangeKindStat:
+                {
+                    EffectStatTarget statTarget = (EffectStatTarget)change.statTarget;
+                    string statKey = change.statModifierSourceKey;
+                    if (!string.IsNullOrEmpty(statKey)
+                        && unit.HasStatModifierFromSource(statKey, statTarget))
+                    {
+                        Debug.Log(
+                            $"[EffectSync][ApplyStat] skip duplicate sourceKey={statKey} "
+                            + $"unit={FormatOnlineEffectSyncUnit(unit)}");
+                        break;
+                    }
+
                     Debug.Log(
                         $"[EffectSync][ApplyStat] #{i} unit={FormatOnlineEffectSyncUnit(unit)} "
                         + $"value={change.signedStatValue} stat={change.statTarget} duration={change.duration}");
                     ApplyStatEffect(
                         unit,
                         change.signedStatValue,
-                        (EffectStatTarget)change.statTarget,
+                        statTarget,
                         (EffectDuration)change.duration,
-                        string.IsNullOrEmpty(change.statModifierSourceKey) ? null : change.statModifierSourceKey);
+                        string.IsNullOrEmpty(statKey) ? null : statKey);
                     break;
+                }
 
                 case OnlineBattleEffectSyncPayload.ChangeKindRest:
                     Debug.Log($"[EffectSync][ApplyRest] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
@@ -2434,15 +2447,10 @@ public partial class BattleGameMain
         ApplyOnPilotMountedAllyBuffsDirect(hostUnit, pilotController, hostOwner);
         ApplyUnitAttackFlgFromLink(hostUnit, hostOwner);
         TryGrantOperationMeteorFirstStrikeOnPilotMount(hostUnit, pilotController, hostOwner);
-        CardController mountHostForEffects = hostUnit;
-        CardController mountedPilotForEffects = pilotController;
-        TriggerOnPilotMountedEffects(mountHostForEffects, mountedPilotForEffects, hostOwner, () =>
-        {
-            TriggerOnLinkEffects(mountHostForEffects, mountedPilotForEffects, hostOwner, () =>
-            {
-                RefreshAllFieldOwnerTurnPassives();
-            });
-        });
+        // 相手クライアントは MountPilot 受信のみ行い、OnLink 等の stat は EffectSync で受け取る。
+        // TriggerOnLinkEffects をここで再生すると EffectSync の AP+1 と二重になる（例: デルタプラス+リディで AP8）。
+        RefreshAllHandsConditionalOnHandAuto();
+        RefreshAllFieldOwnerTurnPassives();
         ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
         if (!action.includeResourceSnapshot)
         {

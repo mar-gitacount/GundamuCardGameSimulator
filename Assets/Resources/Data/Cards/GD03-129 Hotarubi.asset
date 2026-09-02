@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000385
   gcgOfficialId: GD03-129
-  cardName: "Hotarubi"
+  cardName: Hotarubi
   cost: 1
   level: 4
   power: 0
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-129_Hotarubi"
+  imageAddress: Data/Images/GD03-129_Hotarubi
   version: 3
   sourceType: 1
   productLine: 1
@@ -64,7 +64,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

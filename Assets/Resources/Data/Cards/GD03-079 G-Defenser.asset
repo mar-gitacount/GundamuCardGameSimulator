@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000339
   gcgOfficialId: GD03-079
-  cardName: "G-Defenser"
+  cardName: G-Defenser
   cost: 2
   level: 3
   power: 3
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-079_G-Defenser"
+  imageAddress: Data/Images/GD03-079_G-Defenser
   version: 3
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

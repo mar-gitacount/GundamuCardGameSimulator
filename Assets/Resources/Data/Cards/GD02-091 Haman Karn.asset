@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000232
   gcgOfficialId: GD02-091
-  cardName: "Haman Karn"
+  cardName: Haman Karn
   cost: 1
   level: 5
   power: 2
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-091_Haman Karn"
+  imageAddress: Data/Images/GD02-091_Haman Karn
   version: 2
   sourceType: 1
   productLine: 1
@@ -63,6 +63,7 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToMountHostUnit: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
@@ -70,6 +71,7 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 0
+      filterTargetAsUnitOrPilot: 0
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -82,8 +84,13 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
+      oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -97,6 +104,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -134,6 +142,7 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 1
+      compareTargetStatToMountHostUnit: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
@@ -141,6 +150,7 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 0
+      filterTargetAsUnitOrPilot: 0
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -153,8 +163,13 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
+      oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -168,6 +183,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -191,7 +207,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

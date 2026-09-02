@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000219
   gcgOfficialId: GD02-077
-  cardName: "Ein's Schwalbe Graze"
+  cardName: Ein's Schwalbe Graze
   cost: 2
   level: 4
   power: 4
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-077_Ein's Schwalbe Graze"
+  imageAddress: Data/Images/GD02-077_Ein's Schwalbe Graze
   version: 2
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

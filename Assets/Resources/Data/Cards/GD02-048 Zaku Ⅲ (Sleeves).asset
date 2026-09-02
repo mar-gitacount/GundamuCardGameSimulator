@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: GD02-048 Zaku Ⅲ (Sleeves)
+  m_Name: "GD02-048 Zaku \u2162 (Sleeves)"
   m_EditorClassIdentifier: 
   id: 1000194
   gcgOfficialId: GD02-048
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

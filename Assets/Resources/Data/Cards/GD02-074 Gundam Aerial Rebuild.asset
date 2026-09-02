@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000217
   gcgOfficialId: GD02-074
-  cardName: "Gundam Aerial Rebuild"
+  cardName: Gundam Aerial Rebuild
   cost: 5
   level: 7
   power: 5
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-074_Gundam Aerial Rebuild"
+  imageAddress: Data/Images/GD02-074_Gundam Aerial Rebuild
   version: 2
   sourceType: 1
   productLine: 1
@@ -61,7 +61,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

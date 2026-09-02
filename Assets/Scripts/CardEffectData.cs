@@ -277,7 +277,12 @@ public enum EffectType
     /// 破壊されたユニットに搭乗していたパイロットをオーナーの手札へ戻す（ユニット本体は破壊のまま）。
     /// OnDestroyed 専用。SendCardToTrash で切り離したパイロットを対象とする。
     /// </summary>
-    ReturnMountedPilotToHand
+    ReturnMountedPilotToHand,
+    /// <summary>
+    /// 対象ユニットにターン終了《リペア》value を付与する（UntilEndOfTurn）。
+    /// ターン終了時に <see cref="CardController.AddTurnEndRepairBonus"/> 分だけ回復する。
+    /// </summary>
+    GrantTurnEndRepair
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -412,6 +417,7 @@ public static class EffectTypeExtensions
             || type == EffectType.EffectBattle
             || type == EffectType.FirstStrike
             || type == EffectType.GrantBreach
+            || type == EffectType.GrantTurnEndRepair
             || type == EffectType.Debuff
             || type == EffectType.Buff
             || type == EffectType.Damage
@@ -764,7 +770,15 @@ public enum EffectActivationCheckKind
     /// ユニット戦闘ダメージ以外（効果ダメージ等）で敵ユニットを破壊したとき。
     /// DestroyedByBattleDamage の否定。OnEnemyUnitDestroyed 等と組み合わせる。
     /// </summary>
-    DestroyedByEffectDamage
+    DestroyedByEffectDamage,
+    /// <summary>
+    /// 指定トラッシュに cardNameContains（部分一致）を含むカードが minimumCount 枚以上ある。
+    /// </summary>
+    TrashHasCardNameContains,
+    /// <summary>
+    /// 直前チェーンで選択したユニットが features / featureIds のいずれか（OR）を持つ。
+    /// </summary>
+    PriorChainPickedHasFeature
 }
 
 public enum EffectTurnCheckKind

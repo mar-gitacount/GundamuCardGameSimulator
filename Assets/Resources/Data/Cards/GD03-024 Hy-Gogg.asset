@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000288
   gcgOfficialId: GD03-024
-  cardName: "Hy-Gogg"
+  cardName: Hy-Gogg
   cost: 2
   level: 3
   power: 3
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-024_Hy-Gogg"
+  imageAddress: Data/Images/GD03-024_Hy-Gogg
   version: 3
   sourceType: 1
   productLine: 1
@@ -54,7 +54,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

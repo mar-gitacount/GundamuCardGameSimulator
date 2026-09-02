@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000366
   gcgOfficialId: GD03-107
-  cardName: "Over the River and Through the Woods"
+  cardName: Over the River and Through the Woods
   cost: 1
   level: 4
   power: 1
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD03-107_Over the River and Through the Woods"
+  imageAddress: Data/Images/GD03-107_Over the River and Through the Woods
   version: 3
   sourceType: 1
   productLine: 1
@@ -48,7 +48,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

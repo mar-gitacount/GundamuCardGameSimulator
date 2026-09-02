@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000210
   gcgOfficialId: GD02-067
-  cardName: "Baqto"
+  cardName: Baqto
   cost: 2
   level: 2
   power: 2
   hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD02-067_Baqto"
+  imageAddress: Data/Images/GD02-067_Baqto
   version: 2
   sourceType: 1
   productLine: 1
@@ -48,7 +48,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

@@ -54,6 +54,26 @@ MonoBehaviour:
   - timing: 16
     activationConditions:
     - boardSide: -1
+      checkKind: -1
+      turnCheck: 0
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - boardSide: -1
       checkKind: 24
       turnCheck: -1
       feature: {fileID: 0}
@@ -70,6 +90,48 @@ MonoBehaviour:
       trashCardId: 0
       pilotLevelThreshold: 0
       activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - boardSide: -1
+      checkKind: 16
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features:
+      - {fileID: 11400000, guid: cd8fb7d0c0bd0e047ad30c5e79268c4e, type: 2}
+      - {fileID: 11400000, guid: b47d35768007412bad3b53c23aca96d5, type: 2}
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 1
+      cardNameContains: 
+    - boardSide: -1
+      checkKind: 5
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 3
+      compareValue: 6
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: 3
       observedCardType: 0
       destroyedByOwnerRelation: 0
       cardNameContains: 
@@ -134,7 +196,7 @@ MonoBehaviour:
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       resolveAfterDealtBattleDamage: 0
-      optionalPlayerConfirm: 0
+      optionalPlayerConfirm: 1
       opponentChoosesTarget: 0
       choiceBranches: []
       choicePromptJa: 
