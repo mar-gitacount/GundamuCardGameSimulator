@@ -2365,6 +2365,11 @@ public static class TimedEffectDataExtensions
             return true;
         }
 
+        if (timed.IsFieldOwnerTurnStatPassiveBlock())
+        {
+            return true;
+        }
+
         return EffectActivationEvaluator.ContainsObservedCardCondition(timed.activationConditions);
     }
 
@@ -2414,6 +2419,47 @@ public static class TimedEffectDataExtensions
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// OnPilotMounted + 自ターン + 味方全体等の盤面 Buff/Debuff。
+    /// <see cref="IsFieldOwnerTurnStatPassiveBlock"/> と同等だが、分類漏れ時のフォールバックにも使う。
+    /// </summary>
+    public static bool MatchesOwnerTurnMountFieldPassivePattern(this TimedEffectData timed)
+    {
+        if (timed == null || timed.timing != EffectTiming.OnPilotMounted)
+        {
+            return false;
+        }
+
+        if (!timed.HasOwnerTurnActivationRequirement() || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+            {
+                continue;
+            }
+
+            if (effect.target == TargetType.Self)
+            {
+                continue;
+            }
+
+            return true;
         }
 
         return false;

@@ -6,15 +6,29 @@ using UnityEngine;
 /// </summary>
 public partial class BattleGameMain
 {
+    private static bool IsOwnerTurnFieldPassiveTimedBlock(TimedEffectData timed)
+    {
+        return timed != null
+            && (timed.IsFieldOwnerTurnStatPassiveBlock() || timed.MatchesOwnerTurnMountFieldPassivePattern());
+    }
+
     private static string MakeOwnerTurnFieldPassiveSourceKey(CardController unit, int blockIndex)
     {
-        if (unit == null || unit.BattleInstanceId <= 0)
+        if (unit == null)
         {
             return null;
         }
 
-        return CardController.MakeOwnerTurnFieldPassiveSourceKey(unit.BattleInstanceId, blockIndex);
+        if (unit.BattleInstanceId > 0)
+        {
+            return CardController.MakeOwnerTurnFieldPassiveSourceKey(unit.BattleInstanceId, blockIndex);
+        }
+
+        return $"OwnerTurnField:{unit.GetEntityId()}:{blockIndex}";
     }
+
+    private const int ZaftFeatureId = 3;
+    private const int ProvidenceCardId = 1000297;
 
     /// <summary>全ユニットの自ターン限定盤面バフを一旦解除し、現在ターン側のみ再付与する。</summary>
     private void RefreshAllFieldOwnerTurnPassives()
@@ -249,7 +263,9 @@ public partial class BattleGameMain
 
         for (int i = 0; i < unit.Data.timedEffects.Count; i++)
         {
-            if (unit.Data.timedEffects[i] != null && unit.Data.timedEffects[i].IsFieldOwnerTurnStatPassiveBlock())
+            if (unit.Data.timedEffects[i] != null
+                && (IsOwnerTurnFieldPassiveTimedBlock(unit.Data.timedEffects[i])
+                    || IsOnPilotMountedAllyFieldStatBlock(unit.Data.timedEffects[i])))
             {
                 return true;
             }
@@ -278,17 +294,19 @@ public partial class BattleGameMain
             for (int bi = 0; bi < unit.Data.timedEffects.Count; bi++)
             {
                 TimedEffectData timed = unit.Data.timedEffects[bi];
-                if (timed == null || !timed.IsFieldOwnerTurnStatPassiveBlock())
+                if (timed == null
+                    || (!IsOwnerTurnFieldPassiveTimedBlock(timed)
+                        && !IsOnPilotMountedAllyFieldStatBlock(timed)
+                        && !IsZaftDuringPairAllyApBuffBlock(timed)))
                 {
                     continue;
                 }
 
-                if (unit.BattleInstanceId <= 0)
+                string key = MakeOwnerTurnFieldPassiveSourceKey(unit, bi);
+                if (!string.IsNullOrEmpty(key))
                 {
-                    continue;
+                    keys.Add(key);
                 }
-
-                keys.Add(MakeOwnerTurnFieldPassiveSourceKey(unit, bi));
             }
         }
     }
@@ -342,10 +360,32 @@ public partial class BattleGameMain
                 continue;
             }
 
+            AssignBattleInstanceIdIfNeeded(unit);
+
+            if (unit.Data.IsUnitLike()
+                && unit.MountedPilot?.Data != null
+                && unit.MountedPilot.Data.HasFeatureId(ZaftFeatureId)
+                && TryResolveZaftDuringPairAllyApBuffFromHost(unit, side, out _, out _, out _))
+            {
+                unit.MountedPilot.Data.EnsureFeaturesResolved();
+                ApplyZaftDuringPairAllyApBuff(unit, unit.MountedPilot, side);
+            }
+
             for (int bi = 0; bi < unit.Data.timedEffects.Count; bi++)
             {
                 TimedEffectData timed = unit.Data.timedEffects[bi];
-                if (timed == null || !timed.IsFieldOwnerTurnStatPassiveBlock())
+                if (timed == null)
+                {
+                    continue;
+                }
+
+                if (IsZaftDuringPairAllyApBuffBlock(timed))
+                {
+                    continue;
+                }
+
+                if (!IsOwnerTurnFieldPassiveTimedBlock(timed)
+                    && !IsOnPilotMountedAllyFieldStatBlock(timed))
                 {
                     continue;
                 }
@@ -364,10 +404,20 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                EffectActivationContext ctx = unit.Data.IsPilot() && unit.MountedUnit != null
-                    ? BuildPilotMountActivationContext(side, unit, unit.MountedUnit, unit)
-                    : BuildActivationContext(side, unit);
-                if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+                bool conditionsMet;
+                if (timed.timing == EffectTiming.OnPilotMounted
+                    && unit.Data.IsUnitLike()
+                    && unit.MountedPilot != null)
+                {
+                    conditionsMet = PilotMeetsOnPilotMountedDuringPairRequirement(unit.MountedPilot, timed);
+                }
+                else
+                {
+                    EffectActivationContext ctx = BuildOwnerTurnFieldPassiveActivationContext(side, unit, timed);
+                    conditionsMet = EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx);
+                }
+
+                if (!conditionsMet)
                 {
                     continue;
                 }
@@ -375,6 +425,305 @@ public partial class BattleGameMain
                 ApplyOwnerTurnFieldStatPassiveBlock(unit, side, timed, bi, syncOnlineBatch);
             }
         }
+    }
+
+    /// <summary>
+    /// 自ターン盤面パッシブ評価用コンテキスト。
+    /// During Pair（MountedPilot 条件）を正しく見るため、ユニットにパイロットが載っている場合は搭乗情報を明示する。
+    /// </summary>
+    private EffectActivationContext BuildOwnerTurnFieldPassiveActivationContext(
+        PlayerType side,
+        CardController unit,
+        TimedEffectData timed)
+    {
+        if (unit == null)
+        {
+            return BuildActivationContext(side, unit);
+        }
+
+        if (unit.Data != null && unit.Data.IsPilot() && unit.MountedUnit != null)
+        {
+            return BuildPilotMountActivationContext(side, unit, unit.MountedUnit, unit);
+        }
+
+        if (unit.Data != null && unit.Data.IsUnitLike() && unit.MountedPilot != null)
+        {
+            unit.MountedPilot.Data?.EnsureFeaturesResolved();
+            return BuildPilotMountActivationContext(side, unit, unit, unit.MountedPilot);
+        }
+
+        return BuildActivationContext(side, unit);
+    }
+
+    private static bool IsOnPilotMountedAllyFieldStatBlock(TimedEffectData timed)
+    {
+        if (timed == null || timed.timing != EffectTiming.OnPilotMounted || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if ((effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                && effect.target != TargetType.Self)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 搭乗直後: (ZAFT) パイロットが載ったとき、味方 (ZAFT) ユニット全体（自身含む）へ AP バフ。
+    /// プロヴィデンスガンダム等の OnPilotMounted 味方全体 Buff を直接適用する。
+    /// </summary>
+    private void ApplyOnPilotMountedAllyBuffsDirect(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType)
+    {
+        ApplyZaftDuringPairAllyApBuff(hostUnit, pilot, ownerType);
+    }
+
+    /// <summary>
+    /// 自ターン中、ホストに (ZAFT) パイロットが載っているとき味方 (ZAFT) 全体に AP バフ。
+    /// </summary>
+    private void ApplyZaftDuringPairAllyApBuff(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType)
+    {
+        if (hostUnit?.Data == null || pilot?.Data == null || !hostUnit.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        if (ownerType != currentPlayerType)
+        {
+            return;
+        }
+
+        pilot.Data.EnsureFeaturesResolved();
+        if (!pilot.Data.HasFeatureId(ZaftFeatureId))
+        {
+            return;
+        }
+
+        int blockIndex = 0;
+        int apBonus = 0;
+        int targetFeatureId = ZaftFeatureId;
+        if (!TryResolveZaftDuringPairAllyApBuffFromHost(hostUnit, ownerType, out blockIndex, out apBonus, out targetFeatureId))
+        {
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(hostUnit);
+        string sourceKey = MakeOwnerTurnFieldPassiveSourceKey(hostUnit, blockIndex);
+        if (string.IsNullOrEmpty(sourceKey))
+        {
+            return;
+        }
+
+        RemoveModifiersBySourceKeyFromAllFieldUnits(sourceKey);
+
+        List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (allies == null)
+        {
+            return;
+        }
+
+        bool nestedBatch = _onlineEffectSyncActive;
+        if (!nestedBatch)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+        }
+
+        int applied = 0;
+        for (int i = 0; i < allies.Count; i++)
+        {
+            CardController ally = allies[i];
+            if (ally?.Data == null || !ally.Data.IsUnitLike() || ally.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            ally.Data.EnsureFeaturesResolved();
+            if (!ally.Data.HasFeatureId(targetFeatureId))
+            {
+                continue;
+            }
+
+            ApplyStatEffect(
+                ally,
+                apBonus,
+                EffectStatTarget.AP,
+                EffectDuration.Permanent,
+                sourceKey);
+            if (_onlineEffectSyncActive)
+            {
+                QueueOnlineUnitStat(
+                    ally,
+                    apBonus,
+                    EffectStatTarget.AP,
+                    EffectDuration.Permanent,
+                    sourceKey);
+            }
+
+            applied++;
+        }
+
+        if (!nestedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
+
+        Debug.Log(
+            $"[MountBuff] {hostUnit.Data.cardName} +{apBonus}AP to {applied} ZAFT unit(s) "
+            + $"(pilot:{pilot.Data.cardName})");
+    }
+
+    /// <summary>ホストの OnPilotMounted 味方 Buff ブロックから AP 量・対象 Feature を得る。</summary>
+    private bool TryResolveZaftDuringPairAllyApBuffFromHost(
+        CardController hostUnit,
+        PlayerType ownerType,
+        out int blockIndex,
+        out int apBonus,
+        out int targetFeatureId)
+    {
+        blockIndex = 0;
+        apBonus = 0;
+        targetFeatureId = ZaftFeatureId;
+
+        if (hostUnit?.Data?.timedEffects != null)
+        {
+            for (int bi = 0; bi < hostUnit.Data.timedEffects.Count; bi++)
+            {
+                TimedEffectData timed = hostUnit.Data.timedEffects[bi];
+                if (timed == null || !IsOnPilotMountedTiming(timed))
+                {
+                    continue;
+                }
+
+                IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+                for (int ei = 0; ei < effects.Count; ei++)
+                {
+                    EffectData effect = effects[ei];
+                    if (effect == null
+                        || effect.type != EffectType.Buff
+                        || effect.target != TargetType.AllyAllUnits
+                        || effect.statTarget != EffectStatTarget.AP)
+                    {
+                        continue;
+                    }
+
+                    int magnitude = ResolveEffectMagnitude(effect, ownerType, hostUnit);
+                    if (magnitude <= 0)
+                    {
+                        magnitude = effect.value;
+                    }
+
+                    if (magnitude <= 0)
+                    {
+                        continue;
+                    }
+
+                    blockIndex = bi;
+                    apBonus = magnitude;
+                    if (effect.targetFeatureId > 0)
+                    {
+                        targetFeatureId = effect.targetFeatureId;
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        if (hostUnit.Data.id == ProvidenceCardId
+            || string.Equals(hostUnit.Data.gcgOfficialId, "GD03-033", System.StringComparison.OrdinalIgnoreCase))
+        {
+            blockIndex = 0;
+            apBonus = 2;
+            targetFeatureId = ZaftFeatureId;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsOnPilotMountedTiming(TimedEffectData timed)
+    {
+        return timed != null
+            && (timed.timing == EffectTiming.OnPilotMounted || (int)timed.timing == 15);
+    }
+
+    private static bool IsZaftDuringPairAllyApBuffBlock(TimedEffectData timed)
+    {
+        if (!IsOnPilotMountedTiming(timed) || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect != null
+                && effect.type == EffectType.Buff
+                && effect.target == TargetType.AllyAllUnits
+                && effect.statTarget == EffectStatTarget.AP)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool PilotMeetsOnPilotMountedDuringPairRequirement(
+        CardController pilot,
+        TimedEffectData timed)
+    {
+        if (pilot?.Data == null)
+        {
+            return false;
+        }
+
+        pilot.Data.EnsureFeaturesResolved();
+        if (timed?.activationConditions == null || timed.activationConditions.Count == 0)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c == null || c.checkKind != EffectActivationCheckKind.MountedPilot)
+            {
+                continue;
+            }
+
+            if (c.featureId > 0 && !pilot.Data.HasFeatureId(c.featureId))
+            {
+                return false;
+            }
+
+            IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+            if (required.Count > 0 && !pilot.Data.HasAnyFeature(required))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void ApplyOwnerTurnFieldStatPassiveBlock(
@@ -388,6 +737,8 @@ public partial class BattleGameMain
         {
             return;
         }
+
+        AssignBattleInstanceIdIfNeeded(sourceUnit);
 
         string sourceKey = MakeOwnerTurnFieldPassiveSourceKey(sourceUnit, blockIndex);
         if (string.IsNullOrEmpty(sourceKey))
@@ -423,6 +774,9 @@ public partial class BattleGameMain
 
             int signedValue = (effect.type == EffectType.Buff ? 1 : -1) * magnitude;
             List<CardController> targets = ResolveEffectTargets(sourceUnit, ownerType, effect);
+            Debug.Log(
+                $"[MountBuff] {sourceUnit.Data?.cardName} → {effect.type} +{magnitude} "
+                + $"targets:{targets.Count} pilot:{sourceUnit.MountedPilot?.Data?.cardName}");
             for (int ti = 0; ti < targets.Count; ti++)
             {
                 CardController target = targets[ti];
@@ -439,16 +793,9 @@ public partial class BattleGameMain
                     sourceKey);
                 if (syncOnlineBatch)
                 {
-                    Debug.Log($"[OwnerTurnField][OnlineQueueStat] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} "
-                        + $"source:{sourceUnit.Data?.cardName}(id:{sourceUnit.Data?.id}) side:{ownerType}");
                     QueueOnlineUnitStat(target, signedValue, effect.statTarget, EffectDuration.Permanent, sourceKey);
                 }
             }
-
-            Debug.Log(
-                $"[OwnerTurnField] {effect.type} {magnitude} target:{effect.target} stat:{effect.statTarget} "
-                + $"online:{syncOnlineBatch} "
-                + $"source:{sourceUnit.Data?.cardName}(id:{sourceUnit.Data?.id}) side:{ownerType}");
         }
 
         if (syncOnlineBatch)

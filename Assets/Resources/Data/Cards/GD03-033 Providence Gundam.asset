@@ -38,9 +38,29 @@ MonoBehaviour:
   - timing: 15
     activationConditions:
     - boardSide: -1
-      checkKind: 4
+      checkKind: -1
       turnCheck: 0
       feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - boardSide: -1
+      checkKind: 4
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
       featureId: 3
       features: []
       featureIds: 
@@ -75,7 +95,7 @@ MonoBehaviour:
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
-      targetFeature: {fileID: 0}
+      targetFeature: {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
       targetFeatureId: 3
       targetFeatures: []
       targetFeatureIds: 

@@ -5070,6 +5070,8 @@ public partial class BattleGameMain : MonoBehaviour
                     return;
                 }
 
+                ApplyOnPilotMountedAllyBuffsDirect(target, pilotCard, ownerType);
+
                 if (ownerType == PlayerType.Player)
                 {
                     NotifyLocalPilotMounted(target, pilotCard);
@@ -5118,6 +5120,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 RefreshAllHandsConditionalOnHandAuto();
                 StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
+                RefreshAllFieldOwnerTurnPassives();
                 postMountChainDone = true;
             });
         });
@@ -10832,6 +10835,12 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            if (mountTiming == EffectTiming.OnPilotMounted
+                && (timed.IsFieldOwnerTurnStatPassiveBlock() || timed.MatchesOwnerTurnMountFieldPassivePattern()))
+            {
+                continue;
+            }
+
             if (!timed.ShouldDeferActivationToRunTime()
                 && !EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
@@ -10869,7 +10878,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TimedEffectData block = blocks[blockIndex];
-        if (block.IsFieldOwnerTurnStatPassiveBlock())
+        if (block.IsFieldOwnerTurnStatPassiveBlock() || block.MatchesOwnerTurnMountFieldPassivePattern())
         {
             RunMountTimedBlocks(
                 sourceCard,
@@ -13295,6 +13304,7 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        card.EnsureFeaturesResolved();
         if (card.HasAnyFeature(requiredFeatures))
         {
             return true;

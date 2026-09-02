@@ -2431,6 +2431,7 @@ public partial class BattleGameMain
             return;
         }
 
+        ApplyOnPilotMountedAllyBuffsDirect(hostUnit, pilotController, hostOwner);
         ApplyUnitAttackFlgFromLink(hostUnit, hostOwner);
         TryGrantOperationMeteorFirstStrikeOnPilotMount(hostUnit, pilotController, hostOwner);
         CardController mountHostForEffects = hostUnit;

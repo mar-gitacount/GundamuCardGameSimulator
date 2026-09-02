@@ -226,6 +226,7 @@ public void LoadAllCards()
 
     foreach (var card in cards)
     {
+        card.EnsureFeaturesResolved();
         // Runtime用Dictionary
         cardDict[card.id] = card;
 
@@ -271,10 +272,32 @@ CardJson FindByName(string name)
     }
     return null;
 }
+    /// <summary>card_master.json 上の featureIds（features リスト補完用）。</summary>
+    public int[] GetFeatureIdsFromMasterJson(int cardId)
+    {
+        CardMasterJson master = LoadJson();
+        if (master?.cards == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < master.cards.Count; i++)
+        {
+            CardJson entry = master.cards[i];
+            if (entry != null && entry.id == cardId)
+            {
+                return entry.featureIds;
+            }
+        }
+
+        return null;
+    }
+
 public CardData FindById(int id)
 {
     if (cardDict.TryGetValue(id, out var card))
     {
+        card?.EnsureFeaturesResolved();
         return card;
     }
     Debug.LogWarning($"ID {id} のカードが存在しません");

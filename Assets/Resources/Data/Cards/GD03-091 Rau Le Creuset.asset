@@ -38,12 +38,20 @@ MonoBehaviour:
   - timing: 5
     activationConditions: []
     requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 18
+    activationConditions: []
+    requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 27
+    - type: 40
       value: 1
       target: 5
-      selectionMode: -1
+      selectionMode: 1
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -56,7 +64,7 @@ MonoBehaviour:
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
-      targetFeatureId: 0
+      targetFeatureId: 3
       targetFeatures: []
       targetFeatureIds: 
       targetUnitFilterStat: -1
@@ -68,8 +76,8 @@ MonoBehaviour:
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
-      filterByTargetCardType: 0
-      targetCardType: 0
+      filterByTargetCardType: 1
+      targetCardType: 3
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -91,6 +99,8 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       requireExactExileCount: 0
       targetCardNameContains: 
       targetCardNameExcludes: 

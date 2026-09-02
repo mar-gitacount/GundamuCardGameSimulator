@@ -1207,6 +1207,7 @@ public CardData GetCardDataById(int id)
     var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(data => data.id);
     if (cardTable.TryGetValue(id, out CardData card))
     {
+        card?.EnsureFeaturesResolved();
         Debug.Log($"ID:{id} のカードデータを取得しました。カード名: {card.cardName}");
         return card;
     }

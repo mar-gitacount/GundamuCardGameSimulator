@@ -1399,13 +1399,25 @@ public static class EffectActivationEvaluator
         }
 
         CardData data = pilot.Data;
+        data.EnsureFeaturesResolved();
         if (c.pilotCardId > 0 && data.id != c.pilotCardId)
         {
             return false;
         }
 
         IReadOnlyList<CardFeatureData> requiredFeatures = c.GetActivationFeatures();
-        if (requiredFeatures.Count > 0 && !data.HasAnyFeature(requiredFeatures))
+        bool featureOk = requiredFeatures.Count == 0;
+        if (!featureOk)
+        {
+            featureOk = data.HasAnyFeature(requiredFeatures);
+        }
+
+        if (!featureOk && c.featureId > 0)
+        {
+            featureOk = data.HasFeatureId(c.featureId);
+        }
+
+        if (!featureOk && (requiredFeatures.Count > 0 || c.featureId > 0))
         {
             return false;
         }

@@ -259,6 +259,56 @@ public class CardData : ScriptableObject
 
         imageAddress = "Data/Images/" + leafName.Trim();
     }
+
+    /// <summary>
+    /// features リストが空のとき、Resources 同名カードまたは card_master.json の featureIds から補完する。
+    /// </summary>
+    public void EnsureFeaturesResolved()
+    {
+        if (features != null)
+        {
+            for (int i = features.Count - 1; i >= 0; i--)
+            {
+                if (features[i] == null)
+                {
+                    features.RemoveAt(i);
+                }
+            }
+        }
+
+        if (features != null && features.Count > 0)
+        {
+            return;
+        }
+
+        if (features == null)
+        {
+            features = new List<CardFeatureData>();
+        }
+
+        CardFeatureRegistry.EnsureLoaded();
+        CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
+        for (int i = 0; i < all.Length; i++)
+        {
+            CardData source = all[i];
+            if (source == null || source.id != id || source.features == null || source.features.Count == 0)
+            {
+                continue;
+            }
+
+            features.AddRange(source.features);
+            return;
+        }
+
+        if (CardDatabase.Instance != null)
+        {
+            int[] featureIds = CardDatabase.Instance.GetFeatureIdsFromMasterJson(id);
+            if (featureIds != null && featureIds.Length > 0)
+            {
+                CardFeatureExtensions.SetFeaturesFromIds(this, featureIds);
+            }
+        }
+    }
 }
 
 

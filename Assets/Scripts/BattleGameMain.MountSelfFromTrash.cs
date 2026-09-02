@@ -447,6 +447,8 @@ public partial class BattleGameMain
             return false;
         }
 
+        ApplyOnPilotMountedAllyBuffsDirect(hostUnit, pilotController, ownerType);
+
         if (ownerType == PlayerType.Player)
         {
             NotifyLocalPilotMounted(hostUnit, pilotController);
