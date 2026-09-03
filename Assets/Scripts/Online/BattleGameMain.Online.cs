@@ -703,6 +703,38 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>Kindhearted 等の破壊防止シールドを相手クライアントへ同期する（付与サイド付き）。</summary>
+    private void QueueOnlinePreventAllyDestroyByEnemyEffect(PlayerType grantedSide)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || !_onlineEffectSyncActive)
+        {
+            return;
+        }
+
+        if (_pendingOnlineEffectChanges == null)
+        {
+            _pendingOnlineEffectChanges = new List<OnlineBattleUnitEffectChange>();
+        }
+
+        for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
+        {
+            OnlineBattleUnitEffectChange existing = _pendingOnlineEffectChanges[i];
+            if (existing != null
+                && existing.changeKind == OnlineBattleEffectSyncPayload.ChangeKindPreventAllyDestroyByEnemyEffect
+                && existing.targetZoneOwnerSide == (int)grantedSide)
+            {
+                return;
+            }
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindPreventAllyDestroyByEnemyEffect,
+            // 送信側視点の付与サイド（受信でミラーする）
+            targetZoneOwnerSide = (int)grantedSide
+        });
+    }
+
     private void QueueOnlineUnitDestroy(
         CardController target,
         CardController destroyer = null,
@@ -1592,6 +1624,8 @@ public partial class BattleGameMain
             ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearCopiedKeywordsUntilEndOfTurnForAllInPlayUnits();
+            ClearPreventAllyDestroyByEnemyEffectUntilEot();
             DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
             currentPlayerType = PlayerType.Player;
@@ -2210,6 +2244,16 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindPreventAllyDestroyByEnemyEffect)
+            {
+                PlayerType senderSide =
+                    change.targetZoneOwnerSide == (int)PlayerType.Enemy
+                        ? PlayerType.Enemy
+                        : PlayerType.Player;
+                ApplyRemotePreventAllyDestroyByEnemyEffect(senderSide);
+                continue;
+            }
+
             CardController unit = FindEffectSyncTargetUnit(change);
             Debug.Log($"[EffectSync][TargetResolved] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
             if (unit == null)
@@ -2300,6 +2344,20 @@ public partial class BattleGameMain
 
                 case OnlineBattleEffectSyncPayload.ChangeKindDestroy:
                     Debug.Log($"[EffectSync][ApplyDestroy] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
+                    // Kindhearted 等：受信側でも相手の効果破壊を防ぐ
+                    {
+                        PlayerType remoteEffectOwner = ResolveUnitOwnerForDestroyPrevent(unit) == PlayerType.Player
+                            ? PlayerType.Enemy
+                            : PlayerType.Player;
+                        if (TryPreventEnemyEffectDestroy(unit, remoteEffectOwner))
+                        {
+                            Debug.Log(
+                                $"[EffectSync][ApplyDestroy] prevented by Kindhearted-like shield "
+                                + $"unit={FormatOnlineEffectSyncUnit(unit)}");
+                            break;
+                        }
+                    }
+
                     NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
                     unit.SetCurrentHpForSync(0);
                     NotifyRemoteEffectDestroyForLocalWatchers(unit, change);

@@ -40,8 +40,8 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 2
-      value: 1
+    - type: 58
+      value: 0
       target: 0
       selectionMode: -1
       statTarget: 0

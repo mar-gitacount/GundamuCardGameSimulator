@@ -829,6 +829,8 @@ public partial class BattleGameMain
             blocks.Add(new OnMainExecutableBlock(timed, i));
         }
 
+        TryAppendCopiedSupportOnMainBlock(side, source, blocks);
+
         return blocks;
     }
 

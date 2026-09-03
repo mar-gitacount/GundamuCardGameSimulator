@@ -287,7 +287,19 @@ public enum EffectType
     /// 対象ユニットへ Feature（value=featureId）をランタイム付与する。
     /// 【リンク中】常時パッシブは timed + SourceUnitIsLinked 条件と RefreshDuringLinkFeatureGrants / RefreshDuringLinkSelfStatPassives で維持する。
     /// </summary>
-    GrantFeature
+    GrantFeature,
+    /// <summary>
+    /// このターン、発動者の味方ユニットは相手の効果破壊（EffectType.Destroy）では破壊されない（Kindhearted 等）。
+    /// Player / Enemy は独立にシールドを持つ。効果ダメージ・戦闘ダメージによる破壊は対象外。
+    /// duration=UntilEndOfTurn。target は SelfPlayer。
+    /// </summary>
+    PreventAllyDestroyByEnemyEffect,
+    /// <summary>
+    /// トラッシュ（自分／相手切替 UI）からキーワード持ちユニット1枚を選び、
+    /// 発動元ユニットへ AP+1 とそのカードのキーワードをターン終了まで付与する（∀ Gundam 等）。
+    /// target=Self。oncePerTurn と組み合わせる。
+    /// </summary>
+    CopyKeywordsFromTrashUnit
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

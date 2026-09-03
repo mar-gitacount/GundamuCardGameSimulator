@@ -345,6 +345,167 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _suppressUntilEndOfTurnBreakCount = 0;
     }
 
+    /// <summary>∀ Gundam 等：トラッシュからコピーしたキーワード（ターン終了まで）。</summary>
+    private bool _copiedBlockerUntilEndOfTurn;
+    private bool _copiedGrantedFirstStrike;
+    private bool _copiedGrantedHighMobility;
+    private int _copiedGrantedBreachAmount;
+    private int _copiedGrantedSuppressBreaks;
+    private int _copiedGrantedRepairBonus;
+    private int _copiedSupportApUntilEndOfTurn;
+    private TimedEffectData _copiedSupportTimedUntilEndOfTurn;
+    private string _copiedKeywordStatSourceKey;
+
+    public bool HasCopiedBlockerUntilEndOfTurn => _copiedBlockerUntilEndOfTurn;
+
+    public int CopiedSupportApUntilEndOfTurn => _copiedSupportApUntilEndOfTurn;
+
+    public TimedEffectData CopiedSupportTimedUntilEndOfTurn => _copiedSupportTimedUntilEndOfTurn;
+
+    public string CopiedKeywordStatSourceKey => _copiedKeywordStatSourceKey;
+
+    public void ClearCopiedKeywordsUntilEndOfTurn()
+    {
+        if (_copiedGrantedFirstStrike)
+        {
+            if (_firstStrikeUntilEndOfTurnDepth > 0)
+            {
+                _firstStrikeUntilEndOfTurnDepth--;
+            }
+
+            _copiedGrantedFirstStrike = false;
+        }
+
+        if (_copiedGrantedHighMobility)
+        {
+            if (_highMobilityUntilEndOfTurnDepth > 0)
+            {
+                _highMobilityUntilEndOfTurnDepth--;
+            }
+
+            _copiedGrantedHighMobility = false;
+        }
+
+        if (_copiedGrantedBreachAmount > 0)
+        {
+            if (_breachUntilEndOfTurnAmount <= _copiedGrantedBreachAmount)
+            {
+                _breachUntilEndOfTurnAmount = 0;
+            }
+
+            _copiedGrantedBreachAmount = 0;
+        }
+
+        if (_copiedGrantedSuppressBreaks > 0)
+        {
+            if (_suppressUntilEndOfTurnBreakCount <= _copiedGrantedSuppressBreaks)
+            {
+                _suppressUntilEndOfTurnBreakCount = 0;
+            }
+
+            _copiedGrantedSuppressBreaks = 0;
+        }
+
+        if (_copiedGrantedRepairBonus > 0)
+        {
+            _turnEndRepairBonus = Mathf.Max(0, _turnEndRepairBonus - _copiedGrantedRepairBonus);
+            _copiedGrantedRepairBonus = 0;
+        }
+
+        bool hadBlocker = _copiedBlockerUntilEndOfTurn;
+        _copiedBlockerUntilEndOfTurn = false;
+        _copiedSupportApUntilEndOfTurn = 0;
+        _copiedSupportTimedUntilEndOfTurn = null;
+        _copiedKeywordStatSourceKey = null;
+        if (hadBlocker && Data != null)
+        {
+            _runtimeBlockerAbilityEnabled = Data.IsBlockerUnit();
+        }
+    }
+
+    /// <summary>
+    /// トラッシュ選択カードの印刷キーワードをターン終了まで付与する（AP+1 は呼び出し側で付与）。
+    /// </summary>
+    public void ApplyCopiedPrintedKeywordsUntilEndOfTurn(
+        CardPrintedKeywordExtensions.PrintedKeywords keywords,
+        string statSourceKey)
+    {
+        ClearCopiedKeywordsUntilEndOfTurn();
+        _copiedKeywordStatSourceKey = statSourceKey;
+
+        if (keywords.HasRepair && keywords.RepairAmount > 0)
+        {
+            AddTurnEndRepairBonus(keywords.RepairAmount);
+            _copiedGrantedRepairBonus = keywords.RepairAmount;
+        }
+
+        if (keywords.HasBreach && keywords.BreachAmount > 0)
+        {
+            AddBreachUntilEndOfTurnGrant(keywords.BreachAmount);
+            _copiedGrantedBreachAmount = keywords.BreachAmount;
+        }
+
+        if (keywords.HasFirstStrike)
+        {
+            AddFirstStrikeUntilEndOfTurnGrant();
+            _copiedGrantedFirstStrike = true;
+        }
+
+        if (keywords.HasHighMobility)
+        {
+            AddHighMobilityUntilEndOfTurnGrant();
+            _copiedGrantedHighMobility = true;
+        }
+
+        if (keywords.HasSuppress)
+        {
+            int breaks = keywords.SuppressBreaks > 0 ? keywords.SuppressBreaks : 2;
+            AddSuppressUntilEndOfTurnGrant(breaks);
+            _copiedGrantedSuppressBreaks = breaks;
+        }
+
+        if (keywords.HasBlocker)
+        {
+            _copiedBlockerUntilEndOfTurn = true;
+            SetRuntimeBlockerAbility(true);
+        }
+
+        if (keywords.HasSupport && keywords.SupportAp > 0)
+        {
+            _copiedSupportApUntilEndOfTurn = keywords.SupportAp;
+            _copiedSupportTimedUntilEndOfTurn = BuildCopiedSupportTimedEffect(keywords.SupportAp);
+        }
+    }
+
+    private static TimedEffectData BuildCopiedSupportTimedEffect(int supportAp)
+    {
+        int ap = supportAp > 0 ? supportAp : 1;
+        return new TimedEffectData
+        {
+            timing = EffectTiming.OnMain,
+            oncePerTurn = true,
+            effects = new List<EffectData>
+            {
+                new EffectData
+                {
+                    type = EffectType.Rest,
+                    value = 1,
+                    target = TargetType.Self,
+                    selectionMode = EffectSelectionMode.Unset
+                },
+                new EffectData
+                {
+                    type = EffectType.Buff,
+                    value = ap,
+                    target = TargetType.AllyOtherUnit,
+                    selectionMode = EffectSelectionMode.SelectSingle,
+                    statTarget = EffectStatTarget.AP,
+                    duration = EffectDuration.UntilEndOfTurn
+                }
+            }
+        };
+    }
+
     public void AddFirstStrikeUntilEndOfTurnGrant()
     {
         _firstStrikeUntilEndOfTurnDepth++;
@@ -706,6 +867,15 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _ownerEffectDestroyArmed = false;
         _runtimeBlockerAbilityEnabled = Data.IsBlockerUnit();
         WasDeployedFromTrash = false;
+        _copiedBlockerUntilEndOfTurn = false;
+        _copiedGrantedFirstStrike = false;
+        _copiedGrantedHighMobility = false;
+        _copiedGrantedBreachAmount = 0;
+        _copiedGrantedSuppressBreaks = 0;
+        _copiedGrantedRepairBonus = 0;
+        _copiedSupportApUntilEndOfTurn = 0;
+        _copiedSupportTimedUntilEndOfTurn = null;
+        _copiedKeywordStatSourceKey = null;
     }
 
     /// <summary>今回の配備がトラッシュからだったか（【配備時】条件用）。</summary>

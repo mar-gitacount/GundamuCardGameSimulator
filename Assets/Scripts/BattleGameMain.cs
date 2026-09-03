@@ -3871,6 +3871,8 @@ public partial class BattleGameMain : MonoBehaviour
             ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearCopiedKeywordsUntilEndOfTurnForAllInPlayUnits();
+            ClearPreventAllyDestroyByEnemyEffectUntilEot();
             ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
             ClearObservedUnitWatches();
             ForceClearEffectChainObservationScope();
@@ -4766,6 +4768,11 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             PlayerType targetOwner = ResolveCardOwner(target.transform);
+            if (TryPreventEnemyEffectDestroy(target, ownerType))
+            {
+                continue;
+            }
+
             TryLogAttackBlockCloseCombatTrioDestroy("ApplyDestroyEffect", target, sourceCard);
             NotifyBlockRedirectUnitRemovedDuringAttackFlow(target);
             // OnDestroyed 条件用: 敵キルでなくても破壊効果の発動元ユニットを破壊者として渡す
@@ -7189,12 +7196,32 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.PreventAllyDestroyByEnemyEffect)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantPreventAllyDestroyByEnemyEffect(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            Debug.Log(
+                $"[Effect] PreventAllyDestroyByEnemyEffect until EOT by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+            return;
+        }
+
+        if (effect.type == EffectType.CopyKeywordsFromTrashUnit)
+        {
+            Debug.LogWarning(
+                $"[Effect] CopyKeywordsFromTrashUnit は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
             && effect.type != EffectType.GrantAttackFlag
             && effect.type != EffectType.MarkObservedUnit
-            && effect.type != EffectType.EffectBattle)
+            && effect.type != EffectType.EffectBattle
+            && effect.type != EffectType.PreventAllyDestroyByEnemyEffect
+            && effect.type != EffectType.CopyKeywordsFromTrashUnit)
         {
             return;
         }
@@ -12765,7 +12792,9 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.type != EffectType.AddSelfToHand
             && effect.type != EffectType.DeploySelfAsBattleUnit
             && effect.type != EffectType.DeploySelfToShield
-            && effect.type != EffectType.MarkObservedUnit)
+            && effect.type != EffectType.MarkObservedUnit
+            && effect.type != EffectType.PreventAllyDestroyByEnemyEffect
+            && effect.type != EffectType.CopyKeywordsFromTrashUnit)
         {
             return;
         }
@@ -13010,6 +13039,17 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case EffectType.Destroy:
                 ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
+                break;
+
+            case EffectType.PreventAllyDestroyByEnemyEffect:
+                GrantPreventAllyDestroyByEnemyEffect(ownerType);
+                Debug.Log(
+                    $"[Effect] PreventAllyDestroyByEnemyEffect until EOT by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+                break;
+
+            case EffectType.CopyKeywordsFromTrashUnit:
+                Debug.LogWarning(
+                    $"[Effect] CopyKeywordsFromTrashUnit は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
                 break;
 
             case EffectType.ReturnMountedPilotToHand:
@@ -16325,6 +16365,7 @@ public partial class BattleGameMain : MonoBehaviour
             side,
             command,
             applied,
+            onActionEffects,
             resolvedBeforeApply,
             attackingUnitInAttackFlow,
             commandQueueIndex,
@@ -16336,6 +16377,7 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType side,
         CardController command,
         EffectData applied,
+        IReadOnlyList<EffectData> allOnActionEffects,
         List<CardController> resolvedBeforeApply,
         CardController attackingUnitInAttackFlow,
         int commandQueueIndex,
@@ -16389,7 +16431,22 @@ public partial class BattleGameMain : MonoBehaviour
             $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
         List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
         TryApplyOnActionRestSelfCostIfPresent(command, side);
-        ApplyEffect(command, side, applied);
+
+        // Kindhearted 等：OnAction の全効果を順に適用（先頭だけだと Destroy 防止後のドローが落ちる）
+        IReadOnlyList<EffectData> chain = allOnActionEffects != null && allOnActionEffects.Count > 0
+            ? allOnActionEffects
+            : new[] { applied };
+        for (int ei = 0; ei < chain.Count; ei++)
+        {
+            EffectData effect = chain[ei];
+            if (effect == null || EffectRequiresManualUnitSelection(effect) || EffectRequiresManualHandSelection(effect))
+            {
+                continue;
+            }
+
+            ApplyEffect(command, side, effect);
+        }
+
         // OK 後: 保留していた破壊時 Look／手札回収を実行
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
