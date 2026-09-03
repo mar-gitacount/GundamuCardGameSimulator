@@ -95,6 +95,41 @@ public static class CardFeatureExtensions
         return false;
     }
 
+    public static bool HasFeatureId(this CardController unit, int featureId)
+    {
+        if (unit?.Data == null || featureId <= 0)
+        {
+            return false;
+        }
+
+        return unit.Data.HasFeatureId(featureId) || unit.HasRuntimeFeatureId(featureId);
+    }
+
+    public static bool HasAnyFeature(this CardController unit, IReadOnlyList<CardFeatureData> features)
+    {
+        if (unit?.Data == null || features == null || features.Count == 0)
+        {
+            return false;
+        }
+
+        unit.Data.EnsureFeaturesResolved();
+        if (unit.Data.HasAnyFeature(features))
+        {
+            return true;
+        }
+
+        for (int i = 0; i < features.Count; i++)
+        {
+            CardFeatureData required = features[i];
+            if (required != null && unit.HasRuntimeFeatureId(required.id))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool HasFeatureKey(this CardData card, string featureKey)
     {
         if (card == null || string.IsNullOrWhiteSpace(featureKey) || card.features == null)

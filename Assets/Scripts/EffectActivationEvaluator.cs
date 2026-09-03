@@ -1745,7 +1745,7 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
-            if (card.Data.HasAnyFeature(requiredFeatures))
+            if (card.HasAnyFeature(requiredFeatures))
             {
                 n++;
             }

@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000414
   gcgOfficialId: GD04-030
-  cardName: "Chuchu's Demi Trainer"
+  cardName: Chuchu's Demi Trainer
   cost: 2
   level: 3
   power: 3
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-030_Chuchu's Demi Trainer"
+  imageAddress: Data/Images/GD04-030_Chuchu's Demi Trainer
   version: 4
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

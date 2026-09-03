@@ -248,6 +248,34 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _runtimeBlockerAbilityEnabled = enabled;
     }
 
+    /// <summary>【リンク中】等で付与された Feature ID（CardData を変更しない）。</summary>
+    private readonly HashSet<int> _runtimeGrantedFeatureIds = new HashSet<int>();
+
+    public bool HasRuntimeFeatureId(int featureId) =>
+        featureId > 0 && _runtimeGrantedFeatureIds.Contains(featureId);
+
+    public void SetRuntimeFeatureGrant(int featureId, bool enabled)
+    {
+        if (featureId <= 0)
+        {
+            return;
+        }
+
+        if (enabled)
+        {
+            _runtimeGrantedFeatureIds.Add(featureId);
+        }
+        else
+        {
+            _runtimeGrantedFeatureIds.Remove(featureId);
+        }
+    }
+
+    public void ClearRuntimeFeatureGrants()
+    {
+        _runtimeGrantedFeatureIds.Clear();
+    }
+
     /// <summary>AttackActiveEnemyUnit（UntilEndOfTurn）のランタイム付与（効果定義ごとに保持）。</summary>
     private readonly List<EffectData> _attackActiveEnemyUntilEndOfTurnGrants = new List<EffectData>();
 

@@ -43,6 +43,8 @@ public partial class BattleGameMain
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
         RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
         RefreshConditionalBlockerAbilities();
+        RefreshDuringLinkFeatureGrants();
+        RefreshDuringLinkSelfStatPassives();
 
         // 個別 Stat は送らない。相手には「同じ再計算をして」とだけ伝える。
         // ネスト中でも外側バッチに載せる（Flush は外側に任せる）。
@@ -262,6 +264,261 @@ public partial class BattleGameMain
                 Debug.Log(
                     $"[ConditionalBlocker] {unit.Data.cardName}(id:{unit.Data.id}) "
                     + $"owner:{ownerType} blocker:{enabled}");
+            }
+        }
+    }
+
+    /// <summary>【リンク中】味方全体 Feature 付与（Neo Zeong 等）を盤面状態から再評価する。</summary>
+    private void RefreshDuringLinkFeatureGrants()
+    {
+        ClearRuntimeFeatureGrantsOnZone(playerBattleZoneCards);
+        ClearRuntimeFeatureGrantsOnZone(enemyBattleZoneCards);
+        ApplyDuringLinkFeatureGrantsOnZone(playerBattleZoneCards, PlayerType.Player);
+        ApplyDuringLinkFeatureGrantsOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+    }
+
+    private static void ClearRuntimeFeatureGrantsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearRuntimeFeatureGrants();
+        }
+    }
+
+    private void ApplyDuringLinkFeatureGrantsOnZone(List<CardController> zone, PlayerType ownerType)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int wi = 0; wi < zone.Count; wi++)
+        {
+            CardController watcher = zone[wi];
+            if (watcher?.Data?.timedEffects == null || !watcher.Data.IsUnitLike() || watcher.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (ResolveBattleZoneUnitOwner(watcher) != ownerType)
+            {
+                continue;
+            }
+
+            for (int bi = 0; bi < watcher.Data.timedEffects.Count; bi++)
+            {
+                TimedEffectData timed = watcher.Data.timedEffects[bi];
+                if (timed == null || !timed.IsDuringLinkFeatureGrantBlock())
+                {
+                    continue;
+                }
+
+                EffectActivationContext ctx = BuildActivationContext(ownerType, watcher);
+                if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+                {
+                    continue;
+                }
+
+                IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+                for (int ei = 0; ei < resolved.Count; ei++)
+                {
+                    EffectData effect = resolved[ei];
+                    if (effect == null
+                        || effect.type != EffectType.GrantFeature
+                        || effect.value <= 0
+                        || (effect.target != TargetType.AllyAllUnits && effect.target != TargetType.AllyUnit))
+                    {
+                        continue;
+                    }
+
+                    int featureId = effect.value;
+                    for (int ai = 0; ai < zone.Count; ai++)
+                    {
+                        CardController ally = zone[ai];
+                        if (ally?.Data == null || !ally.Data.IsUnitLike() || ally.CurrentHp <= 0)
+                        {
+                            continue;
+                        }
+
+                        if (ResolveBattleZoneUnitOwner(ally) != ownerType)
+                        {
+                            continue;
+                        }
+
+                        ally.SetRuntimeFeatureGrant(featureId, true);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>【リンク中】Self への Buff/Debuff（リディ GD04-098 等）を盤面状態から再評価する。</summary>
+    private void RefreshDuringLinkSelfStatPassives()
+    {
+        ClearDuringLinkSelfStatPassivesOnZone(playerBattleZoneCards);
+        ClearDuringLinkSelfStatPassivesOnZone(enemyBattleZoneCards);
+        ApplyDuringLinkSelfStatPassivesOnZone(playerBattleZoneCards, PlayerType.Player);
+        ApplyDuringLinkSelfStatPassivesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+    }
+
+    private static string MakeDuringLinkSelfStatSourceKey(CardController source, int blockIndex, bool isPilotSource)
+    {
+        if (source == null)
+        {
+            return string.Empty;
+        }
+
+        return isPilotSource
+            ? $"DuringLinkPilotSelfStat:{source.GetEntityId()}:{blockIndex}"
+            : $"DuringLinkSelfStat:{source.GetEntityId()}:{blockIndex}";
+    }
+
+    private static void ClearDuringLinkSelfStatKeysFromCard(
+        CardController statTarget,
+        CardController effectSource,
+        IReadOnlyList<TimedEffectData> blocks,
+        bool isPilotSource)
+    {
+        if (statTarget == null || effectSource == null || blocks == null)
+        {
+            return;
+        }
+
+        for (int bi = 0; bi < blocks.Count; bi++)
+        {
+            TimedEffectData timed = blocks[bi];
+            if (timed == null || !timed.IsDuringLinkSelfStatPassiveBlock())
+            {
+                continue;
+            }
+
+            string sourceKey = MakeDuringLinkSelfStatSourceKey(effectSource, bi, isPilotSource);
+            if (!string.IsNullOrEmpty(sourceKey))
+            {
+                statTarget.RemoveStatModifiersBySource(sourceKey);
+            }
+        }
+    }
+
+    private void ClearDuringLinkSelfStatPassivesOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController host = zone[i];
+            if (host?.Data == null || !host.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            ClearDuringLinkSelfStatKeysFromCard(host, host, host.Data.timedEffects, isPilotSource: false);
+
+            CardController pilot = host.MountedPilot;
+            if (pilot?.Data?.timedEffects != null)
+            {
+                ClearDuringLinkSelfStatKeysFromCard(host, pilot, pilot.Data.timedEffects, isPilotSource: true);
+            }
+        }
+    }
+
+    private void ApplyDuringLinkSelfStatPassivesOnZone(List<CardController> zone, PlayerType ownerType)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController host = zone[i];
+            if (host?.Data == null || !host.Data.IsUnitLike() || host.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (ResolveBattleZoneUnitOwner(host) != ownerType)
+            {
+                continue;
+            }
+
+            ApplyDuringLinkSelfStatFromBlocks(host, host, ownerType, host.Data.timedEffects, isPilotSource: false);
+
+            CardController pilot = host.MountedPilot;
+            if (pilot?.Data?.timedEffects != null)
+            {
+                ApplyDuringLinkSelfStatFromBlocks(pilot, host, ownerType, pilot.Data.timedEffects, isPilotSource: true);
+            }
+        }
+    }
+
+    private void ApplyDuringLinkSelfStatFromBlocks(
+        CardController effectSource,
+        CardController statTarget,
+        PlayerType ownerType,
+        IReadOnlyList<TimedEffectData> blocks,
+        bool isPilotSource)
+    {
+        if (effectSource == null || statTarget == null || blocks == null)
+        {
+            return;
+        }
+
+        for (int bi = 0; bi < blocks.Count; bi++)
+        {
+            TimedEffectData timed = blocks[bi];
+            if (timed == null || !timed.IsDuringLinkSelfStatPassiveBlock())
+            {
+                continue;
+            }
+
+            string sourceKey = MakeDuringLinkSelfStatSourceKey(effectSource, bi, isPilotSource);
+            if (string.IsNullOrEmpty(sourceKey))
+            {
+                continue;
+            }
+
+            CardController mountPilot = isPilotSource ? effectSource : statTarget.MountedPilot;
+            EffectActivationContext ctx = isPilotSource
+                ? BuildPilotMountActivationContext(ownerType, effectSource, statTarget, mountPilot)
+                : BuildActivationContext(ownerType, statTarget);
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int ei = 0; ei < effects.Count; ei++)
+            {
+                EffectData effect = effects[ei];
+                if (effect == null
+                    || (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+                    || effect.target != TargetType.Self)
+                {
+                    continue;
+                }
+
+                int magnitude = ResolveEffectMagnitude(effect, ownerType, effectSource);
+                if (magnitude == 0)
+                {
+                    continue;
+                }
+
+                int signedValue = (effect.type == EffectType.Buff ? 1 : -1) * magnitude;
+                ApplyStatEffect(
+                    statTarget,
+                    signedValue,
+                    effect.statTarget,
+                    effect.duration,
+                    sourceKey);
             }
         }
     }

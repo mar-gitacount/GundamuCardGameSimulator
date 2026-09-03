@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000498
   gcgOfficialId: GD04-116
-  cardName: "Reliable Big Brother"
+  cardName: Reliable Big Brother
   cost: 1
   level: 4
   power: 0
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-116_Reliable Big Brother"
+  imageAddress: Data/Images/GD04-116_Reliable Big Brother
   version: 4
   sourceType: 1
   productLine: 1
@@ -49,7 +49,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

@@ -282,7 +282,12 @@ public enum EffectType
     /// 対象ユニットにターン終了《リペア》value を付与する（UntilEndOfTurn）。
     /// ターン終了時に <see cref="CardController.AddTurnEndRepairBonus"/> 分だけ回復する。
     /// </summary>
-    GrantTurnEndRepair
+    GrantTurnEndRepair,
+    /// <summary>
+    /// 対象ユニットへ Feature（value=featureId）をランタイム付与する。
+    /// 【リンク中】常時パッシブは timed + SourceUnitIsLinked 条件と RefreshDuringLinkFeatureGrants / RefreshDuringLinkSelfStatPassives で維持する。
+    /// </summary>
+    GrantFeature
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -2554,6 +2559,72 @@ public static class TimedEffectDataExtensions
         }
 
         return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>【リンク中】味方全体へ Feature を付与する常時パッシブ（RefreshDuringLinkFeatureGrants で維持）。</summary>
+    public static bool IsDuringLinkFeatureGrantBlock(this TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasResolvedEffects() || !timed.HasSourceUnitIsLinkedActivationRequirement())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect != null
+                && effect.type == EffectType.GrantFeature
+                && effect.value > 0
+                && (effect.target == TargetType.AllyAllUnits || effect.target == TargetType.AllyUnit))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>【リンク中】Self への Buff/Debuff 常時パッシブ（RefreshDuringLinkSelfStatPassives で維持）。</summary>
+    public static bool IsDuringLinkSelfStatPassiveBlock(this TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasResolvedEffects() || !timed.HasSourceUnitIsLinkedActivationRequirement())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect != null
+                && (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                && effect.target == TargetType.Self)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool HasSourceUnitIsLinkedActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.SourceUnitIsLinked)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）に解決するブロック。</summary>

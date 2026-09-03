@@ -6501,7 +6501,7 @@ public partial class BattleGameMain : MonoBehaviour
                         continue;
                     }
 
-                    if (effect.type.RequiresManualUnitSelection() || EffectRequiresManualUnitSelection(effect))
+                    if (EffectRequiresManualUnitSelection(effect))
                     {
                         List<CardController> bounceCandidates = ResolveSelectableEffectTargets(
                             sourceCard,
@@ -12948,6 +12948,8 @@ public partial class BattleGameMain : MonoBehaviour
                 if (effect.statTarget == EffectStatTarget.AP || effect.statTarget == EffectStatTarget.Both)
                 {
                     RefreshConditionalBlockerAbilities();
+                    RefreshDuringLinkFeatureGrants();
+                    RefreshDuringLinkSelfStatPassives();
                 }
 
                 Debug.Log(
@@ -13243,7 +13245,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
             {
                 continue;
             }
@@ -13266,7 +13268,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
             {
                 continue;
             }
@@ -13290,7 +13292,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
             {
                 continue;
             }
@@ -13313,7 +13315,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!MatchesRequiredFeatures(c.Data, requiredFeatures))
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
             {
                 continue;
             }
@@ -13335,21 +13337,22 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         card.EnsureFeaturesResolved();
-        if (card.HasAnyFeature(requiredFeatures))
+        return card.HasAnyFeature(requiredFeatures);
+    }
+
+    private static bool MatchesRequiredFeatures(CardController unit, IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (requiredFeatures == null || requiredFeatures.Count == 0)
         {
             return true;
         }
 
-        for (int i = 0; i < requiredFeatures.Count; i++)
+        if (unit?.Data == null)
         {
-            CardFeatureData required = requiredFeatures[i];
-            if (required != null && card.HasFeatureId(required.id))
-            {
-                return true;
-            }
+            return false;
         }
 
-        return false;
+        return unit.HasAnyFeature(requiredFeatures);
     }
 
     private void ClearTimedStatModifiersOnHand(PlayerType side, EffectDuration duration)
