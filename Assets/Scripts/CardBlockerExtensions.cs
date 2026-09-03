@@ -34,6 +34,11 @@ public static class CardBlockerExtensions
             return true;
         }
 
+        if (unit.HasCopiedBlockerUntilEndOfTurn)
+        {
+            return true;
+        }
+
         return IsPilotGrantedBlockerEligible(unit.MountedPilot != null ? unit.MountedPilot.Data : null, ctx);
     }
 

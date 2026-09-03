@@ -643,6 +643,16 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (effect.type == EffectType.CopyKeywordsFromTrashUnit)
+            {
+                if (HasAnyKeywordTrashCandidates())
+                {
+                    hasAny = true;
+                }
+
+                continue;
+            }
+
             if (EffectRequiresManualUnitSelection(effect))
             {
                 if (effect.HasEffectActivationConditions()

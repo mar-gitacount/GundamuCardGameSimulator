@@ -298,6 +298,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.CopyKeywordsFromTrashUnit)
+        {
+            ApplyCopyKeywordsFromTrashUnitEffect(sourceCard, ownerType, effect, onChainContinue);
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.ReturnMountedPilotToHand)
         {
             ApplyReturnMountedPilotToHandEffect(sourceCard, ownerType);
