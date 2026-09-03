@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000485
   gcgOfficialId: GD04-103
-  cardName: "Spiritual Support"
+  cardName: Spiritual Support
   cost: 1
   level: 4
   power: 0
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-103_Spiritual Support"
+  imageAddress: Data/Images/GD04-103_Spiritual Support
   version: 4
   sourceType: 1
   productLine: 1
@@ -46,7 +46,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

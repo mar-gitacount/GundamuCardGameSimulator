@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000429
   gcgOfficialId: GD04-045
-  cardName: "Gundam Throne Zwei"
+  cardName: Gundam Throne Zwei
   cost: 3
   level: 4
   power: 3
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-045_Gundam Throne Zwei"
+  imageAddress: Data/Images/GD04-045_Gundam Throne Zwei
   version: 4
   sourceType: 1
   productLine: 1
@@ -54,7 +54,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

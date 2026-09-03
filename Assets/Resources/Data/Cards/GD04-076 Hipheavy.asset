@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000459
   gcgOfficialId: GD04-076
-  cardName: "Hipheavy"
+  cardName: Hipheavy
   cost: 1
   level: 1
   power: 1
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-076_Hipheavy"
+  imageAddress: Data/Images/GD04-076_Hipheavy
   version: 4
   sourceType: 1
   productLine: 1
@@ -47,7 +47,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

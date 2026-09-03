@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000495
   gcgOfficialId: GD04-113
-  cardName: "Damage Control"
+  cardName: Damage Control
   cost: 1
   level: 3
   power: 0
   hp: 0
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-113_Damage Control"
+  imageAddress: Data/Images/GD04-113_Damage Control
   version: 4
   sourceType: 1
   productLine: 1
@@ -46,7 +46,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

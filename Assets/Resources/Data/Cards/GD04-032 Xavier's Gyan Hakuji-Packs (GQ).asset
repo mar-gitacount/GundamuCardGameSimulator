@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000416
   gcgOfficialId: GD04-032
-  cardName: "Xavier's Gyan Hakuji-Packs (GQ)"
+  cardName: Xavier's Gyan Hakuji-Packs (GQ)
   cost: 3
   level: 5
   power: 4
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-032_Xavier's Gyan Hakuji-Packs (GQ)"
+  imageAddress: Data/Images/GD04-032_Xavier's Gyan Hakuji-Packs (GQ)
   version: 4
   sourceType: 1
   productLine: 1
@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

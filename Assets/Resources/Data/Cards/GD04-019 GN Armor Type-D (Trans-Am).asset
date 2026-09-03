@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000403
   gcgOfficialId: GD04-019
-  cardName: "GN Armor Type-D (Trans-Am)"
+  cardName: GN Armor Type-D (Trans-Am)
   cost: 5
   level: 6
   power: 4
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-019_GN Armor Type-D (Trans-Am)"
+  imageAddress: Data/Images/GD04-019_GN Armor Type-D (Trans-Am)
   version: 4
   sourceType: 1
   productLine: 1
@@ -70,7 +70,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

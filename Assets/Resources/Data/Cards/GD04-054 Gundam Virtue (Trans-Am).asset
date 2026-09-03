@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000438
   gcgOfficialId: GD04-054
-  cardName: "Gundam Virtue (Trans-Am)"
+  cardName: Gundam Virtue (Trans-Am)
   cost: 5
   level: 7
   power: 2
   hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-054_Gundam Virtue (Trans-Am)"
+  imageAddress: Data/Images/GD04-054_Gundam Virtue (Trans-Am)
   version: 4
   sourceType: 1
   productLine: 1
@@ -54,7 +54,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000415
   gcgOfficialId: GD04-031
-  cardName: "Heindree"
+  cardName: Heindree
   cost: 2
   level: 2
   power: 3
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-031_Heindree"
+  imageAddress: Data/Images/GD04-031_Heindree
   version: 4
   sourceType: 1
   productLine: 1
@@ -47,7 +47,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2
