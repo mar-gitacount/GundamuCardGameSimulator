@@ -42,12 +42,22 @@ public class DeckSettinObject : MonoBehaviour
     private const string DeckTotalCountLabelName = "DeckTotalCountLabel";
     private const string DeckCardCountBadgeName = "DeckCardCountBadge";
     private const string DeckThumbnailFrameName = "ThumbnailFrame";
+    private const string DeckListCreatedCountLabelName = "DeckListCreatedCountLabel";
     private const float HomeBoardDesignWidth = 480f;
     private const float HomeBoardDesignHeight = 800f;
     private const float DeckListCellWidth = 140f;
-    private const float DeckListCellHeight = 228f;
+    /// <summary>
+    /// サムネ132 + タイトル36 + 日付18 + 曜日18 + VLG余白/間隔 ≈ 232。
+    /// 旧228だとセルからはみ出し、末尾行がスクロール範囲外になる。
+    /// </summary>
+    private const float DeckListCellHeight = 240f;
+    private const float DeckListContentBottomExtra = 48f;
     private TextMeshProUGUI _deckTotalCountLabel;
     private GameObject _deckTotalCountLabelRoot;
+    private TextMeshProUGUI _deckListCreatedCountLabel;
+    private GameObject _deckListCreatedCountLabelRoot;
+    /// <summary>一覧再読込の世代。古いコルーチンを無効化するために使う。</summary>
+    private int _deckListLoadGeneration;
     private static Sprite _deckCardCountBadgeCircleSprite;
     private static Sprite _uiWhiteSprite;
     private Vector2 _lastHomeBoardParentSize;
@@ -113,6 +123,58 @@ public class DeckSettinObject : MonoBehaviour
         StartCoroutine(ShowFileListCoroutine());
     }
 
+    /// <summary>
+    /// 現在の一覧件数に合わせて、作成デッキ数表示とスクロール高さを動的更新する。
+    /// </summary>
+    /// <param name="createdDeckCount">表示件数。null なら現在の子数。</param>
+    /// <param name="preciseMeasure">true なら子の実バウンドで高さ補正（完了時向け）。</param>
+    public void RefreshDeckListLayoutDynamic(int? createdDeckCount = null, bool preciseMeasure = true)
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        EnsureDeckListAreaVisible();
+
+        int count = createdDeckCount
+            ?? CountActiveDeckListItems(DeckListPanel.GetComponent<RectTransform>());
+        RefreshDeckListCreatedCountLabel(count);
+
+        if (preciseMeasure)
+        {
+            RefreshDeckListScrollLayout(count);
+        }
+        else
+        {
+            EnsureDeckListScrollable();
+            ApplyDeckListContentHeight(count);
+        }
+    }
+
+    /// <summary>専用 ScrollView ごと一覧エリアを表示する（非表示時の高さ計測ミス防止）。</summary>
+    private void EnsureDeckListAreaVisible()
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        Transform t = DeckListPanel.transform;
+        if (t.parent != null
+            && t.parent.name == DeckListScrollViewportName
+            && t.parent.parent != null
+            && t.parent.parent.name == DeckListScrollRootName)
+        {
+            t.parent.parent.gameObject.SetActive(true);
+        }
+
+        if (!DeckListPanel.activeSelf)
+        {
+            DeckListPanel.SetActive(true);
+        }
+    }
+
     public void OnGuestModeActivated()
     {
         deckPathName = string.Empty;
@@ -140,9 +202,29 @@ public class DeckSettinObject : MonoBehaviour
         cardData.Clear();
         _thumbnailCardId = 0;
         deckPathName = string.Empty;
-        if (DeckListPanel != null)
+        ClearDeckListItems();
+    }
+
+    /// <summary>一覧セルだけ破棄する（編集中の cardData は触らない）。</summary>
+    private void ClearDeckListItems()
+    {
+        if (DeckListPanel == null)
         {
-            DeckListPanel.transform.DetachChildren(); // デッキリストの子オブジェクトを全て削除
+            return;
+        }
+
+        Transform root = DeckListPanel.transform;
+        for (int i = root.childCount - 1; i >= 0; i--)
+        {
+            Transform child = root.GetChild(i);
+            if (child == null)
+            {
+                continue;
+            }
+
+            // DetachChildren だとシーンに残り、再表示で欠落・高さズレの原因になる
+            child.SetParent(null, false);
+            Destroy(child.gameObject);
         }
     }
 
@@ -331,7 +413,15 @@ public class DeckSettinObject : MonoBehaviour
         deckPathName = storageKey;
         string mode = DeckStorageService.IsUsingCloudStorage ? "Cloud" : "Local";
         Debug.Log($"[Deck] Save complete ({mode}): {storageKey}");
+
+        // 編集中以外なら件数・高さを即反映。編集中は ReturnToDeckListAfterEdit 側で再読込する。
+        if (!isDeckEditing && DeckListPanel != null)
+        {
+            EnsureDeckListAreaVisible();
+            RefreshDeckListFromStorage();
+        }
     }
+
     public int CardCount(int id)
     {
         // int count = cardData[id];
@@ -1458,6 +1548,9 @@ public void ShowFileList()
         outline.useGraphicAlpha = true;
     }
 
+    private const string DeckListScrollRootName = "DeckListScrollView";
+    private const string DeckListScrollViewportName = "Viewport";
+
     private void ConfigureDeckListGridLayout()
     {
         if (DeckListPanel == null)
@@ -1482,6 +1575,13 @@ public void ShowFileList()
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 3;
 
+        ContentSizeFitter listFitter = DeckListPanel.GetComponent<ContentSizeFitter>();
+        if (listFitter != null)
+        {
+            // 高さは ApplyDeckListContentHeight で明示設定する（Fitter は末尾行欠けの原因）
+            listFitter.enabled = false;
+        }
+
         Image panelImage = DeckListPanel.GetComponent<Image>();
         if (panelImage != null)
         {
@@ -1491,6 +1591,761 @@ public void ShowFileList()
                 panelImage.sprite = GetUiWhiteSprite();
             }
         }
+
+        EnsureDeckListScrollable();
+    }
+
+    /// <summary>
+    /// 赤枠のデッキグリッドだけを縦スクロール可能にする。
+    /// NewDeck 等の上部ボタンは固定し、DeckListPanel 専用 ScrollRect で包む。
+    /// </summary>
+    private void EnsureDeckListScrollable()
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        RectTransform listRt = DeckListPanel.GetComponent<RectTransform>();
+        bool createdNow = false;
+        ScrollRect dedicated = FindDedicatedDeckListScroll(listRt);
+        if (dedicated == null)
+        {
+            dedicated = CreateDedicatedDeckListScroll(listRt);
+            createdNow = dedicated != null;
+        }
+
+        if (dedicated == null)
+        {
+            return;
+        }
+
+        dedicated.horizontal = false;
+        dedicated.vertical = true;
+        dedicated.scrollSensitivity = 40f;
+        dedicated.inertia = true;
+        dedicated.decelerationRate = 0.135f;
+        dedicated.movementType = ScrollRect.MovementType.Clamped;
+        dedicated.content = listRt;
+        if (dedicated.viewport == null && dedicated.transform.childCount > 0)
+        {
+            dedicated.viewport = dedicated.transform.GetChild(0) as RectTransform;
+        }
+
+        if (listRt.parent != dedicated.viewport)
+        {
+            listRt.SetParent(dedicated.viewport, false);
+        }
+
+        // 上基準・横ストレッチ。高さは Refresh でアイテム数から明示設定する。
+        listRt.anchorMin = new Vector2(0f, 1f);
+        listRt.anchorMax = new Vector2(1f, 1f);
+        listRt.pivot = new Vector2(0.5f, 1f);
+        listRt.sizeDelta = new Vector2(0f, Mathf.Max(listRt.sizeDelta.y, 1f));
+        if (createdNow)
+        {
+            listRt.anchoredPosition = Vector2.zero;
+        }
+
+        // ContentSizeFitter は高さ不足／レイアウト競合の原因になるため無効化
+        ContentSizeFitter listFitter = DeckListPanel.GetComponent<ContentSizeFitter>();
+        if (listFitter != null)
+        {
+            listFitter.enabled = false;
+        }
+
+        LayoutElement listLayout = DeckListPanel.GetComponent<LayoutElement>();
+        if (listLayout != null)
+        {
+            listLayout.ignoreLayout = true;
+        }
+
+        // 外側の ScrollRect（ボタン込み）はスクロールさせない
+        ScrollRect[] scrolls = DeckListPanel.GetComponentsInParent<ScrollRect>(true);
+        for (int i = 0; i < scrolls.Length; i++)
+        {
+            if (scrolls[i] == null || scrolls[i] == dedicated)
+            {
+                continue;
+            }
+
+            scrolls[i].horizontal = false;
+            scrolls[i].vertical = false;
+            scrolls[i].enabled = true;
+
+            if (scrolls[i].content != null)
+            {
+                ConfigureOuterDeckFilterContent(scrolls[i].content, dedicated);
+            }
+        }
+    }
+
+    private static ScrollRect FindDedicatedDeckListScroll(RectTransform listRt)
+    {
+        if (listRt == null)
+        {
+            return null;
+        }
+
+        Transform parent = listRt.parent;
+        if (parent != null && parent.name == DeckListScrollViewportName)
+        {
+            Transform root = parent.parent;
+            if (root != null && root.name == DeckListScrollRootName)
+            {
+                return root.GetComponent<ScrollRect>();
+            }
+        }
+
+        Transform siblingParent = listRt.parent;
+        if (siblingParent != null)
+        {
+            Transform existing = siblingParent.Find(DeckListScrollRootName);
+            if (existing != null)
+            {
+                return existing.GetComponent<ScrollRect>();
+            }
+        }
+
+        return null;
+    }
+
+    private ScrollRect CreateDedicatedDeckListScroll(RectTransform listRt)
+    {
+        Transform originalParent = listRt.parent;
+        if (originalParent == null)
+        {
+            return null;
+        }
+
+        int siblingIndex = listRt.GetSiblingIndex();
+
+        GameObject scrollRoot = new GameObject(
+            DeckListScrollRootName,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(ScrollRect),
+            typeof(LayoutElement));
+        scrollRoot.transform.SetParent(originalParent, false);
+        scrollRoot.transform.SetSiblingIndex(siblingIndex);
+
+        RectTransform scrollRt = scrollRoot.GetComponent<RectTransform>();
+        // VerticalLayoutGroup 配下なので stretch 全面ではなく、レイアウトに高さを任せる
+        scrollRt.anchorMin = new Vector2(0f, 1f);
+        scrollRt.anchorMax = new Vector2(1f, 1f);
+        scrollRt.pivot = new Vector2(0.5f, 1f);
+        scrollRt.anchoredPosition = Vector2.zero;
+        scrollRt.sizeDelta = new Vector2(0f, 400f);
+
+        Image scrollImage = scrollRoot.GetComponent<Image>();
+        scrollImage.color = new Color(0f, 0f, 0f, 0.01f);
+        scrollImage.raycastTarget = true;
+        if (scrollImage.sprite == null)
+        {
+            scrollImage.sprite = GetUiWhiteSprite();
+        }
+
+        LayoutElement scrollLayout = scrollRoot.GetComponent<LayoutElement>();
+        scrollLayout.minHeight = 200f;
+        scrollLayout.preferredHeight = -1f;
+        scrollLayout.flexibleHeight = 1f;
+        scrollLayout.flexibleWidth = 1f;
+
+        GameObject viewport = new GameObject(
+            DeckListScrollViewportName,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(RectMask2D));
+        viewport.transform.SetParent(scrollRoot.transform, false);
+
+        RectTransform viewportRt = viewport.GetComponent<RectTransform>();
+        viewportRt.anchorMin = Vector2.zero;
+        viewportRt.anchorMax = Vector2.one;
+        viewportRt.offsetMin = Vector2.zero;
+        viewportRt.offsetMax = Vector2.zero;
+        viewportRt.pivot = new Vector2(0.5f, 1f);
+
+        Image viewportImage = viewport.GetComponent<Image>();
+        viewportImage.color = new Color(1f, 1f, 1f, 0.001f);
+        viewportImage.raycastTarget = true;
+        if (viewportImage.sprite == null)
+        {
+            viewportImage.sprite = GetUiWhiteSprite();
+        }
+
+        ScrollRect scroll = scrollRoot.GetComponent<ScrollRect>();
+        scroll.viewport = viewportRt;
+        scroll.content = listRt;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+
+        listRt.SetParent(viewportRt, false);
+        return scroll;
+    }
+
+    private const string DeckListHeaderRowName = "DeckListHeaderRow";
+
+    /// <summary>外側 Content: 上部ボタンは横並び固定 + 下の専用 Scroll が残り高さを使う。</summary>
+    private void ConfigureOuterDeckFilterContent(RectTransform content, ScrollRect dedicatedScroll)
+    {
+        if (content == null || dedicatedScroll == null)
+        {
+            return;
+        }
+
+        content.anchorMin = new Vector2(0f, 0f);
+        content.anchorMax = new Vector2(1f, 1f);
+        content.pivot = new Vector2(0.5f, 1f);
+        content.offsetMin = Vector2.zero;
+        content.offsetMax = Vector2.zero;
+        content.anchoredPosition = Vector2.zero;
+        content.sizeDelta = Vector2.zero;
+
+        VerticalLayoutGroup layout = content.GetComponent<VerticalLayoutGroup>();
+        if (layout == null)
+        {
+            layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+        }
+
+        layout.padding = new RectOffset(4, 4, 4, 4);
+        layout.spacing = 6f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        ContentSizeFitter outerFitter = content.GetComponent<ContentSizeFitter>();
+        if (outerFitter != null)
+        {
+            outerFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            outerFitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
+            outerFitter.enabled = false;
+        }
+
+        RectTransform headerRow = EnsureDeckListHeaderRow(content);
+        RectTransform countLabelRt = EnsureDeckListCreatedCountLabel(content);
+        RectTransform dedicatedRt = dedicatedScroll.GetComponent<RectTransform>();
+
+        // 並び: ヘッダー横並び → 作成デッキ数 → デッキ一覧スクロール
+        if (headerRow != null)
+        {
+            headerRow.SetSiblingIndex(0);
+        }
+
+        if (countLabelRt != null)
+        {
+            countLabelRt.SetSiblingIndex(1);
+        }
+
+        if (dedicatedRt != null)
+        {
+            dedicatedRt.SetSiblingIndex(2);
+        }
+
+        for (int i = 0; i < content.childCount; i++)
+        {
+            RectTransform child = content.GetChild(i) as RectTransform;
+            if (child == null)
+            {
+                continue;
+            }
+
+            LayoutElement element = child.GetComponent<LayoutElement>();
+            if (element == null)
+            {
+                element = child.gameObject.AddComponent<LayoutElement>();
+            }
+
+            if (headerRow != null && child == headerRow)
+            {
+                element.minHeight = 30f;
+                element.preferredHeight = 30f;
+                element.flexibleHeight = 0f;
+                element.flexibleWidth = 1f;
+                element.ignoreLayout = false;
+                continue;
+            }
+
+            if (countLabelRt != null && child == countLabelRt)
+            {
+                element.minHeight = 24f;
+                element.preferredHeight = 24f;
+                element.flexibleHeight = 0f;
+                element.flexibleWidth = 1f;
+                element.ignoreLayout = false;
+                continue;
+            }
+
+            if (dedicatedRt != null && child == dedicatedRt)
+            {
+                element.minHeight = 200f;
+                element.preferredHeight = -1f;
+                element.flexibleHeight = 1f;
+                element.ignoreLayout = false;
+                continue;
+            }
+
+            // 編集用パネル／タイトル入力は一覧レイアウト外
+            string childName = child.name ?? string.Empty;
+            if (childName.IndexOf("DeckEdit", StringComparison.OrdinalIgnoreCase) >= 0
+                || childName.IndexOf("DeckTitle", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                element.ignoreLayout = true;
+                continue;
+            }
+
+            // ヘッダーへ移したボタンが残っていれば無視
+            if (IsDeckListHeaderButtonName(childName))
+            {
+                element.ignoreLayout = true;
+                continue;
+            }
+
+            element.ignoreLayout = !child.gameObject.activeSelf;
+        }
+    }
+
+    /// <summary>small / NewDeck / DeckMake を横一列のヘッダーにまとめる。</summary>
+    private RectTransform EnsureDeckListHeaderRow(RectTransform content)
+    {
+        if (content == null)
+        {
+            return null;
+        }
+
+        Transform existing = content.Find(DeckListHeaderRowName);
+        GameObject rowGo;
+        if (existing != null)
+        {
+            rowGo = existing.gameObject;
+        }
+        else
+        {
+            rowGo = new GameObject(
+                DeckListHeaderRowName,
+                typeof(RectTransform),
+                typeof(HorizontalLayoutGroup),
+                typeof(LayoutElement));
+            rowGo.transform.SetParent(content, false);
+        }
+
+        RectTransform rowRt = rowGo.GetComponent<RectTransform>();
+        rowRt.anchorMin = new Vector2(0f, 1f);
+        rowRt.anchorMax = new Vector2(1f, 1f);
+        rowRt.pivot = new Vector2(0.5f, 1f);
+        rowRt.sizeDelta = new Vector2(0f, 30f);
+
+        HorizontalLayoutGroup hlg = rowGo.GetComponent<HorizontalLayoutGroup>();
+        hlg.padding = new RectOffset(4, 4, 0, 0);
+        hlg.spacing = 8f;
+        hlg.childAlignment = TextAnchor.MiddleCenter;
+        hlg.childControlWidth = true;
+        hlg.childControlHeight = true;
+        hlg.childForceExpandWidth = true;
+        hlg.childForceExpandHeight = true;
+
+        // Content 直下のヘッダーボタンを横並び行へ移動（順序固定）
+        MoveHeaderButtonIntoRow(content, rowRt, "AllViewButton", 0);
+        MoveHeaderButtonIntoRow(content, rowRt, "NewDeckMakeingButton", 1);
+        MoveHeaderButtonIntoRow(content, rowRt, "DeckMakeButton", 2);
+
+        for (int i = 0; i < rowRt.childCount; i++)
+        {
+            RectTransform btnRt = rowRt.GetChild(i) as RectTransform;
+            if (btnRt == null)
+            {
+                continue;
+            }
+
+            LayoutElement btnLayout = btnRt.GetComponent<LayoutElement>();
+            if (btnLayout == null)
+            {
+                btnLayout = btnRt.gameObject.AddComponent<LayoutElement>();
+            }
+
+            btnLayout.minWidth = 100f;
+            btnLayout.preferredWidth = 160f;
+            btnLayout.flexibleWidth = 1f;
+            btnLayout.minHeight = 30f;
+            btnLayout.preferredHeight = 30f;
+            btnLayout.ignoreLayout = false;
+
+            btnRt.sizeDelta = new Vector2(160f, 30f);
+        }
+
+        return rowRt;
+    }
+
+    private static void MoveHeaderButtonIntoRow(
+        RectTransform content,
+        RectTransform row,
+        string buttonNamePrefix,
+        int siblingIndex)
+    {
+        if (content == null || row == null || string.IsNullOrEmpty(buttonNamePrefix))
+        {
+            return;
+        }
+
+        // 既に行内にあれば順序だけ整える
+        for (int i = 0; i < row.childCount; i++)
+        {
+            Transform child = row.GetChild(i);
+            if (child != null && IsDeckListHeaderButtonName(child.name)
+                && child.name.IndexOf(buttonNamePrefix, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                child.SetSiblingIndex(Mathf.Clamp(siblingIndex, 0, row.childCount - 1));
+                return;
+            }
+        }
+
+        Transform found = null;
+        for (int i = 0; i < content.childCount; i++)
+        {
+            Transform child = content.GetChild(i);
+            if (child == null)
+            {
+                continue;
+            }
+
+            string name = child.name ?? string.Empty;
+            if (name.IndexOf(buttonNamePrefix, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                found = child;
+                break;
+            }
+        }
+
+        if (found == null)
+        {
+            return;
+        }
+
+        found.SetParent(row, false);
+        found.SetSiblingIndex(Mathf.Clamp(siblingIndex, 0, Mathf.Max(0, row.childCount - 1)));
+    }
+
+    private static bool IsDeckListHeaderButtonName(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return false;
+        }
+
+        return name.IndexOf("AllViewButton", StringComparison.OrdinalIgnoreCase) >= 0
+            || name.IndexOf("NewDeckMakeingButton", StringComparison.OrdinalIgnoreCase) >= 0
+            || name.IndexOf("DeckMakeButton", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    /// <summary>ヘッダーボタン直下の「作成デッキ数」ラベルを用意する。</summary>
+    private RectTransform EnsureDeckListCreatedCountLabel(RectTransform content)
+    {
+        if (content == null)
+        {
+            return null;
+        }
+
+        if (_deckListCreatedCountLabelRoot != null && _deckListCreatedCountLabelRoot.gameObject == null)
+        {
+            _deckListCreatedCountLabelRoot = null;
+            _deckListCreatedCountLabel = null;
+        }
+
+        if (_deckListCreatedCountLabelRoot == null)
+        {
+            Transform existing = content.Find(DeckListCreatedCountLabelName);
+            if (existing != null)
+            {
+                _deckListCreatedCountLabelRoot = existing.gameObject;
+                _deckListCreatedCountLabel = existing.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
+        }
+
+        if (_deckListCreatedCountLabelRoot == null)
+        {
+            GameObject root = new GameObject(
+                DeckListCreatedCountLabelName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(LayoutElement));
+            root.transform.SetParent(content, false);
+            _deckListCreatedCountLabelRoot = root;
+
+            GameObject textGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer));
+            textGo.transform.SetParent(root.transform, false);
+            RectTransform textRt = textGo.GetComponent<RectTransform>();
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+
+            _deckListCreatedCountLabel = textGo.AddComponent<TextMeshProUGUI>();
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>("SourceHanSansJP-Regular SDF");
+            if (font != null)
+            {
+                _deckListCreatedCountLabel.font = font;
+            }
+
+            _deckListCreatedCountLabel.fontSize = 16f;
+            _deckListCreatedCountLabel.fontStyle = FontStyles.Bold;
+            _deckListCreatedCountLabel.alignment = TextAlignmentOptions.Center;
+            _deckListCreatedCountLabel.color = new Color(0.1f, 0.1f, 0.12f, 1f);
+            _deckListCreatedCountLabel.raycastTarget = false;
+        }
+
+        if (_deckListCreatedCountLabelRoot.transform.parent != content)
+        {
+            _deckListCreatedCountLabelRoot.transform.SetParent(content, false);
+        }
+
+        RectTransform rootRt = _deckListCreatedCountLabelRoot.GetComponent<RectTransform>();
+        rootRt.anchorMin = new Vector2(0f, 1f);
+        rootRt.anchorMax = new Vector2(1f, 1f);
+        rootRt.pivot = new Vector2(0.5f, 1f);
+        rootRt.sizeDelta = new Vector2(0f, 24f);
+        _deckListCreatedCountLabelRoot.SetActive(true);
+        return rootRt;
+    }
+
+    /// <summary>作成済みデッキ数をヘッダー直下に表示する。</summary>
+    private void RefreshDeckListCreatedCountLabel(int createdDeckCount)
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        ScrollRect dedicated = FindDedicatedDeckListScroll(DeckListPanel.GetComponent<RectTransform>());
+        RectTransform content = null;
+        if (dedicated != null)
+        {
+            ScrollRect[] scrolls = DeckListPanel.GetComponentsInParent<ScrollRect>(true);
+            for (int i = 0; i < scrolls.Length; i++)
+            {
+                if (scrolls[i] != null && scrolls[i] != dedicated && scrolls[i].content != null)
+                {
+                    content = scrolls[i].content;
+                    break;
+                }
+            }
+        }
+
+        if (content == null && dedicated != null && dedicated.transform.parent is RectTransform parentRt)
+        {
+            content = parentRt;
+        }
+
+        if (content == null)
+        {
+            return;
+        }
+
+        EnsureDeckListCreatedCountLabel(content);
+        if (_deckListCreatedCountLabel == null)
+        {
+            return;
+        }
+
+        int count = Mathf.Max(0, createdDeckCount);
+        _deckListCreatedCountLabel.SetLocalizedText(
+            $"作成デッキ数: {count}",
+            $"Decks created: {count}");
+    }
+
+    /// <summary>一覧生成後にグリッド高さを実測し、末尾行までスクロールできるようにする。</summary>
+    private void RefreshDeckListScrollLayout(int? itemCountOverride = null)
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        EnsureDeckListAreaVisible();
+        EnsureDeckListScrollable();
+
+        RectTransform listRt = DeckListPanel.GetComponent<RectTransform>();
+        int itemCount = itemCountOverride
+            ?? CountActiveDeckListItems(listRt);
+        ScrollRect dedicated = FindDedicatedDeckListScroll(listRt);
+
+        // 外側レイアウトを先に確定させ、Viewport 高さを安定させる
+        ScrollRect outer = null;
+        ScrollRect[] scrolls = DeckListPanel.GetComponentsInParent<ScrollRect>(true);
+        for (int i = 0; i < scrolls.Length; i++)
+        {
+            if (scrolls[i] != null && scrolls[i] != dedicated)
+            {
+                outer = scrolls[i];
+                break;
+            }
+        }
+
+        if (outer != null && outer.content != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(outer.content);
+        }
+
+        if (dedicated != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(dedicated.GetComponent<RectTransform>());
+            if (dedicated.viewport != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(dedicated.viewport);
+            }
+        }
+
+        ApplyDeckListContentHeight(itemCount);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(listRt);
+        Canvas.ForceUpdateCanvases();
+        // 子の実バウンドで再補正（セル想定よりはみ出す場合に必要）。式計算未満には落とさない。
+        ApplyDeckListContentHeightFromChildren(itemCount);
+
+        if (dedicated != null)
+        {
+            dedicated.StopMovement();
+            dedicated.verticalNormalizedPosition = 1f;
+            dedicated.velocity = Vector2.zero;
+        }
+    }
+
+    /// <summary>件数から Grid Content の必要高さを計算する。</summary>
+    private float CalculateDeckListContentHeight(int itemCount)
+    {
+        if (DeckListPanel == null)
+        {
+            return 1f;
+        }
+
+        GridLayoutGroup grid = DeckListPanel.GetComponent<GridLayoutGroup>();
+        int columns = 3;
+        float cellH = DeckListCellHeight;
+        float spaceY = 12f;
+        float padTop = 8f;
+        float padBottom = 16f;
+        if (grid != null)
+        {
+            columns = Mathf.Max(1, grid.constraintCount);
+            if (Mathf.Abs(grid.cellSize.y - DeckListCellHeight) > 0.01f)
+            {
+                grid.cellSize = new Vector2(grid.cellSize.x, DeckListCellHeight);
+            }
+
+            cellH = grid.cellSize.y;
+            spaceY = grid.spacing.y;
+            padTop = grid.padding.top;
+            padBottom = grid.padding.bottom;
+        }
+
+        int rows = itemCount <= 0 ? 0 : Mathf.CeilToInt(itemCount / (float)columns);
+        float height = padTop + padBottom;
+        if (rows > 0)
+        {
+            height += rows * cellH + (rows - 1) * spaceY;
+        }
+
+        return height + DeckListContentBottomExtra;
+    }
+
+    /// <summary>
+    /// Grid の行数から Content 高さを決める。
+    /// </summary>
+    private void ApplyDeckListContentHeight(int? itemCountOverride = null)
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        RectTransform listRt = DeckListPanel.GetComponent<RectTransform>();
+        int itemCount = itemCountOverride ?? CountActiveDeckListItems(listRt);
+        SetDeckListContentHeight(listRt, CalculateDeckListContentHeight(itemCount));
+    }
+
+    /// <summary>子 Rect の実バウンドから Content 高さを補正する。</summary>
+    private void ApplyDeckListContentHeightFromChildren(int? itemCountOverride = null)
+    {
+        if (DeckListPanel == null)
+        {
+            return;
+        }
+
+        RectTransform listRt = DeckListPanel.GetComponent<RectTransform>();
+        int itemCount = itemCountOverride ?? CountActiveDeckListItems(listRt);
+        float formulaHeight = CalculateDeckListContentHeight(itemCount);
+        if (itemCount <= 0)
+        {
+            SetDeckListContentHeight(listRt, 1f);
+            return;
+        }
+
+        // 親サイズを一時的に十分大きくしてからバウンド計測（狭いと子が潰れて測れない）
+        float provisional = Mathf.Max(formulaHeight, listRt.rect.height, 8000f);
+        SetDeckListContentHeight(listRt, provisional);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(listRt);
+        Canvas.ForceUpdateCanvases();
+
+        float lowest = 0f;
+        for (int i = 0; i < listRt.childCount; i++)
+        {
+            RectTransform child = listRt.GetChild(i) as RectTransform;
+            if (child == null || !child.gameObject.activeSelf)
+            {
+                continue;
+            }
+
+            // 上ピボット親ローカルで、子の下端（より小さい y）
+            Vector3[] corners = new Vector3[4];
+            child.GetWorldCorners(corners);
+            for (int c = 0; c < 4; c++)
+            {
+                Vector3 local = listRt.InverseTransformPoint(corners[c]);
+                if (local.y < lowest)
+                {
+                    lowest = local.y;
+                }
+            }
+        }
+
+        // pivot=top なので高さは上端0から最下端までの距離。式計算未満には落とさない。
+        float measured = Mathf.Max(1f, -lowest + DeckListContentBottomExtra);
+        SetDeckListContentHeight(listRt, Mathf.Max(formulaHeight, measured));
+        LayoutRebuilder.ForceRebuildLayoutImmediate(listRt);
+    }
+
+    private static int CountActiveDeckListItems(RectTransform listRt)
+    {
+        if (listRt == null)
+        {
+            return 0;
+        }
+
+        int itemCount = 0;
+        for (int i = 0; i < listRt.childCount; i++)
+        {
+            if (listRt.GetChild(i).gameObject.activeSelf)
+            {
+                itemCount++;
+            }
+        }
+
+        return itemCount;
+    }
+
+    private static void SetDeckListContentHeight(RectTransform listRt, float height)
+    {
+        if (listRt == null)
+        {
+            return;
+        }
+
+        listRt.anchorMin = new Vector2(0f, 1f);
+        listRt.anchorMax = new Vector2(1f, 1f);
+        listRt.pivot = new Vector2(0.5f, 1f);
+        listRt.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(height, 1f));
+        listRt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 0f);
     }
 
     private GameObject CreateDeckListItem(DeckSaveData data, DeckStorageEntry entry)
@@ -1699,103 +2554,174 @@ public void ShowFileList()
     }
 
     private IEnumerator ShowFileListCoroutine()
-{
-    if (DeckListPanel != null)
     {
-        DeckListPanel.transform.DetachChildren();
-    }
+        int loadGeneration = ++_deckListLoadGeneration;
 
-    ConfigureDeckListGridLayout();
+        // 非表示のまま計測すると高さ不足で約18件までしか見えない
+        EnsureDeckListAreaVisible();
 
-    Task<List<DeckStorageEntry>> listTask = DeckStorageService.ListDecksAsync();
-    while (!listTask.IsCompleted)
-    {
+        ClearDeckListItems();
+        // Destroy はフレーム末尾なので、破棄完了を待ってから再生成する
         yield return null;
-    }
+        if (loadGeneration != _deckListLoadGeneration)
+        {
+            yield break;
+        }
 
-    if (listTask.IsFaulted)
-    {
-        Debug.LogError($"[Deck] 一覧取得失敗: {listTask.Exception?.GetBaseException().Message}");
-        yield break;
-    }
+        EnsureDeckListAreaVisible();
+        ConfigureDeckListGridLayout();
+        RefreshDeckListLayoutDynamic(0);
 
-    List<DeckStorageEntry> entries = listTask.Result;
-    Debug.Log($"保存されたデッキ数: {entries.Count} ({(DeckStorageService.IsUsingCloudStorage ? "Cloud" : "Local")})");
-
-    for (int i = 0; i < entries.Count; i++)
-    {
-        DeckStorageEntry entry = entries[i];
-        string storageKey = entry.StorageKey;
-        string captureKey = storageKey;
-
-        Task<DeckSaveData> loadTask = DeckStorageService.LoadDeckAsync(storageKey);
-        while (!loadTask.IsCompleted)
+        Task<List<DeckStorageEntry>> listTask = DeckStorageService.ListDecksAsync();
+        while (!listTask.IsCompleted)
         {
             yield return null;
         }
 
-        if (loadTask.IsFaulted)
+        if (loadGeneration != _deckListLoadGeneration)
         {
-            Debug.LogWarning($"[Deck] 読込スキップ {storageKey}: {loadTask.Exception?.GetBaseException().Message}");
-            continue;
+            yield break;
         }
 
-        DeckSaveData data = loadTask.Result;
-        if (data == null)
+        if (listTask.IsFaulted)
         {
-            continue;
+            Debug.LogError($"[Deck] 一覧取得失敗: {listTask.Exception?.GetBaseException().Message}");
+            RefreshDeckListLayoutDynamic(0);
+            yield break;
         }
 
-    GameObject cardObj = CreateDeckListItem(data, entry);
+        List<DeckStorageEntry> entries = listTask.Result ?? new List<DeckStorageEntry>();
+        Debug.Log(
+            $"保存されたデッキ数: {entries.Count} "
+            + $"({(DeckStorageService.IsUsingCloudStorage ? "Cloud" : "Local")})");
+        RefreshDeckListCreatedCountLabel(entries.Count);
 
-    Button btn = cardObj.GetComponentInChildren<Button>();
-    if (btn == null)
-    {
-        btn = cardObj.GetComponent<Button>();
-    }
-
-    if (btn != null)
-    {
-    btn.onClick.RemoveAllListeners();
-    btn.onClick.AddListener(() => {
-        Debug.Log(cardObj.name + " がクリックされました！");
-        Debug.Log($"エネミーフラグ:{BattoleStartFlag} testPlayPick:{TestPlayMatchState.IsAwaitingEnemyDeckPick}");
-
-        // TestPlay: 一覧タップは開始せず、選択 UI へ渡す
-        if (TestPlayMatchState.IsAwaitingEnemyDeckPick)
+        int createdVisible = 0;
+        for (int i = 0; i < entries.Count; i++)
         {
-            Debug.Log("[TestPlay] 選択デッキを相手候補として UI に渡します。");
-            TestPlayOpponentDeckChosen?.Invoke(data, entry, captureKey);
-            return;
-        }
-
-        deckPathName = captureKey;
-
-        if(BattoleStartFlag)
-        {
-            Debug.Log("バトル開始フラグが立っているため、クリックされたデッキをエネミーデッキに入れます。");
-            enemyCardData.Clear();
-            foreach (var card in data.cards)
+            if (loadGeneration != _deckListLoadGeneration)
             {
-                Debug.Log($"エネミーデッキに入れるカードID: {card.id}, 枚数: {card.count}");
-                enemyCardData[card.id] = card.count;
+                yield break;
             }
-            EnterBattleFromMenu();
-            return;
-        }
-        cardData.Clear();
-        _thumbnailCardId = data.thumbnailId;
-        ShowDeckActionButtons();
-        DeckTitleInputField.text = data.title;
-        foreach (var card in data.cards)
-        {
-            Debug.Log($"クリックされたデッキのカードID: {card.id}, 枚数: {card.count}");
-            cardData[card.id] = card.count;
+
+            DeckStorageEntry entry = entries[i];
+            string storageKey = entry.StorageKey;
+            string captureKey = storageKey;
+
+            Task<DeckSaveData> loadTask = DeckStorageService.LoadDeckAsync(storageKey);
+            while (!loadTask.IsCompleted)
+            {
+                yield return null;
+            }
+
+            if (loadGeneration != _deckListLoadGeneration)
+            {
+                yield break;
+            }
+
+            if (loadTask.IsFaulted)
+            {
+                Debug.LogWarning(
+                    $"[Deck] 読込スキップ {storageKey}: {loadTask.Exception?.GetBaseException().Message}");
+                continue;
+            }
+
+            DeckSaveData data = loadTask.Result;
+            if (data == null)
+            {
+                continue;
+            }
+
+            GameObject cardObj = CreateDeckListItem(data, entry);
+            createdVisible++;
+
+            Button btn = cardObj.GetComponentInChildren<Button>();
+            if (btn == null)
+            {
+                btn = cardObj.GetComponent<Button>();
+            }
+
+            if (btn != null)
+            {
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(() =>
+                {
+                    Debug.Log(cardObj.name + " がクリックされました！");
+                    Debug.Log(
+                        $"エネミーフラグ:{BattoleStartFlag} "
+                        + $"testPlayPick:{TestPlayMatchState.IsAwaitingEnemyDeckPick}");
+
+                    if (TestPlayMatchState.IsAwaitingEnemyDeckPick)
+                    {
+                        Debug.Log("[TestPlay] 選択デッキを相手候補として UI に渡します。");
+                        TestPlayOpponentDeckChosen?.Invoke(data, entry, captureKey);
+                        return;
+                    }
+
+                    deckPathName = captureKey;
+
+                    if (BattoleStartFlag)
+                    {
+                        Debug.Log(
+                            "バトル開始フラグが立っているため、クリックされたデッキをエネミーデッキに入れます。");
+                        enemyCardData.Clear();
+                        foreach (var card in data.cards)
+                        {
+                            Debug.Log($"エネミーデッキに入れるカードID: {card.id}, 枚数: {card.count}");
+                            enemyCardData[card.id] = card.count;
+                        }
+
+                        EnterBattleFromMenu();
+                        return;
+                    }
+
+                    cardData.Clear();
+                    _thumbnailCardId = data.thumbnailId;
+                    ShowDeckActionButtons();
+                    if (DeckTitleInputField != null)
+                    {
+                        DeckTitleInputField.text = data.title;
+                    }
+
+                    foreach (var card in data.cards)
+                    {
+                        Debug.Log($"クリックされたデッキのカードID: {card.id}, 枚数: {card.count}");
+                        cardData[card.id] = card.count;
+                    }
+
+                    EnsureThumbnailCardId();
+                });
+            }
+
+            // 行が増えるたびに高さと件数を更新（作成の都度スクロール範囲を伸ばす）
+            if (createdVisible % 3 == 0 || i == entries.Count - 1)
+            {
+                RefreshDeckListLayoutDynamic(createdVisible, preciseMeasure: false);
+            }
         }
 
-        EnsureThumbnailCardId();
-    });
+        if (loadGeneration != _deckListLoadGeneration)
+        {
+            yield break;
+        }
+
+        // 最終件数でラベル・高さを確定（表示件数ベース）
+        RefreshDeckListLayoutDynamic(createdVisible, preciseMeasure: true);
+        yield return null;
+        if (loadGeneration != _deckListLoadGeneration)
+        {
+            yield break;
+        }
+
+        EnsureDeckListAreaVisible();
+        RefreshDeckListLayoutDynamic(createdVisible, preciseMeasure: true);
+        // レイアウト確定後もう1フレーム（親 VLG の flexibleHeight 確定待ち）
+        yield return null;
+        if (loadGeneration != _deckListLoadGeneration)
+        {
+            yield break;
+        }
+
+        RefreshDeckListLayoutDynamic(createdVisible, preciseMeasure: true);
     }
-    }
-}
 }

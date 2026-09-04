@@ -495,8 +495,6 @@ public class NewDeckMaking : MonoBehaviour
             DeckSettinObject.Instance.isDeckEditing = false;
             DeckSettinObject.Instance.HideDeckEditCountUi();
             DeckSettinObject.Instance.HideDeckActionButtons();
-            DeckSettinObject.Instance.ClearDeckList();
-            DeckSettinObject.Instance.ShowFileList();
         }
 
         if (DeckEditPanel != null)
@@ -504,9 +502,17 @@ public class NewDeckMaking : MonoBehaviour
             DeckEditPanel.gameObject.SetActive(false);
         }
 
+        // 非表示のまま一覧を再生成すると Content 高さが画面分しか取れず、
+        // 約18件（6行×3列）までしかスクロールできない。先に表示してから読む。
         if (DeckListPanel != null)
         {
-            DeckListPanel.gameObject.SetActive(true);
+            SetDeckListAreaActive(DeckListPanel, true);
+        }
+
+        if (DeckSettinObject.Instance != null)
+        {
+            DeckSettinObject.Instance.ClearDeckList();
+            DeckSettinObject.Instance.ShowFileList();
         }
 
         if (NewDeckText != null)
@@ -785,7 +791,7 @@ public class NewDeckMaking : MonoBehaviour
 
         if (DeckListPanel != null)
         {
-            DeckListPanel.gameObject.SetActive(false);
+            SetDeckListAreaActive(DeckListPanel, false);
         }
 
         if (DeckTitleInputField != null)
@@ -811,5 +817,25 @@ public class NewDeckMaking : MonoBehaviour
         DeckSettinObject.Instance.CaptureEditBaseline(startTitle);
         RefreshDeckMakeButtonInteractable();
         Debug.Log($"ボタン:{DeckSettinObject.Instance.isDeckEditing} newDeck:{asNewDeck}");
+    }
+
+    /// <summary>デッキ一覧本体と、実行時に包んだ専用 ScrollView をまとめて表示／非表示。</summary>
+    private static void SetDeckListAreaActive(GameObject deckListPanel, bool active)
+    {
+        if (deckListPanel == null)
+        {
+            return;
+        }
+
+        Transform t = deckListPanel.transform;
+        if (t.parent != null
+            && t.parent.name == "Viewport"
+            && t.parent.parent != null
+            && t.parent.parent.name == "DeckListScrollView")
+        {
+            t.parent.parent.gameObject.SetActive(active);
+        }
+
+        deckListPanel.SetActive(active);
     }
 }
