@@ -59,7 +59,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        AfterLocalResourceConsumed(ToRuleSide(side), exToUse);
+        AfterLocalResourceConsumed(ToRuleSide(side), exToUse, command.Data);
         if (context == "OnAction")
         {
             MarkOnActionOncePerTurnUsedIfNeeded(side, command);

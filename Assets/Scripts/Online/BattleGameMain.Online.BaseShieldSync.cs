@@ -39,6 +39,41 @@ public partial class BattleGameMain
             + $"resource:{(payState != null ? payState.resource : -1)}");
     }
 
+    /// <summary>出資者等：EXベースのみ配備したときの相手同期（cardId=0）。</summary>
+    private void NotifyLocalDeployExBaseSynced(PlayerType ownerType)
+    {
+        if (_applyingRemoteBattleAction
+            || !IsOnlineBattle()
+            || ownerType != PlayerType.Player
+            || gundamRule == null)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerState state = gundamRule.Player;
+        if (state == null)
+        {
+            return;
+        }
+
+        int[] shieldIds = CollectShieldZoneCardIds(cardGameRule);
+        Gundam2024RuleScript.PlayerState payState = state;
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreatePlayCard(
+            OnlineBattleActionPayload.CreateDeployBase(
+                cardId: 0,
+                baseHpAfter: 0,
+                exBaseAfter: state.exBase,
+                shieldCountAfter: state.shield,
+                shieldZoneCardIds: shieldIds,
+                includeResourceSnapshot: true,
+                resourceAfter: payState.resource,
+                exResourceAfter: payState.exResource,
+                levelAfter: payState.level)));
+
+        Debug.Log(
+            $"[OnlineBattle] DeployExBase sync sent. exBase:{state.exBase} shield:{state.shield}");
+    }
+
     private void NotifyLocalDeployShieldSynced(CardController shieldCard, PlayerType ownerType)
     {
         if (_applyingRemoteBattleAction
@@ -91,7 +126,19 @@ public partial class BattleGameMain
 
     private void ApplyRemoteDeployBase(OnlineBattleActionPayload action)
     {
-        if (DeckSettinObject.Instance == null || action == null || action.cardId <= 0)
+        if (action == null)
+        {
+            return;
+        }
+
+        // cardId=0：EXベース／シールドエリアのみの同期（出資者の DeployExBase 等）
+        if (action.cardId <= 0)
+        {
+            ApplyRemoteDeployExBaseOnly(action);
+            return;
+        }
+
+        if (DeckSettinObject.Instance == null)
         {
             return;
         }
@@ -153,6 +200,51 @@ public partial class BattleGameMain
                 $"[OnlineBattle] Remote base deployed on opponent zone: {cardData.cardName}({action.cardId}) "
                 + $"hp:{controller.CurrentHp} exBase:{enemyState.exBase} shield:{enemyState.shield} "
                 + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
+        }
+        finally
+        {
+            _applyingRemoteBattleAction = false;
+        }
+    }
+
+    private void ApplyRemoteDeployExBaseOnly(OnlineBattleActionPayload action)
+    {
+        if (action == null || gundamRule == null)
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide ruleSide = Gundam2024RuleScript.PlayerSide.Enemy;
+        _applyingRemoteBattleAction = true;
+        try
+        {
+            gundamRule.SetExBasePoints(ruleSide, Mathf.Max(0, action.defenderExBaseAfter));
+            Gundam2024RuleScript.PlayerState enemyState = gundamRule.Enemy;
+            if (action.defenderShieldAfter >= 0)
+            {
+                enemyState.shield = action.defenderShieldAfter;
+            }
+
+            if (action.shieldZoneCardIds != null && enemyCardGameRule != null)
+            {
+                enemyCardGameRule.ApplyShieldZoneSnapshotFromCardIds(
+                    CardImagePrefab,
+                    OnCardClicked,
+                    action.shieldZoneCardIds);
+            }
+
+            SyncBaseZoneHeaderDisplay(ruleSide);
+            if (action.includeResourceSnapshot)
+            {
+                ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
+            }
+            else
+            {
+                SyncResourceViewsFromRule(ruleSide);
+            }
+
+            Debug.Log(
+                $"[OnlineBattle] Remote EX Base deployed. exBase:{enemyState.exBase} shield:{enemyState.shield}");
         }
         finally
         {

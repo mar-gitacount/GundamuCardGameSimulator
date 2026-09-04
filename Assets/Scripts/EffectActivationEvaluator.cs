@@ -61,6 +61,9 @@ public sealed class EffectActivationContext
     /// <summary>効果オーナーの TotalLevel（level + exResource）。-1 なら未設定。</summary>
     public int OwnerTotalLevel { get; }
 
+    /// <summary>効果オーナーの EX リソース枚数。-1 なら未設定。</summary>
+    public int OwnerExResource { get; }
+
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
@@ -102,7 +105,8 @@ public sealed class EffectActivationContext
         bool destroyedUnitWasLinked = false,
         bool sourceAttackingEnemyPlayer = false,
         CardController battlingEnemyUnit = null,
-        int ownerTotalLevel = -1)
+        int ownerTotalLevel = -1,
+        int ownerExResource = -1)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -130,6 +134,7 @@ public sealed class EffectActivationContext
         SourceAttackingEnemyPlayer = sourceAttackingEnemyPlayer;
         BattlingEnemyUnit = battlingEnemyUnit;
         OwnerTotalLevel = ownerTotalLevel;
+        OwnerExResource = ownerExResource;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -196,7 +201,8 @@ public sealed class EffectActivationContext
             DestroyedUnitWasLinked,
             SourceAttackingEnemyPlayer,
             BattlingEnemyUnit,
-            OwnerTotalLevel);
+            OwnerTotalLevel,
+            OwnerExResource);
     }
 }
 
@@ -380,6 +386,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.OwnerTotalLevel)
         {
             return EvaluateOwnerTotalLevel(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerExResource)
+        {
+            return EvaluateOwnerExResource(c, ctx);
         }
 
         if (c.checkKind == EffectActivationCheckKind.DestroyedByBattleDamage)
@@ -590,6 +601,13 @@ public static class EffectActivationEvaluator
         {
             CardData data = observed[i];
             if (data != null && data.type == c.observedCardType)
+            {
+                matched++;
+            }
+            // Command 指定時は CommandPilot もコマンド扱い
+            else if (data != null
+                && c.observedCardType == Type.Command
+                && data.IsCommand())
             {
                 matched++;
             }
@@ -1211,6 +1229,16 @@ public static class EffectActivationEvaluator
         }
 
         return CompareInts(ctx.OwnerTotalLevel, c.compareValue, c.compareOp);
+    }
+
+    private static bool EvaluateOwnerExResource(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null || ctx.OwnerExResource < 0)
+        {
+            return false;
+        }
+
+        return CompareInts(ctx.OwnerExResource, c.compareValue, c.compareOp);
     }
 
     private static bool EvaluateOpponentHandCountAtLeast(EffectActivationCondition c, EffectActivationContext ctx)
