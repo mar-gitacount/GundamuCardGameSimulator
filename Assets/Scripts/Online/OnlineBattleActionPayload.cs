@@ -557,6 +557,9 @@ public class OnlineBattleActionPayload
                 case DeployUnit:
                     return payload.cardId > 0 && payload.instanceId > 0;
                 case DeployBase:
+                    // cardId>0: 通常ベース配備。cardId=0: 出資者等の EXベースのみ同期。
+                    return payload.cardId > 0
+                        || (payload.cardId == 0 && payload.defenderExBaseAfter >= 0);
                 case DeployShield:
                     return payload.cardId > 0;
                 case MountPilot:

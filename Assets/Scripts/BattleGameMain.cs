@@ -4077,8 +4077,8 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// <see cref="EffectType.DeployExBase"/>：自分のシールドエリアに EXベースを1つ配備する。
-    /// 本プロジェクトでは EXベースをポイント管理しているため、value≤0 なら
-    /// <see cref="ExBaseData.startingPoints"/> 分を加算して再現する。
+    /// ポイント管理のため、加算ではなく上限（既定3）まで満たす。
+    /// 例: 1 → 3、0 → 3、既に3なら変化なし。上限を超えない。
     /// </summary>
     private void ApplyDeployExBaseEffect(
         CardController sourceCard,
@@ -4098,21 +4098,23 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        int points = ResolveEffectMagnitude(effect, ownerType, sourceCard);
-        if (points <= 0)
+        int cap = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+        if (cap <= 0)
         {
-            points = exBaseData != null && exBaseData.startingPoints > 0
+            cap = exBaseData != null && exBaseData.startingPoints > 0
                 ? exBaseData.startingPoints
                 : 3;
         }
 
         int before = state.exBase;
-        gundamRule.SetExBasePoints(side, before + points);
+        // 加算しない。不足分を上限まで埋め、上限超はクランプ。
+        int after = Mathf.Clamp(Mathf.Max(before, cap), 0, cap);
+        gundamRule.SetExBasePoints(side, after);
         SyncBaseZoneHeaderDisplay(side);
         NotifyLocalDeployExBaseSynced(targetPlayer);
 
         Debug.Log(
-            $"[Effect] DeployExBase +{points} exBase:{before}->{before + points} to:{targetPlayer} "
+            $"[Effect] DeployExBase fill-to-cap:{cap} exBase:{before}->{after} to:{targetPlayer} "
             + $"by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
     }
 
