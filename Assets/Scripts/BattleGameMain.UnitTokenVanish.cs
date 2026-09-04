@@ -55,6 +55,9 @@ public partial class BattleGameMain
         ReconcileShieldStateWithZone(ruleSide);
         RefreshAllHandsConditionalOnHandAuto();
         ownerRule?.RefreshHandCountDisplay();
+        ownerRule?.RefreshBattleZoneDisplay();
+        CardGameRule otherRule = ownerType == PlayerType.Player ? enemyCardGameRule : cardGameRule;
+        otherRule?.RefreshBattleZoneDisplay();
 
         if (vanish)
         {

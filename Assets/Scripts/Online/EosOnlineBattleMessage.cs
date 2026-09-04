@@ -224,6 +224,27 @@ public class EosOnlineBattleMessage
         });
     }
 
+    public const string DiscardThinkWait = "DiscardThinkWait";
+    public const string DiscardThinkComplete = "DiscardThinkComplete";
+
+    public static string CreateDiscardThinkWait(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
+        {
+            type = DiscardThinkWait,
+            payload = payload ?? string.Empty
+        });
+    }
+
+    public static string CreateDiscardThinkComplete(string payload)
+    {
+        return JsonUtility.ToJson(new EosOnlineLeanEnvelope
+        {
+            type = DiscardThinkComplete,
+            payload = payload ?? string.Empty
+        });
+    }
+
     public static string CreateZoneSync(string payload)
     {
         return JsonUtility.ToJson(new EosOnlineLeanEnvelope

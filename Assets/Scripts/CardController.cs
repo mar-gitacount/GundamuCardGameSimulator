@@ -162,7 +162,6 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     /// <summary>効果ダメージ無効化が有効か。</summary>
     public bool HasEffectDamageImmunity => CurrentEffectDamageImmunityCount > 0;
-    private static readonly Vector2 PilotOffset = new Vector2(0f, -18f);
     private Image unitFaceTopLayer;
 
     /// <summary>ランタイムの攻撃フラグ（カードデータのアセットは変更しない）。</summary>
@@ -1464,17 +1463,17 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         if (pilotRt != null && unitRt != null)
         {
             pilotRt.SetParent(transform, false);
-            // ユニットと同一サイズで固定（Stretch）し、少しだけ下にずらす。
-            pilotRt.anchorMin = Vector2.zero;
-            pilotRt.anchorMax = Vector2.one;
-            pilotRt.pivot = new Vector2(0.5f, 0.5f);
-            pilotRt.offsetMin = Vector2.zero;
-            pilotRt.offsetMax = Vector2.zero;
-            pilotRt.anchoredPosition = PilotOffset;
+
+            // ユニット右下に小さく重ねる（下敷き表示はしない）
+            pilotRt.anchorMin = new Vector2(0.58f, 0f);
+            pilotRt.anchorMax = new Vector2(1f, 0.42f);
+            pilotRt.pivot = new Vector2(1f, 0f);
+            pilotRt.offsetMin = new Vector2(2f, 2f);
+            pilotRt.offsetMax = new Vector2(-2f, -2f);
+            pilotRt.anchoredPosition = Vector2.zero;
             pilotRt.localScale = Vector3.one;
             pilotRt.localRotation = Quaternion.identity;
 
-            // 親ユニットの同一 GameObject 配下で重ねる。レイアウト計算には参加させない。
             LayoutElement le = pilot.GetComponent<LayoutElement>();
             if (le == null)
             {
@@ -1482,12 +1481,20 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             }
             le.ignoreLayout = true;
 
-            EnsureUnitFaceTopLayer();
-            pilotRt.SetAsFirstSibling();
+            // 旧・下敷き用フェイスレイヤーは不要
             if (unitFaceTopLayer != null)
             {
-                unitFaceTopLayer.transform.SetAsLastSibling();
+                Destroy(unitFaceTopLayer.gameObject);
+                unitFaceTopLayer = null;
             }
+
+            if (cardImage != null)
+            {
+                cardImage.enabled = true;
+            }
+
+            pilotRt.SetAsLastSibling();
+            pilot.SetBattleStatOverlayVisible(false);
             BringBattleStatOverlayToFront();
         }
 

@@ -1,12 +1,20 @@
 using System.Collections;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
-/// <summary>手札捨て公開のオンライン同期（OK まで効果チェーン停止）。</summary>
+/// <summary>手札捨て公開のオンライン同期（OK まで効果チェーン停止）と discardthink 待機。</summary>
 public partial class BattleGameMain
 {
     private int _handDiscardRevealRequestIdCounter;
     private int _pendingHandDiscardRevealRequestId;
     private bool _handDiscardRevealRemoteCompleteReceived;
+
+    private int _discardThinkRequestIdCounter;
+    private int _activeLocalDiscardThinkRequestId;
+    private int _pendingRemoteDiscardThinkRequestId;
+    private GameObject _activeOnlineDiscardThinkRoot;
+    private bool isOnlineDiscardThinkPauseOpen;
 
     private void ResetOnlineHandDiscardRevealState()
     {
@@ -15,6 +23,153 @@ public partial class BattleGameMain
         _handDiscardRevealRemoteCompleteReceived = false;
         CloseHandDiscardRevealPanelIfAny();
         CloseOnlineOpponentCardConfirmWaitOverlay();
+        EndOnlineDiscardThinkForLocalHandSelect();
+        CloseOnlineDiscardThinkOverlay();
+        _discardThinkRequestIdCounter = 0;
+        _pendingRemoteDiscardThinkRequestId = 0;
+    }
+
+    /// <summary>
+    /// 自分が手札捨て選択中であることを相手に伝え、discardthink で止めさせる。
+    /// </summary>
+    private void BeginOnlineDiscardThinkForLocalHandSelect()
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            return;
+        }
+
+        if (_activeLocalDiscardThinkRequestId > 0)
+        {
+            return;
+        }
+
+        int requestId = ++_discardThinkRequestIdCounter;
+        _activeLocalDiscardThinkRequestId = requestId;
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateDiscardThinkWait(
+            OnlineBattleActionPayload.CreateDiscardThinkWait(requestId)));
+        Debug.Log($"[OnlineBattle] DiscardThinkWait sent. requestId={requestId}");
+    }
+
+    /// <summary>手札捨て選択終了を相手へ通知し、discardthink を閉じさせる。</summary>
+    private void EndOnlineDiscardThinkForLocalHandSelect()
+    {
+        int requestId = _activeLocalDiscardThinkRequestId;
+        if (requestId <= 0)
+        {
+            return;
+        }
+
+        _activeLocalDiscardThinkRequestId = 0;
+        if (!IsOnlineBattle())
+        {
+            return;
+        }
+
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateDiscardThinkComplete(
+            OnlineBattleActionPayload.CreateDiscardThinkComplete(requestId)));
+        Debug.Log($"[OnlineBattle] DiscardThinkComplete sent. requestId={requestId}");
+    }
+
+    private void HandleRemoteDiscardThinkWait(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action)
+            || action.requestId <= 0)
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid DiscardThinkWait payload: {payload}");
+            return;
+        }
+
+        _pendingRemoteDiscardThinkRequestId = action.requestId;
+        ShowOnlineDiscardThinkOverlay();
+        Debug.Log($"[OnlineBattle] DiscardThinkWait received. requestId={action.requestId}");
+    }
+
+    private void HandleRemoteDiscardThinkComplete(string payload)
+    {
+        if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action))
+        {
+            Debug.LogWarning($"[OnlineBattle] Invalid DiscardThinkComplete payload: {payload}");
+            return;
+        }
+
+        if (_pendingRemoteDiscardThinkRequestId > 0
+            && action.requestId > 0
+            && action.requestId != _pendingRemoteDiscardThinkRequestId)
+        {
+            Debug.Log(
+                $"[OnlineBattle] Ignored DiscardThinkComplete requestId={action.requestId} "
+                + $"pending={_pendingRemoteDiscardThinkRequestId}");
+            return;
+        }
+
+        _pendingRemoteDiscardThinkRequestId = 0;
+        CloseOnlineDiscardThinkOverlay();
+        Debug.Log($"[OnlineBattle] DiscardThinkComplete received. requestId={action.requestId}");
+    }
+
+    private void ShowOnlineDiscardThinkOverlay()
+    {
+        if (_activeOnlineDiscardThinkRoot != null)
+        {
+            isOnlineDiscardThinkPauseOpen = true;
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        isOnlineDiscardThinkPauseOpen = true;
+        GameObject root = new GameObject(
+            "OnlineDiscardThinkPause",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        _activeOnlineDiscardThinkRoot = root;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom(
+            "DiscardThinkTitle",
+            UIAnchor.TopCenter,
+            720,
+            56);
+        title.text = "discardthink";
+        title.color = new Color(1f, 0.95f, 0.2f, 1f);
+        title.fontSize = 26;
+        title.alignment = TextAlignmentOptions.Center;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
+
+        TextMeshProUGUI sub = root.CreateChildTextCustom(
+            "DiscardThinkSub",
+            UIAnchor.TopCenter,
+            720,
+            44);
+        sub.SetLocalizedText(
+            "相手が手札を捨てるカードを選んでいます…",
+            "Opponent is choosing cards to discard from hand...");
+        sub.color = Color.white;
+        sub.fontSize = 18;
+        sub.alignment = TextAlignmentOptions.Center;
+        sub.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -150f);
+    }
+
+    private void CloseOnlineDiscardThinkOverlay()
+    {
+        isOnlineDiscardThinkPauseOpen = false;
+        if (_activeOnlineDiscardThinkRoot != null)
+        {
+            Destroy(_activeOnlineDiscardThinkRoot);
+            _activeOnlineDiscardThinkRoot = null;
+        }
     }
 
     private IEnumerator WaitForHandDiscardRevealAcknowledgedCoroutine(
@@ -70,6 +225,10 @@ public partial class BattleGameMain
             return;
         }
 
+        // 公開 UI を出す前に discardthink を閉じる
+        CloseOnlineDiscardThinkOverlay();
+        _pendingRemoteDiscardThinkRequestId = 0;
+
         _pendingHandDiscardRevealRequestId = action.requestId;
         _handDiscardRevealRemoteCompleteReceived = false;
         CardData data = DeckSettinObject.Instance != null
@@ -85,6 +244,11 @@ public partial class BattleGameMain
         if (isOnlineEffectThinkPauseOpen)
         {
             CloseOnlineEffectThinkOverlay();
+        }
+
+        if (isOnlineDiscardThinkPauseOpen)
+        {
+            CloseOnlineDiscardThinkOverlay();
         }
 
         yield return ShowHandDiscardRevealPanelCoroutine(cardId, cardName, isOpponentView: true);

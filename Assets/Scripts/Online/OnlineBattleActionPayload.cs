@@ -96,6 +96,8 @@ public class OnlineBattleActionPayload
 
     public const string HandDiscardReveal = "HandDiscardReveal";
     public const string HandDiscardRevealComplete = "HandDiscardRevealComplete";
+    public const string DiscardThinkWait = "DiscardThinkWait";
+    public const string DiscardThinkComplete = "DiscardThinkComplete";
     public const string ResourceState = "ResourceState";
     public const string HandDeckState = "HandDeckState";
     public const string EndTurn = "EndTurn";
@@ -116,6 +118,24 @@ public class OnlineBattleActionPayload
         return JsonUtility.ToJson(new OnlineHandDiscardRevealCompleteDto
         {
             action = HandDiscardRevealComplete,
+            requestId = requestId
+        });
+    }
+
+    public static string CreateDiscardThinkWait(int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineDiscardThinkDto
+        {
+            action = DiscardThinkWait,
+            requestId = requestId
+        });
+    }
+
+    public static string CreateDiscardThinkComplete(int requestId)
+    {
+        return JsonUtility.ToJson(new OnlineDiscardThinkDto
+        {
+            action = DiscardThinkComplete,
             requestId = requestId
         });
     }
@@ -543,6 +563,8 @@ public class OnlineBattleActionPayload
                     return payload.cardId > 0;
                 case CommandPlayRevealComplete:
                 case HandDiscardRevealComplete:
+                case DiscardThinkWait:
+                case DiscardThinkComplete:
                 case EndTurn:
                 case EndTurnAck:
                     return payload.requestId > 0;
@@ -765,6 +787,14 @@ public class OnlineHandDiscardRevealDto
 /// <summary>HandDiscardRevealComplete 送信用 lean DTO。</summary>
 [Serializable]
 public class OnlineHandDiscardRevealCompleteDto
+{
+    public string action;
+    public int requestId;
+}
+
+/// <summary>DiscardThinkWait / DiscardThinkComplete 送信用 lean DTO。</summary>
+[Serializable]
+public class OnlineDiscardThinkDto
 {
     public string action;
     public int requestId;
