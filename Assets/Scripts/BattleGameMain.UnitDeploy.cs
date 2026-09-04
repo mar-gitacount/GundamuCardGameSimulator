@@ -497,6 +497,13 @@ public partial class BattleGameMain
 
         unit.transform.SetParent(rule.PlayerDeployPanel, false);
 
+        if (!rule.TryPlaceUnitInBattleZone(unit))
+        {
+            Debug.LogWarning(
+                $"[DeployUnit] バトル枠への配置に失敗: {unit.Data.cardName} → {recipient}");
+            return false;
+        }
+
         if (recipient == PlayerType.Player)
         {
             if (fromHand)

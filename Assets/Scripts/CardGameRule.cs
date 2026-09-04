@@ -77,6 +77,10 @@ public class CardGameRule
     private Action<int> testPlayExDeltaHandler;
     private TextMeshProUGUI battleAreaLabelText;
     private TextMeshProUGUI baseZoneLabelText;
+    /// <summary>バトルゾーン固定枠（最大6）。UpperLeft で上段1〜3・下段4〜6。</summary>
+    private const int BattleZoneSlotCount = 6;
+    private RectTransform[] _battleZoneSlotRoots;
+    private RectTransform[] _battleZoneSlotAnchors;
     private TextMeshProUGUI deckZoneLabelText;
     private static readonly List<CardGameRule> ActiveRules = new List<CardGameRule>();
     private static bool _localeHooked;
@@ -231,16 +235,8 @@ public class CardGameRule
             deployBg.raycastTarget = false;
         }
 
-        var deployGrid = playerDeployPanel.AddComponent<GridLayoutGroup>();
-        deployGrid.cellSize = new Vector2(96f, 88f);
-        deployGrid.spacing = new Vector2(6f, 6f);
-        deployGrid.padding = new RectOffset(6, 6, 4, 4);
-        // 親を 180° すると手前側に来るよう、ローカル上側から並べる
-        deployGrid.childAlignment = TextAnchor.UpperCenter;
-        deployGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
-        deployGrid.startAxis = GridLayoutGroup.Axis.Horizontal;
-        deployGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        deployGrid.constraintCount = 3;
+        BuildBattleZoneSlots(playerDeployPanel);
+        RefreshBattleZoneDisplay();
 
         GameObject deckColumn = battleRow.CreateChildPanelCustom(
             "PlayerDeckAndTrashPanel",
@@ -297,7 +293,7 @@ public class CardGameRule
     {
         if (battleAreaLabelText != null)
         {
-            battleAreaLabelText.SetLocalizedText(GameLocale.TKey("zone.battle"));
+            RefreshBattleZoneDisplay();
         }
 
         if (baseZoneLabelText != null)
@@ -680,6 +676,288 @@ public class CardGameRule
        ? playerDeployPanel.GetComponent<RectTransform>()
        : (fieldPanel != null ? fieldPanel.GetComponent<RectTransform>() : null);
    public RectTransform PlayerHandPanel => HandPanel != null ? HandPanel.GetComponent<RectTransform>() : null;
+
+    /// <summary>バトルゾーンに固定6枠を生成する（空枠も常時表示）。</summary>
+    private void BuildBattleZoneSlots(GameObject deployPanel)
+    {
+        if (deployPanel == null)
+        {
+            return;
+        }
+
+        // 旧グリッド直下のカードが残っていれば消す（再セットアップ時）
+        for (int i = deployPanel.transform.childCount - 1; i >= 0; i--)
+        {
+            UnityEngine.Object.Destroy(deployPanel.transform.GetChild(i).gameObject);
+        }
+
+        GridLayoutGroup deployGrid = deployPanel.GetComponent<GridLayoutGroup>();
+        if (deployGrid == null)
+        {
+            deployGrid = deployPanel.AddComponent<GridLayoutGroup>();
+        }
+
+        deployGrid.cellSize = new Vector2(98f, 92f);
+        deployGrid.spacing = new Vector2(6f, 8f);
+        deployGrid.padding = new RectOffset(4, 4, 4, 4);
+        deployGrid.childAlignment = TextAnchor.MiddleCenter;
+        // 奥（上段）が 1〜3、手前（下段）が 4〜6
+        deployGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        deployGrid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        deployGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        deployGrid.constraintCount = 3;
+
+        _battleZoneSlotRoots = new RectTransform[BattleZoneSlotCount];
+        _battleZoneSlotAnchors = new RectTransform[BattleZoneSlotCount];
+
+        for (int i = 0; i < BattleZoneSlotCount; i++)
+        {
+            int displayNumber = i + 1;
+            GameObject slotGo = new GameObject(
+                "BattleSlot_" + displayNumber,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(LayoutElement));
+            slotGo.transform.SetParent(deployPanel.transform, false);
+
+            RectTransform slotRt = slotGo.GetComponent<RectTransform>();
+            Image slotImage = slotGo.GetComponent<Image>();
+            slotImage.color = new Color(0.12f, 0.1f, 0.2f, 0.35f);
+            slotImage.raycastTarget = false;
+
+            Outline outline = slotGo.AddComponent<Outline>();
+            outline.effectColor = new Color(1f, 1f, 1f, 0.55f);
+            outline.effectDistance = new Vector2(1.5f, 1.5f);
+            outline.useGraphicAlpha = true;
+
+            // 破線風の内枠
+            GameObject dashGo = new GameObject(
+                "DashFrame",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image));
+            dashGo.transform.SetParent(slotGo.transform, false);
+            RectTransform dashRt = dashGo.GetComponent<RectTransform>();
+            dashRt.anchorMin = Vector2.zero;
+            dashRt.anchorMax = Vector2.one;
+            dashRt.offsetMin = new Vector2(3f, 3f);
+            dashRt.offsetMax = new Vector2(-3f, -3f);
+            Image dashImage = dashGo.GetComponent<Image>();
+            dashImage.color = new Color(1f, 1f, 1f, 0.08f);
+            dashImage.raycastTarget = false;
+            Outline dashOutline = dashGo.AddComponent<Outline>();
+            dashOutline.effectColor = new Color(1f, 1f, 1f, 0.35f);
+            dashOutline.effectDistance = new Vector2(1f, -1f);
+
+            TextMeshProUGUI numberLabel = slotGo.CreateChildTextCustom(
+                "SlotNumber",
+                UIAnchor.TopLeft,
+                28,
+                22);
+            numberLabel.text = displayNumber.ToString();
+            numberLabel.fontSize = 14;
+            numberLabel.fontStyle = FontStyles.Bold;
+            numberLabel.color = new Color(1f, 1f, 1f, 0.45f);
+            numberLabel.alignment = TextAlignmentOptions.TopLeft;
+            numberLabel.raycastTarget = false;
+            RectTransform numRt = numberLabel.GetComponent<RectTransform>();
+            numRt.anchoredPosition = new Vector2(10f, -2f);
+
+            GameObject anchorGo = new GameObject(
+                "UnitAnchor",
+                typeof(RectTransform));
+            anchorGo.transform.SetParent(slotGo.transform, false);
+            RectTransform anchorRt = anchorGo.GetComponent<RectTransform>();
+            anchorRt.anchorMin = Vector2.zero;
+            anchorRt.anchorMax = Vector2.one;
+            anchorRt.offsetMin = new Vector2(4f, 4f);
+            anchorRt.offsetMax = new Vector2(-4f, -4f);
+
+            LayoutElement slotLayout = slotGo.GetComponent<LayoutElement>();
+            slotLayout.minWidth = 80f;
+            slotLayout.minHeight = 72f;
+            slotLayout.flexibleWidth = 1f;
+            slotLayout.flexibleHeight = 1f;
+
+            _battleZoneSlotRoots[i] = slotRt;
+            _battleZoneSlotAnchors[i] = anchorRt;
+        }
+    }
+
+    /// <summary>空き枠へユニットを配置する。満杯なら false。</summary>
+    public bool TryPlaceUnitInBattleZone(CardController unit)
+    {
+        if (unit == null)
+        {
+            return false;
+        }
+
+        if (_battleZoneSlotAnchors == null || _battleZoneSlotAnchors.Length != BattleZoneSlotCount)
+        {
+            if (playerDeployPanel != null)
+            {
+                BuildBattleZoneSlots(playerDeployPanel);
+            }
+        }
+
+        if (_battleZoneSlotAnchors == null)
+        {
+            // フォールバック: 旧挙動
+            unit.transform.SetParent(PlayerDeployPanel, false);
+            RefreshBattleZoneDisplay();
+            return true;
+        }
+
+        // 既にいずれかの枠にいればサイズだけ整える
+        int existing = FindBattleZoneSlotIndex(unit);
+        if (existing >= 0)
+        {
+            FitUnitIntoBattleSlot(unit, _battleZoneSlotAnchors[existing]);
+            RefreshBattleZoneDisplay();
+            return true;
+        }
+
+        int empty = FindFirstEmptyBattleZoneSlot();
+        if (empty < 0)
+        {
+            Debug.LogWarning("[BattleZone] 空き枠がありません（最大6体）。");
+            return false;
+        }
+
+        FitUnitIntoBattleSlot(unit, _battleZoneSlotAnchors[empty]);
+        RefreshBattleZoneDisplay();
+        return true;
+    }
+
+    private int FindFirstEmptyBattleZoneSlot()
+    {
+        if (_battleZoneSlotAnchors == null)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < _battleZoneSlotAnchors.Length; i++)
+        {
+            if (GetUnitInBattleSlot(i) == null)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private int FindBattleZoneSlotIndex(CardController unit)
+    {
+        if (unit == null || _battleZoneSlotAnchors == null)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < _battleZoneSlotAnchors.Length; i++)
+        {
+            if (GetUnitInBattleSlot(i) == unit)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private CardController GetUnitInBattleSlot(int slotIndex)
+    {
+        if (_battleZoneSlotAnchors == null
+            || slotIndex < 0
+            || slotIndex >= _battleZoneSlotAnchors.Length
+            || _battleZoneSlotAnchors[slotIndex] == null)
+        {
+            return null;
+        }
+
+        RectTransform anchor = _battleZoneSlotAnchors[slotIndex];
+        for (int c = 0; c < anchor.childCount; c++)
+        {
+            CardController cc = anchor.GetChild(c).GetComponent<CardController>();
+            if (cc != null && cc.Data != null && cc.Data.IsUnitLike())
+            {
+                return cc;
+            }
+        }
+
+        return null;
+    }
+
+    private static void FitUnitIntoBattleSlot(CardController unit, RectTransform slotAnchor)
+    {
+        if (unit == null || slotAnchor == null)
+        {
+            return;
+        }
+
+        RectTransform unitRt = unit.transform as RectTransform;
+        if (unitRt == null)
+        {
+            unit.transform.SetParent(slotAnchor, false);
+            return;
+        }
+
+        unitRt.SetParent(slotAnchor, false);
+        unitRt.localScale = Vector3.one;
+        unitRt.localRotation = Quaternion.identity;
+        unitRt.anchorMin = Vector2.zero;
+        unitRt.anchorMax = Vector2.one;
+        unitRt.pivot = new Vector2(0.5f, 0.5f);
+        unitRt.offsetMin = Vector2.zero;
+        unitRt.offsetMax = Vector2.zero;
+        unitRt.anchoredPosition = Vector2.zero;
+
+        LayoutElement le = unit.GetComponent<LayoutElement>();
+        if (le == null)
+        {
+            le = unit.gameObject.AddComponent<LayoutElement>();
+        }
+
+        le.ignoreLayout = true;
+    }
+
+    /// <summary>枠内の生存ユニット数でラベルを更新する。</summary>
+    public void RefreshBattleZoneDisplay()
+    {
+        int occupied = CountOccupiedBattleZoneSlots();
+        if (battleAreaLabelText != null)
+        {
+            battleAreaLabelText.SetLocalizedText(
+                $"バトルエリア ({occupied}/{BattleZoneSlotCount})",
+                $"Battle Area ({occupied}/{BattleZoneSlotCount})");
+        }
+    }
+
+    public int CountOccupiedBattleZoneSlots()
+    {
+        if (_battleZoneSlotAnchors == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = 0; i < _battleZoneSlotAnchors.Length; i++)
+        {
+            if (GetUnitInBattleSlot(i) != null)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    public bool HasEmptyBattleZoneSlot()
+    {
+        return FindFirstEmptyBattleZoneSlot() >= 0;
+    }
+
 
    /// <summary>手札スクロールの content。未セットアップ時は null（Update の手札枚数同期でも安全）。</summary>
    public RectTransform HandScrollContent

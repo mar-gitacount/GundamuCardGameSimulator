@@ -1247,6 +1247,12 @@ public partial class BattleGameMain
             case "HandDiscardRevealComplete":
                 HandleRemoteHandDiscardRevealComplete(message.payload);
                 break;
+            case EosOnlineBattleMessage.DiscardThinkWait:
+                HandleRemoteDiscardThinkWait(message.payload);
+                break;
+            case EosOnlineBattleMessage.DiscardThinkComplete:
+                HandleRemoteDiscardThinkComplete(message.payload);
+                break;
             case EosOnlineBattleMessage.ResourceState:
                 HandleRemoteResourceState(message.payload);
                 break;
@@ -1780,6 +1786,8 @@ public partial class BattleGameMain
                 : Type.Pilot;
             controller.MarkTemporaryBurstBattleUnit(printedType, printed.power, printed.hp);
         }
+
+        rule.TryPlaceUnitInBattleZone(controller);
 
         if (zone != null && !zone.Contains(controller))
         {

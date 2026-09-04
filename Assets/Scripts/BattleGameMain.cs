@@ -1627,11 +1627,34 @@ public partial class BattleGameMain : MonoBehaviour
             trashBtnRect.sizeDelta = new Vector2(180, 50);
             trashBtnRect.anchoredPosition = new Vector2(0, fieldActionY);
 
-            trashButton.onClick.AddListener(() =>
+            // 通常対戦では手動トラッシュ不可（TestPlay のみ操作可）
+            bool allowManualTrash = IsTestPlayBattle();
+            trashButton.interactable = allowManualTrash;
+            if (!allowManualTrash)
             {
-                SendCardToTrash(cardController, ownerType);
-                Destroy(FilterPanel);
-            });
+                ColorBlock colors = trashButton.colors;
+                colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.7f);
+                trashButton.colors = colors;
+                Image trashImage = trashButton.GetComponent<Image>();
+                if (trashImage != null)
+                {
+                    trashImage.color = new Color(0.45f, 0.45f, 0.45f, 0.85f);
+                }
+
+                TextMeshProUGUI trashLabel = trashButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (trashLabel != null)
+                {
+                    trashLabel.color = new Color(0.75f, 0.75f, 0.75f, 0.9f);
+                }
+            }
+            else
+            {
+                trashButton.onClick.AddListener(() =>
+                {
+                    SendCardToTrash(cardController, ownerType);
+                    Destroy(FilterPanel);
+                });
+            }
 
             fieldActionY -= 60f;
             if (IsTestPlayBattle())
@@ -3743,6 +3766,7 @@ public partial class BattleGameMain : MonoBehaviour
             || isMulliganPromptOpen
             || isMulliganThinkPauseOpen
             || isOnlineEffectThinkPauseOpen
+            || isOnlineDiscardThinkPauseOpen
             || isOnlineOpponentCardConfirmWaitOpen
             || ShouldBlockOnlineLocalPlayDueToOnAction()
             || isOnlineShieldBreakThinkPauseOpen
@@ -3878,6 +3902,8 @@ public partial class BattleGameMain : MonoBehaviour
 
             ApplyTurnEndRepairForAllInPlayUnits();
             ClearTemporaryTurnEndRepairBonusesForAllInPlay();
+            // アクション → リペアのあと、手札上限（10枚）まで捨てる（捨て札は相手に公開）
+            yield return CoEnforceEndPhaseHandSizeLimit(endingTurnSide);
             TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
             // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
             ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
@@ -4159,6 +4185,7 @@ public partial class BattleGameMain : MonoBehaviour
             || _unitPilotEffectOrderUiOpen
             || _effectChoiceUiOpen
             || _battleZoneCapUiOpen
+            || isOnlineDiscardThinkPauseOpen
             || _activeLookDeckPopupRoot != null
             || _activeHandDiscardRevealRoot != null
             || _activeOnActionCommandRevealRoot != null;
@@ -4954,6 +4981,13 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         cardController.transform.SetParent(ownerRule.PlayerDeployPanel, false);
+        if (!ownerRule.TryPlaceUnitInBattleZone(cardController))
+        {
+            Debug.LogWarning(
+                $"[SendCardToField] バトル枠への配置に失敗: "
+                + $"{cardController.Data?.cardName} → {ownerType}");
+            return;
+        }
 
         if (ownerType == PlayerType.Player)
         {

@@ -519,6 +519,8 @@ public partial class BattleGameMain
                 printed.power,
                 printed.hp);
 
+            rule.TryPlaceUnitInBattleZone(controller);
+
             if (!enemyBattleZoneCards.Contains(controller))
             {
                 enemyBattleZoneCards.Add(controller);
