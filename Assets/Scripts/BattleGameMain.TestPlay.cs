@@ -435,27 +435,35 @@ public partial class BattleGameMain
             return;
         }
 
-        if (!DeployUnitToBattleZone(
-                spawned,
-                ownerType,
-                rule,
-                triggerOnPlayed: false,
-                fromHand: false,
-                deployAsRested: false))
-        {
-            Destroy(spawned.gameObject);
-            Debug.LogWarning($"[TestPlay] Token deploy to battle zone failed: {tokenData.cardName}");
-            return;
-        }
+        DeployToBattleZoneWithCapGate(
+            ownerType,
+            spawned,
+            () =>
+            {
+                if (!DeployUnitToBattleZone(
+                        spawned,
+                        ownerType,
+                        rule,
+                        triggerOnPlayed: false,
+                        fromHand: false,
+                        deployAsRested: false,
+                        bypassBattleZoneCap: true))
+                {
+                    Destroy(spawned.gameObject);
+                    Debug.LogWarning($"[TestPlay] Token deploy to battle zone failed: {tokenData.cardName}");
+                    return;
+                }
 
-        // TestPlay サンドボックス: 出した直後から攻撃操作できるようにする
-        spawned.SetAttackFlg(AttackFlg.True);
-        spawned.SetUnitRestVisual(false);
-        spawned.SetBattleStatOverlayVisible(true);
+                // TestPlay サンドボックス: 出した直後から攻撃操作できるようにする
+                spawned.SetAttackFlg(AttackFlg.True);
+                spawned.SetUnitRestVisual(false);
+                spawned.SetBattleStatOverlayVisible(true);
 
-        Debug.Log(
-            $"[TestPlay] Token → Field {tokenData.cardName}(id:{tokenData.id}) "
-            + $"AP:{spawned.CurrentPower} HP:{spawned.CurrentHp} side:{ownerType}");
+                Debug.Log(
+                    $"[TestPlay] Token → Field {tokenData.cardName}(id:{tokenData.id}) "
+                    + $"AP:{spawned.CurrentPower} HP:{spawned.CurrentHp} side:{ownerType}");
+            },
+            () => Destroy(spawned.gameObject));
     }
 
     private void BindTestPlayResourceZoneInteractions()
@@ -1332,8 +1340,15 @@ public partial class BattleGameMain
             deployRt.anchoredPosition = new Vector2(0f, y);
             deployBtn.onClick.AddListener(() =>
             {
-                SendCardToField(cardController, ownerType, ownerRule);
-                DestroyCardFilterOverlay(filterPanel);
+                DeployToBattleZoneWithCapGate(
+                    ownerType,
+                    cardController,
+                    () =>
+                    {
+                        SendCardToField(cardController, ownerType, ownerRule);
+                        DestroyCardFilterOverlay(filterPanel);
+                    },
+                    () => DestroyCardFilterOverlay(filterPanel));
             });
             y -= 52f;
         }

@@ -667,8 +667,10 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                // 手札／トラッシュからの DeployUnit 選択は非同期（してもよい UI）
-                if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+                // 手札／トラッシュ選択、およびトークン配備（6体上限の置換 UI あり）は非同期
+                if (effect.type == EffectType.DeployUnit
+                    && (effect.RequiresDeployUnitZoneSelection()
+                        || effect.deployUnitSource == DeployUnitSource.Token))
                 {
                     pendingManualEffects.Add(effect);
                     continue;
@@ -719,7 +721,9 @@ public partial class BattleGameMain
             }
 
             if (EffectRequiresManualUnitSelection(countEffect)
-                || (countEffect.type == EffectType.DeployUnit && countEffect.RequiresDeployUnitZoneSelection()))
+                || (countEffect.type == EffectType.DeployUnit
+                    && (countEffect.RequiresDeployUnitZoneSelection()
+                        || countEffect.deployUnitSource == DeployUnitSource.Token)))
             {
                 manualTotal++;
             }
@@ -734,7 +738,9 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+            if (effect.type == EffectType.DeployUnit
+                && (effect.RequiresDeployUnitZoneSelection()
+                    || effect.deployUnitSource == DeployUnitSource.Token))
             {
                 manualIndex++;
                 bool deployDone = false;
