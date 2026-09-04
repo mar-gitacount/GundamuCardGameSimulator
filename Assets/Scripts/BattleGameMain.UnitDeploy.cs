@@ -470,6 +470,7 @@ public partial class BattleGameMain
     }
 
     /// <summary>バトルゾーンへ配備（手札／トラッシュ／トークン共通のフィールド反映）。</summary>
+    /// <param name="bypassBattleZoneCap">true のとき 6 体上限チェックをスキップ（枠確保済み／リモート適用向け）。</param>
     private bool DeployUnitToBattleZone(
         CardController unit,
         PlayerType recipient,
@@ -477,10 +478,20 @@ public partial class BattleGameMain
         bool triggerOnPlayed,
         bool fromHand,
         bool deployAsRested = false,
-        bool fromTrash = false)
+        bool fromTrash = false,
+        bool bypassBattleZoneCap = false)
     {
         if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || rule == null)
         {
+            return false;
+        }
+
+        if (!bypassBattleZoneCap
+            && !_applyingRemoteBattleAction
+            && IsBattleZoneAtCapacity(recipient))
+        {
+            Debug.LogWarning(
+                $"[DeployUnit] バトルゾーン満杯のため配備拒否: {unit.Data.cardName} → {recipient}");
             return false;
         }
 
@@ -582,6 +593,28 @@ public partial class BattleGameMain
         PlayerType sourceOwner,
         CardController sourceCard)
     {
+        // 同期フォールバック（枠が空いているときのみ）。満杯時は CoDeployTokenUnitsWithCap を使う。
+        if (effect == null || effect.deployUnitSource != DeployUnitSource.Token)
+        {
+            return false;
+        }
+
+        PlayerType recipient = ResolveDeployRecipientPlayerType(sourceOwner, effect);
+        if (IsBattleZoneAtCapacity(recipient))
+        {
+            return false;
+        }
+
+        return TryDeployTokenUnitImmediate(effect, resolvedMagnitude, sourceOwner, sourceCard, recipient);
+    }
+
+    private bool TryDeployTokenUnitImmediate(
+        EffectData effect,
+        int resolvedMagnitude,
+        PlayerType sourceOwner,
+        CardController sourceCard,
+        PlayerType recipient)
+    {
         if (effect == null || effect.deployUnitSource != DeployUnitSource.Token)
         {
             return false;
@@ -606,7 +639,6 @@ public partial class BattleGameMain
             return false;
         }
 
-        PlayerType recipient = ResolveDeployRecipientPlayerType(sourceOwner, effect);
         CardGameRule rule = ResolveDeployRecipientRule(recipient);
         if (rule?.PlayerDeployPanel == null)
         {
@@ -618,6 +650,11 @@ public partial class BattleGameMain
         BeginOnlineEffectSyncBatch(sourceOwner);
         for (int i = 0; i < deployCount; i++)
         {
+            if (IsBattleZoneAtCapacity(recipient))
+            {
+                break;
+            }
+
             CardController spawned = InstantiateBattleUnit(tokenData, rule.PlayerDeployPanel);
             if (spawned == null)
             {
@@ -630,9 +667,14 @@ public partial class BattleGameMain
                     rule,
                     effect.deployUnitTriggerOnPlayed,
                     fromHand: false,
-                    deployAsRested: effect.deployUnitAsRested))
+                    deployAsRested: effect.deployUnitAsRested,
+                    bypassBattleZoneCap: true))
             {
                 applied++;
+            }
+            else
+            {
+                Destroy(spawned.gameObject);
             }
         }
 
@@ -646,6 +688,107 @@ public partial class BattleGameMain
             $"[Effect] DeployUnit Token x{applied}/{deployCount} id:{cardId} target:{effect.target} "
             + $"by cardId:{sourceCard?.Data?.id}");
         return applied > 0;
+    }
+
+    /// <summary>満杯時は置換 UI を挟み、Cancel ならそのトークン以降を出さない。</summary>
+    private IEnumerator CoDeployTokenUnitsWithCap(
+        EffectData effect,
+        int resolvedMagnitude,
+        PlayerType sourceOwner,
+        CardController sourceCard,
+        Action onComplete)
+    {
+        if (effect == null || effect.deployUnitSource != DeployUnitSource.Token)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        int cardId = effect.deployCardId;
+        if (cardId <= 0 && sourceCard?.Data != null && sourceCard.Data.type == Type.UnitToken)
+        {
+            cardId = sourceCard.Data.id;
+        }
+
+        if (cardId <= 0)
+        {
+            Debug.LogWarning($"[DeployUnit] Token deploy skipped: deployCardId unset (source:{sourceCard?.Data?.id})");
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        CardData tokenData = DeckSettinObject.Instance.GetCardDataById(cardId);
+        if (tokenData == null || !tokenData.IsUnitLike())
+        {
+            Debug.LogWarning($"[DeployUnit] Unknown or non-unit token id:{cardId}");
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        PlayerType recipient = ResolveDeployRecipientPlayerType(sourceOwner, effect);
+        CardGameRule rule = ResolveDeployRecipientRule(recipient);
+        if (rule?.PlayerDeployPanel == null)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        int deployCount = effect.GetDeployUnitCount(resolvedMagnitude);
+        int applied = 0;
+        BeginOnlineEffectSyncBatch(sourceOwner);
+        for (int i = 0; i < deployCount; i++)
+        {
+            bool slotReady = false;
+            bool cancelled = false;
+            yield return CoEnsureBattleZoneDeploySlot(
+                recipient,
+                sourceCard != null ? sourceCard : null,
+                () => slotReady = true,
+                () => cancelled = true);
+
+            if (cancelled || !slotReady)
+            {
+                Debug.Log(
+                    $"[DeployUnit] Token deploy cancelled at {i + 1}/{deployCount} "
+                    + $"(battle zone cap) by cardId:{sourceCard?.Data?.id}");
+                break;
+            }
+
+            // プレビュー用に一時スポーンせず、枠確保後に生成
+            CardController spawned = InstantiateBattleUnit(tokenData, rule.PlayerDeployPanel);
+            if (spawned == null)
+            {
+                break;
+            }
+
+            if (DeployUnitToBattleZone(
+                    spawned,
+                    recipient,
+                    rule,
+                    effect.deployUnitTriggerOnPlayed,
+                    fromHand: false,
+                    deployAsRested: effect.deployUnitAsRested,
+                    bypassBattleZoneCap: true))
+            {
+                applied++;
+            }
+            else
+            {
+                Destroy(spawned.gameObject);
+            }
+        }
+
+        FlushOnlineEffectSyncBatch();
+        if (applied > 0)
+        {
+            RefreshSyncTurnEndRepairBonusesForSide(recipient);
+        }
+
+        SyncAllResourceViewsFromRule();
+        Debug.Log(
+            $"[Effect] DeployUnit Token x{applied}/{deployCount} id:{cardId} target:{effect.target} "
+            + $"by cardId:{sourceCard?.Data?.id}");
+        onComplete?.Invoke();
     }
 
     private bool TryDeployUnitFromTrashIndex(
@@ -708,7 +851,45 @@ public partial class BattleGameMain
             deployRule,
             triggerOnPlayed,
             fromHand: false,
-            fromTrash: true);
+            fromTrash: true,
+            bypassBattleZoneCap: true);
+    }
+
+    private IEnumerator CoTryDeployUnitFromTrashIndexWithCap(
+        CardController sourcePreview,
+        CardGameRule trashRule,
+        PlayerType trashOwner,
+        PlayerType recipient,
+        int trashIndex,
+        CardData data,
+        bool triggerOnPlayed,
+        bool payCost,
+        PlayerType payCostOwner,
+        Action<bool> onDone)
+    {
+        bool slotReady = false;
+        bool cancelled = false;
+        yield return CoEnsureBattleZoneDeploySlot(
+            recipient,
+            sourcePreview,
+            () => slotReady = true,
+            () => cancelled = true);
+        if (cancelled || !slotReady)
+        {
+            onDone?.Invoke(false);
+            yield break;
+        }
+
+        bool ok = TryDeployUnitFromTrashIndex(
+            trashRule,
+            trashOwner,
+            recipient,
+            trashIndex,
+            data,
+            triggerOnPlayed,
+            payCost,
+            payCostOwner);
+        onDone?.Invoke(ok);
     }
 
     private void ApplyDeployUnitFromTrashAuto(
@@ -726,6 +907,11 @@ public partial class BattleGameMain
         int deployed = 0;
         for (int i = 0; i < ordered.Count && deployed < pickCount; i++)
         {
+            if (IsBattleZoneAtCapacity(recipient))
+            {
+                break;
+            }
+
             TrashExileCandidate candidate = ordered[i];
             if (TryDeployUnitFromTrashIndex(
                 trashRule,
@@ -740,6 +926,47 @@ public partial class BattleGameMain
                 deployed++;
             }
         }
+    }
+
+    private IEnumerator CoApplyDeployUnitFromTrashAutoWithCap(
+        CardController sourcePreview,
+        CardGameRule trashRule,
+        PlayerType trashOwner,
+        PlayerType recipient,
+        List<TrashExileCandidate> candidates,
+        int pickCount,
+        bool triggerOnPlayed,
+        bool payCost,
+        PlayerType payCostOwner,
+        Action onComplete)
+    {
+        List<TrashExileCandidate> ordered = new List<TrashExileCandidate>(candidates);
+        ordered.Sort((a, b) => b.TrashIndex.CompareTo(a.TrashIndex));
+        int deployed = 0;
+        for (int i = 0; i < ordered.Count && deployed < pickCount; i++)
+        {
+            TrashExileCandidate candidate = ordered[i];
+            bool ok = false;
+            yield return CoTryDeployUnitFromTrashIndexWithCap(
+                sourcePreview,
+                trashRule,
+                trashOwner,
+                recipient,
+                candidate.TrashIndex,
+                candidate.Data,
+                triggerOnPlayed,
+                payCost,
+                payCostOwner,
+                result => ok = result);
+            if (!ok)
+            {
+                break;
+            }
+
+            deployed++;
+        }
+
+        onComplete?.Invoke();
     }
 
     private void ApplyDeployUnitEffect(
@@ -765,11 +992,16 @@ public partial class BattleGameMain
         switch (effect.deployUnitSource)
         {
             case DeployUnitSource.Token:
-                BeginOnlineEffectSyncBatch(ownerType);
-                TryDeployTokenUnit(effect, magnitude, ownerType, sourceCard);
-                FlushOnlineEffectSyncBatch();
-                SyncAllResourceViewsFromRule();
-                onComplete?.Invoke();
+                StartCoroutine(CoDeployTokenUnitsWithCap(
+                    effect,
+                    magnitude,
+                    ownerType,
+                    sourceCard,
+                    () =>
+                    {
+                        SyncAllResourceViewsFromRule();
+                        onComplete?.Invoke();
+                    }));
                 return;
 
             case DeployUnitSource.Hand:
@@ -803,36 +1035,27 @@ public partial class BattleGameMain
 
         if (ownerType == PlayerType.Enemy)
         {
-            BeginOnlineEffectSyncBatch(ownerType);
-            int deployed = 0;
-            CardGameRule rule = ResolveDeployRecipientRule(recipient);
-            for (int i = 0; i < candidates.Count && deployed < deployCount; i++)
-            {
-                CardController pick = candidates[i];
-                if (DeployUnitToBattleZone(pick, recipient, rule, effect.deployUnitTriggerOnPlayed, fromHand: true))
-                {
-                    deployed++;
-                }
-            }
-
-            FlushOnlineEffectSyncBatch();
-            SyncAllResourceViewsFromRule();
-            onComplete?.Invoke();
+            StartCoroutine(CoDeployUnitsFromHandWithCap(
+                sourceCard,
+                ownerType,
+                recipient,
+                effect,
+                candidates,
+                deployCount,
+                onComplete));
             return;
         }
 
         if (!effect.RequiresDeployUnitZoneSelection() && candidates.Count == 1)
         {
-            BeginOnlineEffectSyncBatch(ownerType);
-            DeployUnitToBattleZone(
-                candidates[0],
+            StartCoroutine(CoDeployUnitsFromHandWithCap(
+                sourceCard,
+                ownerType,
                 recipient,
-                ResolveDeployRecipientRule(recipient),
-                effect.deployUnitTriggerOnPlayed,
-                fromHand: true);
-            FlushOnlineEffectSyncBatch();
-            SyncAllResourceViewsFromRule();
-            onComplete?.Invoke();
+                effect,
+                new List<CardController> { candidates[0] },
+                1,
+                onComplete));
             return;
         }
 
@@ -844,6 +1067,61 @@ public partial class BattleGameMain
             candidates,
             deployCount,
             onComplete));
+    }
+
+    private IEnumerator CoDeployUnitsFromHandWithCap(
+        CardController sourceCard,
+        PlayerType ownerType,
+        PlayerType recipient,
+        EffectData effect,
+        List<CardController> orderedCandidates,
+        int deployCount,
+        Action onComplete)
+    {
+        if (orderedCandidates == null || orderedCandidates.Count == 0 || effect == null)
+        {
+            onComplete?.Invoke();
+            yield break;
+        }
+
+        CardGameRule rule = ResolveDeployRecipientRule(recipient);
+        int deployed = 0;
+        BeginOnlineEffectSyncBatch(ownerType);
+        for (int i = 0; i < orderedCandidates.Count && deployed < deployCount; i++)
+        {
+            CardController pick = orderedCandidates[i];
+            if (pick == null)
+            {
+                continue;
+            }
+
+            bool slotReady = false;
+            bool cancelled = false;
+            yield return CoEnsureBattleZoneDeploySlot(
+                recipient,
+                pick,
+                () => slotReady = true,
+                () => cancelled = true);
+            if (cancelled || !slotReady)
+            {
+                break;
+            }
+
+            if (DeployUnitToBattleZone(
+                    pick,
+                    recipient,
+                    rule,
+                    effect.deployUnitTriggerOnPlayed,
+                    fromHand: true,
+                    bypassBattleZoneCap: true))
+            {
+                deployed++;
+            }
+        }
+
+        FlushOnlineEffectSyncBatch();
+        SyncAllResourceViewsFromRule();
+        onComplete?.Invoke();
     }
 
     private void ApplyDeployUnitFromTrashEffect(
@@ -881,7 +1159,8 @@ public partial class BattleGameMain
         if (ownerType == PlayerType.Enemy)
         {
             BeginOnlineEffectSyncBatch(ownerType);
-            ApplyDeployUnitFromTrashAuto(
+            StartCoroutine(CoApplyDeployUnitFromTrashAutoWithCap(
+                sourceCard,
                 trashRule,
                 trashOwner,
                 recipient,
@@ -889,10 +1168,13 @@ public partial class BattleGameMain
                 pickCount,
                 effect.deployUnitTriggerOnPlayed,
                 payCost,
-                ownerType);
-            FlushOnlineEffectSyncBatch();
-            SyncAllResourceViewsFromRule();
-            InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
+                ownerType,
+                () =>
+                {
+                    FlushOnlineEffectSyncBatch();
+                    SyncAllResourceViewsFromRule();
+                    InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
+                }));
             return;
         }
 
@@ -902,7 +1184,8 @@ public partial class BattleGameMain
             if (!effect.optionalPlayerConfirm && candidates.Count == 1 && pickCount == 1)
             {
                 BeginOnlineEffectSyncBatch(ownerType);
-                TryDeployUnitFromTrashIndex(
+                StartCoroutine(CoTryDeployUnitFromTrashIndexWithCap(
+                    sourceCard,
                     trashRule,
                     trashOwner,
                     recipient,
@@ -910,10 +1193,13 @@ public partial class BattleGameMain
                     candidates[0].Data,
                     effect.deployUnitTriggerOnPlayed,
                     payCost,
-                    ownerType);
-                FlushOnlineEffectSyncBatch();
-                SyncAllResourceViewsFromRule();
-                InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
+                    ownerType,
+                    _ =>
+                    {
+                        FlushOnlineEffectSyncBatch();
+                        SyncAllResourceViewsFromRule();
+                        InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
+                    }));
                 return;
             }
 
@@ -1107,19 +1393,28 @@ public partial class BattleGameMain
                     }
 
                     resolved = true;
-                    BeginOnlineEffectSyncBatch(ownerType);
-                    DeployUnitToBattleZone(
-                        pickedRef,
-                        recipient,
-                        ResolveDeployRecipientRule(recipient),
-                        effect.deployUnitTriggerOnPlayed,
-                        fromHand: true);
-                    FlushOnlineEffectSyncBatch();
-                    SyncAllResourceViewsFromRule();
                     Destroy(root);
                     activeOnActionPopupRoot = null;
                     isOnActionPopupOpen = false;
-                    onComplete?.Invoke();
+
+                    EnsureBattleZoneDeploySlotThen(
+                        recipient,
+                        pickedRef,
+                        () =>
+                        {
+                            BeginOnlineEffectSyncBatch(ownerType);
+                            DeployUnitToBattleZone(
+                                pickedRef,
+                                recipient,
+                                ResolveDeployRecipientRule(recipient),
+                                effect.deployUnitTriggerOnPlayed,
+                                fromHand: true,
+                                bypassBattleZoneCap: true);
+                            FlushOnlineEffectSyncBatch();
+                            SyncAllResourceViewsFromRule();
+                            onComplete?.Invoke();
+                        },
+                        () => onComplete?.Invoke());
                 });
             }
         }
@@ -1200,8 +1495,10 @@ public partial class BattleGameMain
             if (available.Count == 1 && (effect == null || !effect.optionalPlayerConfirm))
             {
                 TrashExileCandidate only = available[0];
-                BeginOnlineEffectSyncBatch(ownerType);
-                TryDeployUnitFromTrashIndex(
+                bool autoDone = false;
+                bool autoOk = false;
+                yield return CoTryDeployUnitFromTrashIndexWithCap(
+                    sourceCard,
                     trashRule,
                     trashOwner,
                     recipient,
@@ -1209,15 +1506,29 @@ public partial class BattleGameMain
                     only.Data,
                     effect.deployUnitTriggerOnPlayed,
                     effect.deployUnitPayCost,
-                    ownerType);
-                FlushOnlineEffectSyncBatch();
+                    ownerType,
+                    ok =>
+                    {
+                        autoOk = ok;
+                        autoDone = true;
+                    });
+                yield return new WaitUntil(() => autoDone);
+                if (autoOk)
+                {
+                    usedTrashIndices.Add(only.TrashIndex);
+                    remaining--;
+                }
+                else
+                {
+                    remaining = 0;
+                }
+
                 SyncAllResourceViewsFromRule();
-                usedTrashIndices.Add(only.TrashIndex);
-                remaining--;
                 continue;
             }
 
             bool pickedThisRound = false;
+            bool trashCapResolved = false;
             DestroyActiveOnActionPopupIfAny();
             GameObject root = new GameObject(
                 "DeployUnitFromTrashSelect",
@@ -1284,6 +1595,7 @@ public partial class BattleGameMain
                     }
 
                     int trashIndex = candidate.TrashIndex;
+                    CardData dataRef = data;
                     pickBtn.onClick.AddListener(() =>
                     {
                         if (pickedThisRound)
@@ -1292,23 +1604,36 @@ public partial class BattleGameMain
                         }
 
                         pickedThisRound = true;
-                        BeginOnlineEffectSyncBatch(ownerType);
-                        TryDeployUnitFromTrashIndex(
+                        Destroy(root);
+                        activeOnActionPopupRoot = null;
+                        isOnActionPopupOpen = false;
+
+                        StartCoroutine(CoTryDeployUnitFromTrashIndexWithCap(
+                            sourceCard,
                             trashRule,
                             trashOwner,
                             recipient,
                             trashIndex,
-                            data,
+                            dataRef,
                             effect.deployUnitTriggerOnPlayed,
                             effect.deployUnitPayCost,
-                            ownerType);
-                        FlushOnlineEffectSyncBatch();
-                        SyncAllResourceViewsFromRule();
-                        usedTrashIndices.Add(trashIndex);
-                        remaining--;
-                        Destroy(root);
-                        activeOnActionPopupRoot = null;
-                        isOnActionPopupOpen = false;
+                            ownerType,
+                            ok =>
+                            {
+                                if (ok)
+                                {
+                                    usedTrashIndices.Add(trashIndex);
+                                    remaining--;
+                                }
+                                else
+                                {
+                                    // 満杯置換 Cancel → この配備は行わない
+                                    remaining = 0;
+                                }
+
+                                SyncAllResourceViewsFromRule();
+                                trashCapResolved = true;
+                            }));
                     });
                 }
             }
@@ -1329,12 +1654,14 @@ public partial class BattleGameMain
 
                 pickedThisRound = true;
                 remaining = 0;
+                trashCapResolved = true;
                 Destroy(root);
                 activeOnActionPopupRoot = null;
                 isOnActionPopupOpen = false;
             });
 
             yield return new WaitUntil(() => pickedThisRound || root == null);
+            yield return new WaitUntil(() => trashCapResolved || root == null);
         }
 
         onComplete?.Invoke();

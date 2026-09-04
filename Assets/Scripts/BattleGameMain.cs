@@ -1895,29 +1895,45 @@ public partial class BattleGameMain : MonoBehaviour
             handActionY,
             exToUse =>
             {
-                if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
+                if (cardController.Data.type == Type.Base)
                 {
-                    Debug.Log("リソースポイントが足りません！");
+                    if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
+                    {
+                        Debug.Log("リソースポイントが足りません！");
+                        return;
+                    }
+
+                    BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
+                    SyncResourceViewsFromRule(ownerSide);
+                    Destroy(FilterPanel);
                     return;
                 }
 
-                if (cardController.Data.type == Type.Base)
-                {
-                    BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
-                }
-                else if (cardController.Data.IsUnitLike())
-                {
-                    SendCardToField(cardController, ownerType, ownerRule);
-                }
-                else
+                if (!cardController.Data.IsUnitLike())
                 {
                     Debug.LogWarning(
                         $"[HandDeploy] フィールド配備対象外のカードです: "
                         + $"{cardController.Data.cardName} type:{cardController.Data.type}");
+                    return;
                 }
 
-                SyncResourceViewsFromRule(ownerSide);
-                Destroy(FilterPanel);
+                // 満杯時は支払前に置換／Cancel（Cancel ならコスト未消費）
+                DeployToBattleZoneWithCapGate(
+                    ownerType,
+                    cardController,
+                    () =>
+                    {
+                        if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
+                        {
+                            Debug.Log("リソースポイントが足りません！");
+                            return;
+                        }
+
+                        SendCardToField(cardController, ownerType, ownerRule);
+                        SyncResourceViewsFromRule(ownerSide);
+                        Destroy(FilterPanel);
+                    },
+                    () => Destroy(FilterPanel));
             },
             () => Destroy(FilterPanel));
         return;
@@ -4142,6 +4158,7 @@ public partial class BattleGameMain : MonoBehaviour
             || _pendingOnlineOpponentUnitPickRequestId > 0
             || _unitPilotEffectOrderUiOpen
             || _effectChoiceUiOpen
+            || _battleZoneCapUiOpen
             || _activeLookDeckPopupRoot != null
             || _activeHandDiscardRevealRoot != null
             || _activeOnActionCommandRevealRoot != null;
@@ -4917,6 +4934,17 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.LogWarning(
                 $"[SendCardToField] コマンドはフィールド配備しません: "
                 + $"{cardController.Data.cardName}(id:{cardController.Data.id})");
+            return;
+        }
+
+        if (cardController.Data != null
+            && cardController.Data.IsUnitLike()
+            && !_applyingRemoteBattleAction
+            && IsBattleZoneAtCapacity(ownerType))
+        {
+            Debug.LogWarning(
+                $"[SendCardToField] バトルゾーン満杯のため配備拒否: "
+                + $"{cardController.Data.cardName} → {ownerType}");
             return;
         }
 

@@ -132,15 +132,22 @@ public partial class BattleGameMain
             -10f,
             exToUse =>
             {
-                if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
-                {
-                    Debug.Log("リソースポイントが足りません！");
-                    return;
-                }
+                DeployToBattleZoneWithCapGate(
+                    ownerType,
+                    cardController,
+                    () =>
+                    {
+                        if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
+                        {
+                            Debug.Log("リソースポイントが足りません！");
+                            return;
+                        }
 
-                SendCardToField(cardController, ownerType, ownerRule);
-                SyncResourceViewsFromRule(ownerSide);
-                Destroy(filterPanel);
+                        SendCardToField(cardController, ownerType, ownerRule);
+                        SyncResourceViewsFromRule(ownerSide);
+                        Destroy(filterPanel);
+                    },
+                    () => Destroy(filterPanel));
             },
             () => Destroy(filterPanel));
     }
@@ -234,6 +241,18 @@ public partial class BattleGameMain
         yield return new WaitUntil(
             () => _pendingSendToTrashPipelines <= pipelineBefore
                   && (sacrifice == null || !unitsPendingSendToTrash.Contains(sacrifice)));
+
+        bool slotReady = false;
+        bool cancelled = false;
+        yield return CoEnsureBattleZoneDeploySlot(
+            ownerType,
+            deployingCard,
+            () => slotReady = true,
+            () => cancelled = true);
+        if (cancelled || !slotReady)
+        {
+            yield break;
+        }
 
         if (!TryPayHandDeployCost(
                 ownerSide,
