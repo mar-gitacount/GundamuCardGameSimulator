@@ -1670,10 +1670,15 @@ public partial class BattleGameMain
             yield break;
         }
 
-        if (currentPlayerType != PlayerType.Enemy
-            && !(action.action == OnlineBattleActionPayload.DeployUnit
-                 && action.deployUnitExtras != null
-                 && action.deployUnitExtras.allowOffTurnDeploy))
+        // DeployUnit の off-turn 配備、および出資者 DeployExBase（cardId=0）の
+        // 【アクション】発動は、相手ターン中でも受信する。
+        bool allowOffTurnPlayCard =
+            (action.action == OnlineBattleActionPayload.DeployUnit
+             && action.deployUnitExtras != null
+             && action.deployUnitExtras.allowOffTurnDeploy)
+            || (action.action == OnlineBattleActionPayload.DeployBase && action.cardId <= 0);
+
+        if (currentPlayerType != PlayerType.Enemy && !allowOffTurnPlayCard)
         {
             Debug.Log("[OnlineBattle] Ignored remote PlayCard because it is not opponent turn locally.");
             SendOpponentCardConfirmComplete(action.requestId);
