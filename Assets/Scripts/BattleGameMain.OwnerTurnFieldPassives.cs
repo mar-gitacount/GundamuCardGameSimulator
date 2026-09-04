@@ -604,7 +604,7 @@ public partial class BattleGameMain
                 if (timed == null
                     || (!IsOwnerTurnFieldPassiveTimedBlock(timed)
                         && !IsOnPilotMountedAllyFieldStatBlock(timed)
-                        && !IsZaftDuringPairAllyApBuffBlock(timed)))
+                        && !(IsProvidenceZaftHost(unit) && IsZaftDuringPairAllyApBuffBlock(timed))))
                 {
                     continue;
                 }
@@ -669,10 +669,10 @@ public partial class BattleGameMain
 
             AssignBattleInstanceIdIfNeeded(unit);
 
-            if (unit.Data.IsUnitLike()
+            // プロヴィデンス専用 ZAFT 経路（他カードの味方全体 AP バフには触れない）
+            if (IsProvidenceZaftHost(unit)
                 && unit.MountedPilot?.Data != null
-                && unit.MountedPilot.Data.HasFeatureId(ZaftFeatureId)
-                && TryResolveZaftDuringPairAllyApBuffFromHost(unit, side, out _, out _, out _))
+                && unit.MountedPilot.Data.HasFeatureId(ZaftFeatureId))
             {
                 unit.MountedPilot.Data.EnsureFeaturesResolved();
                 ApplyZaftDuringPairAllyApBuff(unit, unit.MountedPilot, side);
@@ -686,7 +686,8 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                if (IsZaftDuringPairAllyApBuffBlock(timed))
+                // プロヴィデンスの ZAFT バフは上の専用経路のみ。通常パッシブ再付与では二重適用しない。
+                if (IsProvidenceZaftHost(unit) && IsZaftDuringPairAllyApBuffBlock(timed))
                 {
                     continue;
                 }
@@ -801,7 +802,7 @@ public partial class BattleGameMain
     }
 
     /// <summary>
-    /// 自ターン中、ホストに (ZAFT) パイロットが載っているとき味方 (ZAFT) 全体に AP バフ。
+    /// 自ターン中、プロヴィデンスに (ZAFT) パイロットが載っているとき味方 (ZAFT) 全体に AP バフ。
     /// </summary>
     private void ApplyZaftDuringPairAllyApBuff(
         CardController hostUnit,
@@ -809,6 +810,12 @@ public partial class BattleGameMain
         PlayerType ownerType)
     {
         if (hostUnit?.Data == null || pilot?.Data == null || !hostUnit.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        // ST01-001 等へは絶対に入らない
+        if (!IsProvidenceZaftHost(hostUnit))
         {
             return;
         }
@@ -897,7 +904,22 @@ public partial class BattleGameMain
             + $"(pilot:{pilot.Data.cardName})");
     }
 
-    /// <summary>ホストの OnPilotMounted 味方 Buff ブロックから AP 量・対象 Feature を得る。</summary>
+    /// <summary>プロヴィデンス（GD03-033）専用ホストか。</summary>
+    private static bool IsProvidenceZaftHost(CardController hostUnit)
+    {
+        if (hostUnit?.Data == null)
+        {
+            return false;
+        }
+
+        return hostUnit.Data.id == ProvidenceCardId
+            || string.Equals(
+                hostUnit.Data.gcgOfficialId,
+                "GD03-033",
+                System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>プロヴィデンス専用: OnPilotMounted 味方 ZAFT AP バフの量を得る。</summary>
     private bool TryResolveZaftDuringPairAllyApBuffFromHost(
         CardController hostUnit,
         PlayerType ownerType,
@@ -909,7 +931,13 @@ public partial class BattleGameMain
         apBonus = 0;
         targetFeatureId = ZaftFeatureId;
 
-        if (hostUnit?.Data?.timedEffects != null)
+        // プロヴィデンス以外は ZAFT 専用経路に入れない（ST01-001 等へ影響させない）
+        if (!IsProvidenceZaftHost(hostUnit))
+        {
+            return false;
+        }
+
+        if (hostUnit.Data.timedEffects != null)
         {
             for (int bi = 0; bi < hostUnit.Data.timedEffects.Count; bi++)
             {
@@ -926,7 +954,8 @@ public partial class BattleGameMain
                     if (effect == null
                         || effect.type != EffectType.Buff
                         || effect.target != TargetType.AllyAllUnits
-                        || effect.statTarget != EffectStatTarget.AP)
+                        || effect.statTarget != EffectStatTarget.AP
+                        || effect.targetFeatureId != ZaftFeatureId)
                     {
                         continue;
                     }
@@ -944,26 +973,16 @@ public partial class BattleGameMain
 
                     blockIndex = bi;
                     apBonus = magnitude;
-                    if (effect.targetFeatureId > 0)
-                    {
-                        targetFeatureId = effect.targetFeatureId;
-                    }
-
+                    targetFeatureId = effect.targetFeatureId;
                     return true;
                 }
             }
         }
 
-        if (hostUnit.Data.id == ProvidenceCardId
-            || string.Equals(hostUnit.Data.gcgOfficialId, "GD03-033", System.StringComparison.OrdinalIgnoreCase))
-        {
-            blockIndex = 0;
-            apBonus = 2;
-            targetFeatureId = ZaftFeatureId;
-            return true;
-        }
-
-        return false;
+        blockIndex = 0;
+        apBonus = 2;
+        targetFeatureId = ZaftFeatureId;
+        return true;
     }
 
     private static bool IsOnPilotMountedTiming(TimedEffectData timed)
@@ -972,6 +991,10 @@ public partial class BattleGameMain
             && (timed.timing == EffectTiming.OnPilotMounted || (int)timed.timing == 15);
     }
 
+    /// <summary>
+    /// ZAFT 限定の During Pair 味方 AP バフ（Providence 等）。
+    /// Feature 制限のない ST01-001 ガンダム等は通常の自ターン盤面パッシブへ回す。
+    /// </summary>
     private static bool IsZaftDuringPairAllyApBuffBlock(TimedEffectData timed)
     {
         if (!IsOnPilotMountedTiming(timed) || !timed.HasResolvedEffects())
@@ -986,7 +1009,8 @@ public partial class BattleGameMain
             if (effect != null
                 && effect.type == EffectType.Buff
                 && effect.target == TargetType.AllyAllUnits
-                && effect.statTarget == EffectStatTarget.AP)
+                && effect.statTarget == EffectStatTarget.AP
+                && effect.targetFeatureId == ZaftFeatureId)
             {
                 return true;
             }
@@ -1068,7 +1092,10 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (effect.type.RequiresManualUnitSelection() || EffectRequiresManualUnitSelection(effect))
+            // AllyAllUnits 等の自動全体対象は通す。
+            // effect.type.RequiresManualUnitSelection() は Buff/Debuff が常に true のため使わない
+            // （使うと ST01-001 ガンダムの味方全体 AP+1 が永久にスキップされる）。
+            if (EffectRequiresManualUnitSelection(effect))
             {
                 continue;
             }

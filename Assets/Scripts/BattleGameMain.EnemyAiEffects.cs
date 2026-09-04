@@ -1370,7 +1370,7 @@ public partial class BattleGameMain
 
         if (onActionCost > 0)
         {
-            AfterLocalResourceConsumed(ruleSide, exToUse);
+            AfterLocalResourceConsumed(ruleSide, exToUse, command.Data);
         }
 
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);

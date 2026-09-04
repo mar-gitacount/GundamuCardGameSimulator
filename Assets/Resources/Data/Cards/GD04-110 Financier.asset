@@ -34,7 +34,23 @@ MonoBehaviour:
   type: 2
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployExBase1_Self
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 8
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployExBase1_Self
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
   pilotIds: []
   link: []

@@ -638,7 +638,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        AfterLocalResourceConsumed(ruleSide, exToUse);
+        AfterLocalResourceConsumed(ruleSide, exToUse, source.Data);
         return true;
     }
 

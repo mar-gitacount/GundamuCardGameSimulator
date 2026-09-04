@@ -207,7 +207,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        AfterLocalResourceConsumed(side, exToUse);
+        AfterLocalResourceConsumed(side, exToUse, card.Data);
         return true;
     }
 
@@ -253,7 +253,7 @@ public partial class BattleGameMain
                 continue;
             }
 
-            AfterLocalResourceConsumed(side, ex);
+            AfterLocalResourceConsumed(side, ex, data);
             return true;
         }
 

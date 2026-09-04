@@ -299,7 +299,13 @@ public enum EffectType
     /// 発動元ユニットへ AP+1 とそのカードのキーワードをターン終了まで付与する（∀ Gundam 等）。
     /// target=Self。oncePerTurn と組み合わせる。
     /// </summary>
-    CopyKeywordsFromTrashUnit
+    CopyKeywordsFromTrashUnit,
+    /// <summary>
+    /// 自分のシールドエリアに EXベースを1つ配備する（出資者等）。
+    /// value≤0 なら <see cref="ExBaseData.startingPoints"/>（既定3）。
+    /// 既に EXベースがある（exBase&gt;0）場合は何もしない。target=SelfPlayer。
+    /// </summary>
+    DeployExBase
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -795,7 +801,12 @@ public enum EffectActivationCheckKind
     /// <summary>
     /// 直前チェーンで選択したユニットが features / featureIds のいずれか（OR）を持つ。
     /// </summary>
-    PriorChainPickedHasFeature
+    PriorChainPickedHasFeature,
+    /// <summary>
+    /// オーナーの EX リソース枚数を compareOp + compareValue と比較。
+    /// 例: EX が 0 → Equal + compareValue 0（スレッタ等）。
+    /// </summary>
+    OwnerExResource
 }
 
 public enum EffectTurnCheckKind

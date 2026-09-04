@@ -4075,6 +4075,47 @@ public partial class BattleGameMain : MonoBehaviour
         return ownerType;
     }
 
+    /// <summary>
+    /// <see cref="EffectType.DeployExBase"/>：自分のシールドエリアに EXベースを1つ配備する。
+    /// 本プロジェクトでは EXベースをポイント管理しているため、value≤0 なら
+    /// <see cref="ExBaseData.startingPoints"/> 分を加算して再現する。
+    /// </summary>
+    private void ApplyDeployExBaseEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null || gundamRule == null)
+        {
+            return;
+        }
+
+        PlayerType targetPlayer = ResolveAddExResourceTargetPlayer(ownerType, effect.target);
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(targetPlayer);
+        Gundam2024RuleScript.PlayerState state = GetRuleState(side);
+        if (state == null)
+        {
+            return;
+        }
+
+        int points = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+        if (points <= 0)
+        {
+            points = exBaseData != null && exBaseData.startingPoints > 0
+                ? exBaseData.startingPoints
+                : 3;
+        }
+
+        int before = state.exBase;
+        gundamRule.SetExBasePoints(side, before + points);
+        SyncBaseZoneHeaderDisplay(side);
+        NotifyLocalDeployExBaseSynced(targetPlayer);
+
+        Debug.Log(
+            $"[Effect] DeployExBase +{points} exBase:{before}->{before + points} to:{targetPlayer} "
+            + $"by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+    }
+
     /// <summary>SendCardToTrash の非同期パイプライン（OnDestroyed / Look UI 等）が未完了の件数。</summary>
     private int _pendingSendToTrashPipelines;
 
@@ -7221,7 +7262,8 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.type != EffectType.MarkObservedUnit
             && effect.type != EffectType.EffectBattle
             && effect.type != EffectType.PreventAllyDestroyByEnemyEffect
-            && effect.type != EffectType.CopyKeywordsFromTrashUnit)
+            && effect.type != EffectType.CopyKeywordsFromTrashUnit
+            && effect.type != EffectType.DeployExBase)
         {
             return;
         }
@@ -7251,6 +7293,18 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect.type == EffectType.AddExResource)
         {
             ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.DeployExBase)
+        {
+            ApplyDeployExBaseEffect(sourceCard, ownerType, effect);
             if (!nestedBatch)
             {
                 FlushOnlineEffectSyncBatch();
@@ -7448,6 +7502,10 @@ public partial class BattleGameMain : MonoBehaviour
         else if (effect.type == EffectType.AddExResource)
         {
             ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+        }
+        else if (effect.type == EffectType.DeployExBase)
+        {
+            ApplyDeployExBaseEffect(sourceCard, ownerType, effect);
         }
         else if (effect.type == EffectType.RestResource)
         {
@@ -10360,7 +10418,8 @@ public partial class BattleGameMain : MonoBehaviour
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
-            ownerTotalLevel: ownerState.TotalLevel);
+            ownerTotalLevel: ownerState.TotalLevel,
+            ownerExResource: ownerState.exResource);
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -12794,7 +12853,8 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.type != EffectType.DeploySelfToShield
             && effect.type != EffectType.MarkObservedUnit
             && effect.type != EffectType.PreventAllyDestroyByEnemyEffect
-            && effect.type != EffectType.CopyKeywordsFromTrashUnit)
+            && effect.type != EffectType.CopyKeywordsFromTrashUnit
+            && effect.type != EffectType.DeployExBase)
         {
             return;
         }
@@ -13074,6 +13134,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.AddExResource:
                 ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.DeployExBase:
+                ApplyDeployExBaseEffect(sourceCard, ownerType, effect);
                 break;
 
             case EffectType.RestResource:

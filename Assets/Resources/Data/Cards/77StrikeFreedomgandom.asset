@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 77StrikeFreedomgandom
   m_EditorClassIdentifier: 
   id: 77
-  gcgOfficialId: GD01-065
+  gcgOfficialId: GD05-065
   cardName: StrikeFreedomgandom
   cost: 6
   level: 8
@@ -85,5 +85,5 @@ MonoBehaviour:
   cannotMountPilot: 0
   gcgId:
     setKind: 2
-    setNumber: 1
+    setNumber: 5
     cardNumber: 65

@@ -114,6 +114,82 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 24
+    activationConditions:
+    - checkKind: 17
+      turnCheck: -1
+      boardSide: -1
+      feature: {fileID: 0}
+      features: []
+      featureIds: 
+      minimumCount: 1
+      compareOp: 3
+      compareValue: 0
+      unitStat: 0
+      unitCountCompareOp: 3
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - checkKind: 7
+      turnCheck: -1
+      boardSide: -1
+      feature: {fileID: 11400000, guid: a23c0d1e2f3a4b5c6d7e8f9a0b1c2d3e, type: 2}
+      features: []
+      featureIds: 
+      minimumCount: 1
+      compareOp: 3
+      compareValue: 0
+      unitStat: 0
+      unitCountCompareOp: 3
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - checkKind: 8
+      turnCheck: -1
+      boardSide: -1
+      feature: {fileID: 0}
+      features: []
+      featureIds: 
+      minimumCount: 1
+      compareOp: 3
+      compareValue: 0
+      unitStat: 0
+      unitCountCompareOp: 3
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      observedCardType: 2
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - checkKind: 45
+      turnCheck: -1
+      boardSide: -1
+      feature: {fileID: 0}
+      features: []
+      featureIds: 
+      minimumCount: 1
+      compareOp: 0
+      compareValue: 0
+      unitStat: 0
+      unitCountCompareOp: 3
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: AddExResource1_Self
+    effects: []
+    activationCost: 0
+    oncePerTurn: 1
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: a23c0d1e2f3a4b5c6d7e8f9a0b1c2d3e, type: 2}
   pilotIds:
