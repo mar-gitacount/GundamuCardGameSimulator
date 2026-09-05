@@ -164,6 +164,7 @@ public partial class BattleGameMain
     {
         isMatchFinished = false;
         isEndTurnFlowRunning = false;
+        isEndPhaseHandLimitDiscardInProgress = false;
         isOnActionPopupOpen = false;
         isShieldBreakFlowOpen = false;
         shieldBreakQueueRunning = false;

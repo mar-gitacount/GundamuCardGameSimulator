@@ -488,8 +488,10 @@ public partial class BattleGameMain
     }
 
     /// <summary>
-    /// ターン終了アクションステップが両者 ActionEnd したら、別の EndTurn を待たず次ターンを始める。
-    /// EndTurn パケット欠落で相手だけ止まるのを防ぐ。
+    /// ターン終了アクションステップの両者 ActionEnd 後。
+    /// 以前はここで次ターンを開始していたが、相手のエンドフェイズ手札上限破棄より先に
+    /// ドローフェイズが進んでしまうため、EndTurn（手札破棄完了後）を待つ。
+    /// EndTurn 欠落時は送信側の再送（CoRetryPendingOnlineEndTurn）に任せる。
     /// </summary>
     private void TryAdvanceTurnAfterOnlineTurnEndActionStep()
     {
@@ -503,14 +505,14 @@ public partial class BattleGameMain
             return;
         }
 
-        // ターンを終えた側（ローカルが Player）で次ターン開始すると End 不能になる。
         if (currentPlayerType != PlayerType.Enemy)
         {
             return;
         }
 
-        Debug.Log("[OnlineBattle] Turn-end action step both ended — start local turn without waiting for EndTurn packet.");
-        StartCoroutine(ApplyRemoteOpponentEndedTurnCoroutine());
+        Debug.Log(
+            "[OnlineBattle] Turn-end action step both ended — wait for EndTurn "
+            + "(after opponent hand-limit discard), do not start Draw Phase yet.");
     }
     private void BeginOnlineOnActionOpponentWait(
         int requestId,

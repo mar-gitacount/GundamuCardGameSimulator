@@ -2183,6 +2183,13 @@ public partial class BattleGameMain : MonoBehaviour
         switch (nextPhase)
         {
             case BattlePhase.StartTurn:
+                // 手札上限破棄中はドローフェイズ等を開始しない
+                if (isEndPhaseHandLimitDiscardInProgress)
+                {
+                    Debug.LogWarning("[Battle] StartTurn deferred — end-phase hand limit discard still in progress.");
+                    return;
+                }
+
                 if (!isTurnPhaseSequenceRunning && !isEnemyMainPhaseCoroutineRunning)
                 {
                     StartCoroutine(ExecuteTurnPhaseSequenceCoroutine());
@@ -2339,7 +2346,16 @@ public partial class BattleGameMain : MonoBehaviour
             yield return ShowPhasePauseCoroutine("End Phase");
         }
 
-        ExcueteEndTurn();
+        // 手札上限破棄・ターン切替・次ターン開始まで完了してからこのコルーチンを終える
+        if (isEndTurnFlowRunning || isEnemyMainPhaseCoroutineRunning || IsBattleFlowBlockingTurnProgress())
+        {
+            Debug.LogWarning(
+                $"[OnlineBattle] EndTurn skipped after End Phase pause. endTurnRunning:{isEndTurnFlowRunning} "
+                + $"blocking:{IsBattleFlowBlockingTurnProgress()}");
+            yield break;
+        }
+
+        yield return ExecuteEndTurnCoroutine();
     }
 
     private IEnumerator ShowPhasePauseCoroutine(string phaseLabel)
@@ -3764,6 +3780,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return isOnActionPopupOpen
+            || isEndPhaseHandLimitDiscardInProgress
             || _isActionStepCommandResolving
             || _activeResourcePaymentOverlay != null
             || _activeOnActionCommandRevealRoot != null
