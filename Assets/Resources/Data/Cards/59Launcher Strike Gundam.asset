@@ -21,12 +21,12 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/59_Launcher Strike Gundam
-  version: 1
-  sourceType: 1
-  productLine: 1
-  boosterSet: 1
-  starterSet: 0
+  imageAddress: Data/Images/GD01-072_Launcher Strike Gundam
+  version: 4
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 4
   eternalBoosterSet: 0
   sourceTitle: 11
   filterType: 0
@@ -48,6 +48,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 1

@@ -21,11 +21,11 @@ MonoBehaviour:
   hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/77_StrikeFreedomgandom
-  version: 1
+  imageAddress: Data/Images/GD05-002_Strike Freedom Gundam
+  version: 5
   sourceType: 1
   productLine: 1
-  boosterSet: 1
+  boosterSet: 5
   starterSet: 0
   eternalBoosterSet: 0
   sourceTitle: 11
@@ -63,13 +63,9 @@ MonoBehaviour:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
   pilotIds: []
   link:
-  - pilotCardId: 6
-    linkPilotIds: []
-    linkPilotIdIds: 
-    pilotFeatures: []
-    pilotFeatureIds: 
-  - pilotCardId: 78
-    linkPilotIds: []
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: 5aceb3b89345ddb4fa7d941cd0e87cfe, type: 2}
     linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
@@ -82,6 +78,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

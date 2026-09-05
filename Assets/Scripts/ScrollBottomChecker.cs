@@ -50,8 +50,8 @@ public class ScrollBottomChecker : MonoBehaviour
         // db.LoadAllCards();
         CardData testData = db.GetById(0);
 
-        // 以下すべてのカードデータを取得する例
-        allCards = db.GetAllCards();
+        // 以下すべてのカードデータを取得する例（一覧非表示カードは除く）
+        allCards = db.GetCardListCards();
         Debug.Log("全カードデータの数: " + allCards.Count);
         // 例:40枚のカードデータがある場合
         displayCardCount = allCards.Count;
@@ -430,7 +430,7 @@ public class ScrollBottomChecker : MonoBehaviour
         allCards.Clear();
         if (CardDatabase.Instance != null)
         {
-            allCards.AddRange(CardDatabase.Instance.GetAllCards());
+            allCards.AddRange(CardDatabase.Instance.GetCardListCards());
         }
 
         displayCardCount = allCards.Count;

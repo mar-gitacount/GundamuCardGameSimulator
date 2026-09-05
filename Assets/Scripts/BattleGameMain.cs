@@ -17460,6 +17460,14 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 Debug.Log(
                     $"OnMain: 選択可能な対象が足りません (target:{effect.target} need:{selectMin} have:{candidates.Count})。");
+                // 「選んでもよい」は候補0でも後続へ進む（シャイニングフィンガーの先制付与等）
+                if (effect.optionalPlayerConfirm)
+                {
+                    TryExecuteOnMainEffectChain(
+                        side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+                    return;
+                }
+
                 if (!activationCostAlreadyPaid)
                 {
                     // 「選んで REST／破壊する」が発動条件。対象が無ければ以降は解決しない。
