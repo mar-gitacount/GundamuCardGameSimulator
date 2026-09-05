@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 126Master Asia
   m_EditorClassIdentifier: 
   id: 126
-  gcgOfficialId: GD05-033
+  gcgOfficialId: GD05-089
   cardName: Master Asia
   cost: 1
   level: 6
@@ -108,4 +108,4 @@ MonoBehaviour:
   gcgId:
     setKind: 2
     setNumber: 5
-    cardNumber: 33
+    cardNumber: 89

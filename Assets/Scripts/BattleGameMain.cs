@@ -140,6 +140,9 @@ public partial class BattleGameMain : MonoBehaviour
     private bool isEnemyMainPhaseCoroutineRunning;
     private bool blockShieldFlowDuringShieldAttack;
     private Gundam2024RuleScript.PlayerSide blockedShieldFlowSide;
+    /// <summary>シールド攻撃宣言時点で EX／配備ベースがあったか（OnAttack 後も打撃ロジック用に保持）。</summary>
+    private bool _shieldAttackHadExOrBaseAtDeclaration;
+    private bool _shieldAttackHadExOrBaseAtDeclarationValid;
     /// <summary>シールド攻撃→ブロック OnAction 完了まで isShieldAttackResolving / blockShieldFlow を維持する。</summary>
     private bool deferredShieldBlockRedirectWait;
 
@@ -419,6 +422,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         isAttackedSidePanelOpen = false;
         _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
+        ClearShieldAttackDeclarationLayerCache();
     }
 
     private void MarkAttackFlowBlockSelectionResolved()
@@ -4191,11 +4195,27 @@ public partial class BattleGameMain : MonoBehaviour
             || _activeOnActionCommandRevealRoot != null;
     }
 
-    private IEnumerator WaitUntilBlockingChoiceOrTrashUiCleared()
+    private IEnumerator WaitUntilBlockingChoiceOrTrashUiCleared(float timeoutSeconds = -1f)
     {
         // SendCardToTrash が同フレームで同期完了する場合も、Look 開始を1フレ待つ
         yield return null;
-        yield return new WaitUntil(() => !HasBlockingChoiceOrTrashUi());
+        if (timeoutSeconds <= 0f)
+        {
+            yield return new WaitUntil(() => !HasBlockingChoiceOrTrashUi());
+            yield break;
+        }
+
+        float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+        while (HasBlockingChoiceOrTrashUi() && Time.realtimeSinceStartup < deadline)
+        {
+            yield return null;
+        }
+
+        if (HasBlockingChoiceOrTrashUi())
+        {
+            Debug.LogWarning(
+                $"[Battle] Blocking choice/trash UI still open after {timeoutSeconds}s — continuing attack flow.");
+        }
     }
 
     private void BeginOnDestroyedLatencyHold()
@@ -5521,6 +5541,7 @@ public partial class BattleGameMain : MonoBehaviour
         deferredShieldBlockRedirectWait = false;
         isShieldAttackResolving = false;
         blockShieldFlowDuringShieldAttack = false;
+        ClearShieldAttackDeclarationLayerCache();
         Debug.Log("[ShieldAttack] Block redirect flow settled — shield strike will not resume.");
     }
 
@@ -7630,14 +7651,28 @@ public partial class BattleGameMain : MonoBehaviour
                 $"[TryUnitShieldAttackFromUnit] called attacker:{attackerName} skipOnActionPause:{skipOnActionPause} skipOnAttackSelection:{skipOnAttackSelection} skipAttackedSidePanelPause:{skipAttackedSidePanelPause}");
         }
 
-        if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
+        // OnAttack 再開時はパネル残留フラグで黙って return しない（Master Gundam 等が止まる原因）
+        if (!skipOnAttackSelection)
         {
-            return;
-        }
+            if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
+            {
+                if (enableShieldAttackFlowDebugLog)
+                {
+                    Debug.Log("[TryUnitShieldAttackFromUnit] skipped — attacked-side panel open.");
+                }
 
-        if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
-        {
-            return;
+                return;
+            }
+
+            if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
+            {
+                if (enableShieldAttackFlowDebugLog)
+                {
+                    Debug.Log("[TryUnitShieldAttackFromUnit] skipped — action-think pause open.");
+                }
+
+                return;
+            }
         }
 
         if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike())
@@ -7692,13 +7727,31 @@ public partial class BattleGameMain : MonoBehaviour
             ? gundamRule.Player
             : gundamRule.Enemy;
 
-        // OnAction より前: EX ベースまたは配備ベースがあったか（OnAction 後に実シールドが割れるのを防ぐ）。
-        bool hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
-            || HasActiveDeployedBaseForRuleSide(targetSide);
-        if (hadExBaseLayerAtShieldAttackStart)
+        // 宣言時点のベース層を記録。溢れ防止フラグは OnAttack 解決後（打撃フェーズ）で立てる。
+        // （先に立てると Master Gundam の【アタック時】シールドエリアダメージが実シールドまで届かない）
+        bool hadExBaseLayerAtShieldAttackStart;
+        if (!skipOnAttackSelection)
         {
-            blockShieldFlowDuringShieldAttack = true;
-            blockedShieldFlowSide = targetSide;
+            // 新規シールド攻撃宣言: 前回攻撃の残留フラグを掃除
+            isShieldAttackResolving = false;
+            blockShieldFlowDuringShieldAttack = false;
+            deferredShieldBlockRedirectWait = false;
+            blockExchangeCancelledForCurrentAttack = false;
+            shieldStrikeAbortedAfterBlockInterrupt = false;
+
+            hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
+                || HasActiveDeployedBaseForRuleSide(targetSide);
+            _shieldAttackHadExOrBaseAtDeclaration = hadExBaseLayerAtShieldAttackStart;
+            _shieldAttackHadExOrBaseAtDeclarationValid = true;
+        }
+        else if (_shieldAttackHadExOrBaseAtDeclarationValid)
+        {
+            hadExBaseLayerAtShieldAttackStart = _shieldAttackHadExOrBaseAtDeclaration;
+        }
+        else
+        {
+            hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
+                || HasActiveDeployedBaseForRuleSide(targetSide);
         }
 
         CommitUnitAttackDeclaration(attacker, attackerOwner);
@@ -7728,7 +7781,50 @@ public partial class BattleGameMain : MonoBehaviour
                 StartCoroutine(ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine(
                     attacker,
                     skipOnActionPause,
-                    skipAttackedSidePanelPause));
+                    skipAttackedSidePanelPause: true));
+            }
+
+            // Master Gundam: 専用除外→シールド/EX 5ダメ後、現在盤面に対する本体攻撃へ
+            if (TryBeginMasterGundamOnAttackEffect(
+                attacker,
+                attackerOwner,
+                () =>
+                {
+                    pendingOnAttackEffectResolvedAttacker = attacker;
+                    _onAttackPreCombatCompletedAttacker = attacker;
+                    isShieldAttackResolving = false;
+                    isAttackedSidePanelOpen = false;
+                    isActionThinkPauseOpen = false;
+                    deferredShieldBlockRedirectWait = false;
+                    blockExchangeCancelledForCurrentAttack = false;
+                    shieldStrikeAbortedAfterBlockInterrupt = false;
+                    // 効果後の打撃は溢れ防止を立て直す（残 EX/ベースがあるときのみ）
+                    Gundam2024RuleScript.PlayerSide resumeSide = attackerOwner == PlayerType.Player
+                        ? Gundam2024RuleScript.PlayerSide.Enemy
+                        : Gundam2024RuleScript.PlayerSide.Player;
+                    Gundam2024RuleScript.PlayerState resumeDef = resumeSide == Gundam2024RuleScript.PlayerSide.Player
+                        ? gundamRule.Player
+                        : gundamRule.Enemy;
+                    bool layerNow = resumeDef != null
+                        && (resumeDef.exBase > 0 || HasActiveDeployedBaseForRuleSide(resumeSide));
+                    blockShieldFlowDuringShieldAttack = layerNow;
+                    if (layerNow)
+                    {
+                        blockedShieldFlowSide = resumeSide;
+                    }
+
+                    Debug.Log(
+                        "[MasterGundam] Resume shield attack strike "
+                        + $"(layerNow:{layerNow} hadExCache:{_shieldAttackHadExOrBaseAtDeclaration})");
+                    TryUnitShieldAttackFromUnit(
+                        attacker,
+                        skipOnActionPause: true,
+                        skipOnAttackSelection: true,
+                        skipAttackedSidePanelPause: true,
+                        skipOnlineBlockPhase: true);
+                }))
+            {
+                return;
             }
 
             if (TryOpenOnAttackEffectSelectionBeforeCombat(attacker, attackerOwner, null, ProceedShieldAttack))
@@ -7738,6 +7834,15 @@ public partial class BattleGameMain : MonoBehaviour
 
             ProceedShieldAttack();
             return;
+        }
+
+        // 打撃／OnAction フェーズ: 残っているベース層への溢れ防止のみ有効化
+        bool layerRemainsForOverflowGuard = defender.exBase > 0
+            || HasActiveDeployedBaseForRuleSide(targetSide);
+        if (layerRemainsForOverflowGuard)
+        {
+            blockShieldFlowDuringShieldAttack = true;
+            blockedShieldFlowSide = targetSide;
         }
 
         if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !AttackerIgnoresBlockRedirect(attacker))
@@ -8046,6 +8151,7 @@ public partial class BattleGameMain : MonoBehaviour
         TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
+        ClearShieldAttackDeclarationLayerCache();
         ClearEndOfBattleCombatModifiers("unit shield attack");
         DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
 
@@ -8218,11 +8324,18 @@ public partial class BattleGameMain : MonoBehaviour
         bool skipOnActionPause,
         bool skipAttackedSidePanelPause)
     {
-        yield return WaitForShieldBreakFlowCompleteCoroutine();
-        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+        Debug.Log(
+            "[ShieldAttack] Resume after OnAttack pre-combat "
+            + $"attacker:{(attacker != null && attacker.Data != null ? attacker.Data.cardName : "null")}");
+
+        // OnAttack でシールド破壊が走った場合は完了を待つ。滞留時はタイムアウトで攻撃を続行する。
+        yield return WaitForShieldBreakFlowCompleteCoroutine(45f);
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
 
         if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null || !attacker.Data.IsUnitLike())
         {
+            ClearShieldAttackDeclarationLayerCache();
+            Debug.LogWarning("[ShieldAttack] Resume aborted — attacker invalid after OnAttack.");
             yield break;
         }
 
@@ -8240,11 +8353,20 @@ public partial class BattleGameMain : MonoBehaviour
             blockShieldFlowDuringShieldAttack = false;
         }
 
+        // 再開時はパネル／resolving 残留で止めない。本体攻撃（ブロック→アクション→打撃）へ進める。
+        isShieldAttackResolving = false;
+        isAttackedSidePanelOpen = false;
         TryUnitShieldAttackFromUnit(
             attacker,
             skipOnActionPause,
             skipOnAttackSelection: true,
-            skipAttackedSidePanelPause);
+            skipAttackedSidePanelPause: true);
+    }
+
+    private void ClearShieldAttackDeclarationLayerCache()
+    {
+        _shieldAttackHadExOrBaseAtDeclaration = false;
+        _shieldAttackHadExOrBaseAtDeclarationValid = false;
     }
 
     /// <summary>
@@ -8370,7 +8492,13 @@ public partial class BattleGameMain : MonoBehaviour
         attacker.SetAttackFlg(AttackFlg.False);
         SetUnitRestAndTriggerEffects(attacker, attackerOwner);
         SyncOnlineRestFromAttackAuthority(attacker);
-        ClearOnAttackPreCombatResolvedState();
+        // OnAttack プレコンバット中は pending を残す（効果ダメージのシールド破壊許可に使う）
+        if (_pendingOnAttackPreCombatResolvedAttacker == null
+            || !IsSameBattleUnit(_pendingOnAttackPreCombatResolvedAttacker, attacker))
+        {
+            ClearOnAttackPreCombatResolvedState();
+        }
+
         Debug.Log($"[AttackDeclare] {attacker.Data.cardName} attack declared — REST + attack right consumed.");
     }
 
@@ -8543,15 +8671,27 @@ public partial class BattleGameMain : MonoBehaviour
         if (!resumeAfterPreCombatOnAttack && !HasOnAttackPreCombatEffectsBeenApplied(attacker))
         {
             ResetOnAttackTrashReturnSession();
+
+            void ContinueAfterOnAttack()
+            {
+                ContinueUnitAttackAfterOnAttackEffects(
+                    attacker,
+                    attackerOwner,
+                    defender,
+                    skipOnActionPause);
+            }
+
+            // Master Gundam: 専用パス後にユニット戦へ
+            if (TryBeginMasterGundamOnAttackEffect(attacker, attackerOwner, ContinueAfterOnAttack))
+            {
+                return;
+            }
+
             if (TryOpenOnAttackEffectSelectionBeforeCombat(
                 attacker,
                 attackerOwner,
                 defender,
-                () => ContinueUnitAttackAfterOnAttackEffects(
-                    attacker,
-                    attackerOwner,
-                    defender,
-                    skipOnActionPause)))
+                ContinueAfterOnAttack))
             {
                 return;
             }

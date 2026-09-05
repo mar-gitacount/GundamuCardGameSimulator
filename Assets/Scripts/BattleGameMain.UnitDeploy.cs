@@ -9,6 +9,8 @@ using UnityEngine.UI;
 public partial class BattleGameMain
 {
     private CardController _pendingOnAttackPreCombatResolvedAttacker;
+    /// <summary>OnAttack のプレイヤー領域ダメージ中はシールド攻撃溢れ防止を無視する。</summary>
+    private bool _allowOnAttackEffectShieldAreaDamage;
 
     /// <summary>
     /// OnAttack の DiscardFromHand が Skip／枚数不足のとき、同攻撃内の ReturnUnitToDeckBottom を抑止する。
@@ -1777,6 +1779,12 @@ public partial class BattleGameMain
             return blocks;
         }
 
+        // Master Gundam 本体の timedEffects だけ専用パスへ（搭乗パイロットは収集する）
+        if (ShouldSkipMasterGundamInGenericOnAttack(source))
+        {
+            return blocks;
+        }
+
         EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
         for (int i = 0; i < source.Data.timedEffects.Count; i++)
         {
@@ -1892,6 +1900,8 @@ public partial class BattleGameMain
             EndEffectChainObservationScope();
             MarkOnAttackPreCombatEffectsApplied(attacker);
             _onAttackPreCombatCompletedAttacker = attacker;
+            // 打撃／OnAction 中の溢れ防止判定に影響しないよう、プレコンバット終了時にクリア
+            ClearOnAttackPreCombatResolvedState();
             onResolved?.Invoke();
         }
 
@@ -2092,7 +2102,8 @@ public partial class BattleGameMain
             return;
         }
 
-        if (!IsOnAttackNonCombatEffect(effect))
+        if (!IsOnAttackNonCombatEffect(effect)
+            && !ShouldAllowMasterGundamPairEnemyUnitOnAttackEffect(effect))
         {
             TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
             return;
@@ -2205,6 +2216,30 @@ public partial class BattleGameMain
             return;
         }
 
+        // プレイヤー領域ダメージ（Master Gundam 等）はシールド破壊 UI 完了後にチェーン続行する。
+        if (effect.type == EffectType.Damage
+            && (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer))
+        {
+            _allowOnAttackEffectShieldAreaDamage = true;
+            try
+            {
+                ApplyEffect(sourceCard, ownerType, effect);
+            }
+            finally
+            {
+                _allowOnAttackEffectShieldAreaDamage = false;
+            }
+
+            StartCoroutine(CoContinueOnAttackPreCombatAfterPlayerAreaDamage(
+                () => TryExecuteOnAttackPreCombatEffectChain(
+                    sourceCard,
+                    ownerType,
+                    effects,
+                    index + 1,
+                    onDone)));
+            return;
+        }
+
         if (EffectRequiresManualHandSelection(effect))
         {
             PlayerType handOwner = ResolveHandDiscardOwner(ownerType, effect);
@@ -2260,6 +2295,17 @@ public partial class BattleGameMain
             ownerType,
             effect,
             () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+    }
+
+    /// <summary>
+    /// OnAttack のプレイヤー領域ダメージ後、シールド破壊／バースト UI が終わってからチェーンを進める。
+    /// </summary>
+    private IEnumerator CoContinueOnAttackPreCombatAfterPlayerAreaDamage(Action onContinue)
+    {
+        yield return null;
+        yield return WaitForShieldBreakFlowCompleteCoroutine(45f);
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        onContinue?.Invoke();
     }
 
     private void ClearOnAttackPreCombatResolvedState()
@@ -2389,6 +2435,12 @@ public partial class BattleGameMain
         {
             onResolved?.Invoke();
             return false;
+        }
+
+        // Master Gundam は専用パス（除外→シールド5→本体攻撃）。汎用チェーンは使わない。
+        if (TryBeginMasterGundamOnAttackEffect(attacker, attackerOwner, onResolved))
+        {
+            return true;
         }
 
         void AfterAllyGrantAttackFlag()

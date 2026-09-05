@@ -2122,27 +2122,7 @@
                     "valueCountKind": 0,
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
-                    "valueCountExcludeSource": 0,
-                    "requireChainObservationContext": true,
-                    "effectActivationConditions": [
-                        {
-                            "boardSide": 0,
-                            "checkKind": 7,
-                            "turnCheck": -1,
-                            "featureId": 11,
-                            "minimumCount": 2,
-                            "levelAggregate": 0,
-                            "compareOp": 0,
-                            "compareValue": 0,
-                            "unitCountCompareOp": 2,
-                            "unitCountThreshold": 0,
-                            "pilotCardId": 0,
-                            "trashCardId": 0,
-                            "pilotLevelThreshold": 0,
-                            "activationStatTarget": -1,
-                            "observedCardType": 0
-                        }
-                    ]
+                    "valueCountExcludeSource": 0
                 }
             ]
         },

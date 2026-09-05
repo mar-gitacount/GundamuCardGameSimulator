@@ -1075,8 +1075,11 @@ public partial class BattleGameMain
             return;
         }
 
-        // シールド攻撃フロー中はベース層（配備ベース/EX）消化後も実シールドを割らない。
-        if (blockShieldFlowDuringShieldAttack && targetSide == blockedShieldFlowSide)
+        // シールド攻撃の打撃／OnAction 中の溢れ防止。OnAttack 効果ダメージ（Master Gundam 等）は除外。
+        if (blockShieldFlowDuringShieldAttack
+            && targetSide == blockedShieldFlowSide
+            && !_allowOnAttackEffectShieldAreaDamage
+            && _pendingOnAttackPreCombatResolvedAttacker == null)
         {
             Debug.Log(
                 $"[EffectDamage] Shield-attack flow — skipped shield break (side:{targetSide}, amount:{baseMagnitude}).");
