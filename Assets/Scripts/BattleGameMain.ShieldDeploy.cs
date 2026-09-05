@@ -973,6 +973,14 @@ public partial class BattleGameMain
         }
     }
 
+    /// <summary>バースト時の配備系効果（任意発動対象）。</summary>
+    private static bool IsBurstOptionalDeployEffect(EffectData effect)
+    {
+        return effect != null
+            && (effect.type == EffectType.DeployBase
+                || effect.type == EffectType.DeploySelfAsBattleUnit);
+    }
+
     /// <summary>複数枚のバーストを順に解決（手動対象は1枚ごとにUI）。</summary>
     private IEnumerator ResolveBurstEffectsForTakenCardsCoroutine(
         IReadOnlyList<ShieldBreakTaken> takenCards,
@@ -1031,7 +1039,6 @@ public partial class BattleGameMain
                         }
 
                         IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
-                        bool waitBurstAsync = false;
                         for (int e = 0; e < resolved.Count; e++)
                         {
                             EffectData effect = resolved[e];
@@ -1040,11 +1047,49 @@ public partial class BattleGameMain
                                 continue;
                             }
 
+                            // バースト配備は任意（公式FAQ：発動しなくてもよい）。プレイヤーは Yes/No、敵AIは配備する。
+                            if (IsBurstOptionalDeployEffect(effect))
+                            {
+                                bool shouldDeploy = true;
+                                if (shieldOwner == PlayerType.Player)
+                                {
+                                    bool accepted = false;
+                                    yield return ShowOptionalEffectConfirmCoroutine(
+                                        effect,
+                                        onAccepted: () => accepted = true,
+                                        onDeclined: () => accepted = false);
+                                    shouldDeploy = accepted;
+                                }
+
+                                if (!shouldDeploy)
+                                {
+                                    Debug.Log(
+                                        $"[Burst] Deploy declined: {effect.type} "
+                                        + $"card:{taken.Data.cardName}(id:{taken.Data.id})");
+                                    continue;
+                                }
+
+                                if (effect.type == EffectType.DeploySelfAsBattleUnit)
+                                {
+                                    bool done = false;
+                                    ApplyEffectRespectingLookAsync(
+                                        source,
+                                        shieldOwner,
+                                        effect,
+                                        () => done = true);
+                                    yield return new WaitUntil(() => done);
+                                }
+                                else
+                                {
+                                    ApplyEffect(source, shieldOwner, effect);
+                                }
+
+                                continue;
+                            }
+
                             if (effect.type == EffectType.ChooseOne
-                                || effect.type == EffectType.DeploySelfAsBattleUnit
                                 || effect.type == EffectType.ActivateSelfOnMain)
                             {
-                                waitBurstAsync = true;
                                 bool done = false;
                                 ApplyEffectRespectingLookAsync(
                                     source,
@@ -1056,12 +1101,6 @@ public partial class BattleGameMain
                             }
 
                             ApplyEffect(source, shieldOwner, effect);
-                        }
-
-                        // ChooseOne 解決後は同一 OnBurst ブロックの手動ステップへ
-                        if (waitBurstAsync)
-                        {
-                            // no-op: フラグはログ用
                         }
                     }
                 }

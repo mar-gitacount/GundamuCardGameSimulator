@@ -91,6 +91,18 @@ public partial class BattleGameMain
                 "トラッシュからユニットを配備しますか？",
                 "Deploy a Unit from Trash?");
         }
+        else if (effect != null && effect.type == EffectType.DeployBase)
+        {
+            title.SetLocalizedText(
+                "【バースト】このベースを配備しますか？",
+                "[Burst] Deploy this Base?");
+        }
+        else if (effect != null && effect.type == EffectType.DeploySelfAsBattleUnit)
+        {
+            title.SetLocalizedText(
+                "【バースト】このカードをユニットとして配備しますか？",
+                "[Burst] Deploy this card as a Unit?");
+        }
         else
         {
             title.SetLocalizedText("この効果を発動しますか？", "Activate this effect?");
@@ -125,6 +137,14 @@ public partial class BattleGameMain
             subtitle.SetLocalizedText(
                 "辞退すると攻撃／アクションステップへ進みます。",
                 "Decline to continue to attack / Action Step.");
+        }
+        else if (effect != null
+            && (effect.type == EffectType.DeployBase
+                || effect.type == EffectType.DeploySelfAsBattleUnit))
+        {
+            subtitle.SetLocalizedText(
+                "辞退するとトラッシュへ送られます（バーストを発動しなくてもよい）。",
+                "Decline to send it to Trash (you may skip Burst).");
         }
         else
         {

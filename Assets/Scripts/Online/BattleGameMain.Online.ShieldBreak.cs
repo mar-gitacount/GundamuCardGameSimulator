@@ -613,8 +613,8 @@ public partial class BattleGameMain
             if (hint != null)
             {
                 hint.SetLocalizedText(
-                    "破壊されたシールドです。OKで閉じたあと、相手のバースト処理完了まで待機します。",
-                    "Destroyed Shield. After OK, wait until the opponent finishes Burst resolution.");
+                    "破壊されたシールドです。OKで閉じたあと、相手のバースト（配備の選択）完了まで待機します。",
+                    "Destroyed Shield. After OK, wait until the opponent finishes Burst (deploy choice).");
             }
         }
 
@@ -726,7 +726,7 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("ShieldBreakThinkTitle", UIAnchor.TopCenter, 720, 56);
-        title.SetLocalizedText("シールド破壊処理中", "Resolving Shield destruction");
+        title.text = "effectthink";
         title.color = new Color(1f, 0.95f, 0.2f, 1f);
         title.fontSize = 26;
         title.alignment = TextAlignmentOptions.Center;
@@ -734,8 +734,8 @@ public partial class BattleGameMain
 
         TextMeshProUGUI sub = root.CreateChildTextCustom("ShieldBreakThinkSub", UIAnchor.TopCenter, 720, 40);
         sub.SetLocalizedText(
-            "相手のシールド破壊・バースト処理を待っています…",
-            "Waiting for opponent's Shield destruction / Burst...");
+            "相手のシールド破壊・バースト（配備の選択）を待っています…",
+            "Waiting for opponent's Shield destruction / Burst (deploy choice)...");
         sub.color = Color.white;
         sub.fontSize = 18;
         sub.alignment = TextAlignmentOptions.Center;
