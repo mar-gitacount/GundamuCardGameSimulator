@@ -986,10 +986,12 @@ public partial class BattleGameMain : MonoBehaviour
             BindEnemyAiPlayerTrashObservation();
         }
 
+        DeveloperModeAccess.ApplyStartingLevelOverride(gundamRule);
         gundamRule.InitializeGame(
             cardGameRule.GetRemainingCount(),
             enemyCardGameRule.GetRemainingCount(),
             ToRuleSide(firstPlayerThisGame));
+        DeveloperModeAccess.ForceBothSidesStartingLevel(gundamRule);
 
         for (int i = 0; i < openingHandSize; i++)
         {
@@ -1101,6 +1103,7 @@ public partial class BattleGameMain : MonoBehaviour
             : Gundam2024RuleScript.PlayerSide.Player;
         gundamRule.AddExResource(secondPlayerSide, 1);
 
+        DeveloperModeAccess.ForceBothSidesStartingLevel(gundamRule);
         SyncAllResourceViewsFromRule();
 
         if (IsTestPlayBattle())
@@ -7784,7 +7787,8 @@ public partial class BattleGameMain : MonoBehaviour
                     skipAttackedSidePanelPause: true));
             }
 
-            // Master Gundam: 専用除外→シールド/EX 5ダメ後、現在盤面に対する本体攻撃へ
+            // Master Gundam: 効果選択→シールド効果ダメのみ専用。ブロック／アクション／打撃は通常どおり。
+            // ※他カードの ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine は変更しない。
             if (TryBeginMasterGundamOnAttackEffect(
                 attacker,
                 attackerOwner,
@@ -7792,36 +7796,9 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     pendingOnAttackEffectResolvedAttacker = attacker;
                     _onAttackPreCombatCompletedAttacker = attacker;
-                    isShieldAttackResolving = false;
-                    isAttackedSidePanelOpen = false;
-                    isActionThinkPauseOpen = false;
-                    deferredShieldBlockRedirectWait = false;
-                    blockExchangeCancelledForCurrentAttack = false;
-                    shieldStrikeAbortedAfterBlockInterrupt = false;
-                    // 効果後の打撃は溢れ防止を立て直す（残 EX/ベースがあるときのみ）
-                    Gundam2024RuleScript.PlayerSide resumeSide = attackerOwner == PlayerType.Player
-                        ? Gundam2024RuleScript.PlayerSide.Enemy
-                        : Gundam2024RuleScript.PlayerSide.Player;
-                    Gundam2024RuleScript.PlayerState resumeDef = resumeSide == Gundam2024RuleScript.PlayerSide.Player
-                        ? gundamRule.Player
-                        : gundamRule.Enemy;
-                    bool layerNow = resumeDef != null
-                        && (resumeDef.exBase > 0 || HasActiveDeployedBaseForRuleSide(resumeSide));
-                    blockShieldFlowDuringShieldAttack = layerNow;
-                    if (layerNow)
-                    {
-                        blockedShieldFlowSide = resumeSide;
-                    }
-
-                    Debug.Log(
-                        "[MasterGundam] Resume shield attack strike "
-                        + $"(layerNow:{layerNow} hadExCache:{_shieldAttackHadExOrBaseAtDeclaration})");
-                    TryUnitShieldAttackFromUnit(
+                    StartCoroutine(CoResumeShieldAttackAfterMasterGundamOnAttack(
                         attacker,
-                        skipOnActionPause: true,
-                        skipOnAttackSelection: true,
-                        skipAttackedSidePanelPause: true,
-                        skipOnlineBlockPhase: true);
+                        skipOnActionPause));
                 }))
             {
                 return;
@@ -8319,6 +8296,53 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>
     /// OnAttack プレコンバット（除外→効果ダメージ等）完了後、シールド破壊フローが済んでから本体攻撃へ。
     /// </summary>
+    /// <summary>
+    /// Master Gundam 専用: OnAttack 効果ダメ完了後、ブロック→アクション→本体打撃へ戻す。
+    /// 他カード用 ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine とは分離する。
+    /// </summary>
+    private IEnumerator CoResumeShieldAttackAfterMasterGundamOnAttack(
+        CardController attacker,
+        bool skipOnActionPause)
+    {
+        Debug.Log("[MasterGundam] Resume shield attack → block → action → strike");
+
+        yield return WaitForShieldBreakFlowCompleteCoroutine(45f);
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null || !attacker.Data.IsUnitLike())
+        {
+            ClearShieldAttackDeclarationLayerCache();
+            Debug.LogWarning("[MasterGundam] Resume aborted — attacker invalid.");
+            yield break;
+        }
+
+        Gundam2024RuleScript.PlayerSide targetSide = ResolveCardOwner(attacker.transform) == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        bool layerRemains = defender != null
+            && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
+        blockShieldFlowDuringShieldAttack = layerRemains;
+        if (layerRemains)
+        {
+            blockedShieldFlowSide = targetSide;
+        }
+
+        isShieldAttackResolving = false;
+        isAttackedSidePanelOpen = false;
+        isActionThinkPauseOpen = false;
+
+        // ブロック／アクションをスキップしない（他カード用 resume とはフラグが異なる）
+        TryUnitShieldAttackFromUnit(
+            attacker,
+            skipOnActionPause: false,
+            skipOnAttackSelection: true,
+            skipAttackedSidePanelPause: false,
+            skipOnlineBlockPhase: false);
+    }
+
     private IEnumerator ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine(
         CardController attacker,
         bool skipOnActionPause,

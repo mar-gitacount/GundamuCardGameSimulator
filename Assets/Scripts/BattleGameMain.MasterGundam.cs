@@ -133,16 +133,10 @@ public partial class BattleGameMain
             : Gundam2024RuleScript.PlayerSide.Player;
         RefreshMasterGundamShieldAttackLayerCacheAfterEffect(targetSide);
 
-        isShieldAttackResolving = false;
-        isAttackedSidePanelOpen = false;
-        isActionThinkPauseOpen = false;
-        deferredShieldBlockRedirectWait = false;
-        blockExchangeCancelledForCurrentAttack = false;
-        shieldStrikeAbortedAfterBlockInterrupt = false;
-        blockShieldFlowDuringShieldAttack = false;
+        // ブロック／アクション／本体攻撃は呼び出し元の通常フローに任せる（ここではスキップしない）
         ClearOnAttackPreCombatResolvedState();
 
-        Debug.Log("[MasterGundam] Invoking resume attack callback.");
+        Debug.Log("[MasterGundam] OnAttack effects done — resume normal attack flow (block/action/strike).");
         onComplete?.Invoke();
     }
 
@@ -192,6 +186,8 @@ public partial class BattleGameMain
             $"[MasterGundam] Exile OK — 5 damage to shield area "
             + $"(exBefore:{before?.exBase ?? -1} shieldBefore:{before?.shield ?? -1})");
 
+        // 効果ダメージ中だけシールド溢れ防止を外し、終わったら必ず戻す（他フローを壊さない）
+        bool prevBlockShieldFlow = blockShieldFlowDuringShieldAttack;
         blockShieldFlowDuringShieldAttack = false;
         _allowOnAttackEffectShieldAreaDamage = true;
         try
@@ -201,6 +197,7 @@ public partial class BattleGameMain
         finally
         {
             _allowOnAttackEffectShieldAreaDamage = false;
+            blockShieldFlowDuringShieldAttack = prevBlockShieldFlow;
         }
 
         yield return WaitForShieldBreakFlowCompleteCoroutine(20f);
