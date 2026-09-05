@@ -2068,50 +2068,69 @@ public partial class BattleGameMain
     {
         CardController attacker = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
         CardController defender = FindBattleZoneUnitByInstanceId(action.defenderInstanceId, PlayerType.Player);
-        if (attacker == null || defender == null)
+        if (attacker == null && defender == null)
         {
             Debug.LogWarning(
-                $"[OnlineBattle] Remote unit attack target not found. attacker={action.attackerInstanceId} defender={action.defenderInstanceId}");
+                $"[OnlineBattle] Remote unit attack targets not found. "
+                + $"attacker={action.attackerInstanceId} defender={action.defenderInstanceId}");
             return;
         }
 
-        if (!action.skipAttackDeclarationRest)
+        // EffectSync の Destroy 等で片方が先に場を離れていても、残った側（特に攻撃側撃破）は必ず反映する。
+        // 以前は一方でも null だと丸ごと return し、エクシアリペア等で攻撃側がブロッカー画面に残った。
+        if (attacker == null || defender == null)
+        {
+            Debug.LogWarning(
+                $"[OnlineBattle] Remote unit attack partial apply. "
+                + $"attacker={(attacker != null ? action.attackerInstanceId.ToString() : "missing")} "
+                + $"defender={(defender != null ? action.defenderInstanceId.ToString() : "missing")} "
+                + $"atkHp:{action.attackerHp} defHp:{action.defenderHp}");
+        }
+
+        if (attacker != null && !action.skipAttackDeclarationRest)
         {
             CommitUnitAttackDeclaration(attacker, PlayerType.Enemy);
         }
 
-        defender.SetCurrentHpForSync(action.defenderHp);
-        attacker.SetCurrentHpForSync(action.attackerHp);
-
-        if (action.blockCombat && defender.CurrentHp > 0)
+        if (defender != null)
         {
-            SetUnitRestAndTriggerEffects(defender, PlayerType.Player);
+            defender.SetCurrentHpForSync(action.defenderHp);
+
+            if (action.blockCombat && defender.CurrentHp > 0)
+            {
+                SetUnitRestAndTriggerEffects(defender, PlayerType.Player);
+            }
+
+            if (defender.CurrentHp <= 0)
+            {
+                // オンライン戦闘撃破: 所有者側で OnDestroyed を解決（ヘッドトークン配備など）
+                // UnitAttack.requestId = 防御側 OnDestroyed 待機 ID（専用フィールドはパケット肥大化のため使わない）
+                int defenderOnDestroyedRequestId = action.requestId;
+                if (defenderOnDestroyedRequestId > 0
+                    || HasOnDestroyedResolution(defender)
+                    || (defender.MountedPilot != null && HasOnDestroyedResolution(defender.MountedPilot)))
+                {
+                    ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
+                        defender,
+                        defenderOnDestroyedRequestId,
+                        attacker);
+                }
+                else
+                {
+                    ApplyRemoteUnitRemovedFromField(defender);
+                }
+            }
         }
 
-        if (defender.CurrentHp <= 0)
+        if (attacker != null)
         {
-            // オンライン戦闘撃破: 所有者側で OnDestroyed を解決（ヘッドトークン配備など）
-            // UnitAttack.requestId = 防御側 OnDestroyed 待機 ID（専用フィールドはパケット肥大化のため使わない）
-            int defenderOnDestroyedRequestId = action.requestId;
-            if (defenderOnDestroyedRequestId > 0
-                || HasOnDestroyedResolution(defender)
-                || (defender.MountedPilot != null && HasOnDestroyedResolution(defender.MountedPilot)))
-            {
-                ApplyRemoteDestroyedUnitWithOnDestroyedEffects(
-                    defender,
-                    defenderOnDestroyedRequestId,
-                    attacker);
-            }
-            else
-            {
-                ApplyRemoteUnitRemovedFromField(defender);
-            }
-        }
+            attacker.SetCurrentHpForSync(action.attackerHp);
 
-        if (attacker.CurrentHp <= 0)
-        {
-            // 攻撃側ユニットの OnDestroyed は攻撃側クライアントで解決済み／解決中
-            ApplyRemoteUnitRemovedFromField(attacker);
+            if (attacker.CurrentHp <= 0)
+            {
+                // 攻撃側ユニットの OnDestroyed は攻撃側クライアントで解決済み／解決中
+                ApplyRemoteUnitRemovedFromField(attacker);
+            }
         }
 
         // エフェクトバトル撃破時の突破など、同メッセージに同梱された防御領域スナップショットを適用
