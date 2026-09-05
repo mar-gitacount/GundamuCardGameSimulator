@@ -302,6 +302,9 @@ public partial class BattleGameMain
     /// <summary>自分のエンドフェイズ：手札が10枚を超えていれば上限まで捨てる（相手に公開・スキップ不可）。</summary>
     private const int MaxHandSizeAtEndPhase = 10;
 
+    /// <summary>エンドフェイズ手札上限破棄の選択・公開中。次ターンのドローフェイズ等を止める。</summary>
+    private bool isEndPhaseHandLimitDiscardInProgress;
+
     private IEnumerator CoEnforceEndPhaseHandSizeLimit(PlayerType endingTurnSide)
     {
         EffectData discardEffect = new EffectData
@@ -313,44 +316,52 @@ public partial class BattleGameMain
             forbidSkipHandDiscard = true
         };
 
-        while (true)
+        List<CardController> initialHand = CollectSelectableHandCards(endingTurnSide);
+        if (initialHand.Count <= MaxHandSizeAtEndPhase)
         {
-            List<CardController> hand = CollectSelectableHandCards(endingTurnSide);
-            int currentCount = hand.Count;
-            int excess = currentCount - MaxHandSizeAtEndPhase;
-            if (excess <= 0)
-            {
-                yield break;
-            }
+            yield break;
+        }
 
-            discardEffect.value = excess;
-            Debug.Log(
-                $"[EndPhase] Hand size limit: side:{endingTurnSide} count:{currentCount} "
-                + $"limit:{MaxHandSizeAtEndPhase} discardRemaining:{excess}");
-
-            if (endingTurnSide == PlayerType.Enemy)
+        isEndPhaseHandLimitDiscardInProgress = true;
+        try
+        {
+            while (true)
             {
-                CardController aiPick = PickEnemyAiHandDiscardTarget(hand);
-                if (aiPick == null)
+                List<CardController> hand = CollectSelectableHandCards(endingTurnSide);
+                int currentCount = hand.Count;
+                int excess = currentCount - MaxHandSizeAtEndPhase;
+                if (excess <= 0)
                 {
                     yield break;
                 }
 
-                yield return DiscardHandCardWithRevealCoroutine(
-                    aiPick,
-                    endingTurnSide,
-                    discardEffect,
-                    endingTurnSide);
-                continue;
-            }
+                discardEffect.value = excess;
+                Debug.Log(
+                    $"[EndPhase] Hand size limit: side:{endingTurnSide} count:{currentCount} "
+                    + $"limit:{MaxHandSizeAtEndPhase} discardRemaining:{excess}");
 
-            // プレイヤー：1枚ずつ選択（スキップ不可）。捨てたカードは相手に公開。
-            bool resolved = false;
-            CardController selected = null;
-            string title = FormatEndPhaseHandLimitDiscardTitle(currentCount, excess);
-            BeginOnlineDiscardThinkForLocalHandSelect();
-            try
-            {
+                if (endingTurnSide == PlayerType.Enemy)
+                {
+                    CardController aiPick = PickEnemyAiHandDiscardTarget(hand);
+                    if (aiPick == null)
+                    {
+                        yield break;
+                    }
+
+                    yield return DiscardHandCardWithRevealCoroutine(
+                        aiPick,
+                        endingTurnSide,
+                        discardEffect,
+                        endingTurnSide);
+                    continue;
+                }
+
+                // プレイヤー：1枚ずつ選択（スキップ不可）。捨てたカードは相手に公開。
+                // 公開 UI で相手の discardthink が閉じるため、選択のたびに再送する。
+                bool resolved = false;
+                CardController selected = null;
+                string title = FormatEndPhaseHandLimitDiscardTitle(currentCount, excess);
+                RestartOnlineDiscardThinkForLocalHandSelect();
                 OpenManualHandTargetSelectionUI(
                     null,
                     endingTurnSide,
@@ -365,27 +376,28 @@ public partial class BattleGameMain
                     titleOverride: title);
 
                 yield return new WaitUntil(() => resolved);
-            }
-            finally
-            {
-                EndOnlineDiscardThinkForLocalHandSelect();
-            }
 
-            if (selected == null)
-            {
-                // forbidSkip のはずだが、万一のため強制選択
-                selected = PickEnemyAiHandDiscardTarget(hand);
                 if (selected == null)
                 {
-                    yield break;
+                    // forbidSkip のはずだが、万一のため強制選択
+                    selected = PickEnemyAiHandDiscardTarget(hand);
+                    if (selected == null)
+                    {
+                        yield break;
+                    }
                 }
-            }
 
-            yield return DiscardHandCardWithRevealCoroutine(
-                selected,
-                endingTurnSide,
-                discardEffect,
-                endingTurnSide);
+                yield return DiscardHandCardWithRevealCoroutine(
+                    selected,
+                    endingTurnSide,
+                    discardEffect,
+                    endingTurnSide);
+            }
+        }
+        finally
+        {
+            EndOnlineDiscardThinkForLocalHandSelect();
+            isEndPhaseHandLimitDiscardInProgress = false;
         }
     }
 

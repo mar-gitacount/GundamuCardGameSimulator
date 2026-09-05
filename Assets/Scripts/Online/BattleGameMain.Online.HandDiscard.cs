@@ -51,6 +51,20 @@ public partial class BattleGameMain
         Debug.Log($"[OnlineBattle] DiscardThinkWait sent. requestId={requestId}");
     }
 
+    /// <summary>
+    /// 公開などで相手の discardthink が閉じたあと、続きの手札選択前に再送する。
+    /// </summary>
+    private void RestartOnlineDiscardThinkForLocalHandSelect()
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            return;
+        }
+
+        EndOnlineDiscardThinkForLocalHandSelect();
+        BeginOnlineDiscardThinkForLocalHandSelect();
+    }
+
     /// <summary>手札捨て選択終了を相手へ通知し、discardthink を閉じさせる。</summary>
     private void EndOnlineDiscardThinkForLocalHandSelect()
     {

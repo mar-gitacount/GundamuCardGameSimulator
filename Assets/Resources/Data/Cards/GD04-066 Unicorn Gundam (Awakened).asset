@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000450
   gcgOfficialId: GD04-066
-  cardName: "Unicorn Gundam (Awakened)"
+  cardName: Unicorn Gundam (Awakened)
   cost: 5
   level: 7
   power: 4
   hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD04-066_Unicorn Gundam (Awakened)"
+  imageAddress: Data/Images/GD04-066_Unicorn Gundam (Awakened)
   version: 4
   sourceType: 1
   productLine: 1
@@ -61,7 +61,8 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 0
+  notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2
