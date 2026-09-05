@@ -234,8 +234,80 @@ public class EosOnlinePlaytestController : MonoBehaviour
         CreateButton(parent, "Send Ping", SendPing);
         _startBattleButton = CreateButton(parent, "Start Online Battle (Host)", StartOnlineBattleAsHost);
 
+        AppendDeveloperModeToggles(parent);
+
         CreateLabel(parent, "Log", 18, FontStyles.Bold, Color.white);
         _logText = CreateMultilineLog(parent);
+    }
+
+    /// <summary>許可端末のみ Online パネル内に開発者トグルを追加（レイアウト構造は既存のまま）。</summary>
+    private void AppendDeveloperModeToggles(Transform parent)
+    {
+        if (!DeveloperModeAccess.IsAuthorized)
+        {
+            return;
+        }
+
+        CreateLabel(parent, "Developer", 18, FontStyles.Bold, new Color(0.7f, 0.95f, 0.75f));
+        CreateLabel(
+            parent,
+            "Device: " + DeveloperModeAccess.ResolvedDeviceId,
+            12,
+            FontStyles.Normal,
+            new Color(0.65f, 0.75f, 0.7f));
+        CreateToggle(
+            parent,
+            "Start at cost/LV 10",
+            DeveloperModeAccess.StartAtLevel10,
+            value => DeveloperModeAccess.StartAtLevel10 = value);
+    }
+
+    private static Toggle CreateToggle(Transform parent, string label, bool initial, Action<bool> onChanged)
+    {
+        GameObject row = CreateRect(label + "ToggleRow", parent);
+        LayoutElement rowLayout = row.AddComponent<LayoutElement>();
+        rowLayout.preferredHeight = 40f;
+
+        HorizontalLayoutGroup h = row.AddComponent<HorizontalLayoutGroup>();
+        h.spacing = 10f;
+        h.childAlignment = TextAnchor.MiddleLeft;
+        h.childControlWidth = true;
+        h.childControlHeight = true;
+        h.childForceExpandWidth = true;
+        h.childForceExpandHeight = true;
+        h.padding = new RectOffset(0, 0, 0, 0);
+
+        GameObject labelObj = CreateRect("Label", row.transform);
+        LayoutElement labelLe = labelObj.AddComponent<LayoutElement>();
+        labelLe.flexibleWidth = 1f;
+        TextMeshProUGUI text = labelObj.AddComponent<TextMeshProUGUI>();
+        text.font = _font;
+        text.text = label;
+        text.fontSize = 15;
+        text.color = Color.white;
+        text.alignment = TextAlignmentOptions.MidlineLeft;
+        text.raycastTarget = false;
+
+        GameObject toggleObj = CreateRect("Toggle", row.transform);
+        LayoutElement toggleLe = toggleObj.AddComponent<LayoutElement>();
+        toggleLe.preferredWidth = 48f;
+        toggleLe.flexibleWidth = 0f;
+        Image bg = toggleObj.AddComponent<Image>();
+        bg.color = new Color(0.2f, 0.24f, 0.3f, 1f);
+        Toggle toggle = toggleObj.AddComponent<Toggle>();
+        toggle.targetGraphic = bg;
+
+        GameObject checkObj = CreateRect("Checkmark", toggleObj.transform);
+        Stretch(checkObj.GetComponent<RectTransform>());
+        RectTransform checkRt = checkObj.GetComponent<RectTransform>();
+        checkRt.offsetMin = new Vector2(6f, 4f);
+        checkRt.offsetMax = new Vector2(-6f, -4f);
+        Image check = checkObj.AddComponent<Image>();
+        check.color = new Color(0.35f, 0.85f, 0.45f, 1f);
+        toggle.graphic = check;
+        toggle.isOn = initial;
+        toggle.onValueChanged.AddListener(v => onChanged?.Invoke(v));
+        return toggle;
     }
 
     private void CreateLobby()
