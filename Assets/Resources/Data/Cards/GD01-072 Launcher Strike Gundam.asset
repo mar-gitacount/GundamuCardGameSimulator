@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1000095
   gcgOfficialId: GD01-072
-  cardName: "Launcher Strike Gundam"
+  cardName: Launcher Strike Gundam
   cost: 3
   level: 4
   power: 3
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD01-072_Launcher Strike Gundam"
+  imageAddress: Data/Images/GD01-072_Launcher Strike Gundam
   version: 1
   sourceType: 1
   productLine: 1
@@ -54,6 +54,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
+  hideFromCardList: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 2

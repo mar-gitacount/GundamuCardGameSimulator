@@ -160,7 +160,17 @@ public partial class BattleGameMain
                 || _activeResourcePaymentOverlay != null;
         });
 
-        yield return new WaitUntil(() => acknowledged);
+        // Look／破壊時 UI が DestroyActiveOnActionPopupIfAny でこのパネルを潰しても待機解除する
+        yield return new WaitUntil(() => acknowledged || root == null);
+        if (!acknowledged && activeOnActionPopupRoot == root)
+        {
+            activeOnActionPopupRoot = null;
+        }
+
+        isOnActionPopupOpen = activeOnActionPopupRoot != null
+            || _activeLookDeckPopupRoot != null
+            || _isActionStepCommandResolving
+            || _activeResourcePaymentOverlay != null;
     }
 
     private void AppendCardLiveStatOverlay(GameObject cardGo, CardController liveCard, Color statColor)

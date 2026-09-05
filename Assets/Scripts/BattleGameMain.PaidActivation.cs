@@ -513,6 +513,12 @@ public partial class BattleGameMain
                     continue;
                 }
 
+                // 「選んでもよい」効果は候補0でも発動可（シャイニングフィンガー等）
+                if (effectData.optionalPlayerConfirm)
+                {
+                    continue;
+                }
+
                 if (ResolveSelectableEffectTargets(source, side, effectData).Count == 0)
                 {
                     return false;
@@ -705,6 +711,12 @@ public partial class BattleGameMain
                 && !EffectActivationEvaluator.AreAllConditionsMet(
                     effectData.effectActivationConditions,
                     activationContext))
+            {
+                continue;
+            }
+
+            // 「選んでもよい」効果は候補0でも発動可（シャイニングフィンガーの先制付与等）
+            if (effectData.optionalPlayerConfirm)
             {
                 continue;
             }

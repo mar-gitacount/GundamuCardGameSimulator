@@ -2452,7 +2452,12 @@ public partial class BattleGameMain
         finally
         {
             _applyingRemoteBattleAction = false;
+            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
         }
+
+        // 搭乗後の OnPilotMounted 破壊（クシャトリア→リペア等）で Look UI が Ack を潰しても、
+        // 送り側の「カード確認待ち」が永久待機しないよう、配備と同様に先に Complete を送る。
+        SendOpponentCardConfirmComplete(action.requestId);
 
         if (pilotController != null)
         {
@@ -2465,8 +2470,6 @@ public partial class BattleGameMain
                 hosts,
                 GameLocale.T("相手 — パイロット搭乗", "Opponent — Pilot Mount"));
         }
-
-        SendOpponentCardConfirmComplete(action.requestId);
     }
 
     private void ApplyRemoteMountPilot(

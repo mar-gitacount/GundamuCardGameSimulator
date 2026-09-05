@@ -63,6 +63,26 @@ public class CardDatabase : MonoBehaviour
         return new List<CardData>(cardDict.Values);
     }
 
+    /// <summary>カード一覧／検索用。hideFromCardList のカードは含めない。</summary>
+    public List<CardData> GetCardListCards()
+    {
+        List<CardData> list = new List<CardData>();
+        foreach (CardData card in cardDict.Values)
+        {
+            if (card != null && !card.hideFromCardList)
+            {
+                list.Add(card);
+            }
+        }
+
+        return list;
+    }
+
+    private static bool IsVisibleInCardList(CardData card)
+    {
+        return card != null && !card.hideFromCardList;
+    }
+
     public int LoadCardsCount()
     {
         return cardDict.Count;
@@ -112,6 +132,7 @@ public class CardDatabase : MonoBehaviour
         isRepair = card.isRepair,
         repairAmount = card.repairAmount,
         notUsedOnline = card.notUsedOnline,
+        hideFromCardList = card.hideFromCardList,
         cannotMountPilot = card.cannotMountPilot,
     };
 }
@@ -173,6 +194,7 @@ CardData ConvertToCardData(CardJson json)
     card.isRepair = json.isRepair;
     card.repairAmount = json.repairAmount;
     card.notUsedOnline = json.notUsedOnline;
+    card.hideFromCardList = json.hideFromCardList;
     card.cannotMountPilot = json.cannotMountPilot;
     card.SetFeaturesFromIds(json.featureIds);
     card.SetPilotIdsFromIds(json.pilotIdIds);
@@ -316,7 +338,7 @@ public CardData FindById(int id)
         {
             foreach (CardData card in cardDict.Values)
             {
-                if (card != null)
+                if (IsVisibleInCardList(card))
                 {
                     result.Add(card);
                 }
@@ -330,7 +352,7 @@ public CardData FindById(int id)
 
         foreach (CardData card in cardDict.Values)
         {
-            if (card == null)
+            if (!IsVisibleInCardList(card))
             {
                 continue;
             }
