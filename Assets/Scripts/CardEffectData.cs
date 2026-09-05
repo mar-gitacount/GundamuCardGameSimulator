@@ -302,9 +302,9 @@ public enum EffectType
     CopyKeywordsFromTrashUnit,
     /// <summary>
     /// 自分のシールドエリアに EXベースを1つ配備する（出資者等）。
+    /// 既存のベース（カード／EX）がある場合は先に除去してから配備する（ベース枠は1つまで）。
     /// value≤0 なら <see cref="ExBaseData.startingPoints"/>（既定3）を上限とし、
-    /// 加算せずその値まで満たす（例: 1→3）。既に上限以上なら変化なし（上限へクランプ）。
-    /// target=SelfPlayer。
+    /// その値まで満たす。target=SelfPlayer。
     /// </summary>
     DeployExBase
 }

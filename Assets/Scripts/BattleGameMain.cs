@@ -4126,8 +4126,8 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// <see cref="EffectType.DeployExBase"/>：自分のシールドエリアに EXベースを1つ配備する。
-    /// ポイント管理のため、加算ではなく上限（既定3）まで満たす。
-    /// 例: 1 → 3、0 → 3、既に3なら変化なし。上限を超えない。
+    /// ベース枠に既存のベース（カード／EX）がある場合はルール上1枚制限のため先に破壊／除去し、
+    /// その後ポイントを上限（既定3）まで満たす。
     /// </summary>
     private void ApplyDeployExBaseEffect(
         CardController sourceCard,
@@ -4147,6 +4147,11 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        CardGameRule ownerRule = GetCardRuleForRuleSide(side);
+        bool replacedBaseLayer = HadActiveBaseLayerBeforeDeploy(targetPlayer, ownerRule);
+        // 出資者等：既存ベースカードがあればトラッシュし、EX 数値もいったんクリアしてから配備する
+        DestroyExistingBaseLayerBeforeDeploy(targetPlayer, ownerRule, incomingCard: null);
+
         int cap = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (cap <= 0)
         {
@@ -4156,15 +4161,15 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         int before = state.exBase;
-        // 加算しない。不足分を上限まで埋め、上限超はクランプ。
-        int after = Mathf.Clamp(Mathf.Max(before, cap), 0, cap);
+        // 既存ベース除去後は新規 EX ベースとして上限まで満たす（加算ではない）
+        int after = Mathf.Clamp(cap, 0, cap);
         gundamRule.SetExBasePoints(side, after);
         SyncBaseZoneHeaderDisplay(side);
         NotifyLocalDeployExBaseSynced(targetPlayer);
 
         Debug.Log(
             $"[Effect] DeployExBase fill-to-cap:{cap} exBase:{before}->{after} to:{targetPlayer} "
-            + $"by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+            + $"replacedBase:{replacedBaseLayer} by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
     }
 
     /// <summary>SendCardToTrash の非同期パイプライン（OnDestroyed / Look UI 等）が未完了の件数。</summary>

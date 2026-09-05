@@ -215,9 +215,13 @@ public partial class BattleGameMain
         }
 
         Gundam2024RuleScript.PlayerSide ruleSide = Gundam2024RuleScript.PlayerSide.Enemy;
+        CardGameRule rule = enemyCardGameRule;
         _applyingRemoteBattleAction = true;
         try
         {
+            // 出資者等：相手に既存ベースカードがあればミラー側も除去してから EX を反映
+            ClearRemoteMirrorDeployedBaseVisual(rule);
+
             gundamRule.SetExBasePoints(ruleSide, Mathf.Max(0, action.defenderExBaseAfter));
             Gundam2024RuleScript.PlayerState enemyState = gundamRule.Enemy;
             if (action.defenderShieldAfter >= 0)
