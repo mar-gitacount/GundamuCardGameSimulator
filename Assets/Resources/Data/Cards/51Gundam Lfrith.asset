@@ -42,11 +42,12 @@ MonoBehaviour:
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 1
   isDeployTurnAttack: 0
-  isNotDirectAttack: 1
+  isNotDirectAttack: 0
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

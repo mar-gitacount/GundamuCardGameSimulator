@@ -3163,7 +3163,7 @@ public class CardGameRule
         return count;
     }
 
-    /// <summary>シールドゾーン等から手札へ移したカードを手札グリッドに合わせる。</summary>
+    /// <summary>シールドゾーン／バトル枠等から手札へ移したカードを手札グリッドに合わせる。</summary>
     public void ApplyHandZoneLayoutToCard(CardController card)
     {
         if (card == null || ScrollPanel == null)
@@ -3181,11 +3181,16 @@ public class CardGameRule
         GridLayoutGroup grid = scrollRect != null && scrollRect.content != null
             ? scrollRect.content.GetComponent<GridLayoutGroup>()
             : null;
+        Vector2 cell = grid != null ? grid.cellSize : new Vector2(100f, 140f);
+
+        // バトル枠 FitUnitIntoBattleSlot の Stretch / ignoreLayout を解除しないと手札全体に伸びる
         cardRect.localScale = Vector3.one;
-        if (grid != null)
-        {
-            cardRect.sizeDelta = grid.cellSize;
-        }
+        cardRect.localRotation = Quaternion.identity;
+        cardRect.anchorMin = new Vector2(0.5f, 0.5f);
+        cardRect.anchorMax = new Vector2(0.5f, 0.5f);
+        cardRect.pivot = new Vector2(0.5f, 0.5f);
+        cardRect.sizeDelta = cell;
+        cardRect.anchoredPosition = Vector2.zero;
 
         LayoutElement layoutElement = card.GetComponent<LayoutElement>();
         if (layoutElement == null)
@@ -3194,6 +3199,10 @@ public class CardGameRule
         }
 
         layoutElement.ignoreLayout = false;
+        layoutElement.preferredWidth = cell.x;
+        layoutElement.preferredHeight = cell.y;
+        layoutElement.minWidth = cell.x;
+        layoutElement.minHeight = cell.y;
     }
 
     private static void ApplyTextButtonColors(Button button)

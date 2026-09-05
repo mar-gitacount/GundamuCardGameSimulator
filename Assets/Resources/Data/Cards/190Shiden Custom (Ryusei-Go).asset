@@ -44,7 +44,7 @@ MonoBehaviour:
     linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
-    pilotFeatureIds: 
+    pilotFeatureIds: 1c000000
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 1

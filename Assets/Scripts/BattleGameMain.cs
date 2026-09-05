@@ -4644,11 +4644,7 @@ public partial class BattleGameMain : MonoBehaviour
         unit.RevealShieldFace();
 
         unit.transform.SetParent(rule.HandScrollContent, false);
-        RectTransform unitRt = unit.GetComponent<RectTransform>();
-        if (unitRt != null)
-        {
-            unitRt.localScale = Vector3.one;
-        }
+        rule.ApplyHandZoneLayoutToCard(unit);
 
         RegisterCardInHandLists(unit, ownerType);
         TriggerOnHandAutoEffects(unit, ownerType, skipHandZoneCheck: true);
@@ -4674,11 +4670,7 @@ public partial class BattleGameMain : MonoBehaviour
         card.SetUnitRestVisual(false);
         card.RevealShieldFace();
         card.transform.SetParent(rule.HandScrollContent, false);
-        RectTransform rt = card.GetComponent<RectTransform>();
-        if (rt != null)
-        {
-            rt.localScale = Vector3.one;
-        }
+        rule.ApplyHandZoneLayoutToCard(card);
 
         RegisterCardInHandLists(card, ownerType);
         TriggerOnHandAutoEffects(card, ownerType, skipHandZoneCheck: true);
