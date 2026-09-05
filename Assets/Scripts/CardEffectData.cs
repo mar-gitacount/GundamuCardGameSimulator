@@ -1173,7 +1173,9 @@ public class EffectData
     [Tooltip("targetUnitFilterStat 時の比較値。compareTargetStatToSource が true のときは無視し発動元の実効値を使う。")]
     public int targetUnitStatCompareValue;
 
-    [Tooltip("true のとき targetUnitFilterStat（未指定時は AP）を発動元カードの実効値と比較する（例: 敵AP ≤ 自AP）。")]
+    [Tooltip(
+        "true のとき targetUnitFilterStat（未指定時は AP）を発動元カードの実効値と比較する（例: 敵AP ≤ 自AP）。"
+        + "発動元がパイロットのときは搭乗先ユニット（このユニット）の実効値を使う。")]
     public bool compareTargetStatToSource;
 
     [Tooltip(
@@ -1753,6 +1755,43 @@ public static class EffectDataExtensions
     }
 
     /// <summary>
+    /// compareTargetStatToSource 用。パイロット効果の「このユニット」は搭乗先の実効値を参照する。
+    /// </summary>
+    public static CardController ResolveCompareTargetStatSourceCard(
+        CardController sourceCard,
+        CardController mountHostFallback = null)
+    {
+        if (sourceCard == null)
+        {
+            return null;
+        }
+
+        if (sourceCard.Data != null && sourceCard.Data.IsUnitLike())
+        {
+            return sourceCard;
+        }
+
+        if (sourceCard.Data != null && sourceCard.Data.IsPilot())
+        {
+            if (sourceCard.MountedUnit != null
+                && sourceCard.MountedUnit.Data != null
+                && sourceCard.MountedUnit.Data.IsUnitLike())
+            {
+                return sourceCard.MountedUnit;
+            }
+
+            if (mountHostFallback != null
+                && mountHostFallback.Data != null
+                && mountHostFallback.Data.IsUnitLike())
+            {
+                return mountHostFallback;
+            }
+        }
+
+        return sourceCard;
+    }
+
+    /// <summary>
     /// オーナー墓地に発動元と同 ID が十分あるとき、対象ステータス絞り込みを緩和するか。
     /// </summary>
     public static bool ShouldRelaxTargetUnitStatFilter(
@@ -1869,12 +1908,15 @@ public static class EffectDataExtensions
             }
             else if (effect.compareTargetStatToSource)
             {
-                if (sourceCard == null)
+                CardController compareSource = ResolveCompareTargetStatSourceCard(
+                    sourceCard,
+                    statCompareReference);
+                if (compareSource == null)
                 {
                     return false;
                 }
 
-                compareValue = GetTargetUnitFilterStatValue(sourceCard, statFilter);
+                compareValue = GetTargetUnitFilterStatValue(compareSource, statFilter);
             }
 
             if (!EffectCompareHelper.Compare(

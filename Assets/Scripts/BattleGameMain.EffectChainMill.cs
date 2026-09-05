@@ -568,12 +568,33 @@ public partial class BattleGameMain
         okBtn.onClick.AddListener(() =>
         {
             acknowledged = true;
-            isOnActionPopupOpen = false;
-            activeOnActionPopupRoot = null;
             Destroy(root);
+            if (activeOnActionPopupRoot == root)
+            {
+                activeOnActionPopupRoot = null;
+            }
+
+            isOnActionPopupOpen = activeOnActionPopupRoot != null
+                || _activeLookDeckPopupRoot != null
+                || _isActionStepCommandResolving
+                || _activeResourcePaymentOverlay != null;
         });
 
-        yield return new WaitUntil(() => acknowledged);
+        // 他効果 UI が DestroyActiveOnActionPopupIfAny でこのパネルを潰しても待機解除する
+        // （潰れたままだと OnDestroyed 完了通知が送られず、破壊側 effectthink が残る）
+        yield return new WaitUntil(() => acknowledged || root == null);
+        if (!acknowledged && activeOnActionPopupRoot == root)
+        {
+            activeOnActionPopupRoot = null;
+        }
+
+        isOnActionPopupOpen = activeOnActionPopupRoot != null
+            || _activeLookDeckPopupRoot != null
+            || _isActionStepCommandResolving
+            || _activeResourcePaymentOverlay != null;
+
+        // Mill 了承／パネル消滅時点で破壊側 effectthink を解除（Look OK と同様・非 OnDestroyed 時は no-op）
+        NotifyOnlineOnDestroyedPlayerAcknowledged();
         onComplete?.Invoke();
     }
 

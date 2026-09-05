@@ -12779,11 +12779,64 @@ public partial class BattleGameMain : MonoBehaviour
                     ownerTrashIds,
                     priorChainStatCompareValue,
                     ownerHasLinkedUnit,
-                    _allyUnitAttackStatCompareReference))
+                    ResolveMountHostFallbackForPilotStatCompare(sourceCard)))
             {
                 targets.RemoveAt(i);
             }
         }
+    }
+
+    /// <summary>
+    /// パイロット効果の compareTargetStatToSource / MountHost 比較用に搭乗先を解決する。
+    /// MountedUnit が取れないタイミング向けのフォールバック。
+    /// </summary>
+    private CardController ResolveMountHostFallbackForPilotStatCompare(CardController sourceCard)
+    {
+        if (_allyUnitAttackStatCompareReference != null)
+        {
+            return _allyUnitAttackStatCompareReference;
+        }
+
+        if (sourceCard == null)
+        {
+            return null;
+        }
+
+        if (sourceCard.MountedUnit != null)
+        {
+            return sourceCard.MountedUnit;
+        }
+
+        if (sourceCard.Data == null || !sourceCard.Data.IsPilot())
+        {
+            return null;
+        }
+
+        if (_pilotMountEffectHostUnit != null
+            && _pilotMountEffectHostUnit.MountedPilot == sourceCard)
+        {
+            return _pilotMountEffectHostUnit;
+        }
+
+        if (_pendingOnAttackPreCombatResolvedAttacker != null
+            && _pendingOnAttackPreCombatResolvedAttacker.MountedPilot == sourceCard)
+        {
+            return _pendingOnAttackPreCombatResolvedAttacker;
+        }
+
+        if (pendingOnAttackEffectResolvedAttacker != null
+            && pendingOnAttackEffectResolvedAttacker.MountedPilot == sourceCard)
+        {
+            return pendingOnAttackEffectResolvedAttacker;
+        }
+
+        if (attackFlowAttackerUnit != null
+            && attackFlowAttackerUnit.MountedPilot == sourceCard)
+        {
+            return attackFlowAttackerUnit;
+        }
+
+        return null;
     }
 
     /// <summary>
