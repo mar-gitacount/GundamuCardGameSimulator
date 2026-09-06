@@ -34,7 +34,31 @@ MonoBehaviour:
   type: 2
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ActivateSelfOnMain_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: BounceEnemyUnitLv3OrLess_Select1to2
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 8
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: BounceEnemyUnitLv3OrLess_Select1to2
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
   pilotIds: []
   link: []

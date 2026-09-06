@@ -11,7 +11,26 @@ public partial class BattleGameMain
     /// <summary>バースト効果解決中は true（リソース消費・OnMain 扱いを抑止）。</summary>
     private int burstEffectResolutionDepth;
 
+    /// <summary>
+    /// バースト解決で手札／ベース／シールド／バトルへ残したカード。
+    /// Commit 時の誤トラッシュ防止用。
+    /// </summary>
+    private readonly HashSet<CardController> _burstRetainedControllers = new HashSet<CardController>();
+
     private bool IsResolvingBurstEffect => burstEffectResolutionDepth > 0;
+
+    private void MarkBurstCardRetained(CardController card)
+    {
+        if (card != null)
+        {
+            _burstRetainedControllers.Add(card);
+        }
+    }
+
+    private bool IsMarkedBurstCardRetained(CardController card)
+    {
+        return card != null && _burstRetainedControllers.Contains(card);
+    }
 
     /// <summary>コマンドの OnAction / OnMain 用。バースト解決中はリソースを消費しない。</summary>
     private bool TryConsumeResourceForCommandPlay(
@@ -545,6 +564,7 @@ public partial class BattleGameMain
         {
             RegisterCardInHandLists(card, ownerType);
             rule.RefreshHandCountDisplay();
+            MarkBurstCardRetained(card);
             return true;
         }
 
@@ -564,6 +584,7 @@ public partial class BattleGameMain
         TriggerOnHandAutoEffects(card, ownerType, skipHandZoneCheck: true);
         rule.RefreshHandCountDisplay();
         SyncResourceViewsFromRule(ToRuleSide(ownerType));
+        MarkBurstCardRetained(card);
         Debug.Log(
             $"[AddSelfToHand] {card.Data.cardName}(id:{card.Data.id}) shield break → {ownerType} hand");
         return true;
@@ -583,6 +604,7 @@ public partial class BattleGameMain
 
         if (rule.IsRegisteredInShieldZone(card))
         {
+            MarkBurstCardRetained(card);
             return true;
         }
 
@@ -593,6 +615,7 @@ public partial class BattleGameMain
             gundamRule.AddShieldCount(ruleSide, 1);
             TriggerShieldDeployedEffects(card, ownerType);
             SyncResourceViewsFromRule(ruleSide);
+            MarkBurstCardRetained(card);
             return true;
         }
 
@@ -603,6 +626,7 @@ public partial class BattleGameMain
             return false;
         }
 
+        MarkBurstCardRetained(card);
         Debug.Log(
             $"[DeploySelfToShield] {card.Data.cardName}(id:{card.Data.id}) shield break → {ownerType} shield zone");
         return true;
@@ -992,6 +1016,7 @@ public partial class BattleGameMain
         }
 
         burstEffectResolutionDepth++;
+        _burstRetainedControllers.Clear();
         try
         {
             List<BurstManualTargetStep> manualSteps = new List<BurstManualTargetStep>();
@@ -1139,6 +1164,10 @@ public partial class BattleGameMain
         finally
         {
             burstEffectResolutionDepth--;
+            if (burstEffectResolutionDepth < 0)
+            {
+                burstEffectResolutionDepth = 0;
+            }
         }
     }
 
@@ -1153,34 +1182,51 @@ public partial class BattleGameMain
         }
 
         PlayerType ownerType = shieldOwner ?? (rule == cardGameRule ? PlayerType.Player : PlayerType.Enemy);
-        bool keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
-        if (!keepCard
-            && taken.Data != null
-            && taken.Data.IsPilot()
-            && HasAddSelfToHandOnBurst(taken.Data)
-            && TryMoveBurstSourceCardToHand(taken.Controller, ownerType, rule))
+        CardController card = taken.Controller;
+
+        // 手札・ベース配備・シールド再配備・バトル配備済みはトラッシュしない
+        if (IsMarkedBurstCardRetained(card) || IsBurstCardRetained(card, rule))
         {
-            keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
+            return;
         }
 
-        if (!keepCard
-            && taken.Data != null
-            && HasDeploySelfToShieldOnBurst(taken.Data)
-            && TryMoveBurstSourceCardToShieldZone(taken.Controller, ownerType, rule))
+        // AddSelfToHand（パイロット／一部コマンド等）: 手札へ。トラッシュしない。
+        if (HasAddSelfToHandOnBurst(taken.Data))
         {
-            keepCard = IsBurstCardRetainedForCommit(taken.Controller, rule, ownerType);
+            if (card != null && TryMoveBurstSourceCardToHand(card, ownerType, rule))
+            {
+                return;
+            }
+
+            // 効果解決済みで Controller が既に手札側なら二重トラッシュしない
+            if (IsMarkedBurstCardRetained(card) || IsBurstCardRetained(card, rule))
+            {
+                return;
+            }
+
+            Debug.LogWarning(
+                $"[Burst] AddSelfToHand retain failed — skip trash to avoid hand+trash. "
+                + $"cardId:{taken.CardId} name:{taken.Data?.cardName}");
+            return;
         }
 
-        if (!keepCard)
+        if (HasDeploySelfToShieldOnBurst(taken.Data)
+            && card != null
+            && TryMoveBurstSourceCardToShieldZone(card, ownerType, rule))
         {
-            rule.CommitShieldCardToTrash(taken);
+            return;
+        }
+
+        // ベース未配備・コマンド効果使用後など → トラッシュ
+        if (rule.CommitShieldCardToTrash(taken))
+        {
             RecordRemoteShieldBreakTrashedCardIdIfNeeded(taken);
         }
     }
 
-    private bool IsBurstCardRetainedForCommit(CardController card, CardGameRule rule, PlayerType ownerType)
+    private void ClearBurstRetainedControllersAfterCommitBatch()
     {
-        return IsBurstCardRetained(card, rule);
+        _burstRetainedControllers.Clear();
     }
 
     private void TriggerBaseDeployedEffects(CardController baseCard, PlayerType ownerType, bool replacingExistingBaseLayer = false)

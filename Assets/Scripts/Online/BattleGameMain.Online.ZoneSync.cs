@@ -18,14 +18,29 @@ public partial class BattleGameMain
 
     private void WithZoneSyncSuppressed(System.Action action)
     {
-        _zoneSyncSuppressDepth++;
+        PushZoneSyncSuppress();
         try
         {
             action?.Invoke();
         }
         finally
         {
-            _zoneSyncSuppressDepth--;
+            PopZoneSyncSuppress();
+        }
+    }
+
+    /// <summary>コルーチン全体など、yield を挟む区間で ZoneSync を抑止する。</summary>
+    private void PushZoneSyncSuppress()
+    {
+        _zoneSyncSuppressDepth++;
+    }
+
+    private void PopZoneSyncSuppress()
+    {
+        _zoneSyncSuppressDepth--;
+        if (_zoneSyncSuppressDepth < 0)
+        {
+            _zoneSyncSuppressDepth = 0;
         }
     }
 
