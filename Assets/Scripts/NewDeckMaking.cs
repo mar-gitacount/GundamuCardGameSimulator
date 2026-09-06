@@ -61,6 +61,14 @@ public class NewDeckMaking : MonoBehaviour
             DeckSettinObject.Instance.TestPlayOpponentDeckChosen += OnTestPlayOpponentDeckChosen;
         }
 
+        EosOnlineMatchState.MatchStateChanged += RefreshOnlineLockedDeckEditButton;
+        if (EosRandomMatchService.Instance != null)
+        {
+            EosRandomMatchService.Instance.StateChanged += RefreshOnlineLockedDeckEditButton;
+        }
+
+        RefreshOnlineLockedDeckEditButton();
+
         // AIBattle は開発中。クローン生成後に Coming Soon を重ねて無効化する。
         ApplyAiBattleComingSoon();
     }
@@ -72,13 +80,20 @@ public class NewDeckMaking : MonoBehaviour
             DeckSettinObject.Instance.TestPlayOpponentDeckChosen -= OnTestPlayOpponentDeckChosen;
         }
 
+        EosOnlineMatchState.MatchStateChanged -= RefreshOnlineLockedDeckEditButton;
+        if (EosRandomMatchService.Instance != null)
+        {
+            EosRandomMatchService.Instance.StateChanged -= RefreshOnlineLockedDeckEditButton;
+        }
+
         CloseTestPlayOpponentSelectUi();
     }
 
     // Update is called once per frame
     void Update()
     {
-        
+        // デッキ一覧クリック後の選択変化も拾う（イベント無しのため軽量ポーリング）
+        RefreshOnlineLockedDeckEditButton();
     }
 
     private void ButtleButtonClicked()
@@ -528,6 +543,7 @@ public class NewDeckMaking : MonoBehaviour
 
         Debug.Log("デッキを保存し、一覧画面に戻りました。");
         RefreshDeckMakeButtonInteractable();
+        RefreshOnlineLockedDeckEditButton();
     }
 
     private void ShowNotUsedOnlineAlert(List<CardData> bannedCards)
@@ -764,13 +780,58 @@ public class NewDeckMaking : MonoBehaviour
             return;
         }
 
+        if (IsSelectedDeckLockedForOnlineMatchEdit())
+        {
+            Debug.Log("[OnlineMatch] Edit blocked — deck is locked for random match.");
+            RefreshOnlineLockedDeckEditButton();
+            return;
+        }
+
         BeginDeckEdit(asNewDeck: false);
+    }
+
+    /// <summary>ランダムマッチ利用中デッキは Edit をグレイアウト。</summary>
+    private void RefreshOnlineLockedDeckEditButton()
+    {
+        if (DeckEditButton == null)
+        {
+            return;
+        }
+
+        // 編集中は NewDeck 側が Cancel になるため Edit の interactable は触らない
+        if (DeckSettinObject.Instance != null && DeckSettinObject.Instance.isDeckEditing)
+        {
+            return;
+        }
+
+        bool allowEdit = !IsSelectedDeckLockedForOnlineMatchEdit();
+        if (DeckEditButton.interactable != allowEdit)
+        {
+            DeckEditButton.interactable = allowEdit;
+        }
+    }
+
+    private static bool IsSelectedDeckLockedForOnlineMatchEdit()
+    {
+        if (DeckSettinObject.Instance == null)
+        {
+            return false;
+        }
+
+        return EosOnlineMatchState.IsStorageKeyLockedForEdit(DeckSettinObject.Instance.deckPathName);
     }
 
     private void BeginDeckEdit(bool asNewDeck)
     {
         if (DeckSettinObject.Instance == null)
         {
+            return;
+        }
+
+        if (!asNewDeck && IsSelectedDeckLockedForOnlineMatchEdit())
+        {
+            Debug.Log("[OnlineMatch] BeginDeckEdit blocked — deck is locked for random match.");
+            RefreshOnlineLockedDeckEditButton();
             return;
         }
 

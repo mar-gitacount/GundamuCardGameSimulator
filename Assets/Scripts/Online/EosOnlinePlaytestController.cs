@@ -456,6 +456,16 @@ public class EosOnlinePlaytestController : MonoBehaviour
             return;
         }
 
+        TestPlayDeckPick lockedDeck = DeckSettinObject.Instance.CaptureCurrentPlayerDeckPick();
+        if (lockedDeck == null || lockedDeck.Cards == null || lockedDeck.Cards.Count == 0)
+        {
+            AppendLog("Start failed: select your deck before Online Battle.");
+            return;
+        }
+
+        EosOnlineMatchState.LockPlayerDeck(lockedDeck);
+        AppendLog($"Locked deck '{lockedDeck.Title}' ({lockedDeck.TotalCount} cards) for online battle.");
+
         string remotePeerId = _remoteIdField.text?.Trim();
         if (string.IsNullOrWhiteSpace(remotePeerId))
         {
