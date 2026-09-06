@@ -82,6 +82,7 @@ public partial class BattleGameMain
         }
 
         RecordRemoteShieldBreakBurstDeployedUnitIfNeeded(sourceCard);
+        MarkBurstCardRetained(sourceCard);
 
         Debug.Log(
             $"[DeploySelfAsBattleUnit] {unitData.cardName}(id:{unitData.id}) "

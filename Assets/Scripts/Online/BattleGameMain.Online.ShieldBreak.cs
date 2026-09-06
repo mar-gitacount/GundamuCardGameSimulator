@@ -172,10 +172,20 @@ public partial class BattleGameMain
             takenCards.Add(taken);
         }
 
-        for (int i = 0; i < takenCards.Count; i++)
+        // タイムアウト時のローカル推定。AddSelfToHand 等は手札へ、それ以外はトラッシュ。
+        // 防御側が権威のため ZoneSync は出さない。
+        WithZoneSyncSuppressed(() =>
         {
-            enemyCardGameRule.CommitShieldCardToTrash(takenCards[i]);
-        }
+            for (int i = 0; i < takenCards.Count; i++)
+            {
+                CommitShieldBreakTakenAfterBurst(
+                    takenCards[i],
+                    enemyCardGameRule,
+                    PlayerType.Enemy);
+            }
+
+            ClearBurstRetainedControllersAfterCommitBatch();
+        });
 
         enemyCardGameRule.DestroyUnregisteredShieldZoneVisuals();
         ReconcileShieldStateWithZone(Gundam2024RuleScript.PlayerSide.Enemy, force: true);
@@ -483,12 +493,13 @@ public partial class BattleGameMain
         if (currentPlayerType == PlayerType.Player)
         {
             ApplyRemoteDefenderAreaSnapshotFromBurst(action);
-            ApplyAttackerMirrorBrokenShieldCardsToTrash(
-                action.brokenShieldCardIds != null && action.brokenShieldCardIds.Length > 0
-                    ? action.brokenShieldCardIds
-                    : _pendingAttackerMirrorBrokenShieldCardIds);
+            // 防御側が記録した「実際にトラッシュした ID」のみ使う。
+            // null/空 = パイロット手札戻し等でトラッシュなし。peek 全件へのフォールバックは
+            // 手札保持カードまでトラッシュし、ZoneSync で防御側へ逆流して手札＋トラッシュになる。
+            ApplyAttackerMirrorBrokenShieldCardsToTrash(action.brokenShieldCardIds);
         }
 
+        _pendingAttackerMirrorBrokenShieldCardIds = null;
         _onlineShieldBreakCompleteReceived = true;
         Debug.Log($"[OnlineBattle] ShieldBreakComplete received. requestId={action.requestId}");
     }
@@ -496,6 +507,7 @@ public partial class BattleGameMain
     /// <summary>
     /// 防御側のバースト完了後、攻撃側ミラーの相手トラッシュへ破壊シールドを反映する。
     /// ゾーンはスナップショットで既に更新済みのため、ID のみトラッシュへ追加する。
+    /// 防御側が権威のため ZoneSync は出さない（出すると防御側へ AddTrash が逆流する）。
     /// </summary>
     private void ApplyAttackerMirrorBrokenShieldCardsToTrash(int[] brokenCardIds)
     {
@@ -505,17 +517,31 @@ public partial class BattleGameMain
         }
 
         int added = 0;
-        for (int i = 0; i < brokenCardIds.Length; i++)
+        WithZoneSyncSuppressed(() =>
         {
-            int cardId = brokenCardIds[i];
-            if (cardId <= 0)
+            for (int i = 0; i < brokenCardIds.Length; i++)
             {
-                continue;
-            }
+                int cardId = brokenCardIds[i];
+                if (cardId <= 0)
+                {
+                    continue;
+                }
 
-            enemyCardGameRule.AddCardToTrash(cardId);
-            added++;
-        }
+                // 防御側記録の保険: AddSelfToHand バーストはトラッシュしない
+                CardData data = DeckSettinObject.Instance != null
+                    ? DeckSettinObject.Instance.GetCardDataById(cardId)
+                    : null;
+                if (HasAddSelfToHandOnBurst(data))
+                {
+                    Debug.Log(
+                        $"[OnlineBattle] Attacker mirror trash skipped AddSelfToHand cardId={cardId}");
+                    continue;
+                }
+
+                enemyCardGameRule.AddCardToTrash(cardId);
+                added++;
+            }
+        });
 
         if (added > 0)
         {
@@ -537,7 +563,10 @@ public partial class BattleGameMain
             yield break;
         }
 
+        // トラッシュは ShieldBreakComplete の brokenShieldCardIds で攻撃側へ渡す。
+        // 同タイミングの ZoneSync AddTrash と二重になると相手盤トラッシュが2枚になる。
         BeginRemoteShieldBreakTrashIdRecording();
+        PushZoneSyncSuppress();
         try
         {
             if (simultaneousReveal && brokenCount > 1)
@@ -555,6 +584,7 @@ public partial class BattleGameMain
         }
         finally
         {
+            PopZoneSyncSuppress();
             int[] trashedCardIds = EndRemoteShieldBreakTrashIdRecording();
             if (!shieldBreakQueueRunning && pendingShieldBreakBatches.Count == 0)
             {

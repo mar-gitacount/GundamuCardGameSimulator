@@ -402,6 +402,11 @@ public partial class BattleGameMain
         // 既に正式登録済みのときだけスキップ（枠の子になっているだけでは未配備扱い）
         if (ownerRule.DeployedBase == cardController && IsCardInBaseSlot(cardController))
         {
+            if (IsResolvingBurstEffect)
+            {
+                MarkBurstCardRetained(cardController);
+            }
+
             return true;
         }
 
@@ -432,10 +437,20 @@ public partial class BattleGameMain
                 RefreshAllHandsConditionalOnHandAuto();
                 ContinueBaseDeployAfterOnPlayed(cardController, ownerType, ownerRule, replacingBaseLayer);
             });
+            if (IsResolvingBurstEffect)
+            {
+                MarkBurstCardRetained(cardController);
+            }
+
             return true;
         }
 
         ContinueBaseDeployAfterOnPlayed(cardController, ownerType, ownerRule, replacingBaseLayer);
+        if (IsResolvingBurstEffect)
+        {
+            MarkBurstCardRetained(cardController);
+        }
+
         return true;
     }
 

@@ -2050,6 +2050,8 @@ public partial class BattleGameMain
             {
                 CommitShieldBreakTakenAfterBurst(takenCards[i], rule, shieldOwner);
             }
+
+            ClearBurstRetainedControllersAfterCommitBatch();
         }
         finally
         {

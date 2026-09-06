@@ -188,6 +188,7 @@ public partial class BattleGameMain
         blockExchangeCancelledForCurrentAttack = false;
         burstDeployBasePreferSourceCard = false;
         burstEffectResolutionDepth = 0;
+        _burstRetainedControllers.Clear();
         ClearAttackFlowContext();
         currentPhase = BattlePhase.StartTurn;
     }

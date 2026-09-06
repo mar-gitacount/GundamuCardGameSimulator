@@ -1391,9 +1391,46 @@ public class CardGameRule
         return true;
     }
 
-    /// <summary>公開・バースト処理後にトラッシュへ送る。</summary>
-    public void CommitShieldCardToTrash(ShieldBreakTaken taken)
+    /// <summary>公開・バースト処理後にトラッシュへ送る。実際にトラッシュへ入れたら true。</summary>
+    public bool CommitShieldCardToTrash(ShieldBreakTaken taken)
     {
+        // 手札／ベース／バトル／シールドへ残っている場合は絶対にトラッシュしない
+        // （AddSelfToHand 後の誤 Commit で「手札＋トラッシュ」になるのを防ぐ）
+        if (taken.Controller != null)
+        {
+            CardController card = taken.Controller;
+            if (HandScrollContent != null && card.transform.IsChildOf(HandScrollContent))
+            {
+                Debug.LogWarning(
+                    $"[ShieldBreak] Commit trash skipped — already in hand id:{taken.CardId}");
+                return false;
+            }
+
+            if (DeployedBase == card
+                || (BaseSlotContent != null && card.transform.IsChildOf(BaseSlotContent))
+                || (PlayerDeployPanel != null && card.transform.IsChildOf(PlayerDeployPanel))
+                || IsRegisteredInShieldZone(card))
+            {
+                Debug.LogWarning(
+                    $"[ShieldBreak] Commit trash skipped — card retained on field id:{taken.CardId}");
+                return false;
+            }
+        }
+
+        // Controller が無い／親判定に失敗しても、バーストで手札へ戻るカードは ID で弾く
+        CardData data = taken.Data;
+        if (data == null && taken.CardId > 0 && DeckSettinObject.Instance != null)
+        {
+            data = DeckSettinObject.Instance.GetCardDataById(taken.CardId);
+        }
+
+        if (HasAddSelfToHandOnBurstEffect(data))
+        {
+            Debug.LogWarning(
+                $"[ShieldBreak] Commit trash skipped — AddSelfToHand OnBurst id:{taken.CardId}");
+            return false;
+        }
+
         if (taken.CardId > 0)
         {
             AddCardToTrash(taken.CardId);
@@ -1403,6 +1440,63 @@ public class CardGameRule
         {
             UnityEngine.Object.Destroy(taken.Controller.gameObject);
         }
+
+        return taken.CardId > 0;
+    }
+
+    /// <summary>OnBurst の AddSelfToHand（ChooseOne 枝含む）を持つカードはトラッシュしない。</summary>
+    private static bool HasAddSelfToHandOnBurstEffect(CardData data)
+    {
+        if (data == null)
+        {
+            return false;
+        }
+
+        List<EffectData> effects = TimedEffectResolver.CollectEffectsByTiming(data, EffectTiming.OnBurst);
+        return EffectListContainsAddSelfToHand(effects);
+    }
+
+    private static bool EffectListContainsAddSelfToHand(IReadOnlyList<EffectData> effects)
+    {
+        if (effects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type == EffectType.AddSelfToHand)
+            {
+                return true;
+            }
+
+            if (!effect.IsChooseOneEffect())
+            {
+                continue;
+            }
+
+            for (int b = 0; b < effect.choiceBranches.Length; b++)
+            {
+                EffectChoiceBranch branch = effect.choiceBranches[b];
+                if (branch == null)
+                {
+                    continue;
+                }
+
+                if (EffectListContainsAddSelfToHand(branch.GetResolvedEffects()))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>手札の CardController をシールドゾーン末尾に追加する（face down）。</summary>

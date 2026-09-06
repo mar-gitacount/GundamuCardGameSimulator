@@ -71,11 +71,46 @@ public partial class BattleGameMain
         }
 
         List<EffectData> effects = TimedEffectResolver.CollectEffectsByTiming(data, EffectTiming.OnBurst);
+        return EffectListContainsAddSelfToHand(effects);
+    }
+
+    private static bool EffectListContainsAddSelfToHand(IReadOnlyList<EffectData> effects)
+    {
+        if (effects == null)
+        {
+            return false;
+        }
+
         for (int i = 0; i < effects.Count; i++)
         {
-            if (effects[i] != null && effects[i].type == EffectType.AddSelfToHand)
+            EffectData effect = effects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type == EffectType.AddSelfToHand)
             {
                 return true;
+            }
+
+            if (!effect.IsChooseOneEffect())
+            {
+                continue;
+            }
+
+            for (int b = 0; b < effect.choiceBranches.Length; b++)
+            {
+                EffectChoiceBranch branch = effect.choiceBranches[b];
+                if (branch == null)
+                {
+                    continue;
+                }
+
+                if (EffectListContainsAddSelfToHand(branch.GetResolvedEffects()))
+                {
+                    return true;
+                }
             }
         }
 
@@ -345,6 +380,7 @@ public partial class BattleGameMain
                 CommitShieldBreakTakenAfterBurst(takenCards[i], rule, shieldOwner);
             }
 
+            ClearBurstRetainedControllersAfterCommitBatch();
             yield break;
         }
 
@@ -424,7 +460,11 @@ public partial class BattleGameMain
                 continue;
             }
 
-            rule.CommitShieldCardToTrash(taken);
+            if (rule.CommitShieldCardToTrash(taken))
+            {
+                RecordRemoteShieldBreakTrashedCardIdIfNeeded(taken);
+            }
+
             processed.Add(zoneIndex);
             Debug.Log($"[Suppress] Base discarded (not deployed) {taken.Data?.cardName}(id:{taken.CardId})");
         }
@@ -471,8 +511,10 @@ public partial class BattleGameMain
                 continue;
             }
 
-            rule.CommitShieldCardToTrash(taken);
+            CommitShieldBreakTakenAfterBurst(taken, rule, shieldOwner);
         }
+
+        ClearBurstRetainedControllersAfterCommitBatch();
     }
 
     private static SuppressBreakPlayerChoice BuildEnemySuppressChoice(SuppressBreakingLayout layout)
