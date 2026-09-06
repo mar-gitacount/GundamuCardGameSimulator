@@ -924,6 +924,16 @@ public partial class BattleGameMain : MonoBehaviour
 
         playerDeckData = DeckSettinObject.Instance.LoadDeckReturn();
         enemyDeckData = DeckSettinObject.Instance.LoadEnemyDeckReturn();
+        // オンライン: ランダムマッチ等の開始押下時点デッキを優先（編集中バッファで差し替えない）
+        if (IsOnlineBattle()
+            && EosOnlineMatchState.TryGetLockedPlayerDeckCards(out Dictionary<int, int> lockedOnlineDeck))
+        {
+            playerDeckData = lockedOnlineDeck;
+            Debug.Log(
+                $"[OnlineBattle] Using locked match deck '{EosOnlineMatchState.LockedPlayerDeck?.Title}' "
+                + $"cards={lockedOnlineDeck.Count}");
+        }
+
         ConfigureOnlineBattleDecks(ref playerDeckData, ref enemyDeckData);
         ConfigureTestPlayDecks(ref playerDeckData, ref enemyDeckData);
         enemyDeckData = EnsureDeckHasMinimumCardsForOpening(enemyDeckData, playerDeckData, minDeckTotalForOpening, "Enemy");

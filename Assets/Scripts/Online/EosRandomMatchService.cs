@@ -170,6 +170,18 @@ public sealed class EosRandomMatchService : MonoBehaviour
             return;
         }
 
+        // 押下時点のデッキを固定（マッチング中の編集で差し替わらないようにする）
+        TestPlayDeckPick lockedDeck = DeckSettinObject.Instance.CaptureCurrentPlayerDeckPick();
+        if (lockedDeck == null || lockedDeck.Cards == null || lockedDeck.Cards.Count == 0)
+        {
+            SetStatus(MatchPhase.Idle, "Select a deck before Random Match.");
+            return;
+        }
+
+        EosOnlineMatchState.LockPlayerDeck(lockedDeck);
+        Debug.Log(
+            $"[RandomMatch] Locked player deck '{lockedDeck.Title}' cards={lockedDeck.TotalCount} key={lockedDeck.StorageKey}");
+
         _bucket = string.IsNullOrWhiteSpace(bucket) ? DefaultBucket : bucket.Trim();
         LocalAccepted = false;
         RemoteAccepted = false;
@@ -202,6 +214,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
         RemotePeerId = string.Empty;
         _actionInFlight = false;
         _isLobbyOwner = false;
+        EosOnlineMatchState.ClearLockedPlayerDeck();
         SetStatus(MatchPhase.Idle, reason);
     }
 
@@ -239,6 +252,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
         RemotePeerId = string.Empty;
         _actionInFlight = false;
         _isLobbyOwner = false;
+        EosOnlineMatchState.ClearLockedPlayerDeck();
         SetStatus(MatchPhase.Idle, "Match declined.");
     }
 
@@ -260,6 +274,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
         {
             _loginService.LoginStateChanged -= OnLoginStateChangedForMatchmaking;
             DestroySearchingHud();
+            EosOnlineMatchState.ClearLockedPlayerDeck();
             SetStatus(MatchPhase.Idle, "Login failed. Random Match cancelled.");
         }
     }
@@ -547,6 +562,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
                 DestroySearchingHud();
                 LocalAccepted = false;
                 RemoteAccepted = false;
+                EosOnlineMatchState.ClearLockedPlayerDeck();
                 SetStatus(MatchPhase.Idle, "Opponent cancelled matchmaking.");
                 break;
             case "MatchStart":
