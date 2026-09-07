@@ -4026,7 +4026,13 @@ MonoBehaviour:
     m_Address: Data/Images/T-010
     m_ReadOnly: 0
     m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0  m_ReadOnly: 0
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 745b505f95fe6cc41a3dfcb0056f4d5c
+    m_Address: Data/Images/ST04-012
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:
     m_Schemas:

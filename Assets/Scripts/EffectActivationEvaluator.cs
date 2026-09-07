@@ -524,6 +524,17 @@ public static class EffectActivationEvaluator
             return CompareInts(count, c.unitCountThreshold, c.unitCountCompareOp);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.CompareFieldUnitTokenCount)
+        {
+            if (c.boardSide == EffectBoardSide.Unset)
+            {
+                return false;
+            }
+
+            int tokenCount = CountAliveUnitTokensMatchingFeature(ResolveZone(ctx, c.boardSide), c);
+            return CompareInts(tokenCount, c.unitCountThreshold, c.unitCountCompareOp);
+        }
+
         // boardSide 未指定は「この checkKind のゾーン側判定をスキップ」扱い。
         if (c.boardSide == EffectBoardSide.Unset)
         {
@@ -1799,6 +1810,43 @@ public static class EffectActivationEvaluator
             {
                 n++;
             }
+        }
+
+        return n;
+    }
+
+    /// <summary>
+    /// 生存ユニットトークンを数える。Feature 指定時はその Feature を持つトークンのみ。
+    /// </summary>
+    private static int CountAliveUnitTokensMatchingFeature(
+        IReadOnlyList<CardController> cards,
+        EffectActivationCondition c)
+    {
+        if (cards == null)
+        {
+            return 0;
+        }
+
+        IReadOnlyList<CardFeatureData> requiredFeatures = c != null
+            ? c.GetActivationFeatures()
+            : System.Array.Empty<CardFeatureData>();
+        bool requireFeature = requiredFeatures != null && requiredFeatures.Count > 0;
+
+        int n = 0;
+        for (int i = 0; i < cards.Count; i++)
+        {
+            CardController unit = cards[i];
+            if (!IsAliveUnit(unit) || unit.Data == null || !unit.Data.IsUnitToken())
+            {
+                continue;
+            }
+
+            if (requireFeature && !unit.HasAnyFeature(requiredFeatures))
+            {
+                continue;
+            }
+
+            n++;
         }
 
         return n;

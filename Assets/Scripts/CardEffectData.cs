@@ -820,7 +820,13 @@ public enum EffectActivationCheckKind
     /// 指定ゾーンの REST 状態の生存ユニットが minimumCount 体以上いる。
     /// 例: 相手に REST ユニットがいる間、制圧を得る。
     /// </summary>
-    RestedUnitCountAtLeast
+    RestedUnitCountAtLeast,
+    /// <summary>
+    /// 指定ゾーンの生存ユニットトークン体数を unitCountThreshold と unitCountCompareOp で比較。
+    /// feature / featureId / features / featureIds 指定時は、その Feature を持つトークンのみ数える。
+    /// 例: 〔地球連合〕ユニットトークンが 0 体 → Equal + threshold 0。
+    /// </summary>
+    CompareFieldUnitTokenCount
 }
 
 public enum EffectTurnCheckKind
@@ -927,7 +933,9 @@ public class EffectActivationCondition
     [Tooltip("CountUnitsAtExactLevel のみ: 体数を unitCountThreshold と比較するときの演算子。")]
     public EffectCompareOperator unitCountCompareOp = EffectCompareOperator.Equal;
 
-    [Tooltip("CountUnitsAtExactLevel / CompareFieldUnitCount: 数えた体数と比較する閾値（例: LV6 が 0 体なら 0、ユニット 2 体以上なら 2）。")]
+    [Tooltip(
+        "CountUnitsAtExactLevel / CompareFieldUnitCount / CompareFieldUnitTokenCount: "
+        + "数えた体数と比較する閾値（例: LV6 が 0 体なら 0、〔地球連合〕ユニットトークン 0 体なら 0）。")]
     public int unitCountThreshold;
 
     [Tooltip("MountedPilot のみ: パイロットカード ID（0 なら ID 条件なし）。")]
