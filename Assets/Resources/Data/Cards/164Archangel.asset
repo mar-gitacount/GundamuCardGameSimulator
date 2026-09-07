@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 164
   gcgOfficialId: GD05-123
   cardName: Archangel
-  cost: 0
-  level: 0
+  cost: 1
+  level: 2
   power: 0
-  hp: 0
+  hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Archangel
@@ -31,11 +31,57 @@ MonoBehaviour:
   sourceTitle: 12
   filterType: 0
   color: 2
-  type: 0
-  battleZones: 0
+  type: 3
+  battleZones: 3
   attackFlg: 0
-  timedEffects: []
-  features: []
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployBase1_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 6
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddShield1_OnBaseDeployed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 6
+    activationConditions:
+    - boardSide: -1
+      checkKind: -1
+      turnCheck: 1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: AllyOrbEffectDamageImmunityFrom2OrLess_NotOwnerTurn
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+  - {fileID: 11400000, guid: 5a47f8b7e2c445e4b40e8767fd088d44, type: 2}
   pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
@@ -46,7 +92,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

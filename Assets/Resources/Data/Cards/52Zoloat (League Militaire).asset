@@ -30,7 +30,7 @@ MonoBehaviour:
   eternalBoosterSet: 0
   sourceTitle: 5
   filterType: 0
-  color: 5
+  color: 2
   type: 0
   battleZones: 1
   attackFlg: 0
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

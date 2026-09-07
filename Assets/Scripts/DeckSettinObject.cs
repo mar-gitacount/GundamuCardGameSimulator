@@ -314,7 +314,7 @@ public class DeckSettinObject : MonoBehaviour
         }
 
         HideDeckActionButtons();
-        TestPlayMatchState.Begin();
+        TestPlayMatchState.Begin(player.Title, enemy.Title);
         EnterBattleFromMenu();
     }
 

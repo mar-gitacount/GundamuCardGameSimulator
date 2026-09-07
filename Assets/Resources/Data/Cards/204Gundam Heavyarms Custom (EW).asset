@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 204
   gcgOfficialId: GD05-079
   cardName: Gundam Heavyarms Custom (EW)
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 2
+  level: 3
+  power: 3
+  hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Gundam Heavyarms Custom (EW)
@@ -32,12 +32,49 @@ MonoBehaviour:
   filterType: 0
   color: 5
   type: 0
-  battleZones: 0
+  battleZones: 3
   attackFlg: 0
-  timedEffects: []
-  features: []
+  timedEffects:
+  - timing: 12
+    activationConditions:
+    - boardSide: 0
+      checkKind: 0
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features:
+      - {fileID: 11400000, guid: b47d35768007412bad3b53c23aca96d5, type: 2}
+      - {fileID: 11400000, guid: b2e64c0a4157420dbcb9d6cb76419367, type: 2}
+      featureIds: 
+      minimumCount: 2
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: DebuffEnemyAp1_Lv4OrLess_UntilEOT_SelectSingle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 1
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: b47d35768007412bad3b53c23aca96d5, type: 2}
   pilotIds: []
-  link: []
+  link:
+  - pilotCardId: 207
+    linkPilotIds:
+    - {fileID: 11400000, guid: 18198bda61c84d60853f022550f7214d, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
@@ -46,7 +83,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

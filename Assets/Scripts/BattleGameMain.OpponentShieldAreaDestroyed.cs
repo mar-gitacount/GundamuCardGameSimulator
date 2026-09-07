@@ -5,9 +5,17 @@ using UnityEngine;
 
 /// <summary>
 /// 相手シールドエリアのカードをダメージ破壊したとき（OnOpponentShieldAreaCardDestroyed）。
+/// ユニット本体と搭乗パイロット双方の timedEffects を解決する。
 /// </summary>
 public partial class BattleGameMain
 {
+    private struct OpponentShieldAreaDestroyedBlock
+    {
+        public CardController EffectSource;
+        public TimedEffectData Timed;
+        public int BlockIndex;
+    }
+
     private IEnumerator WaitOnOpponentShieldAreaCardDestroyedCoroutine(
         CardController sourceUnit,
         PlayerType ownerType)
@@ -31,28 +39,55 @@ public partial class BattleGameMain
             return;
         }
 
-        if (sourceUnit.Data.timedEffects == null || sourceUnit.Data.timedEffects.Count == 0)
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceUnit);
+        List<OpponentShieldAreaDestroyedBlock> blocks = new List<OpponentShieldAreaDestroyedBlock>();
+        CollectOpponentShieldAreaDestroyedBlocks(sourceUnit, ownerType, activationContext, blocks);
+        if (sourceUnit.MountedPilot != null)
+        {
+            CollectOpponentShieldAreaDestroyedBlocks(
+                sourceUnit.MountedPilot,
+                ownerType,
+                activationContext,
+                blocks);
+        }
+
+        if (blocks.Count == 0)
         {
             onComplete?.Invoke();
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceUnit);
-        List<TimedEffectData> blocks = new List<TimedEffectData>();
-        List<int> blockIndices = new List<int>();
-        for (int i = 0; i < sourceUnit.Data.timedEffects.Count; i++)
+        Debug.Log(
+            $"[OnOpponentShieldAreaCardDestroyed] {sourceUnit.Data.cardName}(id:{sourceUnit.Data.id}) "
+            + $"blocks:{blocks.Count}");
+
+        RunOnOpponentShieldAreaCardDestroyedTimedBlocks(ownerType, blocks, 0, onComplete);
+    }
+
+    private void CollectOpponentShieldAreaDestroyedBlocks(
+        CardController effectSource,
+        PlayerType ownerType,
+        EffectActivationContext activationContext,
+        List<OpponentShieldAreaDestroyedBlock> blocks)
+    {
+        if (effectSource?.Data?.timedEffects == null || blocks == null)
         {
-            TimedEffectData timed = sourceUnit.Data.timedEffects[i];
+            return;
+        }
+
+        for (int i = 0; i < effectSource.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = effectSource.Data.timedEffects[i];
             if (timed == null || !timed.IsOnOpponentShieldAreaCardDestroyedResolutionBlock())
             {
                 continue;
             }
 
-            if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(ownerType, sourceUnit, i))
+            if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(ownerType, effectSource, i))
             {
                 Debug.Log(
                     $"[OnOpponentShieldAreaCardDestroyed] ターン1回使用済みのためスキップ "
-                    + $"{sourceUnit.Data.cardName}(id:{sourceUnit.Data.id}) block:{i}");
+                    + $"{effectSource.Data.cardName}(id:{effectSource.Data.id}) block:{i}");
                 continue;
             }
 
@@ -66,34 +101,18 @@ public partial class BattleGameMain
                 continue;
             }
 
-            blocks.Add(timed);
-            blockIndices.Add(i);
+            blocks.Add(new OpponentShieldAreaDestroyedBlock
+            {
+                EffectSource = effectSource,
+                Timed = timed,
+                BlockIndex = i
+            });
         }
-
-        if (blocks.Count == 0)
-        {
-            onComplete?.Invoke();
-            return;
-        }
-
-        Debug.Log(
-            $"[OnOpponentShieldAreaCardDestroyed] {sourceUnit.Data.cardName}(id:{sourceUnit.Data.id}) "
-            + $"blocks:{blocks.Count}");
-
-        RunOnOpponentShieldAreaCardDestroyedTimedBlocks(
-            sourceUnit,
-            ownerType,
-            blocks,
-            blockIndices,
-            0,
-            onComplete);
     }
 
     private void RunOnOpponentShieldAreaCardDestroyedTimedBlocks(
-        CardController sourceUnit,
         PlayerType ownerType,
-        List<TimedEffectData> blocks,
-        List<int> blockIndices,
+        List<OpponentShieldAreaDestroyedBlock> blocks,
         int index,
         Action onComplete)
     {
@@ -103,23 +122,22 @@ public partial class BattleGameMain
             return;
         }
 
-        TimedEffectData timed = blocks[index];
-        int blockIndex = blockIndices != null && index < blockIndices.Count ? blockIndices[index] : index;
-        if (timed != null && timed.oncePerTurn)
+        OpponentShieldAreaDestroyedBlock block = blocks[index];
+        CardController effectSource = block.EffectSource;
+        TimedEffectData timed = block.Timed;
+        if (timed != null && timed.oncePerTurn && effectSource != null)
         {
-            MarkPaidActivationUsedThisTurn(ownerType, sourceUnit, blockIndex);
+            MarkPaidActivationUsedThisTurn(ownerType, effectSource, block.BlockIndex);
         }
 
         TryExecuteOnOpponentShieldAreaCardDestroyedEffectChain(
-            sourceUnit,
+            effectSource,
             ownerType,
             timed != null ? timed.GetResolvedEffects() : null,
             0,
             () => RunOnOpponentShieldAreaCardDestroyedTimedBlocks(
-                sourceUnit,
                 ownerType,
                 blocks,
-                blockIndices,
                 index + 1,
                 onComplete));
     }
