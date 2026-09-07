@@ -30,6 +30,7 @@ public partial class BattleGameMain
         public bool optionalPlayerConfirm;
         public bool opponentChoosesTarget;
         public int[] candidateInstanceIds;
+        public int[] blockedInstanceIds;
         public int chosenInstanceId;
         public bool skipped;
     }
@@ -44,7 +45,8 @@ public partial class BattleGameMain
         EffectData effect,
         List<CardController> candidates,
         System.Action stepResolved,
-        System.Action onSkipAll)
+        System.Action onSkipAll,
+        List<CardController> blockedUnits = null)
     {
         if (!IsOnlineBattle()
             || sourceCard == null
@@ -73,6 +75,21 @@ public partial class BattleGameMain
             return false;
         }
 
+        List<int> blockedIds = new List<int>();
+        if (blockedUnits != null)
+        {
+            for (int i = 0; i < blockedUnits.Count; i++)
+            {
+                CardController b = blockedUnits[i];
+                if (b == null || b.BattleInstanceId <= 0)
+                {
+                    continue;
+                }
+
+                blockedIds.Add(b.BattleInstanceId);
+            }
+        }
+
         int requestId = _nextOnlineOpponentUnitPickRequestId++;
         if (_nextOnlineOpponentUnitPickRequestId <= 0)
         {
@@ -96,7 +113,8 @@ public partial class BattleGameMain
             effectTarget = (int)effect.target,
             optionalPlayerConfirm = effect.optionalPlayerConfirm,
             opponentChoosesTarget = effect.opponentChoosesTarget,
-            candidateInstanceIds = instanceIds.ToArray()
+            candidateInstanceIds = instanceIds.ToArray(),
+            blockedInstanceIds = blockedIds.Count > 0 ? blockedIds.ToArray() : null
         };
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOpponentUnitPickRequest(
@@ -148,6 +166,27 @@ public partial class BattleGameMain
             }
         }
 
+        List<CardController> localBlocked = new List<CardController>();
+        if (payload.blockedInstanceIds != null)
+        {
+            for (int i = 0; i < payload.blockedInstanceIds.Length; i++)
+            {
+                int instanceId = payload.blockedInstanceIds[i];
+                CardController unit = FindUnitByInstanceIdEitherZone(instanceId);
+                if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+                {
+                    continue;
+                }
+
+                if (ResolveCardOwner(unit.transform) != PlayerType.Player)
+                {
+                    continue;
+                }
+
+                localBlocked.Add(unit);
+            }
+        }
+
         if (localCandidates.Count == 0)
         {
             Debug.LogWarning(
@@ -170,13 +209,15 @@ public partial class BattleGameMain
         OpenOnlineOpponentUnitPickUi(
             payload.requestId,
             effect,
-            localCandidates);
+            localCandidates,
+            localBlocked);
     }
 
     private void OpenOnlineOpponentUnitPickUi(
         int requestId,
         EffectData effect,
-        List<CardController> candidates)
+        List<CardController> candidates,
+        List<CardController> blockedUnits = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
@@ -185,6 +226,15 @@ public partial class BattleGameMain
             _onlineOpponentUnitPickUiOpen = false;
             return;
         }
+
+        List<CardController> selectable = candidates != null
+            ? new List<CardController>(candidates)
+            : new List<CardController>();
+        List<CardController> blocked = blockedUnits != null
+            ? new List<CardController>(blockedUnits)
+            : new List<CardController>();
+        RemoveUnitsFromList(selectable, blocked);
+        List<CardController> displayUnits = BuildUnitPickDisplayList(selectable, blocked);
 
         GameObject root = new GameObject(
             "OnlineOpponentUnitPick",
@@ -229,20 +279,34 @@ public partial class BattleGameMain
             SendOnlineOpponentUnitPickResponse(requestId, instanceId, skipped);
         }
 
-        for (int i = 0; i < candidates.Count; i++)
+        for (int i = 0; i < displayUnits.Count; i++)
         {
-            CardController unit = candidates[i];
+            CardController unit = displayUnits[i];
             if (content == null || unit == null || unit.Data == null || CardImagePrefab == null)
             {
                 continue;
             }
 
+            bool isBlocked = IsUnitInList(blocked, unit);
             GameObject cardItem = Instantiate(CardImagePrefab, content);
             CardController itemCc = cardItem.GetComponent<CardController>();
             if (itemCc != null)
             {
-                CardController pickedRef = unit;
-                itemCc.SetUp(unit.Data, _ => FinishPick(pickedRef, skipped: false));
+                if (isBlocked)
+                {
+                    itemCc.SetUp(unit.Data, _ => { });
+                }
+                else
+                {
+                    CardController pickedRef = unit;
+                    itemCc.SetUp(unit.Data, _ => FinishPick(pickedRef, skipped: false));
+                }
+            }
+
+            ApplyUnitPickCardGrayedOut(cardItem, isBlocked);
+            if (isBlocked)
+            {
+                continue;
             }
 
             UnityEngine.UI.Button btn = cardItem.GetComponent<UnityEngine.UI.Button>();
@@ -336,11 +400,12 @@ public partial class BattleGameMain
             return;
         }
 
-        ApplyEffectToSpecificTargets(
-            source,
-            attackerOwner,
-            effect,
-            new List<CardController> { chosen });
+        InvokePlayerManualUnitSelectionCallback(() =>
+            ApplyEffectToSpecificTargets(
+                source,
+                attackerOwner,
+                effect,
+                new List<CardController> { chosen }));
         ContinueOnAttackAfterAppliedEffect(attacker, effect, stepResolved);
     }
 
