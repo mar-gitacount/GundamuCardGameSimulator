@@ -153,8 +153,8 @@ public partial class BattleGameMain
     }
 
     /// <summary>
-    /// TestPlay: 上下に両サイドの手札を並べ、それぞれマリガン／キープできる。
-    /// 両サイドがキープしたらシールド配備へ進む。
+    /// TestPlay: 自分／相手を別 UI で配置。マリガン or キープを押したサイドの UI だけ消す。
+    /// 両サイド確定後にシールド配備へ進む。
     /// </summary>
     private IEnumerator RunTestPlayDualMulliganCoroutine(Canvas canvas, int openingHandSize, int exBasePoints)
     {
@@ -166,81 +166,110 @@ public partial class BattleGameMain
 
         isMulliganPromptOpen = true;
 
-        GameObject root = new GameObject(
-            "TestPlayDualMulligan",
+        GameObject layer = new GameObject(
+            "TestPlayMulliganLayer",
             typeof(RectTransform),
             typeof(CanvasRenderer),
             typeof(Image));
-        root.transform.SetParent(canvas.transform, false);
-        root.transform.SetAsLastSibling();
-        RectTransform rootRt = root.GetComponent<RectTransform>();
-        rootRt.SetFullSize();
-        Image dim = root.GetComponent<Image>();
+        layer.transform.SetParent(canvas.transform, false);
+        layer.transform.SetAsLastSibling();
+        RectTransform layerRt = layer.GetComponent<RectTransform>();
+        layerRt.SetFullSize();
+        Image dim = layer.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.62f);
         dim.raycastTarget = true;
 
-        bool playerKept = false;
-        bool enemyKept = false;
+        bool playerDecided = false;
+        bool enemyDecided = false;
 
-        // 中央仕切り
-        TextMeshProUGUI divider = root.CreateChildTextCustom(
-            "MulliganDivider",
-            UIAnchor.TopCenter,
-            420,
-            40);
-        divider.SetLocalizedText(GameLocale.TKey("mulligan.divider"));
-        divider.fontSize = 28;
-        divider.fontStyle = FontStyles.Bold;
-        divider.color = Color.white;
-        divider.alignment = TextAlignmentOptions.Center;
-        RectTransform dividerRt = divider.GetComponent<RectTransform>();
-        dividerRt.anchorMin = new Vector2(0.5f, 0.5f);
-        dividerRt.anchorMax = new Vector2(0.5f, 0.5f);
-        dividerRt.pivot = new Vector2(0.5f, 0.5f);
-        dividerRt.anchoredPosition = Vector2.zero;
+        GameObject enemyUi = null;
+        GameObject playerUi = null;
 
-        CreateTestPlayMulliganDividerLine(root.transform, -220f);
-        CreateTestPlayMulliganDividerLine(root.transform, 220f);
-
-        BuildTestPlayMulliganSideRow(
-            root.transform,
+        enemyUi = BuildTestPlayMulliganSideUi(
+            layer.transform,
             PlayerType.Enemy,
             seatNumber: 2,
             isTop: true,
-            () => enemyKept,
-            kept => enemyKept = kept,
-            () =>
+            onMulligan: () =>
             {
-                if (enemyKept)
+                if (enemyDecided)
                 {
                     return;
                 }
 
                 PerformMulligan(enemyCardGameRule, enemyHandCards, openingHandSize, PlayerType.Enemy);
-                Debug.Log("[TestPlay][Mulligan] Enemy redraw.");
+                enemyDecided = true;
+                if (enemyUi != null)
+                {
+                    Destroy(enemyUi);
+                    enemyUi = null;
+                }
+
+                Debug.Log("[TestPlay][Mulligan] Enemy mulligan → UI closed.");
+            },
+            onKeep: () =>
+            {
+                if (enemyDecided)
+                {
+                    return;
+                }
+
+                enemyDecided = true;
+                if (enemyUi != null)
+                {
+                    Destroy(enemyUi);
+                    enemyUi = null;
+                }
+
+                Debug.Log("[TestPlay][Mulligan] Enemy keep → UI closed.");
             });
 
-        BuildTestPlayMulliganSideRow(
-            root.transform,
+        playerUi = BuildTestPlayMulliganSideUi(
+            layer.transform,
             PlayerType.Player,
             seatNumber: 1,
             isTop: false,
-            () => playerKept,
-            kept => playerKept = kept,
-            () =>
+            onMulligan: () =>
             {
-                if (playerKept)
+                if (playerDecided)
                 {
                     return;
                 }
 
                 PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
-                Debug.Log("[TestPlay][Mulligan] Player redraw.");
+                playerDecided = true;
+                if (playerUi != null)
+                {
+                    Destroy(playerUi);
+                    playerUi = null;
+                }
+
+                Debug.Log("[TestPlay][Mulligan] Player mulligan → UI closed.");
+            },
+            onKeep: () =>
+            {
+                if (playerDecided)
+                {
+                    return;
+                }
+
+                playerDecided = true;
+                if (playerUi != null)
+                {
+                    Destroy(playerUi);
+                    playerUi = null;
+                }
+
+                Debug.Log("[TestPlay][Mulligan] Player keep → UI closed.");
             });
 
-        yield return new WaitUntil(() => playerKept && enemyKept);
+        yield return new WaitUntil(() => playerDecided && enemyDecided);
 
-        Destroy(root);
+        if (layer != null)
+        {
+            Destroy(layer);
+        }
+
         isMulliganPromptOpen = false;
 
         cardGameRule.SetupShieldFromDeckAfterMulligan(
@@ -273,45 +302,32 @@ public partial class BattleGameMain
         yield break;
     }
 
-    private static Image CreateTestPlayMulliganDividerLine(Transform parent, float x)
-    {
-        GameObject line = new GameObject(
-            "DividerLine",
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(Image));
-        line.transform.SetParent(parent, false);
-        RectTransform rt = line.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(160f, 2f);
-        rt.anchoredPosition = new Vector2(x, 0f);
-        Image img = line.GetComponent<Image>();
-        img.color = new Color(1f, 1f, 1f, 0.55f);
-        img.raycastTarget = false;
-        return img;
-    }
+    private const float TestPlayMulliganPanelWidth = 480f;
 
-    private RectTransform BuildTestPlayMulliganSideRow(
+    /// <summary>1プレイヤー分の独立マリガン UI（幅480）。確定で Destroy される。</summary>
+    private GameObject BuildTestPlayMulliganSideUi(
         Transform parent,
         PlayerType side,
         int seatNumber,
         bool isTop,
-        System.Func<bool> getKept,
-        System.Action<bool> setKept,
-        System.Action onMulligan)
+        System.Action onMulligan,
+        System.Action onKeep)
     {
-        GameObject section = new GameObject(
-            isTop ? "EnemyMulliganSection" : "PlayerMulliganSection",
-            typeof(RectTransform));
-        section.transform.SetParent(parent, false);
-        RectTransform sectionRt = section.GetComponent<RectTransform>();
-        sectionRt.anchorMin = new Vector2(0.5f, isTop ? 1f : 0f);
-        sectionRt.anchorMax = new Vector2(0.5f, isTop ? 1f : 0f);
-        sectionRt.pivot = new Vector2(0.5f, isTop ? 1f : 0f);
-        sectionRt.sizeDelta = new Vector2(920f, 290f);
-        sectionRt.anchoredPosition = new Vector2(0f, isTop ? -18f : 18f);
+        GameObject root = new GameObject(
+            isTop ? "EnemyMulliganUi" : "PlayerMulliganUi",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        root.transform.SetParent(parent, false);
+        RectTransform rootRt = root.GetComponent<RectTransform>();
+        rootRt.anchorMin = new Vector2(0.5f, isTop ? 1f : 0f);
+        rootRt.anchorMax = new Vector2(0.5f, isTop ? 1f : 0f);
+        rootRt.pivot = new Vector2(0.5f, isTop ? 1f : 0f);
+        rootRt.sizeDelta = new Vector2(TestPlayMulliganPanelWidth, 300f);
+        rootRt.anchoredPosition = new Vector2(0f, isTop ? -18f : 18f);
+        Image rootBg = root.GetComponent<Image>();
+        rootBg.color = new Color(0.08f, 0.09f, 0.12f, 0.94f);
+        rootBg.raycastTarget = true;
 
         // ヘッダー帯
         GameObject header = new GameObject(
@@ -319,16 +335,15 @@ public partial class BattleGameMain
             typeof(RectTransform),
             typeof(CanvasRenderer),
             typeof(Image));
-        header.transform.SetParent(section.transform, false);
+        header.transform.SetParent(root.transform, false);
         RectTransform headerRt = header.GetComponent<RectTransform>();
         headerRt.anchorMin = new Vector2(0f, 1f);
         headerRt.anchorMax = new Vector2(1f, 1f);
         headerRt.pivot = new Vector2(0.5f, 1f);
-        headerRt.sizeDelta = new Vector2(0f, 56f);
+        headerRt.sizeDelta = new Vector2(0f, 52f);
         headerRt.anchoredPosition = Vector2.zero;
-        header.GetComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 0.92f);
+        header.GetComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 1f);
 
-        // 座席番号バッジ
         GameObject badge = new GameObject(
             "SeatBadge",
             typeof(RectTransform),
@@ -339,16 +354,15 @@ public partial class BattleGameMain
         badgeRt.anchorMin = new Vector2(0f, 0.5f);
         badgeRt.anchorMax = new Vector2(0f, 0.5f);
         badgeRt.pivot = new Vector2(0f, 0.5f);
-        badgeRt.sizeDelta = new Vector2(36f, 36f);
-        badgeRt.anchoredPosition = new Vector2(14f, 0f);
-        Image badgeImg = badge.GetComponent<Image>();
-        badgeImg.color = seatNumber == 1
+        badgeRt.sizeDelta = new Vector2(28f, 28f);
+        badgeRt.anchoredPosition = new Vector2(8f, 0f);
+        badge.GetComponent<Image>().color = seatNumber == 1
             ? new Color(0.22f, 0.48f, 0.92f, 1f)
             : new Color(0.88f, 0.28f, 0.28f, 1f);
 
-        TextMeshProUGUI badgeText = badge.CreateChildTextCustom("SeatNum", UIAnchor.FullSize, 36, 36);
+        TextMeshProUGUI badgeText = badge.CreateChildTextCustom("SeatNum", UIAnchor.FullSize, 28, 28);
         badgeText.text = seatNumber.ToString();
-        badgeText.fontSize = 22;
+        badgeText.fontSize = 18;
         badgeText.fontStyle = FontStyles.Bold;
         badgeText.color = Color.white;
         badgeText.alignment = TextAlignmentOptions.Center;
@@ -368,10 +382,10 @@ public partial class BattleGameMain
             ? GameLocale.TKey("mulligan.first")
             : GameLocale.TKey("mulligan.second");
 
-        TextMeshProUGUI title = header.CreateChildTextCustom("DeckTitle", UIAnchor.TopLeft, 520, 40);
+        TextMeshProUGUI title = header.CreateChildTextCustom("DeckTitle", UIAnchor.TopLeft, 200, 36);
         title.text = $"{deckTitle} ({turnLabel})";
         title.ApplyJapaneseFont();
-        title.fontSize = 22;
+        title.fontSize = 16;
         title.color = Color.white;
         title.alignment = TextAlignmentOptions.MidlineLeft;
         title.enableWordWrapping = false;
@@ -380,16 +394,18 @@ public partial class BattleGameMain
         titleRt.anchorMin = new Vector2(0f, 0.5f);
         titleRt.anchorMax = new Vector2(0f, 0.5f);
         titleRt.pivot = new Vector2(0f, 0.5f);
-        titleRt.anchoredPosition = new Vector2(62f, 0f);
+        titleRt.sizeDelta = new Vector2(200f, 36f);
+        titleRt.anchoredPosition = new Vector2(42f, 0f);
 
+        const float actionBtnW = 88f;
         Button mulliganBtn = header.CreateChildButton(GameLocale.TKey("mulligan.action"));
         StyleTestPlayMulliganButton(mulliganBtn, new Color(0.55f, 0.32f, 0.78f, 1f));
         RectTransform mulliganRt = mulliganBtn.GetComponent<RectTransform>();
         mulliganRt.anchorMin = new Vector2(1f, 0.5f);
         mulliganRt.anchorMax = new Vector2(1f, 0.5f);
         mulliganRt.pivot = new Vector2(1f, 0.5f);
-        mulliganRt.sizeDelta = new Vector2(140f, 40f);
-        mulliganRt.anchoredPosition = new Vector2(-168f, 0f);
+        mulliganRt.sizeDelta = new Vector2(actionBtnW, 34f);
+        mulliganRt.anchoredPosition = new Vector2(-(actionBtnW + 16f), 0f);
 
         Button keepBtn = header.CreateChildButton(GameLocale.TKey("mulligan.keep"));
         StyleTestPlayMulliganButton(keepBtn, new Color(0.22f, 0.62f, 0.38f, 1f));
@@ -397,64 +413,35 @@ public partial class BattleGameMain
         keepRt.anchorMin = new Vector2(1f, 0.5f);
         keepRt.anchorMax = new Vector2(1f, 0.5f);
         keepRt.pivot = new Vector2(1f, 0.5f);
-        keepRt.sizeDelta = new Vector2(140f, 40f);
-        keepRt.anchoredPosition = new Vector2(-16f, 0f);
+        keepRt.sizeDelta = new Vector2(actionBtnW, 34f);
+        keepRt.anchoredPosition = new Vector2(-8f, 0f);
 
         GameObject cardsHost = new GameObject(
             "CardsRow",
             typeof(RectTransform),
             typeof(HorizontalLayoutGroup));
-        cardsHost.transform.SetParent(section.transform, false);
+        cardsHost.transform.SetParent(root.transform, false);
         RectTransform cardsRt = cardsHost.GetComponent<RectTransform>();
         cardsRt.anchorMin = new Vector2(0.5f, 0f);
         cardsRt.anchorMax = new Vector2(0.5f, 1f);
         cardsRt.pivot = new Vector2(0.5f, 0.5f);
-        cardsRt.sizeDelta = new Vector2(860f, -72f);
-        cardsRt.anchoredPosition = new Vector2(0f, -28f);
+        cardsRt.sizeDelta = new Vector2(TestPlayMulliganPanelWidth - 16f, -64f);
+        cardsRt.anchoredPosition = new Vector2(0f, -26f);
         HorizontalLayoutGroup hlg = cardsHost.GetComponent<HorizontalLayoutGroup>();
         hlg.childAlignment = TextAnchor.MiddleCenter;
-        hlg.spacing = 12f;
+        hlg.spacing = 4f;
+        hlg.padding = new RectOffset(4, 4, 0, 0);
         hlg.childControlWidth = false;
         hlg.childControlHeight = false;
         hlg.childForceExpandWidth = false;
         hlg.childForceExpandHeight = false;
 
-        System.Action refreshCards = () =>
-            RefreshTestPlayMulliganCardRow(cardsHost.transform, side);
+        RefreshTestPlayMulliganCardRow(cardsHost.transform, side);
 
-        refreshCards();
+        mulliganBtn.onClick.AddListener(() => onMulligan?.Invoke());
+        keepBtn.onClick.AddListener(() => onKeep?.Invoke());
 
-        mulliganBtn.onClick.AddListener(() =>
-        {
-            if (getKept())
-            {
-                return;
-            }
-
-            onMulligan?.Invoke();
-            refreshCards();
-        });
-
-        keepBtn.onClick.AddListener(() =>
-        {
-            if (getKept())
-            {
-                return;
-            }
-
-            setKept(true);
-            mulliganBtn.interactable = false;
-            keepBtn.interactable = false;
-            TextMeshProUGUI keepLabel = keepBtn.GetComponentInChildren<TextMeshProUGUI>();
-            if (keepLabel != null)
-            {
-                keepLabel.SetLocalizedText(GameLocale.TKey("mulligan.kept"));
-            }
-
-            Debug.Log($"[TestPlay][Mulligan] Kept side:{side}");
-        });
-
-        return sectionRt;
+        return root;
     }
 
     private void RefreshTestPlayMulliganCardRow(Transform cardsHost, PlayerType side)
@@ -471,8 +458,9 @@ public partial class BattleGameMain
 
         CardGameRule rule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         List<int> ids = CollectHandCardIdsFromHandContent(rule);
-        const float cardW = 118f;
-        const float cardH = 166f;
+        // 横幅480内に5枚収める（padding+spacing込み）
+        const float cardW = 84f;
+        const float cardH = 118f;
 
         for (int i = 0; i < ids.Count; i++)
         {
@@ -586,7 +574,7 @@ public partial class BattleGameMain
         if (label != null)
         {
             label.color = Color.white;
-            label.fontSize = 22;
+            label.fontSize = 16;
             label.fontStyle = FontStyles.Bold;
         }
     }
