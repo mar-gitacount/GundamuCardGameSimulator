@@ -1116,6 +1116,11 @@ public partial class BattleGameMain
         CardController sourceUnit,
         bool destroyedShieldAreaCard)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            return;
+        }
+
         if (!destroyedShieldAreaCard || sourceUnit == null || sourceUnit.Data == null || !sourceUnit.Data.IsUnitLike())
         {
             return;

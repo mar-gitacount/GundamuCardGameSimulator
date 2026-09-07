@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 177
   gcgOfficialId: GD05-037
   cardName: Destroy Gundam
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 8
+  level: 9
+  power: 6
+  hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Destroy Gundam
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

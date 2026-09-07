@@ -226,6 +226,11 @@ public partial class BattleGameMain
         List<EffectDestroyWatcher> watchers,
         PlayerType destroyedUnitOwner)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            return;
+        }
+
         int watcherCount = watchers != null ? watchers.Count : 0;
         Debug.Log(
             $"[OnUnitDestroyedByOwnerEffect] 破壊通知 effectOwner:{effectOwner} "

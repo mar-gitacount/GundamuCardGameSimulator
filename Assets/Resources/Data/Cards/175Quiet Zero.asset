@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 175
   gcgOfficialId: GD05-126
   cardName: Quiet Zero
-  cost: 0
-  level: 0
+  cost: 1
+  level: 6
   power: 0
-  hp: 0
+  hp: 6
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Quiet Zero
@@ -31,7 +31,7 @@ MonoBehaviour:
   sourceTitle: 18
   filterType: 0
   color: 1
-  type: 0
+  type: 3
   battleZones: 0
   attackFlg: 0
   timedEffects: []
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

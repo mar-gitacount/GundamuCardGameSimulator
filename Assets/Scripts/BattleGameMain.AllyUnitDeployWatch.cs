@@ -14,6 +14,12 @@ public partial class BattleGameMain
         CardController deployedUnit,
         Action onComplete = null)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
         if (deployedUnit == null || deployedUnit.Data == null || !deployedUnit.Data.IsUnitLike())
         {
             onComplete?.Invoke();

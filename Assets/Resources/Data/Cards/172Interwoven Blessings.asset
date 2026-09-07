@@ -15,8 +15,8 @@ MonoBehaviour:
   id: 172
   gcgOfficialId: GD05-107
   cardName: Interwoven Blessings
-  cost: 0
-  level: 0
+  cost: 10
+  level: 10
   power: 0
   hp: 0
   imageName: {fileID: 0}
@@ -31,7 +31,7 @@ MonoBehaviour:
   sourceTitle: 18
   filterType: 0
   color: 1
-  type: 0
+  type: 2
   battleZones: 0
   attackFlg: 0
   timedEffects: []
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

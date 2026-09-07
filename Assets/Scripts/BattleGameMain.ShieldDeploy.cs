@@ -648,6 +648,11 @@ public partial class BattleGameMain
         EffectTiming timing,
         bool skipDeployShieldFromHandOnBaseReplace = false)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            return;
+        }
+
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
             return;
@@ -1010,6 +1015,11 @@ public partial class BattleGameMain
         IReadOnlyList<ShieldBreakTaken> takenCards,
         PlayerType shieldOwner)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            yield break;
+        }
+
         if (takenCards == null || takenCards.Count == 0)
         {
             yield break;

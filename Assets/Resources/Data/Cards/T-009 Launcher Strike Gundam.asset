@@ -10,46 +10,46 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 182Chaos Gundam (MA Mode)
+  m_Name: T-009 Launcher Strike Gundam
   m_EditorClassIdentifier: 
-  id: 182
-  gcgOfficialId: GD05-045
-  cardName: Chaos Gundam (MA Mode)
-  cost: 3
-  level: 4
-  power: 3
+  id: 1000546
+  gcgOfficialId: T-009
+  cardName: Launcher Strike Gundam
+  cost: 0
+  level: 0
+  power: 2
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/Chaos Gundam (MA Mode)
-  version: 5
-  sourceType: 1
-  productLine: 1
-  boosterSet: 5
-  starterSet: 0
+  imageAddress: Data/Images/T-009
+  version: 4
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 4
   eternalBoosterSet: 0
-  sourceTitle: 12
+  sourceTitle: 11
   filterType: 0
-  color: 0
-  type: 0
-  battleZones: -1
+  color: 4
+  type: 5
+  battleZones: 0
   attackFlg: 0
   timedEffects: []
-  features: []
+  features:
+  - {fileID: 11400000, guid: f1d0c509706cbef4bac52a766c1afbfa, type: 2}
   pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
-  isBlocker: 0
+  isBlocker: 1
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
-  hideFromCardList: 0
-  cannotMountPilot: 0
+  notUsedOnline: 0
+  cannotMountPilot: 1
   gcgId:
-    setKind: 2
-    setNumber: 5
-    cardNumber: 45
+    setKind: 4
+    setNumber: 0
+    cardNumber: 9
