@@ -67,9 +67,15 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
   pilotIds: []
-  link: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: 8e13ee02de924634a989e08fa0f5c840, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
-  pilotMountOnPilotMountedOrder: 0
+  pilotMountOnPilotMountedOrder: 1
   isBlocker: 0
   isDeployTurnAttack: 0
   isNotDirectAttack: 0

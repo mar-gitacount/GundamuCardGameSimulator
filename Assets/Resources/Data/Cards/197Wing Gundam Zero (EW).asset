@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 197
   gcgOfficialId: GD05-067
   cardName: Wing Gundam Zero (EW)
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 5
+  level: 6
+  power: 5
+  hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Wing Gundam Zero (EW)
@@ -32,12 +32,55 @@ MonoBehaviour:
   filterType: 0
   color: 5
   type: 0
-  battleZones: 0
+  battleZones: 3
   attackFlg: 0
-  timedEffects: []
-  features: []
+  timedEffects:
+  - timing: 4
+    activationConditions:
+    - boardSide: 1
+      checkKind: 46
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: Suppress2_OnShieldAttack
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 3
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: RestEnemyUnit_SelectSingle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: b47d35768007412bad3b53c23aca96d5, type: 2}
   pilotIds: []
-  link: []
+  link:
+  - pilotCardId: 206
+    linkPilotIds:
+    - {fileID: 11400000, guid: 971c8da0df284c3c9bba0a55d7fb4204, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
   isBlocker: 0
@@ -46,7 +89,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

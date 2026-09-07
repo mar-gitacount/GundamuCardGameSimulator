@@ -15,8 +15,8 @@ MonoBehaviour:
   id: 155
   gcgOfficialId: GD05-082
   cardName: Andrew Waldfeld
-  cost: 4
-  level: 1
+  cost: 1
+  level: 4
   power: 2
   hp: 1
   imageName: {fileID: 0}
@@ -31,12 +31,31 @@ MonoBehaviour:
   sourceTitle: 12
   filterType: 0
   color: 2
-  type: 0
+  type: 1
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
-  features: []
-  pilotIds: []
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 18
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: GrantRepair2_WhileLinked
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: e5f60718293a4b5c6d7e8f9012a3b4c5, type: 2}
+  - {fileID: 11400000, guid: d32e4f5a6b7c8d9e0f1a2b3c4d5e6f70, type: 2}
+  pilotIds:
+  - {fileID: 11400000, guid: 8e13ee02de924634a989e08fa0f5c840, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -46,7 +65,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

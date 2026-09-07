@@ -1045,7 +1045,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
             else if (IsTestPlayBattle())
             {
-                yield return RunTestPlayOpeningWithoutMulliganCoroutine(exBasePoints);
+                yield return RunTestPlayDualMulliganCoroutine(canvas, openingHandSize, exBasePoints);
             }
             else
             {
@@ -7151,7 +7151,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         int magnitude = ResolveEffectMagnitude(effect, attackerOwner, magnitudeSource);
-        int damage = ResolveEffectDamageAmount(magnitude, target);
+        int damage = ResolveEffectDamageAmount(magnitude, target, attackerOwner);
         if (damage <= 0)
         {
             return "Pts:0";
@@ -7471,7 +7471,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.Damage:
                 {
-                    int damageAmount = ResolveEffectDamageAmount(magnitude, t);
+                    int damageAmount = ResolveEffectDamageAmount(magnitude, t, ownerType);
                     int hpBefore = t.CurrentHp;
                     bool isCloseCombat = IsCloseCombatCard(sourceCard);
                     Debug.Log(
@@ -12034,17 +12034,21 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyUnitDamageAndTrackChain(CardController targetUnit, int damageAmount)
     {
-        if (targetUnit == null || damageAmount <= 0)
+        if (targetUnit == null)
         {
             return;
         }
 
-        int hpBefore = targetUnit.CurrentHp;
-        targetUnit.ApplyDamage(damageAmount);
-        if (targetUnit.CurrentHp < hpBefore)
+        // 対象を選んでダメージ効果を解決した時点でフラグを立てる。
+        // 無効化・軽減で実ダメージ0でも、後続の自傷（鉄華団等）は「選択できれば」続行する。
+        MarkEffectChainDealtDamage();
+
+        if (damageAmount <= 0)
         {
-            MarkEffectChainDealtDamage();
+            return;
         }
+
+        targetUnit.ApplyDamage(damageAmount);
     }
 
     private void TryExecuteManualUnitSelectionEffect(
@@ -13267,7 +13271,7 @@ public partial class BattleGameMain : MonoBehaviour
                 for (int i = 0; i < targets.Count; i++)
                 {
                     CardController targetUnit = targets[i];
-                    int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit);
+                    int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit, ownerType);
                     int hpBefore = targetUnit.CurrentHp;
                     bool isCloseCombat = IsCloseCombatCard(sourceCard);
                     Debug.Log(
@@ -13388,6 +13392,10 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.Breach:
                 // 突破は敵ユニット撃破時（SendCardToTrash）でのみ解決する。
+                break;
+
+            case EffectType.EffectDamageImmunityFromAmountOrLess:
+                // 配備ベース常時パッシブ。効果ダメージ量判定でのみ参照する。
                 break;
 
             case EffectType.Bounce:
@@ -13525,9 +13533,12 @@ public partial class BattleGameMain : MonoBehaviour
 
     /// <summary>
     /// 効果ダメージ（EffectType.Damage 等）の実際の与ダメージ量。戦闘交換には使わない。
-    /// 無効化・修飾は effectDamageTarget 自身のレイヤーのみ適用する。
+    /// 無効化・修飾は effectDamageTarget 自身のレイヤーに加え、配備ベースのオーラも参照する。
     /// </summary>
-    private int ResolveEffectDamageAmount(int baseMagnitude, CardController effectDamageTarget = null)
+    private int ResolveEffectDamageAmount(
+        int baseMagnitude,
+        CardController effectDamageTarget = null,
+        PlayerType? effectSourceOwner = null)
     {
         if (effectDamageTarget != null && effectDamageTarget.HasEffectDamageImmunity)
         {
@@ -13535,13 +13546,66 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         int modifier = effectDamageTarget != null ? effectDamageTarget.CurrentEffectDamageModifier : 0;
-        return Mathf.Max(0, baseMagnitude + modifier);
+        int amount = Mathf.Max(0, baseMagnitude + modifier);
+        if (amount <= 0 || effectDamageTarget == null || !effectSourceOwner.HasValue)
+        {
+            return amount;
+        }
+
+        if (ShouldIgnoreEnemyEffectDamageByDeployedBase(
+                effectDamageTarget,
+                effectSourceOwner.Value,
+                amount))
+        {
+            return 0;
+        }
+
+        return amount;
+    }
+
+    /// <summary>
+    /// Archangel 等：配備ベースの EffectDamageImmunityFromAmountOrLess で敵効果ダメージを無効化するか。
+    /// </summary>
+    private bool ShouldIgnoreEnemyEffectDamageByDeployedBase(
+        CardController effectDamageTarget,
+        PlayerType effectSourceOwner,
+        int resolvedAmount)
+    {
+        if (effectDamageTarget == null || effectDamageTarget.Data == null || !effectDamageTarget.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = ResolveBattleZoneUnitOwner(effectDamageTarget);
+        if (targetOwner == effectSourceOwner)
+        {
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerSide targetSide = targetOwner == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Player
+            : Gundam2024RuleScript.PlayerSide.Enemy;
+        CardController protectingBase = GetDeployedBaseForRuleSide(targetSide);
+        if (protectingBase == null)
+        {
+            return false;
+        }
+
+        bool isTargetOwnerTurn = targetOwner == currentPlayerType;
+        return CardBaseAllyEffectDamageImmunityExtensions.ShouldIgnoreEnemyEffectDamageFromAmount(
+            effectDamageTarget,
+            protectingBase,
+            targetOwner,
+            effectSourceOwner,
+            isTargetOwnerTurn,
+            resolvedAmount);
     }
 
     private int ResolveEffectDamageAmountForVirtualPlayerLog(
         int baseMagnitude,
         List<VirtualPlayerUnitSnap> workingPlayerOverrides,
-        CardController effectDamageTarget = null)
+        CardController effectDamageTarget = null,
+        PlayerType? effectSourceOwner = null)
     {
         if (effectDamageTarget != null)
         {
@@ -13554,7 +13618,18 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             int modifier = snap != null ? snap.EffectDamageMod : effectDamageTarget.CurrentEffectDamageModifier;
-            return Mathf.Max(0, baseMagnitude + modifier);
+            int amount = Mathf.Max(0, baseMagnitude + modifier);
+            if (amount > 0
+                && effectSourceOwner.HasValue
+                && ShouldIgnoreEnemyEffectDamageByDeployedBase(
+                    effectDamageTarget,
+                    effectSourceOwner.Value,
+                    amount))
+            {
+                return 0;
+            }
+
+            return amount;
         }
 
         return Mathf.Max(0, baseMagnitude);
@@ -15265,7 +15340,11 @@ public partial class BattleGameMain : MonoBehaviour
                         VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, dmgTarget);
                         if (snap != null)
                         {
-                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working, dmgTarget);
+                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(
+                                magnitude,
+                                working,
+                                dmgTarget,
+                                commandOwner);
                             snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                         }
                     }
@@ -15428,7 +15507,11 @@ public partial class BattleGameMain : MonoBehaviour
                         VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, focusUnit);
                         if (snap != null)
                         {
-                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(magnitude, working, focusUnit);
+                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(
+                                magnitude,
+                                working,
+                                focusUnit,
+                                commandOwner);
                             snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                         }
                     }

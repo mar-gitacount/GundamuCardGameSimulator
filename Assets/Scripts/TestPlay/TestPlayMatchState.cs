@@ -12,6 +12,12 @@ public static class TestPlayMatchState
     /// <summary>TestPlay ボタン押下後、敵デッキ選択待ち。</summary>
     public static bool IsAwaitingEnemyDeckPick { get; private set; }
 
+    /// <summary>自分デッキ表示名（マリガン UI 用）。</summary>
+    public static string PlayerDeckTitle { get; private set; } = string.Empty;
+
+    /// <summary>相手デッキ表示名（マリガン UI 用）。</summary>
+    public static string EnemyDeckTitle { get; private set; } = string.Empty;
+
     public static event Action SessionChanged;
 
     /// <summary>プレイヤーデッキ選択済みのあと、敵デッキ選択モードに入る。</summary>
@@ -20,17 +26,22 @@ public static class TestPlayMatchState
         EosOnlineMatchState.Clear();
         HasActiveSession = false;
         IsAwaitingEnemyDeckPick = true;
+        PlayerDeckTitle = string.Empty;
+        EnemyDeckTitle = string.Empty;
         SessionChanged?.Invoke();
         Debug.Log("[TestPlay] Select an enemy deck from the list to start.");
     }
 
-    public static void Begin()
+    public static void Begin(string playerDeckTitle = null, string enemyDeckTitle = null)
     {
         EosOnlineMatchState.Clear();
         IsAwaitingEnemyDeckPick = false;
         HasActiveSession = true;
+        PlayerDeckTitle = playerDeckTitle ?? string.Empty;
+        EnemyDeckTitle = enemyDeckTitle ?? string.Empty;
         SessionChanged?.Invoke();
-        Debug.Log("[TestPlay] Session began.");
+        Debug.Log(
+            $"[TestPlay] Session began. playerDeck:'{PlayerDeckTitle}' enemyDeck:'{EnemyDeckTitle}'");
     }
 
     public static void Clear()
@@ -38,6 +49,8 @@ public static class TestPlayMatchState
         bool changed = HasActiveSession || IsAwaitingEnemyDeckPick;
         HasActiveSession = false;
         IsAwaitingEnemyDeckPick = false;
+        PlayerDeckTitle = string.Empty;
+        EnemyDeckTitle = string.Empty;
         if (changed)
         {
             SessionChanged?.Invoke();

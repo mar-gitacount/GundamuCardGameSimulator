@@ -378,6 +378,29 @@
             ]
         },
         {
+            "effectSetName": "RestEnemyUnitLv5OrLess_SelectSingle",
+            "displayName": "敵ユニット(Lv5以下)1体をREST",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
             "effectSetName": "RestEnemyLv4OrLess_ThenOptionalMountSelfOnMF_FromTrash_OnMain",
             "displayName": "メイン：敵Lv4以下1体をREST。解決後、任意で自身をトラッシュから〔MF〕ユニットへセット",
             "effects": [
@@ -2809,6 +2832,11 @@
             "effects": []
         },
         {
+            "effectSetName": "GrantRepair2_WhileLinked",
+            "displayName": "【リンク中】《リペア2》を得る（ターン終了時、リンク中のみ回復）",
+            "effects": []
+        },
+        {
             "effectSetName": "GrantRepair1_WhileMountedOnBlueHost",
             "displayName": "【搭乗中・青ユニット】《リペア1》を得る（ターン終了時、既存リペアと合算）",
             "effects": []
@@ -3030,7 +3058,7 @@
         },
         {
             "effectSetName": "DamageEnemy1_Select_ThenDamageAlly1_IfPriorDealtDamage_OnPlayed",
-            "displayName": "【配備時】敵1体に1ダメ→実ダメージ時のみ味方1体に1ダメ",
+            "displayName": "【配備時】敵1体に1ダメ→（敵を対象にできたら）味方1体に1ダメ",
             "effects": [
                 {
                     "type": 0,
@@ -3673,6 +3701,70 @@
                     "targetUnitStatCompareValue": 3,
                     "selectMinCount": 1,
                     "selectMaxCount": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp2_UntilEOT_SelectSingle",
+            "displayName": "敵ユニット1体にAP-2（ターン終了まで・選択）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp1_Lv4OrLess_UntilEOT_SelectSingle",
+            "displayName": "敵ユニット(Lv4以下)1体にAP-1（ターン終了まで・選択）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "AllyOrbEffectDamageImmunityFrom2OrLess_NotOwnerTurn",
+            "displayName": "【相手ターン】味方〔オーブ〕ユニットは敵の効果ダメージ2以下を受けない",
+            "effects": [
+                {
+                    "type": 60,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 18
                 }
             ]
         }

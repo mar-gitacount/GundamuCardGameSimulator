@@ -199,7 +199,7 @@ public partial class BattleGameMain
         // 【リンク中】リペアは常時 isRepair ではなく、現時点で Link 条件を満たす搭乗があるときだけ加算する。
         if (UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
         {
-            amount += GetWhileLinkedRepairAmount(unit.Data);
+            amount += GetWhileLinkedRepairAmount(unit);
         }
 
         amount += GetWhileMountedPilotRepairAmount(unit);
@@ -208,6 +208,8 @@ public partial class BattleGameMain
     }
 
     private const string GrantRepair1WhileMountedOnBlueHostEffectName = "GrantRepair1_WhileMountedOnBlueHost";
+    private const string GrantRepair1WhileLinkedEffectName = "GrantRepair1_WhileLinked";
+    private const string GrantRepair2WhileLinkedEffectName = "GrantRepair2_WhileLinked";
 
     /// <summary>
     /// 搭乗パイロットの常時効果（GD01-087 セイラ等）。
@@ -247,14 +249,34 @@ public partial class BattleGameMain
         return total;
     }
 
-    /// <summary>【リンク中】に得る《リペア》量。名前付き効果 GrantRepair1_WhileLinked をマーカーとして読む。</summary>
-    private static int GetWhileLinkedRepairAmount(CardData data)
+    /// <summary>
+    /// 【リンク中】に得る《リペア》量。
+    /// ユニット／搭乗パイロットの GrantRepair*_WhileLinked マーカーを合算する。
+    /// </summary>
+    private static int GetWhileLinkedRepairAmount(CardController unit)
+    {
+        if (unit?.Data == null)
+        {
+            return 0;
+        }
+
+        int total = GetWhileLinkedRepairAmountFromCardData(unit.Data);
+        if (unit.MountedPilot?.Data != null)
+        {
+            total += GetWhileLinkedRepairAmountFromCardData(unit.MountedPilot.Data);
+        }
+
+        return total;
+    }
+
+    private static int GetWhileLinkedRepairAmountFromCardData(CardData data)
     {
         if (data?.timedEffects == null)
         {
             return 0;
         }
 
+        int total = 0;
         for (int i = 0; i < data.timedEffects.Count; i++)
         {
             TimedEffectData timed = data.timedEffects[i];
@@ -263,13 +285,18 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (string.Equals(timed.effectsName.Trim(), "GrantRepair1_WhileLinked", StringComparison.Ordinal))
+            string name = timed.effectsName.Trim();
+            if (string.Equals(name, GrantRepair1WhileLinkedEffectName, StringComparison.Ordinal))
             {
-                return 1;
+                total += 1;
+            }
+            else if (string.Equals(name, GrantRepair2WhileLinkedEffectName, StringComparison.Ordinal))
+            {
+                total += 2;
             }
         }
 
-        return 0;
+        return total;
     }
 
     private int CountOwnedPlumaTokens(PlayerType owner)

@@ -537,6 +537,8 @@ public static class EffectActivationEvaluator
                 return CountCardsWithFeature(zone, c) >= Mathf.Max(1, c.minimumCount);
             case EffectActivationCheckKind.UnitCountAtLeast:
                 return CountAliveUnits(zone) >= Mathf.Max(0, c.minimumCount);
+            case EffectActivationCheckKind.RestedUnitCountAtLeast:
+                return CountRestedAliveUnits(zone) >= Mathf.Max(1, c.minimumCount);
             case EffectActivationCheckKind.UnitLevelOnField:
                 return EvaluateUnitLevel(zone, c);
             case EffectActivationCheckKind.CountUnitsAtExactLevel:
@@ -1297,6 +1299,7 @@ public static class EffectActivationEvaluator
 
     private const string GrantRepair1WhileMountedOnBlueHostEffectName = "GrantRepair1_WhileMountedOnBlueHost";
     private const string GrantRepair1WhileLinkedEffectName = "GrantRepair1_WhileLinked";
+    private const string GrantRepair2WhileLinkedEffectName = "GrantRepair2_WhileLinked";
 
     private static bool EvaluateSourceMountHostHasRepair(EffectActivationContext ctx)
     {
@@ -1328,7 +1331,11 @@ public static class EffectActivationEvaluator
 
         if (host.Data != null
             && UnitLinkExtensions.HasValidLinkPilot(host.Data, host.MountedPilot)
-            && HostCardDataHasNamedRepairEffect(host.Data, GrantRepair1WhileLinkedEffectName))
+            && (HostCardDataHasNamedRepairEffect(host.Data, GrantRepair1WhileLinkedEffectName)
+                || HostCardDataHasNamedRepairEffect(host.Data, GrantRepair2WhileLinkedEffectName)
+                || (host.MountedPilot?.Data != null
+                    && (PilotHasNamedRepairEffect(host.MountedPilot.Data, GrantRepair1WhileLinkedEffectName)
+                        || PilotHasNamedRepairEffect(host.MountedPilot.Data, GrantRepair2WhileLinkedEffectName)))))
         {
             return true;
         }
@@ -1723,6 +1730,21 @@ public static class EffectActivationEvaluator
         {
             CardController c = cards[i];
             if (IsAliveUnit(c))
+            {
+                n++;
+            }
+        }
+
+        return n;
+    }
+
+    private static int CountRestedAliveUnits(IReadOnlyList<CardController> cards)
+    {
+        int n = 0;
+        for (int i = 0; i < cards.Count; i++)
+        {
+            CardController c = cards[i];
+            if (IsAliveUnit(c) && c.IsRestState)
             {
                 n++;
             }

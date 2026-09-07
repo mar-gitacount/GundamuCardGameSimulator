@@ -152,6 +152,111 @@ public partial class BattleGameMain
             $"[TestPlay] Decks ready playerTypes:{playerDeck.Count} enemyTypes:{enemyDeck.Count}");
     }
 
+    /// <summary>
+    /// TestPlay: 上下に両サイドの手札を並べ、それぞれマリガン／キープできる。
+    /// 両サイドがキープしたらシールド配備へ進む。
+    /// </summary>
+    private IEnumerator RunTestPlayDualMulliganCoroutine(Canvas canvas, int openingHandSize, int exBasePoints)
+    {
+        if (canvas == null)
+        {
+            yield return RunTestPlayOpeningWithoutMulliganCoroutine(exBasePoints);
+            yield break;
+        }
+
+        isMulliganPromptOpen = true;
+
+        GameObject root = new GameObject(
+            "TestPlayDualMulligan",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        RectTransform rootRt = root.GetComponent<RectTransform>();
+        rootRt.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.62f);
+        dim.raycastTarget = true;
+
+        bool playerKept = false;
+        bool enemyKept = false;
+
+        // 中央仕切り
+        TextMeshProUGUI divider = root.CreateChildTextCustom(
+            "MulliganDivider",
+            UIAnchor.TopCenter,
+            420,
+            40);
+        divider.SetLocalizedText(GameLocale.TKey("mulligan.divider"));
+        divider.fontSize = 28;
+        divider.fontStyle = FontStyles.Bold;
+        divider.color = Color.white;
+        divider.alignment = TextAlignmentOptions.Center;
+        RectTransform dividerRt = divider.GetComponent<RectTransform>();
+        dividerRt.anchorMin = new Vector2(0.5f, 0.5f);
+        dividerRt.anchorMax = new Vector2(0.5f, 0.5f);
+        dividerRt.pivot = new Vector2(0.5f, 0.5f);
+        dividerRt.anchoredPosition = Vector2.zero;
+
+        CreateTestPlayMulliganDividerLine(root.transform, -220f);
+        CreateTestPlayMulliganDividerLine(root.transform, 220f);
+
+        BuildTestPlayMulliganSideRow(
+            root.transform,
+            PlayerType.Enemy,
+            seatNumber: 2,
+            isTop: true,
+            () => enemyKept,
+            kept => enemyKept = kept,
+            () =>
+            {
+                if (enemyKept)
+                {
+                    return;
+                }
+
+                PerformMulligan(enemyCardGameRule, enemyHandCards, openingHandSize, PlayerType.Enemy);
+                Debug.Log("[TestPlay][Mulligan] Enemy redraw.");
+            });
+
+        BuildTestPlayMulliganSideRow(
+            root.transform,
+            PlayerType.Player,
+            seatNumber: 1,
+            isTop: false,
+            () => playerKept,
+            kept => playerKept = kept,
+            () =>
+            {
+                if (playerKept)
+                {
+                    return;
+                }
+
+                PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
+                Debug.Log("[TestPlay][Mulligan] Player redraw.");
+            });
+
+        yield return new WaitUntil(() => playerKept && enemyKept);
+
+        Destroy(root);
+        isMulliganPromptOpen = false;
+
+        cardGameRule.SetupShieldFromDeckAfterMulligan(
+            CardImagePrefab,
+            OnCardClicked,
+            OpeningShieldCardCount,
+            exBasePoints);
+        enemyCardGameRule.SetupShieldFromDeckAfterMulligan(
+            CardImagePrefab,
+            OnCardClicked,
+            OpeningShieldCardCount,
+            exBasePoints);
+        Debug.Log("[TestPlay] Dual mulligan finished; shields set for both sides.");
+    }
+
+    /// <summary>旧経路互換：マリガンなしでシールドのみ配備。</summary>
     private IEnumerator RunTestPlayOpeningWithoutMulliganCoroutine(int exBasePoints)
     {
         cardGameRule.SetupShieldFromDeckAfterMulligan(
@@ -166,6 +271,324 @@ public partial class BattleGameMain
             exBasePoints);
         Debug.Log("[TestPlay] Skipped mulligan; shields set for both sides.");
         yield break;
+    }
+
+    private static Image CreateTestPlayMulliganDividerLine(Transform parent, float x)
+    {
+        GameObject line = new GameObject(
+            "DividerLine",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        line.transform.SetParent(parent, false);
+        RectTransform rt = line.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(160f, 2f);
+        rt.anchoredPosition = new Vector2(x, 0f);
+        Image img = line.GetComponent<Image>();
+        img.color = new Color(1f, 1f, 1f, 0.55f);
+        img.raycastTarget = false;
+        return img;
+    }
+
+    private RectTransform BuildTestPlayMulliganSideRow(
+        Transform parent,
+        PlayerType side,
+        int seatNumber,
+        bool isTop,
+        System.Func<bool> getKept,
+        System.Action<bool> setKept,
+        System.Action onMulligan)
+    {
+        GameObject section = new GameObject(
+            isTop ? "EnemyMulliganSection" : "PlayerMulliganSection",
+            typeof(RectTransform));
+        section.transform.SetParent(parent, false);
+        RectTransform sectionRt = section.GetComponent<RectTransform>();
+        sectionRt.anchorMin = new Vector2(0.5f, isTop ? 1f : 0f);
+        sectionRt.anchorMax = new Vector2(0.5f, isTop ? 1f : 0f);
+        sectionRt.pivot = new Vector2(0.5f, isTop ? 1f : 0f);
+        sectionRt.sizeDelta = new Vector2(920f, 290f);
+        sectionRt.anchoredPosition = new Vector2(0f, isTop ? -18f : 18f);
+
+        // ヘッダー帯
+        GameObject header = new GameObject(
+            "Header",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        header.transform.SetParent(section.transform, false);
+        RectTransform headerRt = header.GetComponent<RectTransform>();
+        headerRt.anchorMin = new Vector2(0f, 1f);
+        headerRt.anchorMax = new Vector2(1f, 1f);
+        headerRt.pivot = new Vector2(0.5f, 1f);
+        headerRt.sizeDelta = new Vector2(0f, 56f);
+        headerRt.anchoredPosition = Vector2.zero;
+        header.GetComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 0.92f);
+
+        // 座席番号バッジ
+        GameObject badge = new GameObject(
+            "SeatBadge",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        badge.transform.SetParent(header.transform, false);
+        RectTransform badgeRt = badge.GetComponent<RectTransform>();
+        badgeRt.anchorMin = new Vector2(0f, 0.5f);
+        badgeRt.anchorMax = new Vector2(0f, 0.5f);
+        badgeRt.pivot = new Vector2(0f, 0.5f);
+        badgeRt.sizeDelta = new Vector2(36f, 36f);
+        badgeRt.anchoredPosition = new Vector2(14f, 0f);
+        Image badgeImg = badge.GetComponent<Image>();
+        badgeImg.color = seatNumber == 1
+            ? new Color(0.22f, 0.48f, 0.92f, 1f)
+            : new Color(0.88f, 0.28f, 0.28f, 1f);
+
+        TextMeshProUGUI badgeText = badge.CreateChildTextCustom("SeatNum", UIAnchor.FullSize, 36, 36);
+        badgeText.text = seatNumber.ToString();
+        badgeText.fontSize = 22;
+        badgeText.fontStyle = FontStyles.Bold;
+        badgeText.color = Color.white;
+        badgeText.alignment = TextAlignmentOptions.Center;
+        RectTransform badgeTextRt = badgeText.GetComponent<RectTransform>();
+        badgeTextRt.offsetMin = Vector2.zero;
+        badgeTextRt.offsetMax = Vector2.zero;
+
+        bool sideIsFirst = (side == PlayerType.Player) == isFirstPlayer;
+        string deckTitle = side == PlayerType.Player
+            ? (string.IsNullOrEmpty(TestPlayMatchState.PlayerDeckTitle)
+                ? GameLocale.T("プレイヤー", "Player")
+                : TestPlayMatchState.PlayerDeckTitle)
+            : (string.IsNullOrEmpty(TestPlayMatchState.EnemyDeckTitle)
+                ? GameLocale.T("相手", "Opponent")
+                : TestPlayMatchState.EnemyDeckTitle);
+        string turnLabel = sideIsFirst
+            ? GameLocale.TKey("mulligan.first")
+            : GameLocale.TKey("mulligan.second");
+
+        TextMeshProUGUI title = header.CreateChildTextCustom("DeckTitle", UIAnchor.TopLeft, 520, 40);
+        title.text = $"{deckTitle} ({turnLabel})";
+        title.ApplyJapaneseFont();
+        title.fontSize = 22;
+        title.color = Color.white;
+        title.alignment = TextAlignmentOptions.MidlineLeft;
+        title.enableWordWrapping = false;
+        title.overflowMode = TextOverflowModes.Ellipsis;
+        RectTransform titleRt = title.GetComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 0.5f);
+        titleRt.anchorMax = new Vector2(0f, 0.5f);
+        titleRt.pivot = new Vector2(0f, 0.5f);
+        titleRt.anchoredPosition = new Vector2(62f, 0f);
+
+        Button mulliganBtn = header.CreateChildButton(GameLocale.TKey("mulligan.action"));
+        StyleTestPlayMulliganButton(mulliganBtn, new Color(0.55f, 0.32f, 0.78f, 1f));
+        RectTransform mulliganRt = mulliganBtn.GetComponent<RectTransform>();
+        mulliganRt.anchorMin = new Vector2(1f, 0.5f);
+        mulliganRt.anchorMax = new Vector2(1f, 0.5f);
+        mulliganRt.pivot = new Vector2(1f, 0.5f);
+        mulliganRt.sizeDelta = new Vector2(140f, 40f);
+        mulliganRt.anchoredPosition = new Vector2(-168f, 0f);
+
+        Button keepBtn = header.CreateChildButton(GameLocale.TKey("mulligan.keep"));
+        StyleTestPlayMulliganButton(keepBtn, new Color(0.22f, 0.62f, 0.38f, 1f));
+        RectTransform keepRt = keepBtn.GetComponent<RectTransform>();
+        keepRt.anchorMin = new Vector2(1f, 0.5f);
+        keepRt.anchorMax = new Vector2(1f, 0.5f);
+        keepRt.pivot = new Vector2(1f, 0.5f);
+        keepRt.sizeDelta = new Vector2(140f, 40f);
+        keepRt.anchoredPosition = new Vector2(-16f, 0f);
+
+        GameObject cardsHost = new GameObject(
+            "CardsRow",
+            typeof(RectTransform),
+            typeof(HorizontalLayoutGroup));
+        cardsHost.transform.SetParent(section.transform, false);
+        RectTransform cardsRt = cardsHost.GetComponent<RectTransform>();
+        cardsRt.anchorMin = new Vector2(0.5f, 0f);
+        cardsRt.anchorMax = new Vector2(0.5f, 1f);
+        cardsRt.pivot = new Vector2(0.5f, 0.5f);
+        cardsRt.sizeDelta = new Vector2(860f, -72f);
+        cardsRt.anchoredPosition = new Vector2(0f, -28f);
+        HorizontalLayoutGroup hlg = cardsHost.GetComponent<HorizontalLayoutGroup>();
+        hlg.childAlignment = TextAnchor.MiddleCenter;
+        hlg.spacing = 12f;
+        hlg.childControlWidth = false;
+        hlg.childControlHeight = false;
+        hlg.childForceExpandWidth = false;
+        hlg.childForceExpandHeight = false;
+
+        System.Action refreshCards = () =>
+            RefreshTestPlayMulliganCardRow(cardsHost.transform, side);
+
+        refreshCards();
+
+        mulliganBtn.onClick.AddListener(() =>
+        {
+            if (getKept())
+            {
+                return;
+            }
+
+            onMulligan?.Invoke();
+            refreshCards();
+        });
+
+        keepBtn.onClick.AddListener(() =>
+        {
+            if (getKept())
+            {
+                return;
+            }
+
+            setKept(true);
+            mulliganBtn.interactable = false;
+            keepBtn.interactable = false;
+            TextMeshProUGUI keepLabel = keepBtn.GetComponentInChildren<TextMeshProUGUI>();
+            if (keepLabel != null)
+            {
+                keepLabel.SetLocalizedText(GameLocale.TKey("mulligan.kept"));
+            }
+
+            Debug.Log($"[TestPlay][Mulligan] Kept side:{side}");
+        });
+
+        return sectionRt;
+    }
+
+    private void RefreshTestPlayMulliganCardRow(Transform cardsHost, PlayerType side)
+    {
+        if (cardsHost == null)
+        {
+            return;
+        }
+
+        for (int i = cardsHost.childCount - 1; i >= 0; i--)
+        {
+            Destroy(cardsHost.GetChild(i).gameObject);
+        }
+
+        CardGameRule rule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        List<int> ids = CollectHandCardIdsFromHandContent(rule);
+        const float cardW = 118f;
+        const float cardH = 166f;
+
+        for (int i = 0; i < ids.Count; i++)
+        {
+            CardData data = null;
+            if (DeckSettinObject.Instance != null)
+            {
+                data = DeckSettinObject.Instance.GetCardDataById(ids[i]);
+            }
+
+            if (data == null && CardDatabase.Instance != null)
+            {
+                data = CardDatabase.Instance.GetById(ids[i]);
+            }
+
+            if (data == null || CardImagePrefab == null)
+            {
+                continue;
+            }
+
+            GameObject go = Instantiate(CardImagePrefab, cardsHost);
+            RectTransform goRt = go.GetComponent<RectTransform>();
+            if (goRt != null)
+            {
+                goRt.sizeDelta = new Vector2(cardW, cardH);
+            }
+
+            LayoutElement layout = go.GetComponent<LayoutElement>();
+            if (layout == null)
+            {
+                layout = go.AddComponent<LayoutElement>();
+            }
+
+            layout.preferredWidth = cardW;
+            layout.preferredHeight = cardH;
+            layout.minWidth = cardW;
+            layout.minHeight = cardH;
+
+            CardController preview = go.GetComponent<CardController>();
+            if (preview != null)
+            {
+                CardData captured = data;
+                preview.SetUp(captured, _ => ShowTestPlayMulliganCardInspect(captured));
+            }
+        }
+    }
+
+    private void ShowTestPlayMulliganCardInspect(CardData data)
+    {
+        if (data == null || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        GameObject root = new GameObject(
+            "TestPlayMulliganInspect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.GetComponent<RectTransform>().SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        GameObject go = Instantiate(CardImagePrefab, root.transform);
+        RectTransform goRt = go.GetComponent<RectTransform>();
+        goRt.anchorMin = new Vector2(0.5f, 0.5f);
+        goRt.anchorMax = new Vector2(0.5f, 0.5f);
+        goRt.pivot = new Vector2(0.5f, 0.5f);
+        goRt.sizeDelta = new Vector2(220f, 308f);
+        goRt.anchoredPosition = new Vector2(0f, 24f);
+        CardController preview = go.GetComponent<CardController>();
+        preview?.SetUp(data, _ => { });
+        Button cardBtn = go.GetComponent<Button>();
+        if (cardBtn != null)
+        {
+            cardBtn.interactable = false;
+        }
+
+        Button closeBtn = root.CreateChildButton(GameLocale.T("閉じる", "Close"));
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.sizeDelta = new Vector2(220f, 52f);
+        closeRt.anchoredPosition = new Vector2(0f, 36f);
+        closeBtn.onClick.AddListener(() => Destroy(root));
+    }
+
+    private static void StyleTestPlayMulliganButton(Button button, Color bg)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        Image img = button.GetComponent<Image>();
+        if (img != null)
+        {
+            img.color = bg;
+        }
+
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+        {
+            label.color = Color.white;
+            label.fontSize = 22;
+            label.fontStyle = FontStyles.Bold;
+        }
     }
 
     private void ConfigureTestPlaySandboxToolbar()
@@ -1827,7 +2250,7 @@ public partial class BattleGameMain
         Debug.Log($"[TestPlay] Trash → Shield {resolved.cardName} side:{ownerType}");
     }
 
-    /// <summary>TestPlay: 場のユニットに山札下送り／レスト切替を追加する。</summary>
+    /// <summary>TestPlay: 場のユニットに手札戻し／山札下送り／レスト切替を追加する。</summary>
     private float EmbedTestPlayFieldUnitExtraActions(
         GameObject filterPanel,
         CardController card,
@@ -1848,6 +2271,18 @@ public partial class BattleGameMain
 
         if (!card.Data.IsUnitToken())
         {
+            Button returnHandBtn = filterPanel.CreateChildButton(
+                GameLocale.T("手札に戻す", "Return to hand"));
+            RectTransform returnHandRt = returnHandBtn.GetComponent<RectTransform>();
+            returnHandRt.sizeDelta = new Vector2(280f, 50f);
+            returnHandRt.anchoredPosition = new Vector2(0f, y);
+            returnHandBtn.onClick.AddListener(() =>
+            {
+                TestPlayReturnUnitToHand(card, ownerType);
+                DestroyCardFilterOverlay(filterPanel);
+            });
+            y -= 60f;
+
             Button deckBottomBtn = filterPanel.CreateChildButton(
                 GameLocale.T("山札の下に送る", "Send to deck bottom"));
             RectTransform deckBottomRt = deckBottomBtn.GetComponent<RectTransform>();
@@ -1893,6 +2328,23 @@ public partial class BattleGameMain
         }
 
         return y;
+    }
+
+    private void TestPlayReturnUnitToHand(CardController unit, PlayerType ownerType)
+    {
+        if (unit == null)
+        {
+            return;
+        }
+
+        string unitName = unit.Data != null ? unit.Data.cardName : "?";
+        if (!TryReturnBattleUnitToHand(unit))
+        {
+            Debug.LogWarning($"[TestPlay] 手札へ戻せませんでした: {unitName}");
+            return;
+        }
+
+        Debug.Log($"[TestPlay] Unit → Hand: {unitName} side:{ownerType}");
     }
 
     private void TestPlaySendUnitToDeckBottom(CardController unit, PlayerType ownerType)

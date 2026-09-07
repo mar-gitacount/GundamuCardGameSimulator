@@ -306,7 +306,15 @@ public enum EffectType
     /// value≤0 なら <see cref="ExBaseData.startingPoints"/>（既定3）を上限とし、
     /// その値まで満たす。target=SelfPlayer。
     /// </summary>
-    DeployExBase
+    DeployExBase,
+    /// <summary>
+    /// 配備ベースの常時パッシブ（効果ダメージ判定）。
+    /// 味方ユニットが受ける「敵からの効果ダメージ」が value 以下なら無効化する。
+    /// targetFeature / targetFeatureId で保護対象ユニットを絞る（例: 〔オーブ〕）。
+    /// timed.activationConditions に turnCheck:NotOwnerTurn 等を指定する（Archangel 等）。
+    /// ApplyEffect では何もしない（マーカー）。
+    /// </summary>
+    EffectDamageImmunityFromAmountOrLess
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -667,8 +675,8 @@ public enum EffectActivationCheckKind
     /// </summary>
     SourceUnitDamaged,
     /// <summary>
-    /// 同一チェーン内の直前効果で、少なくとも1体（またはプレイヤー領域）に実ダメージが入った。
-    /// 相手へのダメージをフックにした条件付き自傷などに使用。
+    /// 同一チェーン内の直前のダメージ効果で、少なくとも1体をダメージ対象として解決した。
+    /// 実ダメージ量は問わない（無効化・軽減で0でも可）。相手選択後の条件付き自傷などに使用。
     /// </summary>
     PriorChainDealtDamage,
     /// <summary>
@@ -807,7 +815,12 @@ public enum EffectActivationCheckKind
     /// オーナーの EX リソース枚数を compareOp + compareValue と比較。
     /// 例: EX が 0 → Equal + compareValue 0（スレッタ等）。
     /// </summary>
-    OwnerExResource
+    OwnerExResource,
+    /// <summary>
+    /// 指定ゾーンの REST 状態の生存ユニットが minimumCount 体以上いる。
+    /// 例: 相手に REST ユニットがいる間、制圧を得る。
+    /// </summary>
+    RestedUnitCountAtLeast
 }
 
 public enum EffectTurnCheckKind
@@ -902,7 +915,7 @@ public class EffectActivationCondition
     [Tooltip("HasFeature / ObservedCardHasFeature: 複数 Feature のいずれか（OR）。JSON 用 ID 配列。")]
     public int[] featureIds;
 
-    [Tooltip("HasFeature / OwnerHasLinkedUnitWithFeature: その Feature を持つカードの最低枚数。UnitCountAtLeast: 生存ユニット最低体数。CountUnitsWithLevelAtLeast: レベル条件を満たすユニットの最低体数。ObservedCardHasFeature: 観測カードのうち条件を満たす最低枚数。")]
+    [Tooltip("HasFeature / OwnerHasLinkedUnitWithFeature: その Feature を持つカードの最低枚数。UnitCountAtLeast / RestedUnitCountAtLeast: 生存（REST）ユニット最低体数。CountUnitsWithLevelAtLeast: レベル条件を満たすユニットの最低体数。ObservedCardHasFeature: 観測カードのうち条件を満たす最低枚数。")]
     public int minimumCount = 1;
 
     public EffectLevelAggregate levelAggregate = EffectLevelAggregate.MaxLevel;

@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 208
   gcgOfficialId: GD05-100
   cardName: Quatre Raberba Winner
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 1
+  level: 4
+  power: 2
+  hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Quatre Raberba Winner
@@ -31,12 +31,31 @@ MonoBehaviour:
   sourceTitle: 9
   filterType: 0
   color: 5
-  type: 0
+  type: 1
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
-  features: []
-  pilotIds: []
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 15
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: RestEnemyUnitLv5OrLess_SelectSingle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: b47d35768007412bad3b53c23aca96d5, type: 2}
+  - {fileID: 11400000, guid: cd8fb7d0c0bd0e047ad30c5e79268c4e, type: 2}
+  pilotIds:
+  - {fileID: 11400000, guid: 29d5fd168cff4d3e865b7f40ab9358f4, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
@@ -46,7 +65,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2
