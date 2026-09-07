@@ -4012,7 +4012,21 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  m_ReadOnly: 0
+  - m_GUID: aa996cf6c4d5afe4a896e5ca60f2e660
+    m_Address: Data/Images/T-008
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: de21187d430c8724cb6cc7b83473bd3f
+    m_Address: Data/Images/T-009
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 85d56f42017d646429629d86351e6c6f
+    m_Address: Data/Images/T-010
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0  m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:
     m_Schemas:

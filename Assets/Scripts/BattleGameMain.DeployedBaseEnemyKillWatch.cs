@@ -15,6 +15,12 @@ public partial class BattleGameMain
       bool destroyedByBattleDamage,
       Action onComplete)
   {
+    if (ShouldSkipAutomaticEffectsInTestPlay())
+    {
+      onComplete?.Invoke();
+      return;
+    }
+
     if (!TryResolveEnemyUnitKillContext(
             destroyedUnit,
             destroyedOwner,

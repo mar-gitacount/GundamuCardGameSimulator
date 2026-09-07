@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 202
   gcgOfficialId: GD05-077
   cardName: Leo
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 1
+  level: 2
+  power: 2
+  hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Leo
@@ -35,7 +35,8 @@ MonoBehaviour:
   battleZones: 0
   attackFlg: 0
   timedEffects: []
-  features: []
+  features:
+  - {fileID: 11400000, guid: b47d35768007412bad3b53c23aca96d5, type: 2}
   pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
@@ -46,7 +47,8 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

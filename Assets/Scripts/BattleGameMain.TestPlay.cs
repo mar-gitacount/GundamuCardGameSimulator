@@ -12,6 +12,15 @@ public partial class BattleGameMain
         return TestPlayMatchState.HasActiveSession;
     }
 
+    /// <summary>
+    /// TestPlay では自動の効果解決を行わない（配備時・誘発・攻撃時など）。
+    /// 手動 OnMain / OnRest ボタンやサンドボックス操作は対象外。Online / AI には影響しない。
+    /// </summary>
+    private bool ShouldSkipAutomaticEffectsInTestPlay()
+    {
+        return IsTestPlayBattle();
+    }
+
     /// <summary>TestPlay は手番に関係なく両サイドのカードを操作できる。</summary>
     private bool IsActingSideForUi(PlayerType ownerType)
     {

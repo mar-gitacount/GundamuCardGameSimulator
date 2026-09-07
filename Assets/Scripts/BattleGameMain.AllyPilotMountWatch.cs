@@ -16,6 +16,12 @@ public partial class BattleGameMain
         CardController mountedPilot,
         Action onComplete = null)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
         if (!ShouldRunAllyPilotMountWatchEffects(ownerType))
         {
             onComplete?.Invoke();

@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 178
   gcgOfficialId: GD05-038
   cardName: Gundam Throne Eins (GN High Mega Launcher)
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 5
+  level: 7
+  power: 6
+  hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Gundam Throne Eins (GN High Mega Launcher)
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

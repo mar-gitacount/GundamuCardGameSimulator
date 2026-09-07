@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 200
   gcgOfficialId: GD05-073
   cardName: Altron Gundam (EW)
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 5
+  level: 7
+  power: 5
+  hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Altron Gundam (EW)
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

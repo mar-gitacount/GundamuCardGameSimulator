@@ -1550,7 +1550,8 @@ public partial class BattleGameMain : MonoBehaviour
         // 場のカードはトラッシュ送り操作を可能にする。
         if (isOnField)
         {
-            bool canShowUnitAttackMenu = currentPhase == BattlePhase.MainPhase
+            bool canShowUnitAttackMenu = !IsTestPlayBattle()
+                && currentPhase == BattlePhase.MainPhase
                 && IsActingSideForUi(ownerType)
                 && cardController.Data.IsUnitLike()
                 && cardController.AttackFlgState == AttackFlg.True;
@@ -4296,6 +4297,12 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         System.Action onComplete)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
         if (_onDestroyedLatencyHoldCount > 0)
         {
             string cardName = cardController != null && cardController.Data != null
@@ -10526,6 +10533,11 @@ public partial class BattleGameMain : MonoBehaviour
     /// <param name="skipHandZoneCheck">CardAddtoHand 直後など、手札判定を省略して適用する。</param>
     private void TriggerOnHandAutoEffects(CardController card, PlayerType ownerType, bool skipHandZoneCheck = false)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            return;
+        }
+
         if (card == null || card.Data == null || !onHandAutoProcessing.Add(card))
         {
             return;
@@ -10896,6 +10908,11 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void TriggerCardEffects(CardController sourceCard, PlayerType ownerType, EffectTiming timing)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            return;
+        }
+
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
             return;
@@ -11014,6 +11031,12 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         System.Action onComplete)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
         if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
         {
             onComplete?.Invoke();
@@ -11094,6 +11117,12 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         System.Action onComplete)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
         if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
         {
             onComplete?.Invoke();
@@ -11279,6 +11308,12 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>場に出した時（OnPlayed）。条件付きブロック内の効果を順に解決し、敵ユニット選択が必要なら UI を出す。</summary>
     private void TriggerOnPlayedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
     {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
             onComplete?.Invoke();

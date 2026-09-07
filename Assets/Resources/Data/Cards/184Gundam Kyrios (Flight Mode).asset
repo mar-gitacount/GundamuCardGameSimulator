@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 184
   gcgOfficialId: GD05-048
   cardName: Gundam Kyrios (Flight Mode)
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 3
+  level: 2
+  power: 3
+  hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Gundam Kyrios (Flight Mode)
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

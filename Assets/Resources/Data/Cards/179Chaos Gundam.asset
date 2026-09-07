@@ -15,10 +15,10 @@ MonoBehaviour:
   id: 179
   gcgOfficialId: GD05-039
   cardName: Chaos Gundam
-  cost: 0
-  level: 0
-  power: 0
-  hp: 0
+  cost: 2
+  level: 3
+  power: 4
+  hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/Chaos Gundam
@@ -47,6 +47,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 1
+  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2
