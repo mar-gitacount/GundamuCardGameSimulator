@@ -1952,30 +1952,35 @@ public class CardGameRule
             return;
         }
 
+        const float drawBtnW = 52f;
+        const float drawBtnH = 64f;
+
         if (testPlayDeckDrawButton == null)
         {
             Button btn = deckObjectPanel.CreateChildButton("Draw");
             testPlayDeckDrawButton = btn;
-            RectTransform btnRt = btn.GetComponent<RectTransform>();
-            btnRt.anchorMin = new Vector2(0.5f, 0f);
-            btnRt.anchorMax = new Vector2(0.5f, 0f);
-            btnRt.pivot = new Vector2(0.5f, 0f);
-            btnRt.sizeDelta = new Vector2(52f, 22f);
-            btnRt.anchoredPosition = new Vector2(0f, 2f);
-            TextMeshProUGUI label = btn.GetComponentInChildren<TextMeshProUGUI>();
-            if (label != null)
-            {
-                label.SetLocalizedText("ドロー", "Draw");
-                label.fontSize = 12;
-                label.color = Color.black;
-            }
+        }
 
-            // 枚数表示を Draw の上へずらす
-            if (deckCountText != null)
-            {
-                RectTransform countRt = deckCountText.GetComponent<RectTransform>();
-                countRt.anchoredPosition = new Vector2(0f, 24f);
-            }
+        RectTransform btnRt = testPlayDeckDrawButton.GetComponent<RectTransform>();
+        btnRt.anchorMin = new Vector2(0.5f, 0f);
+        btnRt.anchorMax = new Vector2(0.5f, 0f);
+        btnRt.pivot = new Vector2(0.5f, 0f);
+        btnRt.sizeDelta = new Vector2(drawBtnW, drawBtnH);
+        btnRt.anchoredPosition = new Vector2(0f, 6f);
+        TextMeshProUGUI label = testPlayDeckDrawButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+        {
+            label.SetLocalizedText("ドロー", "Draw");
+            label.fontSize = 20;
+            label.fontStyle = FontStyles.Bold;
+            label.color = Color.black;
+        }
+
+        // 枚数表示を Draw の上へずらす
+        if (deckCountText != null)
+        {
+            RectTransform countRt = deckCountText.GetComponent<RectTransform>();
+            countRt.anchoredPosition = new Vector2(0f, 76f);
         }
 
         testPlayDeckDrawButton.gameObject.SetActive(true);
