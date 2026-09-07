@@ -1082,6 +1082,12 @@ public partial class BattleGameMain
                                 continue;
                             }
 
+                            // Striker Pack 等: 〔地球連合〕ユニットトークンがいるとスキップしてトラッシュ送りのみ
+                            if (!ShouldApplyChainedEffect(effect, activationContext, "OnBurst"))
+                            {
+                                continue;
+                            }
+
                             // バースト配備は任意（公式FAQ：発動しなくてもよい）。プレイヤーは Yes/No、敵AIは配備する。
                             if (IsBurstOptionalDeployEffect(effect))
                             {
@@ -1132,6 +1138,20 @@ public partial class BattleGameMain
                                     effect,
                                     () => done = true);
                                 yield return new WaitUntil(() => done);
+                                continue;
+                            }
+
+                            // ユニットトークン配備は枠上限 UI があり得るため完了待ち
+                            if (effect.type == EffectType.DeployUnit
+                                && effect.deployUnitSource == DeployUnitSource.Token)
+                            {
+                                bool deployDone = false;
+                                ApplyDeployUnitEffect(
+                                    source,
+                                    shieldOwner,
+                                    effect,
+                                    () => deployDone = true);
+                                yield return new WaitUntil(() => deployDone);
                                 continue;
                             }
 
