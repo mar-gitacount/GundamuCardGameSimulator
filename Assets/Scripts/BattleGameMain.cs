@@ -6686,7 +6686,8 @@ public partial class BattleGameMain : MonoBehaviour
                             effect,
                             bounceCandidates,
                             stepResolved,
-                            onResolved))
+                            onResolved,
+                            attackedTarget))
                         {
                             return true;
                         }
@@ -6734,13 +6735,24 @@ public partial class BattleGameMain : MonoBehaviour
                         continue;
                     }
 
+                    var enemyBlocked = new List<CardController>();
+                    CollectOnAttackDestroyBlockedUnits(effect, attacker, attackedTarget, enemyBlocked);
+                    RemoveUnitsFromList(enemyUnits, enemyBlocked);
+                    if (enemyUnits.Count == 0)
+                    {
+                        continue;
+                    }
+
                     OpenEnemyUnitEffectSelectionUI(
                         sourceCard,
                         attacker,
                         attackerOwner,
                         effect,
                         enemyUnits,
-                        stepResolved);
+                        stepResolved,
+                        onSkipRemainingEffects: null,
+                        chooserSide: PlayerType.Player,
+                        blockedUnits: enemyBlocked);
                     return true;
                 }
             }
@@ -6757,9 +6769,19 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect,
         List<CardController> candidates,
         System.Action stepResolved,
-        System.Action onAllComplete = null)
+        System.Action onAllComplete = null,
+        CardController attackedTarget = null)
     {
-        if (sourceCard == null || effect == null || candidates == null || candidates.Count == 0)
+        if (sourceCard == null || effect == null || candidates == null)
+        {
+            return false;
+        }
+
+        var blocked = new List<CardController>();
+        CollectOnAttackDestroyBlockedUnits(effect, attacker, attackedTarget, blocked);
+        List<CardController> selectable = new List<CardController>(candidates);
+        RemoveUnitsFromList(selectable, blocked);
+        if (selectable.Count == 0)
         {
             return false;
         }
@@ -6775,9 +6797,10 @@ public partial class BattleGameMain : MonoBehaviour
                 attacker,
                 attackerOwner,
                 effect,
-                candidates,
+                selectable,
                 stepResolved,
-                onAllComplete))
+                onAllComplete,
+                blocked))
         {
             return true;
         }
@@ -6788,10 +6811,11 @@ public partial class BattleGameMain : MonoBehaviour
             attacker,
             attackerOwner,
             effect,
-            candidates,
+            selectable,
             stepResolved,
             onAllComplete,
-            chooser);
+            chooser,
+            blocked);
         return true;
     }
 
@@ -6855,7 +6879,8 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> enemyUnits,
         System.Action onResolved = null,
         System.Action onSkipRemainingEffects = null,
-        PlayerType chooserSide = PlayerType.Player)
+        PlayerType chooserSide = PlayerType.Player,
+        List<CardController> blockedUnits = null)
     {
         CardController attackUnit = attackingUnit ?? pendingUnitAttackAttacker ?? effectSourceCard;
 
@@ -6866,6 +6891,15 @@ public partial class BattleGameMain : MonoBehaviour
             onResolved?.Invoke();
             return;
         }
+
+        List<CardController> selectable = enemyUnits != null
+            ? new List<CardController>(enemyUnits)
+            : new List<CardController>();
+        List<CardController> blocked = blockedUnits != null
+            ? new List<CardController>(blockedUnits)
+            : new List<CardController>();
+        RemoveUnitsFromList(selectable, blocked);
+        List<CardController> displayUnits = BuildUnitPickDisplayList(selectable, blocked);
 
         GameObject root = new GameObject("OnAttackEffectSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         activeOnActionPopupRoot = root;
@@ -6891,14 +6925,15 @@ public partial class BattleGameMain : MonoBehaviour
         RectTransform content = sr != null ? sr.content : null;
 
         List<CardController> selected = new List<CardController>();
-        for (int i = 0; i < enemyUnits.Count; i++)
+        for (int i = 0; i < displayUnits.Count; i++)
         {
-            CardController unit = enemyUnits[i];
-            if (content == null)
+            CardController unit = displayUnits[i];
+            if (content == null || unit == null)
             {
                 continue;
             }
 
+            bool isBlocked = IsUnitInList(blocked, unit);
             GameObject cardItem = Instantiate(CardImagePrefab, content);
             CardController itemCc = cardItem.GetComponent<CardController>();
 
@@ -6915,15 +6950,24 @@ public partial class BattleGameMain : MonoBehaviour
             statBgImg.raycastTarget = false;
 
             TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
-            string scoreLabel = FormatOnAttackEnemyTargetScoreLabelEnglish(
-                attackingUnit,
-                unit,
-                attackerOwner,
-                effectSourceCard,
-                effect);
-            statText.text = string.IsNullOrEmpty(scoreLabel)
-                ? $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}"
-                : $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")} | {scoreLabel}";
+            if (isBlocked)
+            {
+                statText.text =
+                    $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")} | Unavailable";
+            }
+            else
+            {
+                string scoreLabel = FormatOnAttackEnemyTargetScoreLabelEnglish(
+                    attackingUnit,
+                    unit,
+                    attackerOwner,
+                    effectSourceCard,
+                    effect);
+                statText.text = string.IsNullOrEmpty(scoreLabel)
+                    ? $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}"
+                    : $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")} | {scoreLabel}";
+            }
+
             statText.fontSize = 14;
             statText.color = Color.white;
             statText.alignment = TextAlignmentOptions.Center;
@@ -6932,6 +6976,17 @@ public partial class BattleGameMain : MonoBehaviour
             if (btn == null)
             {
                 btn = cardItem.AddComponent<Button>();
+            }
+
+            ApplyUnitPickCardGrayedOut(cardItem, isBlocked);
+            if (isBlocked)
+            {
+                if (itemCc != null && unit.Data != null)
+                {
+                    itemCc.SetUp(unit.Data, _ => { });
+                }
+
+                continue;
             }
 
             Image baseImage = cardItem.GetComponent<Image>();
@@ -6955,14 +7010,9 @@ public partial class BattleGameMain : MonoBehaviour
                         attackerOwner,
                         effect,
                         new List<CardController> { unit });
-                    if (chooserSide == PlayerType.Player)
-                    {
-                        InvokePlayerManualUnitSelectionCallback(applyPick);
-                    }
-                    else
-                    {
-                        applyPick();
-                    }
+                    // 相手選択（chooser=Enemy）でもローカル UI で選んだ結果なので、
+                    // Player 効果の手動適用ガードを通すため必ずコールバック経由にする。
+                    InvokePlayerManualUnitSelectionCallback(applyPick);
                     Debug.Log(
                         $"[OnAttack] 効果対象を選択 ({effectSourceCard?.Data?.cardName} → {unit.Data?.cardName}) "
                         + $"chooser:{chooserSide}");
@@ -7022,14 +7072,7 @@ public partial class BattleGameMain : MonoBehaviour
                     Destroy(root);
                     ContinueOnAttackAfterAppliedEffect(attackUnit, effect, onResolved);
                 };
-                if (chooserSide == PlayerType.Player)
-                {
-                    InvokePlayerManualUnitSelectionCallback(applyPicks);
-                }
-                else
-                {
-                    applyPicks();
-                }
+                InvokePlayerManualUnitSelectionCallback(applyPicks);
             });
         }
 
@@ -7114,14 +7157,14 @@ public partial class BattleGameMain : MonoBehaviour
             if (effect.opponentChoosesTarget)
             {
                 return chooserSide == PlayerType.Player
-                    ? "Destroy — Choose one of your Units" + optionalSuffix
-                    : "Destroy — Opponent chooses a Unit" + optionalSuffix;
+                    ? "Destroy — Choose one of your Units (attacked Unit unavailable)"
+                    : "Destroy — Opponent chooses a Unit (attacked Unit unavailable)";
             }
 
             if (effect.target.IsAllyUnitPickTarget())
             {
                 return chooserSide == PlayerType.Player
-                    ? "Destroy — Choose one of your Units" + optionalSuffix
+                    ? "Destroy — Choose one of your Units (attacker unavailable)" + optionalSuffix
                     : "Destroy — Choose an opponent Unit" + optionalSuffix;
             }
 
@@ -12108,8 +12151,51 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+        var attackDestroyBlocked = new List<CardController>();
+        if (attackingUnitInAttackFlow != null)
+        {
+            CollectOnAttackDestroyBlockedUnits(
+                effect,
+                attackingUnitInAttackFlow,
+                attackedTarget: null,
+                attackDestroyBlocked);
+            RemoveUnitsFromList(candidates, attackDestroyBlocked);
+        }
+
         if (candidates.Count == 0)
         {
+            // Sazabi 等: 攻撃ユニット自身だけが候補のときはグレイ表示＋Cancel の UI を出す
+            if (attackingUnitInAttackFlow != null
+                && effect != null
+                && effect.type == EffectType.Destroy
+                && attackDestroyBlocked.Count > 0
+                && RequiresInteractiveManualUnitSelectionUi(ownerType))
+            {
+                OpenManualUnitTargetSelectionUI(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    candidates,
+                    attackingUnitInAttackFlow,
+                    picked =>
+                    {
+                        if (picked != null)
+                        {
+                            ApplyEffectToSpecificTargets(
+                                sourceCard,
+                                ownerType,
+                                effect,
+                                new List<CardController> { picked });
+                            onDone?.Invoke();
+                        }
+                        else
+                        {
+                            onSkipped?.Invoke();
+                        }
+                    });
+                return;
+            }
+
             Debug.Log(
                 $"[Effect] 選択可能な対象がありません ({effect.FormatEffectSelectionSummary()})。");
             onSkipped?.Invoke();
@@ -12273,6 +12359,116 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.target == TargetType.AllyOtherUnit;
     }
 
+    /// <summary>
+    /// OnAttack 破壊選択で選択不可にするユニット（攻撃中の自分／攻撃対象）。
+    /// 候補から外しつつ UI ではグレイアウト表示する。
+    /// </summary>
+    private static void CollectOnAttackDestroyBlockedUnits(
+        EffectData effect,
+        CardController attackingUnit,
+        CardController attackedTarget,
+        List<CardController> blockedOut)
+    {
+        if (blockedOut == null || effect == null || effect.type != EffectType.Destroy)
+        {
+            return;
+        }
+
+        if (effect.target.IsAllyUnitPickTarget()
+            && attackingUnit != null
+            && attackingUnit.Data != null
+            && attackingUnit.Data.IsUnitLike()
+            && attackingUnit.CurrentHp > 0)
+        {
+            blockedOut.Add(attackingUnit);
+        }
+
+        if ((effect.opponentChoosesTarget || effect.target.IsOpponentUnitTarget())
+            && attackedTarget != null
+            && attackedTarget.Data != null
+            && attackedTarget.Data.IsUnitLike()
+            && attackedTarget.CurrentHp > 0)
+        {
+            blockedOut.Add(attackedTarget);
+        }
+    }
+
+    private static void RemoveUnitsFromList(List<CardController> list, List<CardController> remove)
+    {
+        if (list == null || remove == null || remove.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            CardController unit = list[i];
+            for (int j = 0; j < remove.Count; j++)
+            {
+                if (ReferenceEquals(unit, remove[j]))
+                {
+                    list.RemoveAt(i);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static List<CardController> BuildUnitPickDisplayList(
+        List<CardController> selectable,
+        List<CardController> blocked)
+    {
+        var display = new List<CardController>();
+        if (selectable != null)
+        {
+            for (int i = 0; i < selectable.Count; i++)
+            {
+                CardController unit = selectable[i];
+                if (unit != null && !display.Contains(unit))
+                {
+                    display.Add(unit);
+                }
+            }
+        }
+
+        if (blocked != null)
+        {
+            for (int i = 0; i < blocked.Count; i++)
+            {
+                CardController unit = blocked[i];
+                if (unit != null && !display.Contains(unit))
+                {
+                    display.Add(unit);
+                }
+            }
+        }
+
+        return display;
+    }
+
+    private static bool IsUnitInList(List<CardController> list, CardController unit)
+    {
+        if (list == null || unit == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (ReferenceEquals(list[i], unit))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ApplyUnitPickCardGrayedOut(GameObject cardGo, bool grayedOut)
+    {
+        ApplyTrashSelectionCardGrayedOut(cardGo, grayedOut);
+    }
+
     private void OpenManualUnitTargetSelectionUI(
         CardController source,
         PlayerType ownerType,
@@ -12287,6 +12483,22 @@ public partial class BattleGameMain : MonoBehaviour
             onPicked?.Invoke(null);
             return;
         }
+
+        var blocked = new List<CardController>();
+        if (attackingUnitInAttackFlow != null)
+        {
+            CollectOnAttackDestroyBlockedUnits(
+                effect,
+                attackingUnitInAttackFlow,
+                attackedTarget: null,
+                blocked);
+        }
+
+        List<CardController> selectable = candidates != null
+            ? new List<CardController>(candidates)
+            : new List<CardController>();
+        RemoveUnitsFromList(selectable, blocked);
+        List<CardController> displayUnits = BuildUnitPickDisplayList(selectable, blocked);
 
         DestroyActiveOnActionPopupIfAny();
         GameObject root = new GameObject(
@@ -12354,14 +12566,15 @@ public partial class BattleGameMain : MonoBehaviour
         bool resolved = false;
         bool acceptPickInput = false;
         List<Button> pickButtons = new List<Button>();
-        for (int i = 0; i < candidates.Count; i++)
+        for (int i = 0; i < displayUnits.Count; i++)
         {
-            CardController candidate = candidates[i];
+            CardController candidate = displayUnits[i];
             if (content == null || candidate == null || candidate.Data == null || CardImagePrefab == null)
             {
                 continue;
             }
 
+            bool isBlocked = IsUnitInList(blocked, candidate);
             GameObject go = Instantiate(CardImagePrefab, content);
             CardController cc = go.GetComponent<CardController>();
             if (cc != null)
@@ -12374,7 +12587,13 @@ public partial class BattleGameMain : MonoBehaviour
                 UIAnchor.BottomCenter,
                 100,
                 28);
-            if (effect != null && effect.type == EffectType.GrantAttackFlag)
+            if (isBlocked)
+            {
+                statLabel.SetLocalizedText(
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + "（選択不可）",
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + " (Unavailable)");
+            }
+            else if (effect != null && effect.type == EffectType.GrantAttackFlag)
             {
                 string atkJa = candidate.AttackFlgState == AttackFlg.True ? "可" : "不可";
                 string atkEn = candidate.AttackFlgState == AttackFlg.True ? "ON" : "OFF";
@@ -12398,6 +12617,12 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             btn.interactable = false;
+            ApplyUnitPickCardGrayedOut(go, isBlocked);
+            if (isBlocked)
+            {
+                continue;
+            }
+
             pickButtons.Add(btn);
 
             CardController pickedRef = candidate;
@@ -18065,6 +18290,14 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect.target == TargetType.AllyUnit)
         {
+            if (isAttackContext
+                && effect.type == EffectType.Destroy)
+            {
+                return GameLocale.T(
+                    $"味方ユニット1体を破壊（攻撃中の {attackName} は選択不可）",
+                    $"Destroy 1 ally Unit ({attackName} attacking — unavailable)");
+            }
+
             return isAttackContext
                 ? GameLocale.T(
                     $"味方ユニット1体を選択（自身または他ユニット・{attackName} 攻撃中）",
