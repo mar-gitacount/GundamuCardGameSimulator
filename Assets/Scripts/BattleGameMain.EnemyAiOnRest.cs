@@ -302,7 +302,7 @@ public partial class BattleGameMain
                 continue;
             }
 
-            ApplyVirtualBattleEffectToTargetsOnSnaps(working, effect, targets, magnitude, source);
+            ApplyVirtualBattleEffectToTargetsOnSnaps(working, effect, targets, magnitude, source, ownerType);
         }
     }
 
