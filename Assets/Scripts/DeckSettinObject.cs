@@ -94,6 +94,11 @@ public class DeckSettinObject : MonoBehaviour
         Instance = this;
         EnsurePlayerAuthServiceExists();
         StartCoroutine(InitializeDeckStorageAndShowListCoroutine());
+        // ホーム表示時にバナーを要求（バトル中でなければ）
+        if (!IsBattleCanvasVisible())
+        {
+            AdMobAdsService.ShowMenuBanner();
+        }
     }
 
     private void EnsurePlayerAuthServiceExists()
@@ -357,6 +362,12 @@ public class DeckSettinObject : MonoBehaviour
     public bool SelectedDeckContainsNotUsedOnlineCards()
     {
         return CollectNotUsedOnlineCardsInSelectedDeck().Count > 0;
+    }
+
+    /// <summary>選択中デッキのオンライン・レギュレーション検証（50枚・2色以内）。</summary>
+    public OnlineDeckRegulation.ValidationResult ValidateSelectedDeckForOnline()
+    {
+        return OnlineDeckRegulation.Validate(cardData);
     }
 
     public string GetSelectedDeckDisplayName()
@@ -1254,6 +1265,8 @@ public void battleStart()
             ShowAllCanvasChildren(BattleCanvas.gameObject);
         }
 
+        AdMobAdsService.HideMenuBanner();
+
         BattleGameMain battle = ResolveBattleMain();
         if (battle != null)
         {
@@ -1286,6 +1299,8 @@ public void battleStart()
         {
             ShowAllCanvasChildren(MainCanvas.gameObject);
         }
+
+        AdMobAdsService.ShowMenuBanner();
 
         Debug.Log("[Battle] Returned to main menu (canvas switch).");
     }

@@ -182,6 +182,13 @@ public class NewDeckMaking : MonoBehaviour
             return;
         }
 
+        OnlineDeckRegulation.ValidationResult regulation = deckSettings.ValidateSelectedDeckForOnline();
+        if (!regulation.IsValid)
+        {
+            ShowOnlineRegulationAlert(regulation);
+            return;
+        }
+
         TestPlayMatchState.Clear();
         deckSettings.ClearBattleStartFlag();
         EosOnlinePlaytestController.OpenPanel();
@@ -301,6 +308,7 @@ public class NewDeckMaking : MonoBehaviour
     }
 
     private GameObject _notUsedOnlineAlertRoot;
+    private GameObject _onlineRegulationAlertRoot;
     private GameObject _saveConfirmRoot;
 
     private void DeckMakeButtonClicked()
@@ -648,6 +656,81 @@ public class NewDeckMaking : MonoBehaviour
         {
             Destroy(_notUsedOnlineAlertRoot);
             _notUsedOnlineAlertRoot = null;
+        }
+    }
+
+    /// <summary>オンライン・レギュレーション違反（枚数・色数）のアラート。</summary>
+    private void ShowOnlineRegulationAlert(OnlineDeckRegulation.ValidationResult regulation)
+    {
+        CloseOnlineRegulationAlert();
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null)
+        {
+            canvas = FindObjectOfType<Canvas>();
+        }
+
+        if (canvas == null)
+        {
+            Debug.LogWarning("[Online] Canvas not found for regulation alert.");
+            return;
+        }
+
+        _onlineRegulationAlertRoot = new GameObject(
+            "OnlineRegulationAlert",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        _onlineRegulationAlertRoot.transform.SetParent(canvas.transform, false);
+        _onlineRegulationAlertRoot.transform.SetAsLastSibling();
+        _onlineRegulationAlertRoot.SetFullSize();
+
+        Image dim = _onlineRegulationAlertRoot.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.65f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = _onlineRegulationAlertRoot.CreateChildTextCustom(
+            "OnlineRegulationTitle",
+            UIAnchor.TopCenter,
+            720,
+            48);
+        title.SetLocalizedText("オンライン・レギュレーション", "Online Regulation");
+        title.fontSize = 30;
+        title.fontStyle = FontStyles.Bold;
+        title.alignment = TextAlignmentOptions.Center;
+        title.color = Color.white;
+        RectTransform titleRt = title.GetComponent<RectTransform>();
+        titleRt.anchoredPosition = new Vector2(0f, -80f);
+
+        TextMeshProUGUI body = _onlineRegulationAlertRoot.CreateChildTextCustom(
+            "OnlineRegulationBody",
+            UIAnchor.CenterStretch,
+            720,
+            160);
+        body.SetLocalizedText(regulation.MessageJa, regulation.MessageEn);
+        body.fontSize = 22;
+        body.alignment = TextAlignmentOptions.Center;
+        body.color = new Color(0.95f, 0.95f, 0.95f);
+        RectTransform bodyRt = body.GetComponent<RectTransform>();
+        bodyRt.anchoredPosition = new Vector2(0f, 20f);
+
+        Button okBtn = _onlineRegulationAlertRoot.CreateChildButton(GameLocale.T("OK", "OK"));
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(160f, 48f);
+        // 下部バナー広告に隠れないよう、画面中央付近に配置
+        okRt.anchorMin = new Vector2(0.5f, 0.5f);
+        okRt.anchorMax = new Vector2(0.5f, 0.5f);
+        okRt.pivot = new Vector2(0.5f, 0.5f);
+        okRt.anchoredPosition = new Vector2(0f, -90f);
+        okBtn.onClick.AddListener(CloseOnlineRegulationAlert);
+    }
+
+    private void CloseOnlineRegulationAlert()
+    {
+        if (_onlineRegulationAlertRoot != null)
+        {
+            Destroy(_onlineRegulationAlertRoot);
+            _onlineRegulationAlertRoot = null;
         }
     }
 
