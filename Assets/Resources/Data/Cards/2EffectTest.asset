@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 2EffectTest
   m_EditorClassIdentifier: 
   id: 20000
+  gcgOfficialId: 
   cardName: EffectTestUnit2
   cost: 1
   level: 1
@@ -20,12 +21,18 @@ MonoBehaviour:
   hp: 2
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/20000_EffectTestUnit2"
+  imageAddress: Data/Images/20000_EffectTestUnit2
   version: 5
   sourceType: 2
+  productLine: 0
+  boosterSet: 0
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 0
   filterType: 0
   color: 5
   type: 0
+  battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 12
@@ -56,6 +63,7 @@ MonoBehaviour:
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
+      compareTargetStatToMountHostUnit: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
@@ -63,6 +71,7 @@ MonoBehaviour:
       filterTargetUnitLevel: 0
       filterByTargetCardType: 0
       targetCardType: 0
+      filterTargetAsUnitOrPilot: 0
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -75,8 +84,13 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
+      oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
+      filterTargetUnitColor: 0
+      filterTargetUnitColorValue: 0
+      relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit: 0
+      relaxedTargetUnitStatCompareValue: 0
       selectMinCount: 0
       selectMaxCount: 0
       observedUnitTriggerKind: -1
@@ -101,8 +115,11 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   features: []
+  pilotIds: []
   link:
   - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: b187fb0005a20dc4a954cf3bb87a9232, type: 2}
     pilotFeatureIds: 
@@ -112,3 +129,12 @@ MonoBehaviour:
   isDeployTurnAttack: 0
   isNotDirectAttack: 0
   isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 1
+  hideFromCardList: 0
+  cannotMountPilot: 0
+  gcgId:
+    setKind: 0
+    setNumber: 0
+    cardNumber: 0

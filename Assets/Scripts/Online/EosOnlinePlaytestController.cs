@@ -456,6 +456,14 @@ public class EosOnlinePlaytestController : MonoBehaviour
             return;
         }
 
+        OnlineDeckRegulation.ValidationResult regulation =
+            DeckSettinObject.Instance.ValidateSelectedDeckForOnline();
+        if (!regulation.IsValid)
+        {
+            AppendLog("Start failed: " + regulation.MessageEn);
+            return;
+        }
+
         TestPlayDeckPick lockedDeck = DeckSettinObject.Instance.CaptureCurrentPlayerDeckPick();
         if (lockedDeck == null || lockedDeck.Cards == null || lockedDeck.Cards.Count == 0)
         {

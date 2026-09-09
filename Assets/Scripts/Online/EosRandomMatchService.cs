@@ -163,6 +163,15 @@ public sealed class EosRandomMatchService : MonoBehaviour
             return;
         }
 
+        OnlineDeckRegulation.ValidationResult regulation =
+            DeckSettinObject.Instance.ValidateSelectedDeckForOnline();
+        if (!regulation.IsValid)
+        {
+            SetStatus(MatchPhase.Idle, regulation.MessageEn);
+            Debug.LogWarning("[RandomMatch] " + regulation.MessageJa);
+            return;
+        }
+
         if (IsMatchmakingActive)
         {
             SetStatus(Phase, "Random Match is already running.");

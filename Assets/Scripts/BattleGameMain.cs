@@ -18787,6 +18787,12 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ShowResultOverlay(string resultText)
     {
+        // TestPlay は開発用のため広告を出さない
+        if (!IsTestPlayBattle())
+        {
+            AdMobAdsService.TryShowOnMatchEnd();
+        }
+
         ShowGoHomeConfirmDialog(resultText);
     }
 
