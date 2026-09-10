@@ -395,7 +395,7 @@ public partial class BattleGameMain
                 continue;
             }
 
-            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets, magnitude, command);
+            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets, magnitude, command, commandOwnerSide);
         }
     }
 

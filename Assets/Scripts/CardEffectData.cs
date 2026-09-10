@@ -571,7 +571,10 @@ public enum EffectStatTarget
     Cost,
     Level,
     Both,
-    /// <summary>戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。対象カード自身が受ける効果ダメージのみ）。</summary>
+    /// <summary>
+    /// 戦闘ダメージ以外の効果ダメージ量への補正（Buff/Debuff で付与。対象カード自身が受ける効果ダメージのみ）。
+    /// 負値（軽減）は「相手から」の効果ダメージにのみ適用する（シルヴァ・バレト / リディ・マーセナス等）。
+    /// </summary>
     EffectDamage,
     /// <summary>効果ダメージを完全無効化（Buff で付与。対象カード自身が受ける効果ダメージのみ0）。</summary>
     EffectDamageImmunity,

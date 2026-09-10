@@ -13792,8 +13792,37 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
+    /// EffectDamage 修飾の実効値。
+    /// 負値（軽減）は「相手から効果ダメージを受けるとき」のみ適用する（シルヴァ・バレト等）。
+    /// </summary>
+    private static int ResolveEffectiveEffectDamageModifier(
+        int rawModifier,
+        PlayerType? damageTargetOwner,
+        PlayerType? effectSourceOwner)
+    {
+        if (rawModifier >= 0)
+        {
+            return rawModifier;
+        }
+
+        // 軽減は相手からの効果ダメージ限定。自傷・味方効果には適用しない。
+        if (!damageTargetOwner.HasValue || !effectSourceOwner.HasValue)
+        {
+            return 0;
+        }
+
+        if (damageTargetOwner.Value == effectSourceOwner.Value)
+        {
+            return 0;
+        }
+
+        return rawModifier;
+    }
+
+    /// <summary>
     /// 効果ダメージ（EffectType.Damage 等）の実際の与ダメージ量。戦闘交換には使わない。
     /// 無効化・修飾は effectDamageTarget 自身のレイヤーに加え、配備ベースのオーラも参照する。
+    /// EffectDamage の負修飾（軽減）は相手からのダメージにのみ適用する。
     /// </summary>
     private int ResolveEffectDamageAmount(
         int baseMagnitude,
@@ -13805,7 +13834,11 @@ public partial class BattleGameMain : MonoBehaviour
             return 0;
         }
 
-        int modifier = effectDamageTarget != null ? effectDamageTarget.CurrentEffectDamageModifier : 0;
+        int rawModifier = effectDamageTarget != null ? effectDamageTarget.CurrentEffectDamageModifier : 0;
+        PlayerType? targetOwner = effectDamageTarget != null
+            ? ResolveBattleZoneUnitOwner(effectDamageTarget)
+            : (PlayerType?)null;
+        int modifier = ResolveEffectiveEffectDamageModifier(rawModifier, targetOwner, effectSourceOwner);
         int amount = Mathf.Max(0, baseMagnitude + modifier);
         if (amount <= 0 || effectDamageTarget == null || !effectSourceOwner.HasValue)
         {
@@ -13877,7 +13910,9 @@ public partial class BattleGameMain : MonoBehaviour
                 return 0;
             }
 
-            int modifier = snap != null ? snap.EffectDamageMod : effectDamageTarget.CurrentEffectDamageModifier;
+            int rawModifier = snap != null ? snap.EffectDamageMod : effectDamageTarget.CurrentEffectDamageModifier;
+            PlayerType? targetOwner = ResolveBattleZoneUnitOwner(effectDamageTarget);
+            int modifier = ResolveEffectiveEffectDamageModifier(rawModifier, targetOwner, effectSourceOwner);
             int amount = Mathf.Max(0, baseMagnitude + modifier);
             if (amount > 0
                 && effectSourceOwner.HasValue
@@ -14808,14 +14843,23 @@ public partial class BattleGameMain : MonoBehaviour
     private static int ResolveVirtualEffectDamageAmount(
         int baseMagnitude,
         List<VirtualBattleUnitSnap> working,
-        VirtualBattleUnitSnap effectDamageTarget = null)
+        VirtualBattleUnitSnap effectDamageTarget = null,
+        PlayerType? effectSourceOwner = null)
     {
         if (effectDamageTarget != null && effectDamageTarget.EffectDamageImmunityCount > 0)
         {
             return 0;
         }
 
-        int modifier = effectDamageTarget != null ? effectDamageTarget.EffectDamageMod : 0;
+        if (effectDamageTarget == null)
+        {
+            return Mathf.Max(0, baseMagnitude);
+        }
+
+        int modifier = ResolveEffectiveEffectDamageModifier(
+            effectDamageTarget.EffectDamageMod,
+            effectDamageTarget.FieldOwner,
+            effectSourceOwner);
         return Mathf.Max(0, baseMagnitude + modifier);
     }
 
@@ -14824,11 +14868,21 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect,
         List<CardController> targets,
         int magnitude,
-        CardController sourceCard = null)
+        CardController sourceCard = null,
+        PlayerType? effectSourceOwner = null)
     {
         if (working == null || effect == null || targets == null)
         {
             return;
+        }
+
+        if (!effectSourceOwner.HasValue && sourceCard != null && working != null)
+        {
+            VirtualBattleUnitSnap sourceSnap = FindBattleVirtualSnap(working, sourceCard);
+            if (sourceSnap != null)
+            {
+                effectSourceOwner = sourceSnap.FieldOwner;
+            }
         }
 
         if (magnitude == 0 && !effect.type.UsesTargetCountValue())
@@ -14957,7 +15011,11 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.Damage:
                 {
-                    int damageAmount = ResolveVirtualEffectDamageAmount(magnitude, working, snap);
+                    int damageAmount = ResolveVirtualEffectDamageAmount(
+                        magnitude,
+                        working,
+                        snap,
+                        effectSourceOwner);
                     snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                     break;
                 }
@@ -15219,7 +15277,8 @@ public partial class BattleGameMain : MonoBehaviour
             effect,
             new List<CardController> { hypotheticalEnemyTarget },
             hypotheticalMagnitude,
-            command);
+            command,
+            commandOwnerSide);
         LogVirtualHypotheticalBattleExchangeAfterOnActionCommand(
             after,
             hypotheticalEnemyTarget,
@@ -15453,7 +15512,7 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets, magnitude, command);
+            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets, magnitude, command, commandOwnerSide);
             trace.Append('[').Append(ei).Append(':').Append(eff.type).Append('x').Append(targets.Count).Append("] ");
         }
 
