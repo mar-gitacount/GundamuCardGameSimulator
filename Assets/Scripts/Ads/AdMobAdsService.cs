@@ -17,7 +17,7 @@ public sealed class AdMobAdsService : MonoBehaviour
     private const string AndroidProductionBannerUnitId = "ca-app-pub-2383157187090434/3091375763";
 
     [SerializeField]
-    [Tooltip("ONの間はテスト広告。確認できたらOFFで本番ユニット。")]
+    [Tooltip("ONの間はテスト広告。本番公開前にOFFへ。")]
     private bool useTestAds = true;
 
     [SerializeField]
@@ -33,6 +33,8 @@ public sealed class AdMobAdsService : MonoBehaviour
     private bool _isLoadingInterstitial;
     private bool _initFailed;
     private bool _wantBannerVisible = true;
+
+    private bool PreferTestAdUnits => useTestAds || Application.isEditor;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -146,7 +148,7 @@ public sealed class AdMobAdsService : MonoBehaviour
         try
         {
             MobileAds.RaiseAdEventsOnUnityMainThread = true;
-            Debug.Log($"[AdMob] Initialize start (testAds={useTestAds} editor={Application.isEditor})");
+            Debug.Log($"[AdMob] Initialize start (preferTest={PreferTestAdUnits} editor={Application.isEditor})");
             MobileAds.Initialize(status =>
             {
                 _initializing = false;
@@ -176,12 +178,12 @@ public sealed class AdMobAdsService : MonoBehaviour
 
     private string ResolveInterstitialUnitId()
     {
-        return useTestAds ? AndroidTestInterstitialUnitId : AndroidProductionInterstitialUnitId;
+        return PreferTestAdUnits ? AndroidTestInterstitialUnitId : AndroidProductionInterstitialUnitId;
     }
 
     private string ResolveBannerUnitId()
     {
-        return useTestAds ? AndroidTestBannerUnitId : AndroidProductionBannerUnitId;
+        return PreferTestAdUnits ? AndroidTestBannerUnitId : AndroidProductionBannerUnitId;
     }
 
     private void LoadInterstitial()
@@ -273,7 +275,7 @@ public sealed class AdMobAdsService : MonoBehaviour
             {
                 AdSize size = AdSize.GetCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(AdSize.FullWidth);
                 string unitId = ResolveBannerUnitId();
-                Debug.Log($"[AdMob] Create banner (BOTTOM) unit={unitId}");
+                Debug.Log($"[AdMob] Create banner (BOTTOM) unit={unitId} preferTest={PreferTestAdUnits}");
                 _bannerView = new BannerView(unitId, size, AdPosition.Bottom);
                 _bannerView.OnBannerAdLoaded += () =>
                 {
