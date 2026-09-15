@@ -1060,6 +1060,15 @@ public partial class BattleGameMain
             return;
         }
 
+        baseMagnitude = ApplyShieldAreaEnemyEffectDamageReductionIfNeeded(targetSide, baseMagnitude, sourceUnit);
+        if (baseMagnitude <= 0)
+        {
+            Debug.Log(
+                $"[EffectDamage] Shield-area damage fully reduced (side:{targetSide}, source:"
+                + $"{(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")}).");
+            return;
+        }
+
         Gundam2024RuleScript.PlayerState target = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? gundamRule.Player
             : gundamRule.Enemy;

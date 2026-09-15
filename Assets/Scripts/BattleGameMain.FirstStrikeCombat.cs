@@ -257,6 +257,28 @@ public partial class BattleGameMain
             return;
         }
 
+        // 相手ユニットからのバトルダメージ軽減（ロニ・ガーベイ等）
+        if (damageSource != null
+            && damageSource.Data != null
+            && damageSource.Data.IsUnitLike()
+            && damageTargetOwner != damageSourceOwner)
+        {
+            int battleReduction = damageTarget.CurrentBattleDamageFromEnemyUnitReduction;
+            if (battleReduction > 0)
+            {
+                int before = damage;
+                damage = Mathf.Max(0, damage - battleReduction);
+                Debug.Log(
+                    $"[BattleDmgReduction] {damageTarget.Data?.cardName} from {damageSource.Data.cardName} "
+                    + $"{before} → {damage} (reduction:{battleReduction})");
+            }
+        }
+
+        if (damage <= 0)
+        {
+            return;
+        }
+
         damageTarget.ApplyDamage(damage);
     }
 
