@@ -1355,6 +1355,9 @@ public class EffectData
     [Tooltip("true のときダメージを受けている（現在 HP < 最大 HP）ユニットのみ対象。")]
     public bool requireTargetDamaged;
 
+    [Tooltip("true のときリンク中（Link 条件を満たすパイロット搭乗中）のユニットのみ対象。")]
+    public bool requireTargetIsLinked;
+
     [Tooltip(
         "true のとき OnAttack の攻撃対象限定効果を戦闘前ではなく、"
         + "その攻撃で相手ユニットへバトルダメージを与えたあとに解決する（Exia Repair 等）。")]
@@ -1679,7 +1682,8 @@ public static class EffectDataExtensions
                 || !string.IsNullOrWhiteSpace(effect.targetCardNameExcludes)
                 || effect.requireTargetLacksBreach
                 || effect.requireTargetHasNoPilot
-                || effect.requireTargetDamaged);
+                || effect.requireTargetDamaged
+                || effect.requireTargetIsLinked);
     }
 
     /// <summary>
@@ -1887,6 +1891,12 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.requireTargetIsLinked
+            && !UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+        {
+            return false;
+        }
+
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
         if (statFilter == EffectTargetUnitFilterStat.Unset
             && (effect.compareTargetStatToSource || effect.compareTargetStatToPriorChainPicked))
@@ -2045,6 +2055,16 @@ public static class EffectDataExtensions
             }
 
             sb.Append(GameLocale.T("ダメージ受け", "damaged"));
+        }
+
+        if (effect.requireTargetIsLinked)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("リンク中", "Linked"));
         }
 
         return sb.ToString();
@@ -2283,6 +2303,12 @@ public static class EffectDataExtensions
         }
 
         if (effect.requireTargetDamaged && !unit.IsDamagedForWhileDamagedEffects())
+        {
+            return false;
+        }
+
+        if (effect.requireTargetIsLinked
+            && !UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
         {
             return false;
         }

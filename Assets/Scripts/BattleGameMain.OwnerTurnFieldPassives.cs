@@ -763,6 +763,10 @@ public partial class BattleGameMain
         return BuildActivationContext(side, unit);
     }
 
+    /// <summary>
+    /// OnPilotMounted の味方／敵全体など、場に張り続ける Buff/Debuff ブロックか。
+    /// ST01-006 のような選択必須の一発 Debuff は含めない（ClearLegacy で UnitGranted が消えるため）。
+    /// </summary>
     private static bool IsOnPilotMountedAllyFieldStatBlock(TimedEffectData timed)
     {
         if (timed == null || timed.timing != EffectTiming.OnPilotMounted || !timed.HasResolvedEffects())
@@ -779,11 +783,23 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if ((effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
-                && effect.target != TargetType.Self)
+            if (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
             {
-                return true;
+                continue;
             }
+
+            if (effect.target == TargetType.Self)
+            {
+                continue;
+            }
+
+            // SelectSingle 等の手動選択は搭乗時一発効果。場パッシブ／レガシーオーラ掃除の対象外。
+            if (effect.selectionMode.RequiresManualUnitPick())
+            {
+                continue;
+            }
+
+            return true;
         }
 
         return false;

@@ -60,10 +60,10 @@ EFF_TMPL = """    - type: {type}
       filterByDeployCardId: 0
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: {deployUnitTriggerOnPlayed}
-      deployUnitAsRested: 0
-      deployUnitPayCost: 0
-      deployUnitOverrideAp: 0
-      deployUnitOverrideHp: 0
+      deployUnitAsRested: {deployUnitAsRested}
+      deployUnitPayCost: {deployUnitPayCost}
+      deployUnitOverrideAp: {deployUnitOverrideAp}
+      deployUnitOverrideHp: {deployUnitOverrideHp}
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
@@ -138,6 +138,10 @@ def effect(**kw):
         targetCardType=0,
         deployUnitSource=0,
         deployUnitTriggerOnPlayed=0,
+        deployUnitAsRested=0,
+        deployUnitPayCost=0,
+        deployUnitOverrideAp=0,
+        deployUnitOverrideHp=0,
         selectMinCount=0,
         selectMaxCount=0,
         autoSelectHighestUnitStat=0,

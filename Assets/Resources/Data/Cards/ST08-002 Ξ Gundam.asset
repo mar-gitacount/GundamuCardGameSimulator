@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 4
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/ST08-002_\u039e Gundam"
+  imageAddress: "Data/Images/ST08-002_Ξ Gundam"
   version: 8
   sourceType: 2
   productLine: 2

@@ -421,6 +421,48 @@
             "description": ""
         },
         {
+            "id": 71,
+            "featureKey": "G_Generation",
+            "displayName": "G Generation",
+            "description": ""
+        },
+        {
+            "id": 72,
+            "featureKey": "Attack",
+            "displayName": "Attack",
+            "description": ""
+        },
+        {
+            "id": 73,
+            "featureKey": "Durability",
+            "displayName": "Durability",
+            "description": ""
+        },
+        {
+            "id": 74,
+            "featureKey": "Support",
+            "displayName": "Support",
+            "description": ""
+        },
+        {
+            "id": 75,
+            "featureKey": "Innovade",
+            "displayName": "イノベイド",
+            "description": ""
+        },
+        {
+            "id": 76,
+            "featureKey": "Marine",
+            "displayName": "Marine",
+            "description": ""
+        },
+        {
+            "id": 77,
+            "featureKey": "Long_Range_Weapon",
+            "displayName": "Long-Range Weapon",
+            "description": ""
+        },
+        {
             "id": 10000,
             "featureKey": "test",
             "displayName": "test",

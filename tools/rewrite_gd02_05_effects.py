@@ -274,10 +274,19 @@ def load_effect_texts():
 
 def strip_keyword_explanations(text: str) -> str:
     """<Keyword N> (explanation...) の説明括弧を除去。"""
+    # スクレイプ由来のアポストロフィゆれを正規化
+    text = text.replace("\u2019", "'").replace("\u2018", "'")
+    text = re.sub(r"(\w)'\s+(\w)", r"\1'\2", text)
+
+    def _strip_kw_paren(m: re.Match) -> str:
+        return m.group(1)
+
+    # ネストした括弧を含む説明文にも対応
     text = re.sub(
-        r"<(Blocker|Repair|Breach|Support|High-Maneuver|First Strike|Suppression)[^>]*>\s*\([^)]*\)",
-        lambda m: m.group(0).split("(")[0].strip(),
+        r"(<(?:Blocker|Repair|Breach|Support|High-Maneuver|First Strike|Suppression)[^>]*>)\s*\((?:[^()]|\([^()]*\))*\)",
+        _strip_kw_paren,
         text,
+        flags=re.I,
     )
     return text
 
@@ -562,8 +571,23 @@ def parse_body_effects(body: str, meta: dict):
         effects.append(effect(type=32, value=val, target=0))
 
     # set as active / Activate
-    if re.search(r"set this Unit as active|Activate this Unit", body_l, re.I):
+    if re.search(r"set (?:it|this Unit|them) as active|Activate this Unit", body_l, re.I):
         effects.append(effect(type=25, value=1, target=0))
+
+    # AP-N（デバフ）
+    m = re.search(r"(?:gets?|get)\s+AP-(\d+)|AP-(\d+)", body_l, re.I)
+    if m and not re.search(r"AP\s*\+", body_l, re.I):
+        val = int(m.group(1) or m.group(2))
+        tgt = 2
+        sel = 1
+        if re.search(r"this Unit", body_l, re.I) and not re.search(r"enemy", body_l, re.I):
+            tgt = 0
+            sel = -1
+        elif re.search(r"all\s+enemy\s+Units?", body_l, re.I):
+            tgt = 4
+            sel = 0
+        dur = 1 if re.search(r"during this turn|this turn", body_l, re.I) else 0
+        effects.append(effect(type=3, value=val, target=tgt, selectionMode=sel, duration=dur, statTarget=0))
 
     # EX Resource
     m = re.search(r"(?:place|add|gain)\s+(\d+)\s+EX Resource", body_l, re.I)
@@ -584,6 +608,17 @@ def parse_body_effects(body: str, meta: dict):
         if n in named:
             return [("named", named[n])]
         effects.append(effect(type=13, value=n, target=5))
+
+    # Discard → Draw（任意コスト）
+    m = re.search(
+        r"(?:You may )?discard\s+(\d+)\.?\s*If you do,?\s*draw\s+(\d+)",
+        body_l,
+        re.I,
+    )
+    if m:
+        effects.append(effect(type=24, value=int(m.group(1)), target=5, selectionMode=1))
+        effects.append(effect(type=1, value=int(m.group(2)), target=5))
+        return effects
 
     # Discard
     m = re.search(r"[Dd]iscard\s+(\d+)", body_l)
@@ -612,10 +647,26 @@ def parse_body_effects(body: str, meta: dict):
     if re.search(r"[Gg]ains?\s*<First Strike>|gains?\s*First Strike", body_l, re.I):
         effects.append(effect(type=47, value=1, target=0))
 
+    # may choose an active enemy Unit as attack target
+    if re.search(r"may choose an active enemy Unit|can attack active enemy", body_l, re.I):
+        effects.append(effect(type=12, value=1, target=0, duration=1))
+
+    # Exile from trash
+    if re.search(r"[Ee]xile .{0,80}from (?:the )?trash|from their trash\.?\s*Exile", body_l, re.I) or re.search(
+        r"chooses?\s+\d+\s+Unit cards? from (?:their|your) trash\.?\s*Exile", body_l, re.I
+    ):
+        m = re.search(r"(\d+)\s+Unit cards?", body_l, re.I)
+        n = int(m.group(1)) if m else 1
+        effects.append(effect(type=21, value=n, target=6, selectionMode=1))  # ExileFromTrash approx enemy
+
     # Rest enemy (won't activate next start ≈ Rest for now)
-    if re.search(r"won't be set as active|will not be set as active", body_l, re.I):
+    if re.search(r"won'?t be set as active|will not be set as active", body_l, re.I):
         if re.search(r"enemy Unit", body_l, re.I):
             effects.append(effect(type=10, value=1, target=7, selectionMode=1, **filt))  # RestEnemyUnit
+
+    # Return to bottom of deck
+    if re.search(r"return (?:it|them) to the bottom of (?:its|their) owner's deck|ReturnUnitToDeckBottom", body_l, re.I):
+        effects.append(effect(type=29, value=1, target=2, selectionMode=1, **filt))
 
     # Attack active enemy
     if re.search(r"may attack active enemy|can attack active|Attack Active", body_l, re.I):
@@ -710,6 +761,28 @@ def build_from_text(text: str, card_type: int):
 
         # 本文がキーワード説明のみ
         if re.fullmatch(r"<[^>]+>\s*", body.strip()):
+            # Activate/Main 内の <Support N> は効果として扱う
+            sm = re.search(r"<Support\s*(\d+)\s*>", body, re.I)
+            if sm and any("Main" in t or "Activate" in t for t in tags):
+                n = int(sm.group(1))
+                name = {
+                    1: "Support1_RestSelf_BuffAllyOtherAp1_OnMain",
+                    2: "Support2_RestSelf_BuffAllyOtherAp2_OnMain",
+                }.get(n)
+                t = meta["timing"] if meta["timing"] is not None else 12
+                if name:
+                    blocks.append(timed(t, effects_name=name, once_per_turn=1 if meta["once"] else 0))
+                else:
+                    blocks.append(
+                        timed(
+                            t,
+                            [
+                                effect(type=10, value=1, target=0),
+                                effect(type=2, value=n, target=8, selectionMode=1, duration=1),
+                            ],
+                            once_per_turn=1 if meta["once"] else 0,
+                        )
+                    )
             continue
 
         parsed = parse_body_effects(body, meta)
