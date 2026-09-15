@@ -2433,6 +2433,8 @@ public partial class BattleGameMain : MonoBehaviour
             ClearPaidActivationUsesForSide(PlayerType.Player);
             ClearOwnerEffectDestroyWatchUsesThisTurn();
             TriggerAllTimedEffectsForSide(PlayerType.Player, EffectTiming.OnTurnStart);
+            // 相手ターン開始時効果（シャンブロ等）は非ターン側の場ユニットを評価する
+            TriggerAllTimedEffectsForSide(PlayerType.Enemy, EffectTiming.OnOpponentTurnStart);
         }
         else
         {
@@ -2454,6 +2456,7 @@ public partial class BattleGameMain : MonoBehaviour
             ClearPaidActivationUsesForSide(PlayerType.Enemy);
             ClearOwnerEffectDestroyWatchUsesThisTurn();
             TriggerAllTimedEffectsForSide(PlayerType.Enemy, EffectTiming.OnTurnStart);
+            TriggerAllTimedEffectsForSide(PlayerType.Player, EffectTiming.OnOpponentTurnStart);
         }
     }
 
@@ -2790,6 +2793,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        RemoveCannotBeChosenAsAttackTargets(legal);
         return FilterEnemyUnitAttackTargetsByForce(attackerOwner, attacker, legal);
     }
 
@@ -2811,6 +2815,11 @@ public partial class BattleGameMain : MonoBehaviour
         {
             CardController host = enemies[i];
             if (host == null || !CanAttackerTargetEnemyUnitForCombat(attacker, host))
+            {
+                continue;
+            }
+
+            if (DoesUnitPreventBeingChosenAsAttackTarget(host))
             {
                 continue;
             }
@@ -3950,6 +3959,7 @@ public partial class BattleGameMain : MonoBehaviour
             ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearCopiedKeywordsUntilEndOfTurnForAllInPlayUnits();
             ClearPreventAllyDestroyByEnemyEffectUntilEot();
+            ClearShieldAreaEnemyEffectDamageReduction(OpponentSide(endingTurnSide));
             ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
             ClearObservedUnitWatches();
             ForceClearEffectChainObservationScope();
@@ -6022,6 +6032,11 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        if (DoesUnitPreventBeingChosenAsAttackTarget(target))
+        {
+            return false;
+        }
+
         List<CardController> forced = CollectForcedEnemyAttackTargets(attackerOwner, attacker);
         if (forced.Count > 0)
         {
@@ -6029,6 +6044,63 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return true;
+    }
+
+    /// <summary>アタック先に選べないユニットを候補から除外する。</summary>
+    private void RemoveCannotBeChosenAsAttackTargets(List<CardController> targets)
+    {
+        if (targets == null || targets.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            if (DoesUnitPreventBeingChosenAsAttackTarget(targets[i]))
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// ホスト（本体＋搭乗パイロット）の CannotBeChosenAsAttackTarget が有効か。
+    /// 【セット中】・味方〔特徴〕体数などは timed.activationConditions で評価する。
+    /// </summary>
+    private bool DoesUnitPreventBeingChosenAsAttackTarget(CardController host)
+    {
+        if (host == null)
+        {
+            return false;
+        }
+
+        var abilities = new List<CardCannotBeChosenAsAttackExtensions.CannotBeChosenAsAttackAbility>(2);
+        CardCannotBeChosenAsAttackExtensions.CollectCannotBeChosenAsAttackAbilities(host, abilities);
+        if (abilities.Count == 0)
+        {
+            return false;
+        }
+
+        PlayerType hostOwner = ResolveCardOwner(host.transform);
+        EffectActivationContext hostCtx = BuildOnAttackActivationContext(hostOwner, host);
+
+        for (int i = 0; i < abilities.Count; i++)
+        {
+            CardCannotBeChosenAsAttackExtensions.CannotBeChosenAsAttackAbility ability = abilities[i];
+            if (ability.Effect == null)
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreAllConditionsMet(ability.HostConditions, hostCtx))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>「相手ユニットを攻撃」後のターゲット解決。true のときは以降のフィルター処理を行わない。</summary>
@@ -7591,6 +7663,16 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 case EffectType.ForceEnemyAttackTarget:
                     // ForceEnemyAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
+                    break;
+                case EffectType.CannotBeChosenAsAttackTarget:
+                    // CannotBeChosenAsAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
+                    break;
+                case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
+                    GrantShieldAreaEnemyEffectDamageReduction(
+                        ownerType,
+                        magnitude > 0 ? magnitude : 5);
+                    break;
+                case EffectType.AllyEnemyEffectDamageImmunity:
                     break;
                 case EffectType.Bounce:
                     break;
@@ -13646,6 +13728,29 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[Effect] ForceEnemyAttackTarget marker by cardId:{sourceCard.Data.id}");
                 break;
 
+            case EffectType.CannotBeChosenAsAttackTarget:
+                // CannotBeChosenAsAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
+                Debug.Log($"[Effect] CannotBeChosenAsAttackTarget marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
+            {
+                int reduction = magnitude > 0 ? magnitude : 5;
+                if (effect.duration == EffectDuration.UntilEndOfTurn || effect.duration == EffectDuration.Permanent)
+                {
+                    GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[Effect] GrantShieldAreaEnemyEffectDamageReduction は UntilEndOfTurn 想定 "
+                        + $"(cardId:{sourceCard?.Data?.id} duration:{effect.duration})");
+                    GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+                }
+
+                break;
+            }
+
             case EffectType.Suppress:
                 ApplyTimedSuppressGrant(sourceCard, ownerType, effect, targets);
                 break;
@@ -13656,6 +13761,11 @@ public partial class BattleGameMain : MonoBehaviour
 
             case EffectType.EffectDamageImmunityFromAmountOrLess:
                 // 配備ベース常時パッシブ。効果ダメージ量判定でのみ参照する。
+                break;
+
+            case EffectType.AllyEnemyEffectDamageImmunity:
+                // 場ユニット常時パッシブ。効果ダメージ判定でのみ参照する。
+                Debug.Log($"[Effect] AllyEnemyEffectDamageImmunity marker by cardId:{sourceCard.Data.id}");
                 break;
 
             case EffectType.Bounce:
@@ -13749,6 +13859,7 @@ public partial class BattleGameMain : MonoBehaviour
         int effectDamageDelta = 0;
         int effectDamageImmunityDelta = 0;
         int incomingDamageReductionDelta = 0;
+        int battleDamageFromEnemyUnitReductionDelta = 0;
         switch (statTarget)
         {
             case EffectStatTarget.AP:
@@ -13772,6 +13883,9 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectStatTarget.IncomingDamageReduction:
                 incomingDamageReductionDelta = signedValue;
                 break;
+            case EffectStatTarget.BattleDamageFromEnemyUnitReduction:
+                battleDamageFromEnemyUnitReductionDelta = signedValue;
+                break;
             default:
                 powerDelta = signedValue;
                 hpDelta = signedValue;
@@ -13788,7 +13902,8 @@ public partial class BattleGameMain : MonoBehaviour
             statModifierSourceKey,
             effectDamageDelta,
             effectDamageImmunityDelta,
-            incomingDamageReductionDelta);
+            incomingDamageReductionDelta,
+            battleDamageFromEnemyUnitReductionDelta);
     }
 
     /// <summary>
@@ -13816,6 +13931,13 @@ public partial class BattleGameMain : MonoBehaviour
                 effectDamageTarget,
                 effectSourceOwner.Value,
                 amount))
+        {
+            return 0;
+        }
+
+        if (ShouldIgnoreEnemyEffectDamageByAllyProtector(
+                effectDamageTarget,
+                effectSourceOwner.Value))
         {
             return 0;
         }
@@ -13861,6 +13983,36 @@ public partial class BattleGameMain : MonoBehaviour
             resolvedAmount);
     }
 
+    /// <summary>
+    /// Acguy 等：味方場ユニットの AllyEnemyEffectDamageImmunity で敵効果ダメージを無効化するか。
+    /// </summary>
+    private bool ShouldIgnoreEnemyEffectDamageByAllyProtector(
+        CardController effectDamageTarget,
+        PlayerType effectSourceOwner)
+    {
+        if (effectDamageTarget == null || effectDamageTarget.Data == null || !effectDamageTarget.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = ResolveBattleZoneUnitOwner(effectDamageTarget);
+        if (targetOwner == effectSourceOwner)
+        {
+            return false;
+        }
+
+        List<CardController> allies = targetOwner == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        bool isTargetOwnerTurn = targetOwner == currentPlayerType;
+        return CardAllyEnemyEffectDamageImmunityExtensions.ShouldIgnoreEnemyEffectDamageByAllyProtector(
+            effectDamageTarget,
+            allies,
+            targetOwner,
+            effectSourceOwner,
+            isTargetOwnerTurn);
+    }
+
     private int ResolveEffectDamageAmountForVirtualPlayerLog(
         int baseMagnitude,
         List<VirtualPlayerUnitSnap> workingPlayerOverrides,
@@ -13881,10 +14033,13 @@ public partial class BattleGameMain : MonoBehaviour
             int amount = Mathf.Max(0, baseMagnitude + modifier);
             if (amount > 0
                 && effectSourceOwner.HasValue
-                && ShouldIgnoreEnemyEffectDamageByDeployedBase(
-                    effectDamageTarget,
-                    effectSourceOwner.Value,
-                    amount))
+                && (ShouldIgnoreEnemyEffectDamageByDeployedBase(
+                        effectDamageTarget,
+                        effectSourceOwner.Value,
+                        amount)
+                    || ShouldIgnoreEnemyEffectDamageByAllyProtector(
+                        effectDamageTarget,
+                        effectSourceOwner.Value)))
             {
                 return 0;
             }
@@ -14705,6 +14860,10 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectStatTarget.EffectDamageImmunity:
                 snap.EffectDamageImmunityCount = Mathf.Max(0, snap.EffectDamageImmunityCount + (signedValue > 0 ? 1 : signedValue < 0 ? -1 : 0));
                 break;
+            case EffectStatTarget.IncomingDamageReduction:
+            case EffectStatTarget.BattleDamageFromEnemyUnitReduction:
+                // 仮想評価では HP/AP を変えず、実戦闘側の軽減レイヤーに委ねる
+                break;
             default:
                 snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
                 snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
@@ -14797,6 +14956,9 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case EffectStatTarget.EffectDamageImmunity:
                 snap.EffectDamageImmunityCount = Mathf.Max(0, snap.EffectDamageImmunityCount + (signedValue > 0 ? 1 : signedValue < 0 ? -1 : 0));
+                break;
+            case EffectStatTarget.IncomingDamageReduction:
+            case EffectStatTarget.BattleDamageFromEnemyUnitReduction:
                 break;
             default:
                 snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
@@ -15561,6 +15723,12 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.ForceEnemyAttackTarget:
                     notes.Append("[ForceEnemyAttackTarget] ");
                     continue;
+                case EffectType.CannotBeChosenAsAttackTarget:
+                    notes.Append("[CannotBeChosenAsAttackTarget] ");
+                    continue;
+                case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
+                    notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
+                    continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
                     continue;
@@ -15718,6 +15886,12 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.ForceEnemyAttackTarget:
                     notes.Append("[ForceEnemyAttackTarget] ");
+                    continue;
+                case EffectType.CannotBeChosenAsAttackTarget:
+                    notes.Append("[CannotBeChosenAsAttackTarget] ");
+                    continue;
+                case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
+                    notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");

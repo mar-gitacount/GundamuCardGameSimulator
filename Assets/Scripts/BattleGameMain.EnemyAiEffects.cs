@@ -348,6 +348,9 @@ public partial class BattleGameMain
                 || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
                 || eff.type == EffectType.AttackActiveEnemyUnit
                 || eff.type == EffectType.ForceEnemyAttackTarget
+                || eff.type == EffectType.CannotBeChosenAsAttackTarget
+                || eff.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction
+                || eff.type == EffectType.AllyEnemyEffectDamageImmunity
                 || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.AddSelfToHand
                 || eff.type == EffectType.DeploySelfToShield || eff.type == EffectType.DeployShieldFromHand
                 || eff.type == EffectType.DeployBase

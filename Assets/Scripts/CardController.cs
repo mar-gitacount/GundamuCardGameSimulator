@@ -149,6 +149,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     private readonly List<StatModifier> effectDamageModifiers = new List<StatModifier>();
     private readonly List<StatModifier> effectDamageImmunityModifiers = new List<StatModifier>();
     private readonly List<StatModifier> incomingDamageReductionModifiers = new List<StatModifier>();
+    private readonly List<StatModifier> battleDamageFromEnemyUnitReductionModifiers = new List<StatModifier>();
     private readonly List<PilotMountAllyFieldAuraEntry> _pilotMountAllyFieldAuras = new List<PilotMountAllyFieldAuraEntry>();
 
     /// <summary>効果ダメージ（戦闘交換以外）への実効補正。</summary>
@@ -159,6 +160,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     /// <summary>受けるダメージの軽減量（正の値ほど軽減。戦闘・効果ダメージ共通）。</summary>
     public int CurrentIncomingDamageReduction => Mathf.Max(0, SumModifierValues(incomingDamageReductionModifiers));
+
+    /// <summary>相手ユニットからのバトルダメージ軽減量（正の値ほど軽減。効果ダメージには使わない）。</summary>
+    public int CurrentBattleDamageFromEnemyUnitReduction =>
+        Mathf.Max(0, SumModifierValues(battleDamageFromEnemyUnitReductionModifiers));
 
     /// <summary>効果ダメージ無効化が有効か。</summary>
     public bool HasEffectDamageImmunity => CurrentEffectDamageImmunityCount > 0;
@@ -854,6 +859,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         effectDamageModifiers.Clear();
         effectDamageImmunityModifiers.Clear();
         incomingDamageReductionModifiers.Clear();
+        battleDamageFromEnemyUnitReductionModifiers.Clear();
         _pilotMountAllyFieldAuras.Clear();
         MountedPilot = null;
         MountedUnit = null;
@@ -1081,7 +1087,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         string statModifierSourceKey = null,
         int effectDamageDelta = 0,
         int effectDamageImmunityDelta = 0,
-        int incomingDamageReductionDelta = 0)
+        int incomingDamageReductionDelta = 0,
+        int battleDamageFromEnemyUnitReductionDelta = 0)
     {
         string key = statModifierSourceKey ?? string.Empty;
         if (powerDelta != 0)
@@ -1121,6 +1128,16 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             incomingDamageReductionModifiers.Add(new StatModifier
             {
                 value = incomingDamageReductionDelta,
+                duration = duration,
+                sourceKey = key
+            });
+        }
+
+        if (battleDamageFromEnemyUnitReductionDelta != 0)
+        {
+            battleDamageFromEnemyUnitReductionModifiers.Add(new StatModifier
+            {
+                value = battleDamageFromEnemyUnitReductionDelta,
                 duration = duration,
                 sourceKey = key
             });
@@ -1216,6 +1233,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
                 return effectDamageImmunityModifiers;
             case EffectStatTarget.IncomingDamageReduction:
                 return incomingDamageReductionModifiers;
+            case EffectStatTarget.BattleDamageFromEnemyUnitReduction:
+                return battleDamageFromEnemyUnitReductionModifiers;
             default:
                 return powerModifiers;
         }
@@ -1255,6 +1274,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             removed,
             EffectStatTarget.IncomingDamageReduction,
             RemoveKeyedModifiers(incomingDamageReductionModifiers, sourceKey));
+        AppendRemovalIfNonZero(
+            removed,
+            EffectStatTarget.BattleDamageFromEnemyUnitReduction,
+            RemoveKeyedModifiers(battleDamageFromEnemyUnitReductionModifiers, sourceKey));
         return removed;
     }
 
@@ -1292,6 +1315,10 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             removed,
             EffectStatTarget.IncomingDamageReduction,
             RemoveKeyedModifiersByPrefix(incomingDamageReductionModifiers, ownerTurnPrefix));
+        AppendRemovalIfNonZero(
+            removed,
+            EffectStatTarget.BattleDamageFromEnemyUnitReduction,
+            RemoveKeyedModifiersByPrefix(battleDamageFromEnemyUnitReductionModifiers, ownerTurnPrefix));
         return removed;
     }
 
@@ -1377,6 +1404,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         ClearModifierListByDuration(effectDamageModifiers, duration);
         ClearModifierListByDuration(effectDamageImmunityModifiers, duration);
         ClearModifierListByDuration(incomingDamageReductionModifiers, duration);
+        ClearModifierListByDuration(battleDamageFromEnemyUnitReductionModifiers, duration);
         RefreshBattleStatOverlay(force: true);
     }
 

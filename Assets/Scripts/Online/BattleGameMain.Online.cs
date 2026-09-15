@@ -1632,6 +1632,7 @@ public partial class BattleGameMain
             ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearCopiedKeywordsUntilEndOfTurnForAllInPlayUnits();
             ClearPreventAllyDestroyByEnemyEffectUntilEot();
+            ClearShieldAreaEnemyEffectDamageReduction(OpponentSide(endingTurnSide));
             DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
             currentPlayerType = PlayerType.Player;

@@ -63,6 +63,11 @@ public enum EffectTiming
     /// MountHostUnit に攻撃ユニット、SourceCard に監視ユニットを載せる。
     /// </summary>
     OnAllyUnitAttack = 26,
+    /// <summary>
+    /// 相手のターン開始時（場のユニットが監視）。
+    /// 例: ST11-006 シャンブロの「相手のターン開始時…このターン中シールドエリアの効果ダメージを軽減」。
+    /// </summary>
+    OnOpponentTurnStart = 27,
 }
 
 public enum EffectType
@@ -314,7 +319,27 @@ public enum EffectType
     /// timed.activationConditions に turnCheck:NotOwnerTurn 等を指定する（Archangel 等）。
     /// ApplyEffect では何もしない（マーカー）。
     /// </summary>
-    EffectDamageImmunityFromAmountOrLess
+    EffectDamageImmunityFromAmountOrLess,
+    /// <summary>
+    /// 敵ユニットがこのユニットをアタック先に選べない（ST11-001 等）。
+    /// Permanent。攻撃対象候補の判定でのみ参照する（ApplyEffect はマーカー）。
+    /// timed.activationConditions に 【セット中】や味方〔特徴〕体数などのホスト側条件を書く。
+    /// </summary>
+    CannotBeChosenAsAttackTarget,
+    /// <summary>
+    /// このターン中、味方シールドエリアのカードが相手から受ける効果ダメージを value 軽減する（ST11-006 等）。
+    /// duration=UntilEndOfTurn。target=SelfPlayer。
+    /// 相手ターン開始時に条件付きで付与し、そのターン終了時に解除する。
+    /// </summary>
+    GrantShieldAreaEnemyEffectDamageReduction,
+    /// <summary>
+    /// 場のユニット常時パッシブ（効果ダメージ判定）。
+    /// 条件を満たす味方ユニットが受ける「敵からの効果ダメージ」を無効化する（ST11-002 アッガイ等）。
+    /// targetFeature / targetUnitFilterStat（例: HP≤2）で保護対象を絞る。
+    /// timed.activationConditions に turnCheck:NotOwnerTurn + SourceUnitIsRest 等を指定する。
+    /// ApplyEffect では何もしない（マーカー）。
+    /// </summary>
+    AllyEnemyEffectDamageImmunity
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -579,7 +604,12 @@ public enum EffectStatTarget
     /// 受けるダメージ軽減（Buff で付与。value=軽減量）。
     /// 戦闘ダメージ・効果ダメージの両方に適用（ApplyDamage 時）。UntilEndOfTurn 等と組み合わせる。
     /// </summary>
-    IncomingDamageReduction
+    IncomingDamageReduction,
+    /// <summary>
+    /// 相手ユニットからのバトルダメージ軽減（Buff。value=軽減量）。
+    /// 効果ダメージには適用しない（ST11-012 ロニ・ガーベイ等）。
+    /// </summary>
+    BattleDamageFromEnemyUnitReduction
 }
 
 /// <summary>バウンス等の対象ユニット絞り込みに使うステータス（実効値で比較）。</summary>
@@ -2132,6 +2162,7 @@ public static class EffectDataExtensions
 
         string filter = effect.FormatTargetUnitFilterDescription();
         string statNote = effect.statTarget == EffectStatTarget.IncomingDamageReduction
+            || effect.statTarget == EffectStatTarget.BattleDamageFromEnemyUnitReduction
             ? GameLocale.T(" / ダメージ軽減", " / Damage reduction")
             : string.Empty;
         if (string.IsNullOrEmpty(filter))
