@@ -208,34 +208,64 @@ public partial class BattleGameMain
         return rule.IsRegisteredInShieldZone(card);
     }
 
+    /// <summary>
+    /// シールド破壊公開パネル／バースト Yes/No（OptionalEffectConfirm）が開いているか。
+    /// キューフラグより先に UI だけ残る／タイムアウトで攻撃再開する事故を防ぐ。
+    /// </summary>
+    private bool IsShieldBreakBurstUiPending()
+    {
+        if (IsResolvingBurstEffect)
+        {
+            return true;
+        }
+
+        if (activeOnActionPopupRoot == null)
+        {
+            return false;
+        }
+
+        string popupName = activeOnActionPopupRoot.name;
+        return popupName == "OptionalEffectConfirm"
+            || popupName == "ShieldBreakReveal";
+    }
+
+    private bool IsShieldBreakFlowOrBurstPending()
+    {
+        return shieldBreakQueueRunning
+            || pendingShieldBreakBatches.Count > 0
+            || isShieldBreakFlowOpen
+            || IsLiveShieldBreakInProgress()
+            || IsShieldBreakBurstUiPending();
+    }
+
     private IEnumerator WaitForShieldBreakFlowCompleteCoroutine(float timeoutSeconds = -1f)
     {
         yield return null;
         if (timeoutSeconds <= 0f)
         {
-            yield return new WaitUntil(() =>
-                !shieldBreakQueueRunning
-                && pendingShieldBreakBatches.Count == 0
-                && !isShieldBreakFlowOpen
-                && !IsLiveShieldBreakInProgress());
+            yield return new WaitUntil(() => !IsShieldBreakFlowOrBurstPending());
             yield break;
         }
 
         float deadline = Time.realtimeSinceStartup + timeoutSeconds;
-        while ((shieldBreakQueueRunning
-                || pendingShieldBreakBatches.Count > 0
-                || isShieldBreakFlowOpen
-                || IsLiveShieldBreakInProgress())
-            && Time.realtimeSinceStartup < deadline)
+        while (IsShieldBreakFlowOrBurstPending() && Time.realtimeSinceStartup < deadline)
         {
             yield return null;
         }
 
-        if (!shieldBreakQueueRunning
-            && pendingShieldBreakBatches.Count == 0
-            && !isShieldBreakFlowOpen
-            && !IsLiveShieldBreakInProgress())
+        if (!IsShieldBreakFlowOrBurstPending())
         {
+            yield break;
+        }
+
+        // バースト Yes/No・公開 UI／キュー処理中はタイムアウトしても進めない（Master Gundam 等の攻撃再開が先走るのを防ぐ）
+        if (IsShieldBreakBurstUiPending()
+            || shieldBreakQueueRunning
+            || pendingShieldBreakBatches.Count > 0)
+        {
+            Debug.LogWarning(
+                $"[Battle] Shield break/burst UI still open after {timeoutSeconds}s — waiting until dismissed.");
+            yield return new WaitUntil(() => !IsShieldBreakFlowOrBurstPending());
             yield break;
         }
 

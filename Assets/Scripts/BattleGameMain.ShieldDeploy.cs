@@ -1120,6 +1120,19 @@ public partial class BattleGameMain
                                         () => done = true);
                                     yield return new WaitUntil(() => done);
                                 }
+                                else if (effect.type == EffectType.DeployBase)
+                                {
+                                    // ベース配備＋【配備時】完了まで待ってからバースト連鎖／攻撃再開へ進む
+                                    bool deployDone = false;
+                                    ApplyDeployBaseEffect(
+                                        source,
+                                        shieldOwner,
+                                        effect,
+                                        Mathf.Max(1, effect.value),
+                                        allowBurstSource: true,
+                                        onComplete: () => deployDone = true);
+                                    yield return new WaitUntil(() => deployDone);
+                                }
                                 else
                                 {
                                     ApplyEffect(source, shieldOwner, effect);

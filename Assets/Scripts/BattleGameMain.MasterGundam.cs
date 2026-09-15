@@ -200,8 +200,9 @@ public partial class BattleGameMain
             blockShieldFlowDuringShieldAttack = prevBlockShieldFlow;
         }
 
-        yield return WaitForShieldBreakFlowCompleteCoroutine(20f);
-        yield return WaitUntilBlockingChoiceOrTrashUiCleared(5f);
+        // 効果でシールドが割れた場合: 公開 → バースト Yes/No →（Yesなら）ベース配備 まで待ってから攻撃再開へ
+        yield return WaitForShieldBreakFlowCompleteCoroutine(-1f);
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(-1f);
     }
 
     private IEnumerator CoRunOnAttackPreCombatTimedBlocksWait(
@@ -330,6 +331,12 @@ public partial class BattleGameMain
         };
     }
 
+    /// <summary>
+    /// OnAttack 効果後の打撃用レイヤーキャッシュ更新。
+    /// 宣言時にベース/EX が無かった場合は false のまま（バースト配備で true にしない）。
+    /// true→false のみ許可：効果で層が消えたとき残りシールド／ダイレクトへ通す。
+    /// バーストで後から出たベースへの打撃は TryApplyShieldAttackDamageToDeployedBase が担う。
+    /// </summary>
     private void RefreshMasterGundamShieldAttackLayerCacheAfterEffect(
         Gundam2024RuleScript.PlayerSide targetSide)
     {
@@ -340,16 +347,33 @@ public partial class BattleGameMain
             return;
         }
 
+        // 宣言時シールドのみ → バーストでベースが出ても「宣言時 EX/ベース層」扱いにしない。
+        // true にすると TryApplyUnitShieldAttack がシールド破壊せず空振りする。
+        if (!_shieldAttackHadExOrBaseAtDeclarationValid || !_shieldAttackHadExOrBaseAtDeclaration)
+        {
+            Debug.Log(
+                "[MasterGundam] Strike layer cache kept as declared "
+                + $"(hadExOrBase:{_shieldAttackHadExOrBaseAtDeclaration}).");
+            return;
+        }
+
         Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
         bool layerNow = defender != null
             && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
-        _shieldAttackHadExOrBaseAtDeclaration = layerNow;
-        _shieldAttackHadExOrBaseAtDeclarationValid = true;
+        if (!layerNow)
+        {
+            _shieldAttackHadExOrBaseAtDeclaration = false;
+            Debug.Log(
+                "[MasterGundam] Strike layer cache cleared — EX/base removed by OnAttack effect "
+                + $"(ex:{defender?.exBase ?? -1}).");
+            return;
+        }
+
         Debug.Log(
-            $"[MasterGundam] Strike layer cache refreshed — hadExOrBaseNow:{layerNow} "
-            + $"(ex:{defender?.exBase ?? -1})");
+            "[MasterGundam] Strike layer cache still true — EX/base remains after OnAttack effect "
+            + $"(ex:{defender?.exBase ?? -1}).");
     }
 
     private static EffectData BuildMasterGundamExileEffect()

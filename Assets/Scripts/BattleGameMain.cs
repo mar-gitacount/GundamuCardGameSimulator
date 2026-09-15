@@ -4228,6 +4228,7 @@ public partial class BattleGameMain : MonoBehaviour
     private bool HasBlockingChoiceOrTrashUi()
     {
         // isOnActionPopupOpen はコマンド確認中も true になるため、Wait ではトラッシュ／Look／公開 UI だけ見る
+        // ただしシールド破壊公開・バースト Yes/No は攻撃再開より必ず先に完了させる
         return _pendingSendToTrashPipelines > 0
             || _deferredOnDestroyedResolutions.Count > 0
             || HasPendingRemoteOnDestroyedResolution
@@ -4238,7 +4239,8 @@ public partial class BattleGameMain : MonoBehaviour
             || isOnlineDiscardThinkPauseOpen
             || _activeLookDeckPopupRoot != null
             || _activeHandDiscardRevealRoot != null
-            || _activeOnActionCommandRevealRoot != null;
+            || _activeOnActionCommandRevealRoot != null
+            || IsShieldBreakBurstUiPending();
     }
 
     private IEnumerator WaitUntilBlockingChoiceOrTrashUiCleared(float timeoutSeconds = -1f)
@@ -7969,13 +7971,18 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // 打撃／OnAction フェーズ: 残っているベース層への溢れ防止のみ有効化
-        bool layerRemainsForOverflowGuard = defender.exBase > 0
-            || HasActiveDeployedBaseForRuleSide(targetSide);
+        // 打撃／OnAction フェーズ: 宣言時からあるベース層への溢れ防止のみ有効化
+        // （効果バーストで後から出たベースは打撃対象にはなるが、溢れ防止フラグの根拠にはしない）
+        bool layerRemainsForOverflowGuard = hadExBaseLayerAtShieldAttackStart
+            && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
         if (layerRemainsForOverflowGuard)
         {
             blockShieldFlowDuringShieldAttack = true;
             blockedShieldFlowSide = targetSide;
+        }
+        else if (!hadExBaseLayerAtShieldAttackStart)
+        {
+            blockShieldFlowDuringShieldAttack = false;
         }
 
         if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !AttackerIgnoresBlockRedirect(attacker))
@@ -8462,8 +8469,9 @@ public partial class BattleGameMain : MonoBehaviour
     {
         Debug.Log("[MasterGundam] Resume shield attack → block → action → strike");
 
-        yield return WaitForShieldBreakFlowCompleteCoroutine(45f);
-        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        // バースト Yes/No・ベース配備が終わるまで本体攻撃（ブロック／アクション／打撃）に入らない
+        yield return WaitForShieldBreakFlowCompleteCoroutine(-1f);
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(-1f);
 
         if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null || !attacker.Data.IsUnitLike())
         {
@@ -8478,12 +8486,20 @@ public partial class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? gundamRule.Player
             : gundamRule.Enemy;
-        bool layerRemains = defender != null
+        // 溢れ防止は「宣言時からベース/EX があった」ときだけ。
+        // バーストで後から出たベースは打撃時に TryApplyShieldAttackDamageToDeployedBase で受ける。
+        bool declaredLayerStillUp = _shieldAttackHadExOrBaseAtDeclarationValid
+            && _shieldAttackHadExOrBaseAtDeclaration
+            && defender != null
             && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
-        blockShieldFlowDuringShieldAttack = layerRemains;
-        if (layerRemains)
+        blockShieldFlowDuringShieldAttack = declaredLayerStillUp;
+        if (declaredLayerStillUp)
         {
             blockedShieldFlowSide = targetSide;
+        }
+        else
+        {
+            blockShieldFlowDuringShieldAttack = false;
         }
 
         isShieldAttackResolving = false;
@@ -8589,6 +8605,10 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
+        // 配備ベースがいるのにダメージ未適用 → EX層空振り扱いにせずシールド破壊へ（Master Gundam バースト後など）
+        bool overflowGuardAsExLayer = hadExBaseLayerAtShieldAttackStart
+            && !HasActiveDeployedBaseForRuleSide(targetSide);
+
         if (suppressBreaks > 0 && shieldOnly)
         {
             int applied = gundamRule.ApplySuppressShieldBreaks(targetSide, suppressBreaks);
@@ -8606,12 +8626,12 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, strikeAp, hadExBaseLayerAtShieldAttackStart))
+        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, strikeAp, overflowGuardAsExLayer))
         {
             return false;
         }
 
-        if (hadExBaseLayerAtShieldAttackStart)
+        if (overflowGuardAsExLayer)
         {
             logMessage = $"[Attack] Shield attack vs EX layer. EX Base is now {defender.exBase}.";
         }
