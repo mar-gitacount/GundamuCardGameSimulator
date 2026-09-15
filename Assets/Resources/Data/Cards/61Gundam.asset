@@ -37,13 +37,33 @@ MonoBehaviour:
   - timing: 15
     activationConditions:
     - boardSide: -1
+      checkKind: 4
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - boardSide: -1
       checkKind: -1
       turnCheck: 0
       feature: {fileID: 0}
       featureId: 0
       features: []
       featureIds: 
-      minimumCount: 0
+      minimumCount: 1
       levelAggregate: 0
       compareOp: 0
       compareValue: 0
@@ -62,9 +82,9 @@ MonoBehaviour:
     - type: 2
       value: 1
       target: 3
-      selectionMode: -1
+      selectionMode: 0
       statTarget: 0
-      duration: 0
+      duration: 1
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0
@@ -95,6 +115,7 @@ MonoBehaviour:
       filterDeployCandidateByFeature: 0
       deployUnitTriggerOnPlayed: 0
       deployUnitAsRested: 0
+      deployUnitPayCost: 0
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
@@ -106,11 +127,16 @@ MonoBehaviour:
       selectMaxCount: 0
       observedUnitTriggerKind: -1
       autoSelectLowestUnitStat: 0
+      autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
+      targetCardNameExcludes: 
+      targetPilotId: 0
       requireTargetLacksBreach: 0
+      requireTargetHasNoPilot: 0
+      resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
       choiceBranches: []

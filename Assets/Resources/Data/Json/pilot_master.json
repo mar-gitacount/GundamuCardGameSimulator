@@ -731,6 +731,66 @@
             "pilotKey": "so_Ewin",
             "displayName": "Üso Ewin",
             "description": ""
+        },
+        {
+            "id": 123,
+            "pilotKey": "Domon_Kasshu",
+            "displayName": "Domon Kasshu",
+            "description": ""
+        },
+        {
+            "id": 124,
+            "pilotKey": "Lockon_Stratos_Neil",
+            "displayName": "Lockon Stratos (Neil)",
+            "description": ""
+        },
+        {
+            "id": 125,
+            "pilotKey": "Marco_Morassim",
+            "displayName": "Marco Morassim",
+            "description": ""
+        },
+        {
+            "id": 126,
+            "pilotKey": "Mark_Guilder",
+            "displayName": "Mark Guilder",
+            "description": ""
+        },
+        {
+            "id": 127,
+            "pilotKey": "McGillis_Fareed",
+            "displayName": "McGillis Fareed",
+            "description": ""
+        },
+        {
+            "id": 128,
+            "pilotKey": "Miguel_Ayman",
+            "displayName": "Miguel Ayman",
+            "description": ""
+        },
+        {
+            "id": 129,
+            "pilotKey": "Milliardo_Peacecraft",
+            "displayName": "Milliardo Peacecraft",
+            "description": ""
+        },
+        {
+            "id": 130,
+            "pilotKey": "Ortega",
+            "displayName": "Ortega",
+            "description": ""
+        },
+        {
+            "id": 131,
+            "pilotKey": "Ple_Twelve",
+            "displayName": "Ple-Twelve",
+            "description": ""
+        },
+        {
+            "id": 132,
+            "pilotKey": "Ramba_Ral",
+            "displayName": "Ramba Ral",
+            "description": ""
         }
     ]
 }
