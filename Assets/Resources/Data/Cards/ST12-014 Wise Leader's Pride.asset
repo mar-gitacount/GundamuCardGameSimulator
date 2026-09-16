@@ -31,7 +31,7 @@ MonoBehaviour:
   sourceTitle: 1
   filterType: 0
   color: 6
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
   timedEffects:
@@ -40,12 +40,12 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 18
+    - type: 28
       value: 1
-      target: 2
+      target: 1
       selectionMode: 1
       statTarget: 0
-      duration: 0
+      duration: 2
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0
@@ -59,9 +59,9 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 0
+      targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 2
+      targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
@@ -97,7 +97,7 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
-      resolveAfterDealtBattleDamage: 0
+      resolveAfterDealtBattleDamage: 1
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
       choiceBranches: []
@@ -106,9 +106,29 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 19
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName:
+    effects:
+    - type: 18
+      value: 1
+      target: 2
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      targetUnitFilterStat: 0
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 2
+      abortRemainingChainOnSkip: 0
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: 0
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: ed2a9f851af34988be90203afdca546f, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1

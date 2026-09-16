@@ -45,7 +45,7 @@ MonoBehaviour:
       target: 0
       selectionMode: -1
       statTarget: 0
-      duration: 0
+      duration: 1
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0

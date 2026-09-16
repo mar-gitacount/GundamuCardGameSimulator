@@ -114,7 +114,7 @@ MonoBehaviour:
     - type: 0
       value: 2
       target: 2
-      selectionMode: 1
+      selectionMode: 0
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -181,6 +181,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 8ddf91e927b6496489bd5c776ff5f567, type: 2}
   pilotIds:
   - {fileID: 11400000, guid: f901c7faf27b4215a364d12c94fcbce8, type: 2}
+  - {fileID: 11400000, guid: 4ae025a9fc3046c9b3f8e77458fdc5bf, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1

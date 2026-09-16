@@ -986,6 +986,46 @@ public partial class BattleGameMain
     }
 
     /// <summary>
+    /// 配備ベース、次いでEXベースにだけ効果ダメージを与える。シールドには波及させない。
+    /// </summary>
+    private bool ApplyEffectDamageToBaseAreaOnly(
+        Gundam2024RuleScript.PlayerSide targetSide,
+        int baseMagnitude)
+    {
+        if (baseMagnitude <= 0 || gundamRule == null)
+        {
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerState target = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int shieldBefore = target != null ? target.shield : 0;
+        int exBaseBefore = target != null ? target.exBase : 0;
+
+        if (TryApplyEffectDamageToDeployedBase(targetSide, baseMagnitude, out string baseLog, out _))
+        {
+            Debug.Log(baseLog);
+            SyncResourceViewsFromRule(targetSide);
+            TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
+            return true;
+        }
+
+        int exDamage = ResolveEffectDamageAmount(baseMagnitude);
+        if (target == null || target.exBase <= 0 || exDamage <= 0)
+        {
+            return false;
+        }
+
+        gundamRule.DamageExBaseOnly(targetSide, exDamage);
+        Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {target.exBase}).");
+        SyncResourceViewsFromRule(targetSide);
+        SyncBaseZoneHeaderDisplay(targetSide);
+        TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
+        return true;
+    }
+
+    /// <summary>
     /// ランタイム付与、またはカード定義（自身への EffectDamageImmunity Buff）による効果ダメージ無効。
     /// </summary>
     private static bool DoesCardIgnoreEffectDamage(CardController card)

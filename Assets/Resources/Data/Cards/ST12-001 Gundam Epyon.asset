@@ -35,11 +35,11 @@ MonoBehaviour:
   battleZones: 3
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 16
     activationConditions:
     - boardSide: -1
       checkKind: 4
-      turnCheck: -1
+      turnCheck: 0
       feature: {fileID: 0}
       featureId: 0
       features: []
@@ -52,7 +52,7 @@ MonoBehaviour:
       unitCountThreshold: 0
       pilotCardId: 0
       trashCardId: 0
-      pilotLevelThreshold: 0
+      pilotLevelThreshold: 5
       activationStatTarget: -1
       observedCardType: 0
       destroyedByOwnerRelation: 0
@@ -133,8 +133,8 @@ MonoBehaviour:
     effects:
     - type: 0
       value: 5
-      target: 2
-      selectionMode: 1
+      target: 6
+      selectionMode: -1
       statTarget: 0
       duration: 0
       valueMode: 0

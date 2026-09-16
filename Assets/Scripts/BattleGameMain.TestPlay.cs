@@ -207,6 +207,14 @@ public partial class BattleGameMain
                 }
 
                 PerformMulligan(enemyCardGameRule, enemyHandCards, openingHandSize, PlayerType.Enemy);
+                if (DeveloperModeAccess.ShouldAllowUnlimitedMulligan)
+                {
+                    Transform cardsHost = enemyUi != null ? enemyUi.transform.Find("CardsRow") : null;
+                    RefreshTestPlayMulliganCardRow(cardsHost, PlayerType.Enemy);
+                    Debug.Log("[TestPlay][Mulligan] Enemy mulligan → unlimited mode, UI kept open.");
+                    return;
+                }
+
                 enemyDecided = true;
                 if (enemyUi != null)
                 {
@@ -246,6 +254,14 @@ public partial class BattleGameMain
                 }
 
                 PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
+                if (DeveloperModeAccess.ShouldAllowUnlimitedMulligan)
+                {
+                    Transform cardsHost = playerUi != null ? playerUi.transform.Find("CardsRow") : null;
+                    RefreshTestPlayMulliganCardRow(cardsHost, PlayerType.Player);
+                    Debug.Log("[TestPlay][Mulligan] Player mulligan → unlimited mode, UI kept open.");
+                    return;
+                }
+
                 playerDecided = true;
                 if (playerUi != null)
                 {
@@ -1281,6 +1297,38 @@ public partial class BattleGameMain
         }
 
         RefreshTestPlayDeckDrawButtonStates();
+    }
+
+    /// <summary>開発者端末では対戦形式やターンに関係なく、自分の山札から任意回数ドローできる。</summary>
+    private void ConfigureDeveloperUnlimitedDraw()
+    {
+        if (!DeveloperModeAccess.IsAuthorized || cardGameRule == null)
+        {
+            return;
+        }
+
+        cardGameRule.EnsureTestPlayDeckDrawButton(DeveloperDrawOne);
+        cardGameRule.SetTestPlayDeckDrawButtonInteractable(true);
+    }
+
+    private void DeveloperDrawOne()
+    {
+        if (!DeveloperModeAccess.IsAuthorized || cardGameRule == null)
+        {
+            return;
+        }
+
+        if (cardGameRule.GetRemainingCount() <= 0)
+        {
+            Debug.Log("[DeveloperMode] 山札が0枚のためドローできません。");
+            return;
+        }
+
+        CardAddtoHand(cardGameRule, PlayerType.Player);
+        NotifyLocalPlayerHandDeckSnapshot();
+        SyncAllResourceViewsFromRule();
+        cardGameRule.SetTestPlayDeckDrawButtonInteractable(cardGameRule.GetRemainingCount() > 0);
+        Debug.Log("[DeveloperMode] Draw 1.");
     }
 
     private void RefreshTestPlayDeckDrawButtonStates()
