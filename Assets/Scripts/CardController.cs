@@ -587,6 +587,22 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _notDirectAttackUntilEndOfTurnDepth = 0;
     }
 
+    /// <summary>CannotBeChosenAsAttackTarget（UntilEndOfTurn）のランタイム付与。</summary>
+    private int _cannotBeChosenAsAttackUntilEndOfTurnDepth;
+
+    public bool HasCannotBeChosenAsAttackUntilEndOfTurnGrant =>
+        _cannotBeChosenAsAttackUntilEndOfTurnDepth > 0;
+
+    public void AddCannotBeChosenAsAttackUntilEndOfTurnGrant()
+    {
+        _cannotBeChosenAsAttackUntilEndOfTurnDepth++;
+    }
+
+    public void ClearCannotBeChosenAsAttackUntilEndOfTurnGrants()
+    {
+        _cannotBeChosenAsAttackUntilEndOfTurnDepth = 0;
+    }
+
     /// <summary>カード定義またはターン限定付与により、相手プレイヤー／シールドへ直接攻撃不可。</summary>
     public bool CannotDirectAttackPlayerOrShield()
     {
@@ -864,6 +880,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         MountedPilot = null;
         MountedUnit = null;
         _notDirectAttackUntilEndOfTurnDepth = 0;
+        _cannotBeChosenAsAttackUntilEndOfTurnDepth = 0;
         _firstStrikeUntilEndOfTurnDepth = 0;
         _highMobilityUntilEndOfTurnDepth = 0;
         _breachUntilEndOfTurnAmount = 0;

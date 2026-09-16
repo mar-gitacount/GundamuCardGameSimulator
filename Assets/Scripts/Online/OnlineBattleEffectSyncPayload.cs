@@ -101,6 +101,8 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindRefreshOwnerTurnFieldPassives = "RefreshOwnerTurnFieldPassives";
     /// <summary>Kindhearted 等：このターン両盤面のユニットを相手の効果破壊から守る。</summary>
     public const string ChangeKindPreventAllyDestroyByEnemyEffect = "PreventAllyDestroyByEnemyEffect";
+    /// <summary>ST11-014 等：このターン敵ユニットのアタック先に選べない付与。</summary>
+    public const string ChangeKindCannotBeChosenAsAttackTarget = "CannotBeChosenAsAttackTarget";
 
     public static string ToJson(OnlineBattleUnitEffectChange[] changes)
     {

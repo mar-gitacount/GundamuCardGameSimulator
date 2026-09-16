@@ -531,6 +531,15 @@ public partial class BattleGameMain
             btn = go.AddComponent<Button>();
         }
 
+        // CardImagePrefab 側の Button 初期値に依存せず、対象カードをクリック可能にする。
+        btn.interactable = true;
+        Image targetImage = go.GetComponent<Image>();
+        if (targetImage != null)
+        {
+            btn.targetGraphic = targetImage;
+            targetImage.raycastTarget = true;
+        }
+
         CardController picked = target;
         btn.onClick.AddListener(() => onPicked?.Invoke(picked));
     }
@@ -634,8 +643,15 @@ public partial class BattleGameMain
                     picked =>
                     {
                         Destroy(root);
-                        activeOnActionPopupRoot = null;
-                        isOnActionPopupOpen = false;
+                        if (activeOnActionPopupRoot == root)
+                        {
+                            activeOnActionPopupRoot = null;
+                        }
+
+                        isOnActionPopupOpen = activeOnActionPopupRoot != null
+                            || _activeLookDeckPopupRoot != null
+                            || _isActionStepCommandResolving
+                            || _activeResourcePaymentOverlay != null;
                         onTargetPicked?.Invoke(picked);
                     },
                     roleLabel);
@@ -652,8 +668,15 @@ public partial class BattleGameMain
         closeBtn.onClick.AddListener(() =>
         {
             Destroy(root);
-            activeOnActionPopupRoot = null;
-            isOnActionPopupOpen = false;
+            if (activeOnActionPopupRoot == root)
+            {
+                activeOnActionPopupRoot = null;
+            }
+
+            isOnActionPopupOpen = activeOnActionPopupRoot != null
+                || _activeLookDeckPopupRoot != null
+                || _isActionStepCommandResolving
+                || _activeResourcePaymentOverlay != null;
             onCancel?.Invoke();
         });
 
@@ -734,6 +757,14 @@ public partial class BattleGameMain
 
             btn.interactable = false;
             return;
+        }
+
+        // Prefab 側の初期状態に依存せず、Action 一覧では必ず選択可能にする。
+        btn.interactable = true;
+        if (baseImage != null)
+        {
+            btn.targetGraphic = baseImage;
+            baseImage.raycastTarget = true;
         }
 
         btn.onClick.AddListener(() =>

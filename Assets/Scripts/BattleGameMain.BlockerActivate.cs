@@ -160,6 +160,66 @@ public partial class BattleGameMain
         return applied > 0;
     }
 
+    private bool TryApplyCannotBeChosenAsAttackTargetMarker(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null
+            || effect.type != EffectType.CannotBeChosenAsAttackTarget
+            || targets == null
+            || targets.Count == 0)
+        {
+            return false;
+        }
+
+        // Permanent はカード常時パッシブ（攻撃対象判定のみ）。解決時付与は UntilEndOfTurn。
+        if (effect.duration == EffectDuration.Permanent)
+        {
+            return false;
+        }
+
+        int limit = effect.value > 0 ? effect.value : targets.Count;
+        int applied = 0;
+        for (int i = 0; i < targets.Count && applied < limit; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            GrantCannotBeChosenAsAttackUntilEndOfTurn(unit);
+            applied++;
+            Debug.Log(
+                $"[CannotBeChosenAsAttackTarget] UntilEndOfTurn 付与: {unit.Data.cardName}(id:{unit.Data.id}) "
+                + $"instance:{unit.BattleInstanceId}");
+        }
+
+        return applied > 0;
+    }
+
+    /// <summary>
+    /// ST11-014 等。ユニットへ「このターンアタック先に選べない」を付与し、オンライン同期する。
+    /// </summary>
+    private void GrantCannotBeChosenAsAttackUntilEndOfTurn(CardController unit)
+    {
+        if (unit == null)
+        {
+            return;
+        }
+
+        if (!unit.HasCannotBeChosenAsAttackUntilEndOfTurnGrant)
+        {
+            unit.AddCannotBeChosenAsAttackUntilEndOfTurnGrant();
+        }
+
+        AssignBattleInstanceIdIfNeeded(unit);
+        if (unit.BattleInstanceId > 0)
+        {
+            _cannotBeChosenAsAttackUntilEotInstanceIds.Add(unit.BattleInstanceId);
+        }
+
+        QueueOnlineCannotBeChosenAsAttackTargetGrant(unit);
+    }
+
     private bool TryApplyFirstStrikeMarker(EffectData effect, List<CardController> targets)
     {
         if (effect == null || effect.type != EffectType.FirstStrike || targets == null || targets.Count == 0)
@@ -377,6 +437,43 @@ public partial class BattleGameMain
 
         ClearNotDirectAttackGrantsOnZone(playerBattleZoneCards, duration);
         ClearNotDirectAttackGrantsOnZone(enemyBattleZoneCards, duration);
+    }
+
+    private void ClearCannotBeChosenAsAttackGrants(EffectDuration duration)
+    {
+        if (duration != EffectDuration.UntilEndOfTurn && duration != EffectDuration.UntilEndOfBattle)
+        {
+            return;
+        }
+
+        ClearCannotBeChosenAsAttackGrantsOnZone(playerBattleZoneCards, duration);
+        ClearCannotBeChosenAsAttackGrantsOnZone(enemyBattleZoneCards, duration);
+        if (duration == EffectDuration.UntilEndOfTurn)
+        {
+            _cannotBeChosenAsAttackUntilEotInstanceIds.Clear();
+        }
+    }
+
+    private static void ClearCannotBeChosenAsAttackGrantsOnZone(List<CardController> zone, EffectDuration duration)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null)
+            {
+                continue;
+            }
+
+            if (duration == EffectDuration.UntilEndOfTurn)
+            {
+                unit.ClearCannotBeChosenAsAttackUntilEndOfTurnGrants();
+            }
+        }
     }
 
     private static void ClearNotDirectAttackGrantsOnZone(List<CardController> zone, EffectDuration duration)

@@ -735,6 +735,36 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>CannotBeChosenAsAttackTarget（UntilEndOfTurn）付与を相手クライアントへ同期する。</summary>
+    private void QueueOnlineCannotBeChosenAsAttackTargetGrant(CardController target)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || target == null)
+        {
+            return;
+        }
+
+        // Apply 経路で Begin 忘れがあっても同期されるようにする（Player 効果のみ同期対象）
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] CannotBeChosenAsAttackTarget queue skipped (batch inactive) "
+                + $"unit={FormatOnlineEffectSyncUnit(target)}");
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(target);
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindCannotBeChosenAsAttackTarget,
+            duration = (int)EffectDuration.UntilEndOfTurn
+        });
+    }
+
     private void QueueOnlineUnitDestroy(
         CardController target,
         CardController destroyer = null,
@@ -1626,6 +1656,7 @@ public partial class BattleGameMain
             ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
             ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
             ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
+            ClearCannotBeChosenAsAttackGrants(EffectDuration.UntilEndOfTurn);
             ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
             ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
@@ -2375,6 +2406,14 @@ public partial class BattleGameMain
                 case OnlineBattleEffectSyncPayload.ChangeKindActivate:
                     Debug.Log($"[EffectSync][ApplyActivate] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     TryApplyActivateToUnit(unit);
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindCannotBeChosenAsAttackTarget:
+                    // 受信側は Queue しない（_applyingRemoteBattleAction 中）
+                    GrantCannotBeChosenAsAttackUntilEndOfTurn(unit);
+                    Debug.Log(
+                        $"[EffectSync][ApplyCannotBeChosenAsAttackTarget] #{i} "
+                        + $"unit={FormatOnlineEffectSyncUnit(unit)}");
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindDestroy:

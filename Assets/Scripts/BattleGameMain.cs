@@ -6,6 +6,8 @@ using TMPro; // これを追加！
 
 public partial class BattleGameMain : MonoBehaviour
 {
+    private const int PoorlyPlannedOffensiveCardId = 1000650;
+
     /// <summary>盤面スナップショット・仮想シミュレーション等の重い診断ログ。Editor の GPU TDR 原因になるため通常は false。</summary>
     private const bool EnableVerboseBattleDebugLogs = false;
 
@@ -120,6 +122,11 @@ public partial class BattleGameMain : MonoBehaviour
     private GameObject activeOnActionPopupRoot;
     /// <summary>プレイヤーが手動選択 UI 経由で ApplyEffectToSpecificTargets している間だけ &gt; 0。</summary>
     private int _playerManualUnitSelectionApplyDepth;
+    /// <summary>
+    /// CannotBeChosenAsAttackTarget（UntilEndOfTurn）付与中の BattleInstanceId。
+    /// CardController のランタイムがリセットされても攻撃対象判定が残るようにする。
+    /// </summary>
+    private readonly HashSet<int> _cannotBeChosenAsAttackUntilEotInstanceIds = new HashSet<int>();
     private GameObject activeAttackFlowDebugPanelRoot;
     private bool isAttackedSidePanelOpen;
     /// <summary>攻撃フロー中のテスト用「actionthink」表示中。true の間は進行を止める。</summary>
@@ -2763,6 +2770,19 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>攻撃者がユニット戦で選べる敵ユニット一覧（通常は REST のみ。アクティブ攻撃効果で ACTIVE も可）。強制攻撃対象がある場合はそのみ。</summary>
     private List<CardController> GetEnemyUnitAttackTargets(PlayerType attackerOwner, CardController attacker)
     {
+        List<CardController> legal = CollectEnemyUnitAttackCombatCandidates(attackerOwner, attacker);
+        RemoveCannotBeChosenAsAttackTargets(legal);
+        return FilterEnemyUnitAttackTargetsByForce(attackerOwner, attacker, legal);
+    }
+
+    /// <summary>
+    /// ユニット攻撃の戦闘条件を満たす敵（CannotBeChosenAsAttackTarget はまだ除外しない）。
+    /// 攻撃対象 UI で保護ユニットをグレイ表示するために使う。
+    /// </summary>
+    private List<CardController> CollectEnemyUnitAttackCombatCandidates(
+        PlayerType attackerOwner,
+        CardController attacker)
+    {
         List<CardController> enemies = GetAliveEnemyUnits(attackerOwner);
         List<CardController> legal = new List<CardController>(enemies.Count);
         if (attacker == null || !attacker.HasAttackActiveEnemyAbility())
@@ -2793,8 +2813,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        RemoveCannotBeChosenAsAttackTargets(legal);
-        return FilterEnemyUnitAttackTargetsByForce(attackerOwner, attacker, legal);
+        return legal;
     }
 
     /// <summary>
@@ -3953,6 +3972,7 @@ public partial class BattleGameMain : MonoBehaviour
             ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
             ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
             ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
+            ClearCannotBeChosenAsAttackGrants(EffectDuration.UntilEndOfTurn);
             ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
             ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
@@ -4724,8 +4744,12 @@ public partial class BattleGameMain : MonoBehaviour
         return true;
     }
 
+    /// <summary>直近の Bounce 適用体数（「そうしたなら」後続判定用）。</summary>
+    private int _lastBounceAppliedCount;
+
     private void ApplyBounceEffect(EffectData effect, List<CardController> targets)
     {
+        _lastBounceAppliedCount = 0;
         Debug.Log($"[Effect] Bounce applied:{effect.value} target:{effect.target}");
         if (effect == null || targets == null || targets.Count == 0)
         {
@@ -4742,6 +4766,8 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            // 攻撃フロー参加者の除去は場から外す前に通知する
+            NotifyAttackFlowParticipantRemovedDuringOnAction(target);
             // オンライン同期は場から外す前にキュー（zoneIndex / instanceId を保持するため）。
             QueueOnlineUnitBounce(target);
             // バトルゾーンから手札へ戻すおそらく、発動側の処理。
@@ -4751,6 +4777,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        _lastBounceAppliedCount = applied;
         if (applied > 0)
         {
             Debug.Log($"[Effect] Bounce applied:{applied} target:{effect.target}");
@@ -5923,6 +5950,9 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // 宣言済み攻撃の解決では CannotBeChosenAsAttackTarget を見ない。
+        // （Action で防御側を保護しても、そのバトルは中断せず処理する）
+
         ResolveUnitVsUnitCombatStrikePowers(
             attacker,
             attackerOwner,
@@ -6004,7 +6034,11 @@ public partial class BattleGameMain : MonoBehaviour
         return onField && c.CurrentHp > 0;
     }
 
-    private bool IsValidEnemyUnitAttackTarget(CardController attacker, CardController target, PlayerType attackerOwner)
+    private bool IsValidEnemyUnitAttackTarget(
+        CardController attacker,
+        CardController target,
+        PlayerType attackerOwner,
+        bool enforceCannotBeChosenAsAttackTarget = true)
     {
         if (target == null || target.Data == null || !target.Data.IsUnitLike())
         {
@@ -6034,7 +6068,8 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (DoesUnitPreventBeingChosenAsAttackTarget(target))
+        // 新規のアタック先選択時のみ。宣言済みバトルの続行では見ない。
+        if (enforceCannotBeChosenAsAttackTarget && DoesUnitPreventBeingChosenAsAttackTarget(target))
         {
             return false;
         }
@@ -6068,12 +6103,24 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>
     /// ホスト（本体＋搭乗パイロット）の CannotBeChosenAsAttackTarget が有効か。
     /// 【セット中】・味方〔特徴〕体数などは timed.activationConditions で評価する。
+    /// UntilEndOfTurn 付与（ST11-014 等）も対象。
     /// </summary>
     private bool DoesUnitPreventBeingChosenAsAttackTarget(CardController host)
     {
         if (host == null)
         {
             return false;
+        }
+
+        if (host.HasCannotBeChosenAsAttackUntilEndOfTurnGrant)
+        {
+            return true;
+        }
+
+        if (host.BattleInstanceId > 0
+            && _cannotBeChosenAsAttackUntilEotInstanceIds.Contains(host.BattleInstanceId))
+        {
+            return true;
         }
 
         var abilities = new List<CardCannotBeChosenAsAttackExtensions.CannotBeChosenAsAttackAbility>(2);
@@ -6159,7 +6206,15 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (clickedOnAnyField)
         {
-            Debug.Log("Only REST enemy units can be selected as attack targets (unless attacker has AttackActiveEnemyUnit).");
+            if (clicked != null && DoesUnitPreventBeingChosenAsAttackTarget(clicked))
+            {
+                Debug.Log("That unit cannot be chosen as an attack target this turn.");
+            }
+            else
+            {
+                Debug.Log("Only REST enemy units can be selected as attack targets (unless attacker has AttackActiveEnemyUnit).");
+            }
+
             return true;
         }
 
@@ -6178,8 +6233,30 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        List<CardController> enemyUnits = GetEnemyUnitAttackTargets(attackerOwner, attacker);
-        if (enemyUnits.Count == 0)
+        List<CardController> combatCandidates = CollectEnemyUnitAttackCombatCandidates(attackerOwner, attacker);
+        combatCandidates = FilterEnemyUnitAttackTargetsByForce(attackerOwner, attacker, combatCandidates);
+
+        List<CardController> selectable = new List<CardController>(combatCandidates.Count);
+        List<CardController> blocked = new List<CardController>(2);
+        for (int i = 0; i < combatCandidates.Count; i++)
+        {
+            CardController unit = combatCandidates[i];
+            if (unit == null)
+            {
+                continue;
+            }
+
+            if (DoesUnitPreventBeingChosenAsAttackTarget(unit))
+            {
+                blocked.Add(unit);
+            }
+            else
+            {
+                selectable.Add(unit);
+            }
+        }
+
+        if (selectable.Count == 0 && blocked.Count == 0)
         {
             Debug.Log(HasForcedEnemyAttackTarget(attackerOwner, attacker)
                 ? "Forced attack target is not attackable."
@@ -6188,6 +6265,9 @@ public partial class BattleGameMain : MonoBehaviour
                     : "No REST enemy units to attack.");
             return;
         }
+
+        List<CardController> displayUnits = BuildUnitPickDisplayList(selectable, blocked);
+        ApplyAttackTargetFieldGrayOut(combatCandidates, blocked);
 
         GameObject root = new GameObject("AttackEnemySelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         root.transform.SetParent(canvas.transform, false);
@@ -6198,11 +6278,31 @@ public partial class BattleGameMain : MonoBehaviour
         bg.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("AttackEnemyTitle", UIAnchor.TopCenter, 620, 48);
-        title.text = HasForcedEnemyAttackTarget(attackerOwner, attacker)
-            ? "Select forced attack target"
-            : attacker.HasAttackActiveEnemyAbility()
-                ? "Select enemy unit to attack (REST or ACTIVE)"
-                : "Select REST enemy unit to attack";
+        if (selectable.Count == 0)
+        {
+            title.SetLocalizedText(
+                "アタック先に選べるユニットがありません",
+                "No unit can be chosen as attack target");
+        }
+        else if (blocked.Count > 0)
+        {
+            title.SetLocalizedText(
+                "アタック先の敵ユニットを選択（グレーは選択不可）",
+                "Select enemy unit to attack (grayed = locked)");
+        }
+        else if (HasForcedEnemyAttackTarget(attackerOwner, attacker))
+        {
+            title.text = "Select forced attack target";
+        }
+        else if (attacker.HasAttackActiveEnemyAbility())
+        {
+            title.text = "Select enemy unit to attack (REST or ACTIVE)";
+        }
+        else
+        {
+            title.text = "Select REST enemy unit to attack";
+        }
+
         title.color = Color.white;
         title.fontSize = 24;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
@@ -6215,18 +6315,20 @@ public partial class BattleGameMain : MonoBehaviour
         RectTransform content = sr != null ? sr.content : null;
         if (content == null)
         {
+            ClearAttackTargetFieldGrayOut(combatCandidates);
             Destroy(root);
             return;
         }
 
-        for (int i = 0; i < enemyUnits.Count; i++)
+        for (int i = 0; i < displayUnits.Count; i++)
         {
-            CardController unit = enemyUnits[i];
+            CardController unit = displayUnits[i];
             if (unit == null || unit.Data == null)
             {
                 continue;
             }
 
+            bool isBlocked = IsUnitInList(blocked, unit);
             GameObject cardItem = Instantiate(CardImagePrefab, content);
             CardController itemCc = cardItem.GetComponent<CardController>();
             if (itemCc != null)
@@ -6247,7 +6349,11 @@ public partial class BattleGameMain : MonoBehaviour
             statBgImg.raycastTarget = false;
 
             TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
-            statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}";
+            string protectLabel = isBlocked
+                ? GameLocale.T(" 選択不可", " Locked")
+                : string.Empty;
+            statText.text =
+                $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}{protectLabel}";
             statText.fontSize = 14;
             statText.color = Color.white;
             statText.alignment = TextAlignmentOptions.Center;
@@ -6258,9 +6364,17 @@ public partial class BattleGameMain : MonoBehaviour
                 btn = cardItem.AddComponent<Button>();
             }
 
+            ApplyUnitPickCardGrayedOut(cardItem, isBlocked);
+            btn.interactable = !isBlocked;
+            if (isBlocked)
+            {
+                continue;
+            }
+
             CardController selectedUnit = unit;
             btn.onClick.AddListener(() =>
             {
+                ClearAttackTargetFieldGrayOut(combatCandidates);
                 Destroy(root);
 
                 PlayerType defenderOwner = ResolveCardOwner(selectedUnit.transform);
@@ -6279,10 +6393,53 @@ public partial class BattleGameMain : MonoBehaviour
         cancelRt.anchoredPosition = new Vector2(0f, 48f);
         cancel.onClick.AddListener(() =>
         {
+            ClearAttackTargetFieldGrayOut(combatCandidates);
             pendingUnitAttackAttacker = null;
             pendingOnAttackEffectResolvedAttacker = null;
             Destroy(root);
         });
+    }
+
+    /// <summary>アタック先選択中、場の保護ユニットを半透明にする。</summary>
+    private static void ApplyAttackTargetFieldGrayOut(
+        List<CardController> combatCandidates,
+        List<CardController> blocked)
+    {
+        if (combatCandidates == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < combatCandidates.Count; i++)
+        {
+            CardController unit = combatCandidates[i];
+            if (unit == null)
+            {
+                continue;
+            }
+
+            bool isBlocked = IsUnitInList(blocked, unit);
+            ApplyUnitPickCardGrayedOut(unit.gameObject, isBlocked);
+        }
+    }
+
+    private static void ClearAttackTargetFieldGrayOut(List<CardController> combatCandidates)
+    {
+        if (combatCandidates == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < combatCandidates.Count; i++)
+        {
+            CardController unit = combatCandidates[i];
+            if (unit == null)
+            {
+                continue;
+            }
+
+            ApplyUnitPickCardGrayedOut(unit.gameObject, false);
+        }
     }
 
     // カードの攻撃対象を選択するUIを表示するメソッド
@@ -7386,6 +7543,32 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void ApplyEffectToSpecificTargets(CardController sourceCard, PlayerType ownerType, EffectData effect, List<CardController> targets)
     {
+        if (sourceCard?.Data?.id == PoorlyPlannedOffensiveCardId
+            && effect != null
+            && effect.type == EffectType.Bounce)
+        {
+            List<CardController> validTargets = new List<CardController>();
+            if (targets != null)
+            {
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    CardController target = targets[i];
+                    if (IsPoorlyPlannedOffensiveTarget(target, ownerType))
+                    {
+                        validTargets.Add(target);
+                    }
+                }
+            }
+
+            targets = validTargets;
+            if (targets.Count == 0)
+            {
+                _lastBounceAppliedCount = 0;
+                Debug.Log("[ST11-013] REST・現在HP3以下の相手ユニットがないため、バウンス不成立。");
+                return;
+            }
+        }
+
         if (ownerType == PlayerType.Player
             && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect)
             && _playerManualUnitSelectionApplyDepth <= 0)
@@ -7423,6 +7606,19 @@ public partial class BattleGameMain : MonoBehaviour
         {
             SetEffectChainLastPickedTargets(targets);
             BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect != null && effect.type == EffectType.CannotBeChosenAsAttackTarget)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            if (TryApplyCannotBeChosenAsAttackTargetMarker(effect, targets))
+            {
+                SetEffectChainLastPickedTargets(targets);
+            }
+
             FlushOnlineEffectSyncBatch();
             SyncAllResourceViewsFromRule();
             return;
@@ -7667,7 +7863,7 @@ public partial class BattleGameMain : MonoBehaviour
                     // ForceEnemyAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
                     break;
                 case EffectType.CannotBeChosenAsAttackTarget:
-                    // CannotBeChosenAsAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
+                    TryApplyCannotBeChosenAsAttackTargetMarker(effect, targets);
                     break;
                 case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
                     GrantShieldAreaEnemyEffectDamageReduction(
@@ -8832,7 +9028,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (!IsValidEnemyUnitAttackTarget(attacker, defender, attackerOwner))
+        // 既に宣言済みの防御対象への再開では、Action 後の CannotBeChosen 付与でバトルを中断しない。
+        bool resumeDeclaredTarget = IsCardControllerInstanceValid(attackFlowDeclaredDefenderUnit)
+            && ReferenceEquals(attackFlowDeclaredDefenderUnit, defender);
+
+        if (!IsValidEnemyUnitAttackTarget(
+                attacker,
+                defender,
+                attackerOwner,
+                enforceCannotBeChosenAsAttackTarget: !resumeDeclaredTarget))
         {
             Debug.Log("Invalid unit attack target (forced attack or illegal combat target).");
             return;
@@ -13453,6 +13657,21 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.CannotBeChosenAsAttackTarget
+            && effect.duration != EffectDuration.Permanent)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            List<CardController> protectTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyCannotBeChosenAsAttackTargetMarker(effect, protectTargets))
+            {
+                SetEffectChainLastPickedTargets(protectTargets);
+            }
+
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.FirstStrike)
         {
             int firstStrikeMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
@@ -13749,8 +13968,16 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
 
             case EffectType.CannotBeChosenAsAttackTarget:
-                // CannotBeChosenAsAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
-                Debug.Log($"[Effect] CannotBeChosenAsAttackTarget marker by cardId:{sourceCard.Data.id}");
+                // Permanent は攻撃対象判定のみ。UntilEndOfTurn 付与は TryApplyCannotBeChosenAsAttackTargetMarker。
+                if (effect.duration == EffectDuration.UntilEndOfTurn)
+                {
+                    TryApplyCannotBeChosenAsAttackTargetMarker(effect, targets);
+                }
+                else
+                {
+                    Debug.Log($"[Effect] CannotBeChosenAsAttackTarget marker by cardId:{sourceCard.Data.id}");
+                }
+
                 break;
 
             case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
@@ -17077,6 +17304,7 @@ public partial class BattleGameMain : MonoBehaviour
                             () =>
                             {
                                 EndActionStepCommandResolve();
+                                _actionStepHiddenSelectionRoot = null;
                                 ResolveActionStepUi(side, passKind, root);
                             },
                             attackingUnitInAttackFlow);
@@ -17101,6 +17329,7 @@ public partial class BattleGameMain : MonoBehaviour
                         () =>
                         {
                             EndActionStepCommandResolve();
+                            _actionStepHiddenSelectionRoot = null;
                             _onlineOnActionActiveContext = null;
                             isOnActionPopupOpen = false;
                             activeOnActionPopupRoot = null;
@@ -17131,6 +17360,7 @@ public partial class BattleGameMain : MonoBehaviour
                     () =>
                     {
                         EndActionStepCommandResolve();
+                        _actionStepHiddenSelectionRoot = null;
                         _onlineOnActionActiveContext = null;
                         isOnActionPopupOpen = false;
                         activeOnActionPopupRoot = null;
@@ -17171,6 +17401,17 @@ public partial class BattleGameMain : MonoBehaviour
 
             selectedCommands.Clear();
             selectedCommands.AddRange(selectedSet);
+            // 選択可能カードが1枚だけのときは、カード画像の Button が
+            // Prefab 上の Raycast 設定で選択を取りこぼしても Confirm で確定できるようにする。
+            if (selectedCommands.Count == 0 && onActionSelectableSources.Count == 1)
+            {
+                CardController sole = onActionSelectableSources[0];
+                if (!IsActionStepCardUsedForSide(side, sole))
+                {
+                    selectedCommands.Add(sole);
+                }
+            }
+
             if (selectedCommands.Count == 0)
             {
                 Debug.Log("OnAction: Select at least one card.");
@@ -17281,7 +17522,7 @@ public partial class BattleGameMain : MonoBehaviour
                 commandQueueIndex,
                 commandQueueCount,
                 "reason:no OnAction timed effects on card");
-            onDone?.Invoke();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             return;
         }
 
@@ -17381,7 +17622,7 @@ public partial class BattleGameMain : MonoBehaviour
                 commandQueueIndex,
                 commandQueueCount,
                 "phase:before_apply_direct cost not consumed");
-            onDone?.Invoke();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             yield break;
         }
 
@@ -17414,7 +17655,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         // OK 後: 保留していた破壊時 Look／手札回収を実行
         EndOnDestroyedLatencyHold();
-        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
         // EX 支払い後のキャリバーン等は、コマンド効果解決後に出す
         yield return FlushPendingExResourceRemovedWatchesCoroutine();
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
@@ -17429,7 +17670,7 @@ public partial class BattleGameMain : MonoBehaviour
             commandQueueCount,
             effectDetail,
             unitTargetsForEvalLog);
-        onDone?.Invoke();
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
 
     private void OpenOnActionMultiUnitTargetSelection(
@@ -17454,7 +17695,7 @@ public partial class BattleGameMain : MonoBehaviour
                 commandQueueIndex,
                 commandQueueCount,
                 "reason:ResolveSelectableEffectTargets empty (multi)");
-            onDone?.Invoke();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             return;
         }
 
@@ -17468,7 +17709,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 if (selected == null || selected.Count < selectMin)
                 {
-                    onDone?.Invoke();
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
                     return;
                 }
 
@@ -17505,7 +17746,7 @@ public partial class BattleGameMain : MonoBehaviour
                 commandQueueIndex,
                 commandQueueCount,
                 "reason:ResolveSelectableEffectTargets empty");
-            onDone?.Invoke();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             return;
         }
 
@@ -17560,6 +17801,12 @@ public partial class BattleGameMain : MonoBehaviour
             attackingUnitInAttackFlow,
             picked =>
             {
+                if (picked == null)
+                {
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                    return;
+                }
+
                 StartCoroutine(CoApplyOnActionUnitTargetAfterAcknowledgement(
                     side,
                     command,
@@ -17570,7 +17817,7 @@ public partial class BattleGameMain : MonoBehaviour
                     commandQueueCount,
                     onDone));
             },
-            onDone,
+            () => FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false),
             blockRedirectUnit);
     }
 
@@ -17589,7 +17836,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (picked == null)
         {
-            onDone?.Invoke();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             yield break;
         }
 
@@ -17616,7 +17863,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (pickedTargets == null || pickedTargets.Count == 0 || command == null || command.Data == null || effect == null)
         {
-            onDone?.Invoke();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             yield break;
         }
 
@@ -17654,7 +17901,7 @@ public partial class BattleGameMain : MonoBehaviour
                 commandQueueIndex,
                 commandQueueCount,
                 "phase:unit_target_ui cost not consumed");
-            onDone?.Invoke();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             yield break;
         }
 
@@ -17682,7 +17929,46 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TryApplyOnActionRestSelfCostIfPresent(command, side);
-        if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
+        if (effect.type == EffectType.CannotBeChosenAsAttackTarget)
+        {
+            // 手動選択結果を直接付与（ApplyEffectToSpecificTargets のブロック経路を避ける）
+            System.Action applyProtect = () =>
+            {
+                BeginOnlineEffectSyncBatch(side);
+                bool applied = TryApplyCannotBeChosenAsAttackTargetMarker(effect, pickedTargets);
+                if (!applied)
+                {
+                    // duration 不一致等でも、選んだ対象には必ず付与する
+                    for (int pi = 0; pi < pickedTargets.Count; pi++)
+                    {
+                        GrantCannotBeChosenAsAttackUntilEndOfTurn(pickedTargets[pi]);
+                    }
+
+                    applied = pickedTargets.Count > 0;
+                }
+
+                if (applied)
+                {
+                    SetEffectChainLastPickedTargets(pickedTargets);
+                }
+
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                Debug.Log(
+                    $"[OnAction] CannotBeChosenAsAttackTarget applied:{applied} "
+                    + $"picked:{FormatOnActionPickedTargetsSummary(pickedTargets)}");
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyProtect);
+            }
+            else
+            {
+                applyProtect();
+            }
+        }
+        else if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
         {
             InvokePlayerManualUnitSelectionCallback(() =>
                 ApplyEffectToSpecificTargets(command, side, effect, pickedTargets));
@@ -17698,9 +17984,13 @@ public partial class BattleGameMain : MonoBehaviour
                 + $"(card:{attackingUnitInAttackFlow.Data.cardName})");
         }
 
+        // 手動選択効果の後続（例: Bounce → Draw）を同じ OnAction チェーンで解決する
+        ApplyRemainingOnActionEffectsAfterManualTarget(command, side, effect);
+
         // OK 後: 保留していた破壊時 Look／手札回収を実行し、完了まで待機
         EndOnDestroyedLatencyHold();
-        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+        // Action ステップ完了を無限待ちで止めない（Look 等が残っても攻撃／Action 進行を優先）
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
         yield return FlushPendingExResourceRemovedWatchesCoroutine();
 
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
@@ -17715,7 +18005,72 @@ public partial class BattleGameMain : MonoBehaviour
             commandQueueCount,
             detail,
             pickedForEval);
-        onDone?.Invoke();
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+    }
+    private void ApplyRemainingOnActionEffectsAfterManualTarget(
+        CardController command,
+        PlayerType side,
+        EffectData appliedManualEffect)
+    {
+        if (command?.Data == null || appliedManualEffect == null)
+        {
+            return;
+        }
+
+        List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        int startIndex = -1;
+        for (int i = 0; i < onActionEffects.Count; i++)
+        {
+            if (onActionEffects[i] == appliedManualEffect)
+            {
+                startIndex = i + 1;
+                break;
+            }
+        }
+
+        if (startIndex < 0)
+        {
+            // 参照一致しない場合は「最初の手動選択効果」の次から
+            for (int i = 0; i < onActionEffects.Count; i++)
+            {
+                EffectData e = onActionEffects[i];
+                if (e != null && EffectRequiresManualUnitSelection(e))
+                {
+                    startIndex = i + 1;
+                    break;
+                }
+            }
+        }
+
+        if (startIndex < 0)
+        {
+            return;
+        }
+
+        // 「そうしたなら」：Bounce が1体も戻せていなければ後続（Draw 等）を打ち切る
+        if (ShouldAbortRemainingChainAfterManualUnitEffect(appliedManualEffect))
+        {
+            return;
+        }
+
+        for (int i = startIndex; i < onActionEffects.Count; i++)
+        {
+            EffectData next = onActionEffects[i];
+            if (next == null)
+            {
+                continue;
+            }
+
+            if (EffectRequiresManualUnitSelection(next) || EffectRequiresManualHandSelection(next))
+            {
+                Debug.LogWarning(
+                    $"[OnAction] Remaining chain stopped at further manual effect ({next.type}) "
+                    + $"cardId:{command.Data.id}");
+                break;
+            }
+
+            ApplyEffect(command, side, next);
+        }
     }
 
     private static string FormatOnActionPickedTargetsSummary(List<CardController> pickedTargets)
@@ -18133,6 +18488,13 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 Debug.Log(
                     $"OnMain: 選択可能な対象が足りません (target:{effect.target} need:{selectMin} have:{candidates.Count})。");
+                // 「そうしたなら」：対象が無ければ後続（ドロー等）を打ち切る
+                if (effect.abortRemainingChainOnSkip)
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
                 // 「選んでもよい」は候補0でも後続へ進む（シャイニングフィンガーの先制付与等）
                 if (effect.optionalPlayerConfirm)
                 {
@@ -18376,7 +18738,31 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        if (sourceCard?.Data?.id == PoorlyPlannedOffensiveCardId
+            && effect.type == EffectType.Bounce)
+        {
+            for (int i = result.Count - 1; i >= 0; i--)
+            {
+                if (!IsPoorlyPlannedOffensiveTarget(result[i], ownerType))
+                {
+                    result.RemoveAt(i);
+                }
+            }
+        }
+
         return result;
+    }
+
+    private bool IsPoorlyPlannedOffensiveTarget(CardController target, PlayerType effectOwner)
+    {
+        return target != null
+            && target.Data != null
+            && target.Data.IsUnitLike()
+            && target.CurrentHp > 0
+            && target.CurrentHp <= 3
+            && target.IsRestState
+            && IsCardOnBattleZone(target)
+            && ResolveCardOwner(target.transform) != effectOwner;
     }
 
     private static string FormatManualUnitSelectionTitle(EffectData effect, CardController attackingUnitInAttackFlow)
@@ -18445,6 +18831,13 @@ public partial class BattleGameMain : MonoBehaviour
             return GameLocale.T(
                 $"《先制攻撃》付与 — 味方ユニットを選択{nameHint}",
                 $"Grant <First Strike> — Choose an ally Unit{nameHint}");
+        }
+
+        if (effect.type == EffectType.CannotBeChosenAsAttackTarget)
+        {
+            return GameLocale.T(
+                "アタック先に選べなくする — 味方〔水中〕ユニットを選択",
+                "Cannot be chosen as attack target — Choose a friendly (Marine) Unit");
         }
 
         if (effect.type == EffectType.GrantBreach)
@@ -18692,6 +19085,13 @@ public partial class BattleGameMain : MonoBehaviour
             null,
             picked =>
             {
+                if (picked == null)
+                {
+                    _chooseOneCancelled = true;
+                    onDone?.Invoke();
+                    return;
+                }
+
                 if (!activationCostAlreadyPaid)
                 {
                     StartCoroutine(CoDeferredOnMainPayThenApplyTargets(
@@ -18716,6 +19116,13 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     applyPick();
                 }
+
+                if (ShouldAbortRemainingChainAfterManualUnitEffect(effect))
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
                 TryExecuteOnMainEffectChain(
                     side,
                     source,
@@ -18725,7 +19132,32 @@ public partial class BattleGameMain : MonoBehaviour
                     chainActivationContext,
                     onDone);
             },
-            onDone);
+            () =>
+            {
+                _chooseOneCancelled = true;
+                onDone?.Invoke();
+            });
+    }
+
+    /// <summary>
+    /// 手動ユニット効果の直後に「そうしたなら」で後続を打ち切るか。
+    /// Bounce 未成功 + abortRemainingChainOnSkip など。
+    /// </summary>
+    private bool ShouldAbortRemainingChainAfterManualUnitEffect(EffectData effect)
+    {
+        if (effect == null || !effect.abortRemainingChainOnSkip)
+        {
+            return false;
+        }
+
+        if (effect.type == EffectType.Bounce && _lastBounceAppliedCount <= 0)
+        {
+            Debug.Log(
+                $"[EffectChain] Bounce 未成功のため後続を打ち切り (abortRemainingChainOnSkip) type:{effect.type}");
+            return true;
+        }
+
+        return false;
     }
 
     private IEnumerator CoDeferredOnMainPayThenApplyTargets(
@@ -18757,6 +19189,13 @@ public partial class BattleGameMain : MonoBehaviour
         {
             ApplyEffectToSpecificTargets(source, side, effect, targets);
         }
+
+        if (ShouldAbortRemainingChainAfterManualUnitEffect(effect))
+        {
+            onDone?.Invoke();
+            yield break;
+        }
+
         TryExecuteOnMainEffectChain(
             side,
             source,
@@ -19019,6 +19458,17 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (activeOnActionPopupRoot != null)
         {
+            // ActionStep Confirm 後に隠している一覧は、対象選択 UI を開くときに壊さない
+            if (_actionStepHiddenSelectionRoot != null
+                && activeOnActionPopupRoot == _actionStepHiddenSelectionRoot)
+            {
+                activeOnActionPopupRoot = null;
+                isOnActionPopupOpen = _activeLookDeckPopupRoot != null
+                    || _isActionStepCommandResolving
+                    || _activeResourcePaymentOverlay != null;
+                return;
+            }
+
             // シールド破壊パネル構築時など、攻撃フロー（ブロック）パネルが巻き込まれたとき残フラグを落とす。
             if (activeOnActionPopupRoot == activeAttackFlowDebugPanelRoot)
             {

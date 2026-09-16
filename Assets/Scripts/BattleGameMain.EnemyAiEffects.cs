@@ -1454,6 +1454,12 @@ public partial class BattleGameMain
                 {
                     Debug.Log(
                         $"[EnemyAI] OnAction skip effect (no target) cmd:{command.Data.cardName} target:{effect.target}");
+                    if (effect.abortRemainingChainOnSkip)
+                    {
+                        onAllDone?.Invoke();
+                        return;
+                    }
+
                     ExecuteEnemyOnActionEffectsChain(command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow);
                     return;
                 }
@@ -1465,6 +1471,12 @@ public partial class BattleGameMain
                     effect,
                     "EnemyAI_OnAction_AfterApplyEnemyUnitTarget",
                     SnapUnitStatsForOnActionCommandLog(aiPicks));
+                if (ShouldAbortRemainingChainAfterManualUnitEffect(effect))
+                {
+                    onAllDone?.Invoke();
+                    return;
+                }
+
                 ExecuteEnemyOnActionEffectsChain(command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow);
                 return;
             }
@@ -1474,6 +1486,12 @@ public partial class BattleGameMain
             {
                 Debug.Log(
                     $"[EnemyAI] OnAction skip effect (no target) cmd:{command.Data.cardName} target:{effect.target}");
+                if (effect.abortRemainingChainOnSkip)
+                {
+                    onAllDone?.Invoke();
+                    return;
+                }
+
                 ExecuteEnemyOnActionEffectsChain(command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow);
                 return;
             }
@@ -1485,6 +1503,12 @@ public partial class BattleGameMain
                 effect,
                 "EnemyAI_OnAction_AfterApplyEnemyUnitTarget",
                 SnapUnitStatsForOnActionCommandLog(new List<CardController> { picked }));
+            if (ShouldAbortRemainingChainAfterManualUnitEffect(effect))
+            {
+                onAllDone?.Invoke();
+                return;
+            }
+
             ExecuteEnemyOnActionEffectsChain(command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow);
             return;
         }

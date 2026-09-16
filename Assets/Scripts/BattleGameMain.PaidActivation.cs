@@ -501,7 +501,8 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (IsOnActionActivatedFromField(source, side))
+        if (IsOnActionActivatedFromField(source, side)
+            || source.Data.id == PoorlyPlannedOffensiveCardId)
         {
             IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
             int startIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
@@ -697,39 +698,45 @@ public partial class BattleGameMain
             return false;
         }
 
-        IReadOnlyList<EffectData> resolvedOnMain = timed.GetResolvedEffects();
-        int manualTargetStartIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
-        for (int i = manualTargetStartIndex; i < resolvedOnMain.Count; i++)
+        // 手札コマンドはタイミング・レベル・支払い可否でプレイ可能。
+        // 対象不足は解決時に処理し、場の起動効果だけ候補を事前確認する。
+        if (!IsOnMainActivatedFromHand(source, side)
+            || source.Data.id == PoorlyPlannedOffensiveCardId)
         {
-            EffectData effectData = resolvedOnMain[i];
-            if (!EffectRequiresManualUnitSelection(effectData))
+            IReadOnlyList<EffectData> resolvedOnMain = timed.GetResolvedEffects();
+            int manualTargetStartIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
+            for (int i = manualTargetStartIndex; i < resolvedOnMain.Count; i++)
             {
-                continue;
-            }
-
-            if (effectData.HasEffectActivationConditions()
-                && !EffectActivationEvaluator.AreAllConditionsMet(
-                    effectData.effectActivationConditions,
-                    activationContext))
-            {
-                continue;
-            }
-
-            // 「選んでもよい」効果は候補0でも発動可（シャイニングフィンガーの先制付与等）
-            if (effectData.optionalPlayerConfirm)
-            {
-                continue;
-            }
-
-            if (ResolveSelectableEffectTargets(source, side, effectData).Count == 0)
-            {
-                // 条件付き手動効果（Healthy Curiosity の REST 等）は候補0でも他効果があれば発動可
-                if (!effectData.HasEffectActivationConditions())
+                EffectData effectData = resolvedOnMain[i];
+                if (!EffectRequiresManualUnitSelection(effectData))
                 {
-                    return false;
+                    continue;
                 }
 
-                continue;
+                if (effectData.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effectData.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                // 「選んでもよい」効果は候補0でも発動可
+                if (effectData.optionalPlayerConfirm)
+                {
+                    continue;
+                }
+
+                if (ResolveSelectableEffectTargets(source, side, effectData).Count == 0)
+                {
+                    // 条件付き手動効果は候補0でも他効果があれば発動可
+                    if (!effectData.HasEffectActivationConditions())
+                    {
+                        return false;
+                    }
+
+                    continue;
+                }
             }
         }
 
