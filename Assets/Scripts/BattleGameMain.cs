@@ -11735,7 +11735,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Gundam2024RuleScript.PlayerSide targetSide =
                 ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player);
-            if (!ApplyEffectDamageToBaseAreaOnly(targetSide, 5))
+            if (!ApplyEffectDamageToBaseAreaOnly(targetSide, 5, sourceCard))
             {
                 Debug.Log("[ST12-001] 相手に配備ベースもEXベースもないため、配備時5ダメージをスキップ。");
             }

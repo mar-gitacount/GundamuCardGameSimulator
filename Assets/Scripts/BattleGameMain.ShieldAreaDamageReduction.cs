@@ -75,7 +75,7 @@ public partial class BattleGameMain
         PlayerType targetOwner = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? PlayerType.Player
             : PlayerType.Enemy;
-        int reduction = GetShieldAreaEnemyEffectDamageReduction(targetOwner);
+        int reduction = ResolveCurrentShambloShieldAreaDamageReduction(targetOwner);
         if (reduction <= 0)
         {
             return magnitude;
@@ -95,5 +95,48 @@ public partial class BattleGameMain
             $"[ShieldAreaDmgReduction] {targetOwner} {magnitude} → {reduced} "
             + $"(reduction:{reduction} source:{(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")})");
         return reduced;
+    }
+
+    /// <summary>
+    /// ST11-006 は常時条件なので、付与時の盤面ではなくダメージ解決時の盤面を参照する。
+    /// シャンブロ自身を含む〔水中〕が2体以上なら、生存シャンブロ1体につき5軽減。
+    /// </summary>
+    private int ResolveCurrentShambloShieldAreaDamageReduction(PlayerType targetOwner)
+    {
+        if (currentPlayerType == targetOwner)
+        {
+            return 0;
+        }
+
+        System.Collections.Generic.List<CardController> units =
+            targetOwner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (units == null)
+        {
+            return 0;
+        }
+
+        int aquaticCount = 0;
+        int shambloCount = 0;
+        for (int i = 0; i < units.Count; i++)
+        {
+            CardController unit = units[i];
+            if (unit == null || unit.Data == null || unit.CurrentHp <= 0 || !unit.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            unit.Data.EnsureFeaturesResolved();
+            if (unit.Data.HasFeatureId(76))
+            {
+                aquaticCount++;
+            }
+
+            if (unit.Data.id == 1000643)
+            {
+                shambloCount++;
+            }
+        }
+
+        return aquaticCount >= 2 ? shambloCount * 5 : 0;
     }
 }

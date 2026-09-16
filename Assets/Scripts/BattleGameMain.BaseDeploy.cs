@@ -990,11 +990,24 @@ public partial class BattleGameMain
     /// </summary>
     private bool ApplyEffectDamageToBaseAreaOnly(
         Gundam2024RuleScript.PlayerSide targetSide,
-        int baseMagnitude)
+        int baseMagnitude,
+        CardController sourceUnit = null)
     {
         if (baseMagnitude <= 0 || gundamRule == null)
         {
             return false;
+        }
+
+        baseMagnitude = ApplyShieldAreaEnemyEffectDamageReductionIfNeeded(
+            targetSide,
+            baseMagnitude,
+            sourceUnit);
+        if (baseMagnitude <= 0)
+        {
+            Debug.Log(
+                $"[EffectDamage] Base-only damage fully reduced (side:{targetSide}, source:"
+                + $"{(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")}).");
+            return true;
         }
 
         Gundam2024RuleScript.PlayerState target = targetSide == Gundam2024RuleScript.PlayerSide.Player
