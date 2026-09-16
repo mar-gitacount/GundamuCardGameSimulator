@@ -342,10 +342,14 @@ public partial class BattleGameMain
         AdvanceActionStepSession(actingSide, passKind);
     }
 
+    /// <summary>ActionStep で Confirm 後に非表示にしているカード選択 UI（対象選択中に破棄しない）。</summary>
+    private GameObject _actionStepHiddenSelectionRoot;
+
     /// <summary>カード確定直後に選択 UI を隠し、コスト支払い中に ActionStep 一覧が被らないようにする。</summary>
     private void BeginActionStepCommandResolve(GameObject selectionRoot)
     {
         _isActionStepCommandResolving = true;
+        _actionStepHiddenSelectionRoot = selectionRoot;
         if (selectionRoot != null)
         {
             selectionRoot.SetActive(false);
@@ -355,5 +359,67 @@ public partial class BattleGameMain
     private void EndActionStepCommandResolve()
     {
         _isActionStepCommandResolving = false;
+    }
+
+    /// <summary>
+    /// 対象なし／キャンセル／支払い失敗時：Pass せず Action 一覧へ戻す。
+    /// （Pass すると相手 ActionEnd → 自分 UI 再表示が続き、同一カードでループする）
+    /// </summary>
+    private void RestoreActionStepSelectionAfterCommandAbort(PlayerType side)
+    {
+        EndActionStepCommandResolve();
+
+        GameObject hidden = _actionStepHiddenSelectionRoot;
+        _actionStepHiddenSelectionRoot = null;
+
+        // 支払いオーバーレイが残っていれば閉じる（一覧復帰を阻害しない）
+        if (_activeResourcePaymentOverlay != null)
+        {
+            CloseResourcePaymentOverlay(_activeResourcePaymentOverlay);
+        }
+
+        // 対象選択 UI などが active なら閉じる（隠した Action 一覧は残す）
+        if (activeOnActionPopupRoot != null && activeOnActionPopupRoot != hidden)
+        {
+            Destroy(activeOnActionPopupRoot);
+            activeOnActionPopupRoot = null;
+        }
+
+        if (hidden != null && hidden)
+        {
+            activeOnActionPopupRoot = hidden;
+            hidden.SetActive(true);
+            isOnActionPopupOpen = true;
+            Debug.Log($"[ActionStep] Command abort — restored selection UI (side:{side})");
+            return;
+        }
+
+        // 隠した一覧が既に破棄されている場合のみ、新規に開き直す
+        if (IsActionStepSessionActive)
+        {
+            Debug.Log($"[ActionStep] Command abort — reopen selection UI (side:{side})");
+            RunActionStepForSide(side);
+        }
+    }
+
+    /// <summary>
+    /// OnAction コマンド試行の完了。成功時のみ queue を進めて Pass。失敗時は一覧復帰（Pass しない）。
+    /// </summary>
+    private void FinishOnActionCommandAttempt(PlayerType side, System.Action queueOnDone, bool resolvedSuccessfully)
+    {
+        if (resolvedSuccessfully)
+        {
+            EndActionStepCommandResolve();
+            queueOnDone?.Invoke();
+            return;
+        }
+
+        if (IsActionStepSessionActive || _actionStepHiddenSelectionRoot != null || _isActionStepCommandResolving)
+        {
+            RestoreActionStepSelectionAfterCommandAbort(side);
+            return;
+        }
+
+        queueOnDone?.Invoke();
     }
 }

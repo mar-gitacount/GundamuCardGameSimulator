@@ -321,9 +321,9 @@ public enum EffectType
     /// </summary>
     EffectDamageImmunityFromAmountOrLess,
     /// <summary>
-    /// 敵ユニットがこのユニットをアタック先に選べない（ST11-001 等）。
-    /// Permanent。攻撃対象候補の判定でのみ参照する（ApplyEffect はマーカー）。
-    /// timed.activationConditions に 【セット中】や味方〔特徴〕体数などのホスト側条件を書く。
+    /// 敵ユニットがこのユニットをアタック先に選べない（ST11-001 / ST11-014 等）。
+    /// Permanent=カード常時（timed.activationConditions でホスト側条件）。
+    /// UntilEndOfTurn=解決時に対象ユニットへ付与（Action で味方〔Marine〕を選ぶ等）。
     /// </summary>
     CannotBeChosenAsAttackTarget,
     /// <summary>
@@ -478,7 +478,8 @@ public static class EffectTypeExtensions
             || type == EffectType.Debuff
             || type == EffectType.Buff
             || type == EffectType.Damage
-            || type == EffectType.RecoverHp;
+            || type == EffectType.RecoverHp
+            || type == EffectType.CannotBeChosenAsAttackTarget;
     }
 
     /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>

@@ -3888,6 +3888,54 @@
                     ]
                 }
             ]
+        },
+        {
+            "effectSetName": "BounceRestEnemyHpLE3",
+            "displayName": "RESTかつHP3以下の敵1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 7,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3,
+                    "abortRemainingChainOnSkip": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceRestEnemyHpLE3_ThenDraw1",
+            "displayName": "RESTかつHP3以下の敵1体を手札に戻す。そうしたなら1ドロー",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 7,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "abortRemainingChainOnSkip": false
+                }
+            ]
         }
     ]
 }

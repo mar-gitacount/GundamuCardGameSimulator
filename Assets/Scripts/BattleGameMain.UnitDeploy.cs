@@ -2496,6 +2496,15 @@ public partial class BattleGameMain
         PlayerType attackerOwner,
         PlayerType defenderOwner)
     {
+        // 新規のアタック先選択時のみ拒否。宣言後の Action で保護されてもこの攻撃は続行する。
+        if (DoesUnitPreventBeingChosenAsAttackTarget(defender))
+        {
+            Debug.Log(
+                $"[UnitAttack] Target rejected — {defender?.Data?.cardName} cannot be chosen as attack target this turn.");
+            pendingUnitAttackAttacker = null;
+            return;
+        }
+
         // OnAttack 条件（SourceAttackingEnemyUnit / AP 等）評価のため、ユニット攻撃コンテキストを先に登録する。
         RegisterAttackFlowContextForOnAction(
             attacker,
