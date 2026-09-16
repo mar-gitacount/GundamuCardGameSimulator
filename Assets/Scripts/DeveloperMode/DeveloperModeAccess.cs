@@ -9,6 +9,7 @@ public static class DeveloperModeAccess
 {
     private const string DevicesResourcePath = "Data/Json/developer_mode_devices";
     private const string PrefsStartAtLevel10 = "DeveloperMode.StartAtLevel10";
+    private const string PrefsUnlimitedMulligan = "DeveloperMode.UnlimitedMulligan";
     private const int StartLevelOverride = 10;
 
     private static bool _loaded;
@@ -46,6 +47,18 @@ public static class DeveloperModeAccess
     }
 
     public static bool ShouldApplyStartAtLevel10 => IsAuthorized && StartAtLevel10;
+
+    public static bool UnlimitedMulligan
+    {
+        get => PlayerPrefs.GetInt(PrefsUnlimitedMulligan, 0) != 0;
+        set
+        {
+            PlayerPrefs.SetInt(PrefsUnlimitedMulligan, value ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
+
+    public static bool ShouldAllowUnlimitedMulligan => IsAuthorized && UnlimitedMulligan;
 
     public static void ApplyStartingLevelOverride(Gundam2024RuleScript rule)
     {

@@ -491,6 +491,19 @@ public partial class BattleGameMain
             return false;
         }
 
+        // ST12-011【起動・アクション】：搭乗ユニットと現在バトル中で、
+        // かつ既にダメージを受けている相手ユニットがいる場合だけ発動可能。
+        if (source?.Data?.id == 1000664)
+        {
+            CardController battlingEnemy = ResolveBattlingEnemyUnitFor(source);
+            if (battlingEnemy == null
+                || battlingEnemy.CurrentHp <= 0
+                || !battlingEnemy.IsDamagedForWhileDamagedEffects())
+            {
+                return false;
+            }
+        }
+
         if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
         {
             return false;

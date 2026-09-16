@@ -260,6 +260,11 @@ public class EosOnlinePlaytestController : MonoBehaviour
             "Start at cost/LV 10",
             DeveloperModeAccess.StartAtLevel10,
             value => DeveloperModeAccess.StartAtLevel10 = value);
+        CreateToggle(
+            parent,
+            "Unlimited mulligan",
+            DeveloperModeAccess.UnlimitedMulligan,
+            value => DeveloperModeAccess.UnlimitedMulligan = value);
     }
 
     private static Toggle CreateToggle(Transform parent, string label, bool initial, Action<bool> onChanged)

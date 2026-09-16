@@ -67,19 +67,16 @@ public partial class BattleGameMain
             yield break;
         }
 
-        bool? playerChoice = null;
         isMulliganPromptOpen = true;
-        yield return MulliganPromptCoroutine(
+        bool playerPerformedMulligan = false;
+        yield return RunPlayerMulliganDecisionCoroutine(
             canvas,
-            GameLocale.T(
-                "手札を山札に戻して5枚引き直しますか？（マリガン）",
-                "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)"),
-            value => playerChoice = value);
+            openingHandSize,
+            value => playerPerformedMulligan = value);
         isMulliganPromptOpen = false;
 
-        if (playerChoice == true)
+        if (playerPerformedMulligan)
         {
-            PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
             Debug.Log("[OnlineBattle] プレイヤー：マリガン実行。");
         }
         else
@@ -88,7 +85,7 @@ public partial class BattleGameMain
         }
 
         SendOnlineBattleMessage(EosOnlineBattleMessage.CreateMulliganSync(
-            OnlineMulliganSyncPayload.ToJsonDecide(playerChoice == true, cardGameRule.GetRemainingCount())));
+            OnlineMulliganSyncPayload.ToJsonDecide(playerPerformedMulligan, cardGameRule.GetRemainingCount())));
 
         yield return WaitForRemoteMulliganDecideCoroutine(canvas);
 

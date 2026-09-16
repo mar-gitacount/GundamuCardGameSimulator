@@ -8,8 +8,12 @@ public partial class BattleGameMain
     private sealed class ObservedUnitWatchEntry
     {
         public CardController SourceCard;
+        public CardData SourceData;
         public PlayerType Owner;
         public ObservedUnitTriggerKind TriggerKind;
+        public bool KeepAfterSourceRemoved;
+        public bool RequireBattleDamageKill;
+        public bool ExpiresAtBattleEnd;
         public readonly HashSet<int> MarkedInstanceIds = new HashSet<int>();
     }
 
@@ -55,8 +59,12 @@ public partial class BattleGameMain
         ObservedUnitWatchEntry entry = new ObservedUnitWatchEntry
         {
             SourceCard = sourceCard,
+            SourceData = sourceCard.Data,
             Owner = ownerType,
             TriggerKind = triggerKind,
+            KeepAfterSourceRemoved = effect.duration == EffectDuration.UntilEndOfBattle,
+            RequireBattleDamageKill = effect.resolveAfterDealtBattleDamage,
+            ExpiresAtBattleEnd = effect.duration == EffectDuration.UntilEndOfBattle,
         };
 
         for (int i = 0; i < markedUnits.Count; i++)
@@ -97,8 +105,13 @@ public partial class BattleGameMain
             ObservedUnitWatchEntry entry = _observedUnitWatches[i];
             if (entry.SourceCard == removedCard)
             {
-                _observedUnitWatches.RemoveAt(i);
-                continue;
+                if (!entry.KeepAfterSourceRemoved)
+                {
+                    _observedUnitWatches.RemoveAt(i);
+                    continue;
+                }
+
+                entry.SourceCard = null;
             }
 
             if (removedCard.BattleInstanceId > 0)
@@ -106,7 +119,18 @@ public partial class BattleGameMain
                 entry.MarkedInstanceIds.Remove(removedCard.BattleInstanceId);
             }
 
-            if (entry.MarkedInstanceIds.Count == 0 || entry.SourceCard == null || entry.SourceCard.Data == null)
+            if (entry.MarkedInstanceIds.Count == 0 || entry.SourceData == null)
+            {
+                _observedUnitWatches.RemoveAt(i);
+            }
+        }
+    }
+
+    private void ClearObservedUnitWatchesAtEndOfBattle()
+    {
+        for (int i = _observedUnitWatches.Count - 1; i >= 0; i--)
+        {
+            if (_observedUnitWatches[i] != null && _observedUnitWatches[i].ExpiresAtBattleEnd)
             {
                 _observedUnitWatches.RemoveAt(i);
             }
@@ -119,7 +143,8 @@ public partial class BattleGameMain
         CardController killer,
         PlayerType killerOwner,
         ObservedUnitTriggerKind triggerKind,
-        System.Action onComplete)
+        System.Action onComplete,
+        bool destroyedByBattleDamage = false)
     {
         if (killer == null || killer.Data == null || killer.BattleInstanceId <= 0)
         {
@@ -132,15 +157,15 @@ public partial class BattleGameMain
         {
             ObservedUnitWatchEntry entry = _observedUnitWatches[i];
             if (entry == null
-                || entry.SourceCard == null
-                || entry.SourceCard.Data == null
+                || entry.SourceData == null
+                || (entry.RequireBattleDamageKill && !destroyedByBattleDamage)
                 || !IsObservedUnitWatchTriggerMatch(entry.TriggerKind, triggerKind)
                 || !entry.MarkedInstanceIds.Contains(killer.BattleInstanceId))
             {
                 continue;
             }
 
-            if (!HasEffectTiming(entry.SourceCard.Data, EffectTiming.OnObservedUnitTrigger))
+            if (!HasEffectTiming(entry.SourceData, EffectTiming.OnObservedUnitTrigger))
             {
                 continue;
             }
@@ -177,7 +202,7 @@ public partial class BattleGameMain
 
         ObservedUnitWatchEntry entry = matches[matchIndex];
         ResolveOnObservedUnitTriggerRewards(
-            entry.SourceCard,
+            entry,
             entry.Owner,
             actingUnit,
             triggerContextUnit,
@@ -193,14 +218,21 @@ public partial class BattleGameMain
     }
 
     private void ResolveOnObservedUnitTriggerRewards(
-        CardController sourceCard,
+        ObservedUnitWatchEntry entry,
         PlayerType ownerType,
         CardController actingUnit,
         CardController triggerContextUnit,
         ObservedUnitTriggerKind triggerKind,
         System.Action onComplete)
     {
-        if (sourceCard == null || sourceCard.Data == null)
+        if (entry == null || entry.SourceData == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        CardController sourceCard = entry.SourceCard != null ? entry.SourceCard : actingUnit;
+        if (sourceCard == null)
         {
             onComplete?.Invoke();
             return;
@@ -209,9 +241,9 @@ public partial class BattleGameMain
         EffectActivationContext activationContext =
             BuildObservedUnitTriggerActivationContext(ownerType, sourceCard, actingUnit, triggerContextUnit);
         List<TimedEffectData> blocks = new List<TimedEffectData>();
-        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        for (int i = 0; i < entry.SourceData.timedEffects.Count; i++)
         {
-            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            TimedEffectData timed = entry.SourceData.timedEffects[i];
             if (timed == null
                 || !timed.IsOnObservedUnitTriggerResolutionBlock()
                 || !timed.MatchesObservedUnitTriggerKind(triggerKind))

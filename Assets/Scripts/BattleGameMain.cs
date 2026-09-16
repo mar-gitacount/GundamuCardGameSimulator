@@ -1056,20 +1056,17 @@ public partial class BattleGameMain : MonoBehaviour
             }
             else
             {
-                bool? playerChoice = null;
                 isMulliganPromptOpen = true;
-                yield return MulliganPromptCoroutine(
+                bool playerPerformedMulligan = false;
+                yield return RunPlayerMulliganDecisionCoroutine(
                     canvas,
-                    GameLocale.T(
-                        "手札を山札に戻して5枚引き直しますか？（マリガン）",
-                        "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)"),
-                    value => playerChoice = value);
+                    openingHandSize,
+                    value => playerPerformedMulligan = value);
                 isMulliganPromptOpen = false;
 
-                if (playerChoice == true)
+                if (playerPerformedMulligan)
                 {
-                    PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
-                    Debug.Log("[マリガン] プレイヤー：実行（手札を山札に戻しシャッフル後、5枚ドロー）。");
+                    Debug.Log("[マリガン] プレイヤー：マリガン終了。");
                 }
                 else
                 {
@@ -1127,6 +1124,11 @@ public partial class BattleGameMain : MonoBehaviour
         {
             ConfigureTestPlaySandboxToolbar();
             ApplyTestPlayBoardPerspective(currentPlayerType);
+        }
+
+        if (DeveloperModeAccess.IsAuthorized)
+        {
+            ConfigureDeveloperUnlimitedDraw();
         }
 
         ChangePhase(BattlePhase.StartTurn);
@@ -1287,6 +1289,41 @@ public partial class BattleGameMain : MonoBehaviour
         {
             NotifyLocalPlayerHandDeckSnapshot();
         }
+    }
+
+    /// <summary>
+    /// 通常は1回だけ、開発者の無制限設定中は Yes のたびに引き直して再表示し、No で終了する。
+    /// </summary>
+    private IEnumerator RunPlayerMulliganDecisionCoroutine(
+        Canvas canvas,
+        int openingHandSize,
+        System.Action<bool> onComplete)
+    {
+        bool performedAny = false;
+        bool keepPrompting;
+        do
+        {
+            bool? choice = null;
+            yield return MulliganPromptCoroutine(
+                canvas,
+                GameLocale.T(
+                    "手札を山札に戻して5枚引き直しますか？（マリガン）",
+                    "Do you want to shuffle your hand and draw 5 cards again? (Mulligan)"),
+                value => choice = value);
+
+            if (choice != true)
+            {
+                break;
+            }
+
+            PerformMulligan(cardGameRule, playerHandCards, openingHandSize, PlayerType.Player);
+            performedAny = true;
+            Debug.Log("[マリガン] プレイヤー：実行（手札を山札に戻しシャッフル後、5枚ドロー）。");
+            keepPrompting = DeveloperModeAccess.ShouldAllowUnlimitedMulligan;
+        }
+        while (keepPrompting);
+
+        onComplete?.Invoke(performedAny);
     }
 
     private static List<int> CollectHandCardIdsFromHandContent(CardGameRule rule)
@@ -1795,6 +1832,27 @@ public partial class BattleGameMain : MonoBehaviour
             handActionY);
         if (hasOnMainActivateButton)
         {
+            handActionY -= 60f;
+            PinFilterCloseButton(closeBtnRect);
+        }
+
+        if (DeveloperModeAccess.IsAuthorized
+            && !IsTestPlayBattle()
+            && isInHand
+            && ownerType == PlayerType.Player)
+        {
+            Button developerDiscardButton = filterContent.CreateChildButton(
+                GameLocale.T("手札から捨てる（開発者）", "Discard from hand (Developer)"));
+            RectTransform discardRect = developerDiscardButton.GetComponent<RectTransform>();
+            discardRect.sizeDelta = new Vector2(320f, 50f);
+            discardRect.anchoredPosition = new Vector2(0f, handActionY);
+            developerDiscardButton.onClick.AddListener(() =>
+            {
+                DiscardHandCardInstance(cardController, ownerType);
+                Destroy(FilterPanel);
+                SyncAllResourceViewsFromRule();
+                Debug.Log("[DeveloperMode] Discarded 1 card from hand.");
+            });
             handActionY -= 60f;
             PinFilterCloseButton(closeBtnRect);
         }
@@ -4451,7 +4509,8 @@ public partial class BattleGameMain : MonoBehaviour
         CardController cardController,
         PlayerType ownerType,
         CardController destroyedBy = null,
-        bool destroyedByBattleDamage = false)
+        bool destroyedByBattleDamage = false,
+        bool destroyedByEffectDamage = false)
     {
         if (cardController == null || cardController.Data == null)
         {
@@ -4531,6 +4590,7 @@ public partial class BattleGameMain : MonoBehaviour
                 ownerType,
                 destroyedBy,
                 destroyedByBattleDamage,
+                destroyedByEffectDamage,
                 destroyedUnitWasLinked,
                 () =>
             {
@@ -4554,7 +4614,8 @@ public partial class BattleGameMain : MonoBehaviour
                         killer,
                         killerOwner,
                         ObservedUnitTriggerKind.EnemyUnitDestroyed,
-                        () => CompleteSendCardToTrashPipeline(cardController, ownerType));
+                        () => CompleteSendCardToTrashPipeline(cardController, ownerType),
+                        destroyedByBattleDamage);
                 }
                 else
                 {
@@ -7904,7 +7965,11 @@ public partial class BattleGameMain : MonoBehaviour
 
                     TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffect_Damage", t, sourceCard);
                     NotifyAttackFlowParticipantRemovedDuringOnAction(t);
-                    SendCardToTrash(t, ResolveCardOwner(t.transform), ResolveUnitKillSourceForTrash(sourceCard, t));
+                    SendCardToTrash(
+                        t,
+                        ResolveCardOwner(t.transform),
+                        ResolveUnitKillSourceForTrash(sourceCard, t),
+                        destroyedByEffectDamage: true);
                 }
             }
         }
@@ -9762,6 +9827,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         ClearBreachUntilEndOfBattleGrantsForAllInPlayUnits();
+        ClearObservedUnitWatchesAtEndOfBattle();
         // ゾーンリスト漏れ対策: 配備パネル直下も走査
         ClearTimedStatModifiersOnDeployPanels(EffectDuration.UntilEndOfBattle);
         if (!string.IsNullOrEmpty(reason))
@@ -11663,6 +11729,21 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // ST12-001【配備時】はカードデータの汎用対象解決を介さず、ベース領域へ直接解決する。
+        // 配備ベース／EXベースがなければ不発。ユニットとシールドには波及しない。
+        if (sourceCard?.Data?.id == 1000654)
+        {
+            Gundam2024RuleScript.PlayerSide targetSide =
+                ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player);
+            if (!ApplyEffectDamageToBaseAreaOnly(targetSide, 5))
+            {
+                Debug.Log("[ST12-001] 相手に配備ベースもEXベースもないため、配備時5ダメージをスキップ。");
+            }
+
+            onComplete?.Invoke();
+            return;
+        }
+
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
             onComplete?.Invoke();
@@ -11954,6 +12035,7 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType destroyedOwner,
         CardController destroyedBy,
         bool destroyedByBattleDamage,
+        bool destroyedByEffectDamage,
         bool destroyedUnitWasLinked,
         System.Action onComplete)
     {
@@ -11961,6 +12043,34 @@ public partial class BattleGameMain : MonoBehaviour
         {
             onComplete?.Invoke();
             return;
+        }
+
+        // ST12-001 は戦闘または効果の「ダメージ」で破壊した場合のみ誘発する。
+        if (killer?.Data?.id == 1000654
+            && !destroyedByBattleDamage
+            && !destroyedByEffectDamage)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (killer?.Data?.id == 1000654
+            && killerOwner == currentPlayerType
+            && killer.MountedPilot?.Data != null
+            && killer.MountedPilot.Data.IsPilot()
+            && killer.MountedPilot.CurrentLevel >= 5)
+        {
+            EffectData epyonDamage = new EffectData
+            {
+                type = EffectType.Damage,
+                value = 2,
+                target = TargetType.EnemyAllUnits,
+                selectionMode = EffectSelectionMode.Unset,
+                targetUnitFilterStat = EffectTargetUnitFilterStat.AP,
+                targetUnitStatCompareOp = EffectCompareOperator.LessOrEqual,
+                targetUnitStatCompareValue = 5
+            };
+            ApplyEffect(killer, killerOwner, epyonDamage);
         }
 
         EffectActivationContext activationContext = new EffectActivationContext(
@@ -12067,6 +12177,12 @@ public partial class BattleGameMain : MonoBehaviour
     {
         CardData data = effectSource?.Data;
         if (data?.timedEffects == null || blocks == null)
+        {
+            return;
+        }
+
+        // ST12-001 本体効果は TriggerOnEnemyUnitDestroyedEffects でダメージ破壊条件込みで直接解決する。
+        if (data.id == 1000654)
         {
             return;
         }
@@ -13894,7 +14010,11 @@ public partial class BattleGameMain : MonoBehaviour
                             + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)}");
                         TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffectSync_Damage", targetUnit, sourceCard);
                         NotifyAttackFlowParticipantRemovedDuringOnAction(targetUnit);
-                        SendCardToTrash(targetUnit, targetOwner, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
+                        SendCardToTrash(
+                            targetUnit,
+                            targetOwner,
+                            ResolveUnitKillSourceForTrash(sourceCard, targetUnit),
+                            destroyedByEffectDamage: true);
                     }
                 }
 
@@ -14346,6 +14466,22 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> enemies = ownerType == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
         List<CardController> result = new List<CardController>();
+
+        if (effect.selectionMode.IsAttackedTargetOnlyMode())
+        {
+            CardController battlingEnemy = ResolveBattlingEnemyUnitFor(sourceCard);
+            bool requiresDamagedBattlingEnemy = sourceCard?.Data?.id == 1000664;
+            if (battlingEnemy != null
+                && battlingEnemy.CurrentHp > 0
+                && (!requiresDamagedBattlingEnemy || battlingEnemy.IsDamagedForWhileDamagedEffects()))
+            {
+                result.Add(battlingEnemy);
+            }
+
+            FilterTargetsByUnitCondition(result, effect, sourceCard);
+            FilterSelectableEffectTargets(result, effect);
+            return result;
+        }
 
         switch (effect.target)
         {
@@ -18654,6 +18790,22 @@ public partial class BattleGameMain : MonoBehaviour
         IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> result = new List<CardController>();
+
+        if (effect.selectionMode.IsAttackedTargetOnlyMode())
+        {
+            CardController battlingEnemy = ResolveBattlingEnemyUnitFor(sourceCard);
+            bool requiresDamagedBattlingEnemy = sourceCard?.Data?.id == 1000664;
+            if (battlingEnemy != null
+                && battlingEnemy.CurrentHp > 0
+                && (!requiresDamagedBattlingEnemy || battlingEnemy.IsDamagedForWhileDamagedEffects()))
+            {
+                result.Add(battlingEnemy);
+            }
+
+            FilterSelectableEffectTargets(result, effect);
+            FilterTargetsByUnitCondition(result, effect, sourceCard);
+            return result;
+        }
 
         switch (effect.target)
         {
