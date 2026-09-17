@@ -807,6 +807,7 @@ public partial class BattleGameMain
         int trashIndex,
         CardData data,
         bool triggerOnPlayed,
+        bool deployAsRested,
         bool payCost = false,
         PlayerType payCostOwner = PlayerType.Player)
     {
@@ -861,6 +862,7 @@ public partial class BattleGameMain
             triggerOnPlayed,
             fromHand: false,
             fromTrash: true,
+            deployAsRested: deployAsRested,
             bypassBattleZoneCap: true);
     }
 
@@ -872,6 +874,7 @@ public partial class BattleGameMain
         int trashIndex,
         CardData data,
         bool triggerOnPlayed,
+        bool deployAsRested,
         bool payCost,
         PlayerType payCostOwner,
         Action<bool> onDone)
@@ -896,6 +899,7 @@ public partial class BattleGameMain
             trashIndex,
             data,
             triggerOnPlayed,
+            deployAsRested,
             payCost,
             payCostOwner);
         onDone?.Invoke(ok);
@@ -908,6 +912,7 @@ public partial class BattleGameMain
         List<TrashExileCandidate> candidates,
         int pickCount,
         bool triggerOnPlayed,
+        bool deployAsRested,
         bool payCost,
         PlayerType payCostOwner)
     {
@@ -929,6 +934,7 @@ public partial class BattleGameMain
                 candidate.TrashIndex,
                 candidate.Data,
                 triggerOnPlayed,
+                deployAsRested,
                 payCost,
                 payCostOwner))
             {
@@ -945,6 +951,7 @@ public partial class BattleGameMain
         List<TrashExileCandidate> candidates,
         int pickCount,
         bool triggerOnPlayed,
+        bool deployAsRested,
         bool payCost,
         PlayerType payCostOwner,
         Action onComplete)
@@ -964,6 +971,7 @@ public partial class BattleGameMain
                 candidate.TrashIndex,
                 candidate.Data,
                 triggerOnPlayed,
+                deployAsRested,
                 payCost,
                 payCostOwner,
                 result => ok = result);
@@ -1176,6 +1184,7 @@ public partial class BattleGameMain
                 candidates,
                 pickCount,
                 effect.deployUnitTriggerOnPlayed,
+                effect.deployUnitAsRested,
                 payCost,
                 ownerType,
                 () =>
@@ -1201,6 +1210,7 @@ public partial class BattleGameMain
                     candidates[0].TrashIndex,
                     candidates[0].Data,
                     effect.deployUnitTriggerOnPlayed,
+                    effect.deployUnitAsRested,
                     payCost,
                     ownerType,
                     _ =>
@@ -1514,6 +1524,7 @@ public partial class BattleGameMain
                     only.TrashIndex,
                     only.Data,
                     effect.deployUnitTriggerOnPlayed,
+                    effect.deployUnitAsRested,
                     effect.deployUnitPayCost,
                     ownerType,
                     ok =>
@@ -1625,6 +1636,7 @@ public partial class BattleGameMain
                             trashIndex,
                             dataRef,
                             effect.deployUnitTriggerOnPlayed,
+                            effect.deployUnitAsRested,
                             effect.deployUnitPayCost,
                             ownerType,
                             ok =>
@@ -1647,27 +1659,30 @@ public partial class BattleGameMain
                 }
             }
 
-            Button skip = root.CreateChildButton(GameLocale.T("スキップ", "Skip"));
-            RectTransform skipRt = skip.GetComponent<RectTransform>();
-            skipRt.sizeDelta = new Vector2(160f, 44f);
-            skipRt.anchorMin = new Vector2(0.5f, 0f);
-            skipRt.anchorMax = new Vector2(0.5f, 0f);
-            skipRt.pivot = new Vector2(0.5f, 0f);
-            skipRt.anchoredPosition = new Vector2(0f, 36f);
-            skip.onClick.AddListener(() =>
+            if (effect != null && effect.optionalPlayerConfirm)
             {
-                if (pickedThisRound)
+                Button skip = root.CreateChildButton(GameLocale.T("スキップ", "Skip"));
+                RectTransform skipRt = skip.GetComponent<RectTransform>();
+                skipRt.sizeDelta = new Vector2(160f, 44f);
+                skipRt.anchorMin = new Vector2(0.5f, 0f);
+                skipRt.anchorMax = new Vector2(0.5f, 0f);
+                skipRt.pivot = new Vector2(0.5f, 0f);
+                skipRt.anchoredPosition = new Vector2(0f, 36f);
+                skip.onClick.AddListener(() =>
                 {
-                    return;
-                }
+                    if (pickedThisRound)
+                    {
+                        return;
+                    }
 
-                pickedThisRound = true;
-                remaining = 0;
-                trashCapResolved = true;
-                Destroy(root);
-                activeOnActionPopupRoot = null;
-                isOnActionPopupOpen = false;
-            });
+                    pickedThisRound = true;
+                    remaining = 0;
+                    trashCapResolved = true;
+                    Destroy(root);
+                    activeOnActionPopupRoot = null;
+                    isOnActionPopupOpen = false;
+                });
+            }
 
             yield return new WaitUntil(() => pickedThisRound || root == null);
             yield return new WaitUntil(() => trashCapResolved || root == null);

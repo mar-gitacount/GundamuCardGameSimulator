@@ -110,7 +110,29 @@ MonoBehaviour:
     activationConditions: []
     requireChainObservationContext: 0
     effectsName: LookTop2_SelfDeck
-    effects: []
+    effects:
+    - type: 13
+      value: 2
+      target: 5
+      selectionMode: -1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Choose1TopTrashOther_PleTwelve
+    effects:
+    - type: 50
+      value: 1
+      target: 5
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
@@ -119,6 +141,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: e30871dac41b435b8ce51d244ae85b73, type: 2}
   pilotIds:
   - {fileID: 11400000, guid: cb29e6e96b86476cab4b5401d42bdbd2, type: 2}
+  - {fileID: 11400000, guid: e4ea830c53b64acb95d214ec20dd05d2, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1

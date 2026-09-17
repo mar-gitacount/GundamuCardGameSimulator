@@ -9827,6 +9827,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         ClearBreachUntilEndOfBattleGrantsForAllInPlayUnits();
+        ClearSuppressUntilEndOfBattleGrantsForAllInPlayUnits();
         ClearObservedUnitWatchesAtEndOfBattle();
         // ゾーンリスト漏れ対策: 配備パネル直下も走査
         ClearTimedStatModifiersOnDeployPanels(EffectDuration.UntilEndOfBattle);
@@ -11471,6 +11472,13 @@ public partial class BattleGameMain : MonoBehaviour
             ? CollectMountTimedBlocks(pilot, ownerType, hostUnit, pilot, EffectTiming.OnPilotMounted)
             : new List<TimedEffectData>();
 
+        if (resolvePilot && pilot.Data.id == 1000648)
+        {
+            ApplySt11011SetBuff(hostUnit, pilot, ownerType);
+            // ST11-011のデータ定義ブロックは専用処理と二重適用しない。
+            pilotBlocks.Clear();
+        }
+
         void FinishAllyPilotMountWatchAndComplete()
         {
             NotifyAllyPilotMounted(ownerType, hostUnit, pilot, () =>
@@ -11523,6 +11531,61 @@ public partial class BattleGameMain : MonoBehaviour
                     pilot,
                     FinishPilotMountChain);
             });
+    }
+
+    private void ApplySt11011SetBuff(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType)
+    {
+        HashSet<CardController> uniqueTargets = new HashSet<CardController>();
+        List<CardController> ownerZone =
+            ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (ownerZone != null)
+        {
+            for (int i = 0; i < ownerZone.Count; i++)
+            {
+                uniqueTargets.Add(ownerZone[i]);
+            }
+        }
+
+        uniqueTargets.Add(hostUnit);
+        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (ownerRule?.PlayerDeployPanel != null)
+        {
+            CardController[] fieldCards =
+                ownerRule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+            for (int i = 0; i < fieldCards.Length; i++)
+            {
+                uniqueTargets.Add(fieldCards[i]);
+            }
+        }
+
+        List<CardController> aquaticUnits = new List<CardController>();
+        foreach (CardController unit in uniqueTargets)
+        {
+            if (unit == null
+                || unit.Data == null
+                || !unit.Data.IsUnitLike()
+                || unit.CurrentHp <= 0
+                || !unit.HasFeatureId(76))
+            {
+                continue;
+            }
+
+            aquaticUnits.Add(unit);
+        }
+
+        EffectData buff = new EffectData
+        {
+            type = EffectType.Buff,
+            value = 1,
+            target = TargetType.AllyAllUnits,
+            statTarget = EffectStatTarget.AP,
+            duration = EffectDuration.UntilEndOfTurn
+        };
+        ApplyEffectToSpecificTargets(pilot, ownerType, buff, aquaticUnits);
+        Debug.Log($"[ST11-011] セット時〔水中〕AP+1 targets:{aquaticUnits.Count}");
     }
 
     /// <summary>Link 条件を満たす搭乗時（OnLink）。双方にあれば順番選択 UI。</summary>
@@ -11824,6 +11887,20 @@ public partial class BattleGameMain : MonoBehaviour
             return blocks;
         }
 
+        // ST12-009【破壊時】：どちらかのプレイヤーのシールドが3枚以下の場合のみ解決する。
+        if (sourceCard.Data.id == 1000662)
+        {
+            int playerShields = cardGameRule != null ? cardGameRule.GetShieldZoneCardCount() : int.MaxValue;
+            int enemyShields = enemyCardGameRule != null ? enemyCardGameRule.GetShieldZoneCardCount() : int.MaxValue;
+            if (playerShields > 3 && enemyShields > 3)
+            {
+                Debug.Log(
+                    $"[ST12-009] 双方のシールドが4枚以上のため破壊時効果をスキップ "
+                    + $"(Player:{playerShields} Enemy:{enemyShields})");
+                return blocks;
+            }
+        }
+
         EffectActivationContext activationContext = BuildOnDestroyedActivationContext(
             ownerType,
             sourceCard,
@@ -11940,6 +12017,27 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect == null)
         {
             TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        if (effect.type == EffectType.AddFromTrashToHand)
+        {
+            // 回収できた場合だけ後続の「手札を1枚捨てる」へ進む。
+            // 選択UIにはキャンセル操作がないため、候補がある場合は必ず1枚選択する。
+            if (CollectAddFromTrashToHandCandidates(ownerType, effect).Count == 0)
+            {
+                Debug.Log(
+                    $"[OnDestroyed] AddFromTrashToHand 候補なし。後続効果を中止 "
+                    + $"(cardId:{sourceCard?.Data?.id})");
+                onDone?.Invoke();
+                return;
+            }
+
+            ApplyAddFromTrashToHandEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
             return;
         }
 
@@ -14527,6 +14625,19 @@ public partial class BattleGameMain : MonoBehaviour
                 AddAllAliveUnits(allies, result, null, requiredFeatures);
                 AddAllAliveUnits(enemies, result, null, requiredFeatures);
                 break;
+        }
+
+        // パイロットの【セット時】解決中は、搭乗先が一時的に盤面リストから外れる場合がある。
+        // 味方全体効果ではセット先も対象へ戻し、ST11-011等の対象数0を防ぐ。
+        if (effect.target == TargetType.AllyAllUnits
+            && _pilotMountEffectHostUnit != null
+            && _pilotMountEffectHostUnit.Data != null
+            && _pilotMountEffectHostUnit.Data.IsUnitLike()
+            && _pilotMountEffectHostUnit.CurrentHp > 0
+            && !result.Contains(_pilotMountEffectHostUnit)
+            && MatchesRequiredFeatures(_pilotMountEffectHostUnit.Data, requiredFeatures))
+        {
+            result.Add(_pilotMountEffectHostUnit);
         }
 
         FilterTargetsByUnitCondition(result, effect, sourceCard);
@@ -17766,6 +17877,53 @@ public partial class BattleGameMain : MonoBehaviour
             command,
             "OnAction",
             null);
+
+        bool actionChainResolved = false;
+        if (command.Data.id == 1000659)
+        {
+            EffectData exileEffect = null;
+            EffectData suppressEffect = null;
+            for (int i = 0; i < allOnActionEffects.Count; i++)
+            {
+                EffectData candidate = allOnActionEffects[i];
+                if (candidate?.type == EffectType.ExileFromTrash && exileEffect == null)
+                {
+                    exileEffect = candidate;
+                }
+                else if (candidate?.type == EffectType.Suppress && suppressEffect == null)
+                {
+                    suppressEffect = candidate;
+                }
+            }
+
+            bool exileSelectionFinished = false;
+            bool exileSucceeded = false;
+            if (exileEffect != null && suppressEffect != null)
+            {
+                ApplyExileFromTrashEffect(
+                    command,
+                    side,
+                    exileEffect,
+                    onComplete: () =>
+                    {
+                        exileSucceeded = true;
+                        exileSelectionFinished = true;
+                    },
+                    onSkipped: () => exileSelectionFinished = true);
+                yield return new WaitUntil(() => exileSelectionFinished);
+            }
+
+            if (!exileSucceeded)
+            {
+                EndOnDestroyedLatencyHold();
+                FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                yield break;
+            }
+
+            ApplyEffect(command, side, suppressEffect);
+            actionChainResolved = true;
+        }
+
         MarkActionStepCardUsed(side, command);
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
@@ -17778,7 +17936,7 @@ public partial class BattleGameMain : MonoBehaviour
         IReadOnlyList<EffectData> chain = allOnActionEffects != null && allOnActionEffects.Count > 0
             ? allOnActionEffects
             : new[] { applied };
-        for (int ei = 0; ei < chain.Count; ei++)
+        for (int ei = 0; !actionChainResolved && ei < chain.Count; ei++)
         {
             EffectData effect = chain[ei];
             if (effect == null || EffectRequiresManualUnitSelection(effect) || EffectRequiresManualHandSelection(effect))

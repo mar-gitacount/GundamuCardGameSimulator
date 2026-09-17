@@ -330,10 +330,13 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     /// <summary>制圧（UntilEndOfTurn）の破壊枚数。0 は未付与。</summary>
     private int _suppressUntilEndOfTurnBreakCount;
+    private int _suppressUntilEndOfBattleBreakCount;
 
-    public bool HasSuppressUntilEndOfTurnGrant => _suppressUntilEndOfTurnBreakCount > 0;
+    public bool HasSuppressUntilEndOfTurnGrant =>
+        _suppressUntilEndOfTurnBreakCount > 0 || _suppressUntilEndOfBattleBreakCount > 0;
 
-    public int SuppressUntilEndOfTurnBreakCount => _suppressUntilEndOfTurnBreakCount;
+    public int SuppressUntilEndOfTurnBreakCount =>
+        Mathf.Max(_suppressUntilEndOfTurnBreakCount, _suppressUntilEndOfBattleBreakCount);
 
     public void AddSuppressUntilEndOfTurnGrant(int breakCount)
     {
@@ -347,6 +350,18 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     public void ClearSuppressUntilEndOfTurnGrants()
     {
         _suppressUntilEndOfTurnBreakCount = 0;
+    }
+
+    public void AddSuppressUntilEndOfBattleGrant(int breakCount)
+    {
+        _suppressUntilEndOfBattleBreakCount = Mathf.Max(
+            _suppressUntilEndOfBattleBreakCount,
+            breakCount > 0 ? breakCount : 2);
+    }
+
+    public void ClearSuppressUntilEndOfBattleGrants()
+    {
+        _suppressUntilEndOfBattleBreakCount = 0;
     }
 
     /// <summary>∀ Gundam 等：トラッシュからコピーしたキーワード（ターン終了まで）。</summary>

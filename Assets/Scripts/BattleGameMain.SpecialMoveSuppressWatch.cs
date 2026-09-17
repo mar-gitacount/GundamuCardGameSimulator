@@ -28,6 +28,25 @@ public partial class BattleGameMain
         }
     }
 
+    private void ClearSuppressUntilEndOfBattleGrantsForAllInPlayUnits()
+    {
+        ClearSuppressUntilEndOfBattleGrantsOnZone(playerBattleZoneCards);
+        ClearSuppressUntilEndOfBattleGrantsOnZone(enemyBattleZoneCards);
+    }
+
+    private static void ClearSuppressUntilEndOfBattleGrantsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearSuppressUntilEndOfBattleGrants();
+        }
+    }
+
     /// <summary>
     /// duration が UntilEndOfTurn の Suppress をユニットへ付与する。
     /// Permanent（カード印刷の OnShieldAttack マーカー）は従来どおりデータ参照のみ。
@@ -78,10 +97,16 @@ public partial class BattleGameMain
                 continue;
             }
 
-            // 現状はカードテキストどおりターン中のみ（UntilEndOfBattle も EOT 枠に載せる）
-            unit.AddSuppressUntilEndOfTurnGrant(breaks);
+            if (effect.duration == EffectDuration.UntilEndOfBattle)
+            {
+                unit.AddSuppressUntilEndOfBattleGrant(breaks);
+            }
+            else
+            {
+                unit.AddSuppressUntilEndOfTurnGrant(breaks);
+            }
             Debug.Log(
-                $"[Suppress] UntilEndOfTurn 付与 breaks:{breaks} → {unit.Data.cardName} "
+                $"[Suppress] {effect.duration} 付与 breaks:{breaks} → {unit.Data.cardName} "
                 + $"(source:{sourceCard?.Data?.cardName} owner:{ownerType})");
         }
     }
