@@ -2194,6 +2194,12 @@ public static class EffectDataExtensions
             return false;
         }
 
+        // Feature 未指定でも種類フィルタ（例: パイロットのみ）があれば通す。
+        if (!effect.HasTargetFeatureFilter())
+        {
+            return effect.filterByTargetCardType || effect.filterTargetAsUnitOrPilot;
+        }
+
         return effect.MatchesTargetFeatureOnCard(card);
     }
 

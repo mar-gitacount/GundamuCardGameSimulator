@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 77
   featureKey: Long_Range_Weapon
-  displayName: Long-Range Weapon
+  displayName: Remote Weapon
   description: 

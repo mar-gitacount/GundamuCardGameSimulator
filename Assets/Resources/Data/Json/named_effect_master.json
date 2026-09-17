@@ -1648,6 +1648,24 @@
             ]
         },
         {
+            "effectSetName": "OnLook_AddPilot1_Reveal_Optional",
+            "displayName": "OnLook：パイロット1枚を公開して手札へ加えてもよい",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 1,
+                    "revealDiscardedToOpponent": true
+                }
+            ]
+        },
+        {
             "effectSetName": "OnLook_AddLondoBellUnits_UpTo3_Reveal",
             "displayName": "（旧）OnLook：ロンド・ベルのユニットを最大3枚相手に公開して手札へ",
             "effects": [
@@ -4149,6 +4167,86 @@
                     "value": 1,
                     "target": 0,
                     "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Qubeley_Deploy1BitFunnelToken",
+            "displayName": "ビット/ファンネルトークン1体を配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000703,
+                    "deployUnitTriggerOnPlayed": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "Qubeley_Deploy2BitFunnelTokens",
+            "displayName": "ビット/ファンネルトークン2体を配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000703,
+                    "deployUnitTriggerOnPlayed": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "Qubeley_ChooseDeploy1Or2BitFunnelTokens",
+            "displayName": "味方パイロットセット時：ビット/ファンネルを1～2体配備",
+            "effects": [
+                {
+                    "type": 38,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "choicePromptJa": "配備する「ビット/ファンネル」の数を選んでください。",
+                    "choicePromptEn": "Choose how many Bit/Funnel tokens to deploy.",
+                    "choiceBranches": [
+                        {
+                            "labelJa": "■「ビット/ファンネル」トークンを1つ配備する。",
+                            "labelEn": "■Deploy 1 Bit/Funnel token.",
+                            "effectsName": "Qubeley_Deploy1BitFunnelToken"
+                        },
+                        {
+                            "labelJa": "■「ビット/ファンネル」トークンを2つ配備する。",
+                            "labelEn": "■Deploy 2 Bit/Funnel tokens.",
+                            "effectsName": "Qubeley_Deploy2BitFunnelTokens"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "Qubeley_TokenEffectBattle_OnMain",
+            "displayName": "メイン1コスト：味方ユニットトークンと敵ユニットでダメージステップ",
+            "effects": [
+                {
+                    "type": 30,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
                     "statTarget": 0,
                     "duration": 0,
                     "valueMode": 0

@@ -38,7 +38,15 @@ MonoBehaviour:
   - timing: 0
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: LookTop1_SelfDeck
+    effectsName: LookTop1_PlayDeck
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ChooseLookedRemainderDisposition
     effects: []
     activationCost: 0
     oncePerTurn: 0

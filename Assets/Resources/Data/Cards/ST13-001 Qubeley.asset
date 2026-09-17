@@ -34,7 +34,50 @@ MonoBehaviour:
   type: 0
   battleZones: 3
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 25
+    activationConditions:
+    - boardSide: -1
+      checkKind: -1
+      turnCheck: 0
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds:
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 2
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains:
+    requireChainObservationContext: 0
+    effectsName: Qubeley_ChooseDeploy1Or2BitFunnelTokens
+    effects: []
+    activationCost: 0
+    oncePerTurn: 1
+    observedUnitTriggerKind: -1
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Qubeley_TokenEffectBattle_OnMain
+    effects:
+    - type: 30
+      value: 1
+      target: 2
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+    activationCost: 1
+    oncePerTurn: 1
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: aa2431a17f68b1240a0396adc328a405, type: 2}
   pilotIds: []

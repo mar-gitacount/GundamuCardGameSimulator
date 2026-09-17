@@ -257,7 +257,8 @@ public partial class BattleGameMain
         title.alignment = TextAlignmentOptions.Center;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -36f);
 
-        bool mandatoryTwoUnicornsChoice = sourceCard?.Data?.id == 1000668;
+        bool mandatoryTwoUnicornsChoice =
+            sourceCard?.Data?.id == 1000668 || sourceCard?.Data?.id == 1000670;
         string promptJa = !string.IsNullOrWhiteSpace(effect.choicePromptJa)
             ? effect.choicePromptJa.Trim()
             : mandatoryTwoUnicornsChoice
