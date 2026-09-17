@@ -696,6 +696,14 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (source?.Data?.id == 1000666
+            && (GetAliveUnitsForEffectBattle(side).Count == 0
+                || GetAliveUnitsForEffectBattle(
+                    side == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player).Count == 0))
+        {
+            return false;
+        }
+
         if (IsDeferredOnMainDestroyCost(timed))
         {
             EffectData destroyCost = timed.GetResolvedEffects()[0];

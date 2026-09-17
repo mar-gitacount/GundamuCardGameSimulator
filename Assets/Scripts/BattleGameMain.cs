@@ -7463,6 +7463,17 @@ public partial class BattleGameMain : MonoBehaviour
             return "Destroy — Choose an enemy Unit" + optionalSuffix;
         }
 
+        if (effect.type == EffectType.EffectBattle)
+        {
+            return effect.opponentChoosesTarget
+                ? GameLocale.T(
+                    "最後の勝利者 — バトルを行う自分のユニットを選択",
+                    "The Final Victor — Choose your Unit for battle")
+                : GameLocale.T(
+                    "エフェクトバトル — 相手ユニットを選択",
+                    "Effect Battle — Choose an enemy Unit");
+        }
+
         if (effect.type == EffectType.ReturnUnitToDeckBottom)
         {
             return "Return to bottom of deck (tokens are destroyed · Lv0)";
@@ -13163,26 +13174,31 @@ public partial class BattleGameMain : MonoBehaviour
 
         StartCoroutine(CoEnableManualUnitPickButtonsAfterOpen(pickButtons, () => acceptPickInput = true));
 
-        Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
-        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
-        cancelRt.sizeDelta = new Vector2(160f, 44f);
-        cancelRt.anchorMin = new Vector2(0.5f, 0f);
-        cancelRt.anchorMax = new Vector2(0.5f, 0f);
-        cancelRt.pivot = new Vector2(0.5f, 0f);
-        cancelRt.anchoredPosition = new Vector2(0f, 36f);
-        cancel.onClick.AddListener(() =>
+        bool mandatoryFinalVictorPick =
+            source?.Data?.id == 1000666 && effect?.type == EffectType.EffectBattle;
+        if (!mandatoryFinalVictorPick)
         {
-            if (resolved)
+            Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
+            RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+            cancelRt.sizeDelta = new Vector2(160f, 44f);
+            cancelRt.anchorMin = new Vector2(0.5f, 0f);
+            cancelRt.anchorMax = new Vector2(0.5f, 0f);
+            cancelRt.pivot = new Vector2(0.5f, 0f);
+            cancelRt.anchoredPosition = new Vector2(0f, 36f);
+            cancel.onClick.AddListener(() =>
             {
-                return;
-            }
+                if (resolved)
+                {
+                    return;
+                }
 
-            resolved = true;
-            Destroy(root);
-            activeOnActionPopupRoot = null;
-            isOnActionPopupOpen = false;
-            onPicked?.Invoke(null);
-        });
+                resolved = true;
+                Destroy(root);
+                activeOnActionPopupRoot = null;
+                isOnActionPopupOpen = false;
+                onPicked?.Invoke(null);
+            });
+        }
     }
 
     /// <summary>手動選択 UI 表示直後のクリック漏れ（搭乗ボタン等）を防ぐ。</summary>
@@ -18774,6 +18790,29 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (source?.Data?.id == 1000666 && effect.type == EffectType.EffectBattle)
+        {
+            if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+            {
+                onDone?.Invoke();
+                return;
+            }
+
+            TryResolveFinalVictorEffectBattle(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side,
+                    source,
+                    effects,
+                    index + 1,
+                    true,
+                    chainActivationContext,
+                    onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect);
@@ -19126,6 +19165,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect.type == EffectType.EffectBattle)
         {
+            if (effect.target == TargetType.AllyUnit)
+            {
+                return GameLocale.T(
+                    "最後の勝利者 — バトルを行う自分のユニットを選択",
+                    "The Final Victor — Choose your Unit for battle");
+            }
+
             return isAttackContext
                 ? $"Effect Battle — Choose an enemy Unit ({attackName})"
                 : "Effect Battle — Choose an enemy Unit (No Rest)";

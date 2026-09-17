@@ -4048,6 +4048,22 @@
             ]
         },
         {
+            "effectSetName": "FinalVictor_ChooseBothUnitsEffectBattle",
+            "displayName": "メイン：自分、相手の順でユニットを選びダメージステップのみ行う",
+            "effects": [
+                {
+                    "type": 30,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "opponentChoosesTarget": true
+                }
+            ]
+        },
+        {
             "effectSetName": "Choose1TopTrashOther_PleTwelve",
             "displayName": "見た2枚から1枚を上、残りをトラッシュ（シールド3以下なら選択札を手札）",
             "effects": [
