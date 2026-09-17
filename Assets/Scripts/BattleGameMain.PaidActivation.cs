@@ -504,6 +504,15 @@ public partial class BattleGameMain
             }
         }
 
+        if (source?.Data?.id == 1000659)
+        {
+            CardGameRule ownerRule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+            if (ownerRule == null || ownerRule.GetTrashCardIds().Count < 4)
+            {
+                return false;
+            }
+        }
+
         if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
         {
             return false;

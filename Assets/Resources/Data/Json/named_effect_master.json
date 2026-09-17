@@ -3936,6 +3936,131 @@
                     "abortRemainingChainOnSkip": false
                 }
             ]
+        },
+        {
+            "effectSetName": "Exile4Trash_ThenFirstStrikeSelfUntilEOT",
+            "displayName": "トラッシュ4枚除外→自身にターン中先制攻撃",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 4,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 47,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Exile4Trash_ThenSuppress2SelfUntilEOB",
+            "displayName": "トラッシュ4枚除外→自身にバトル中制圧2",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 4,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 5,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployRestedTrashAquaticUnitLv4OrLess",
+            "displayName": "メイン：トラッシュのLv4以下〔水中〕ユニット1枚をレストで配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitSource": 2,
+                    "filterDeployCandidateByFeature": true,
+                    "targetFeatureId": 76,
+                    "deployUnitTriggerOnPlayed": true,
+                    "deployUnitAsRested": true,
+                    "deployUnitPayCost": false,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddTrashUnitLv6PlusThenDiscard1Mandatory",
+            "displayName": "破壊時：トラッシュのLv6以上ユニット1枚を手札へ加える→手札1枚を捨てる",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 6,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "revealDiscardedToOpponent": false,
+                    "forbidSkipHandDiscard": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Choose1TopTrashOther_PleTwelve",
+            "displayName": "見た2枚から1枚を上、残りをトラッシュ（シールド3以下なら選択札を手札）",
+            "effects": [
+                {
+                    "type": 50,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
+                }
+            ]
         }
     ]
 }

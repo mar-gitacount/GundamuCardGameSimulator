@@ -34,7 +34,33 @@ MonoBehaviour:
   type: 2
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployRestedTrashAquaticUnitLv4OrLess
+    effects:
+    - type: 22
+      value: 1
+      target: 5
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      targetFeatureId: 76
+      targetUnitFilterStat: 3
+      targetUnitStatCompareOp: 3
+      targetUnitStatCompareValue: 4
+      filterByTargetCardType: 1
+      targetCardType: 0
+      deployUnitSource: 2
+      filterDeployCandidateByFeature: 1
+      deployUnitTriggerOnPlayed: 1
+      deployUnitAsRested: 1
+      deployUnitPayCost: 0
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
   pilotIds: []
   link: []

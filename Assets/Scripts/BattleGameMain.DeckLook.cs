@@ -31,6 +31,7 @@ public partial class BattleGameMain
     {
         AddToHand,
         ChooseToDeckTopThenTrashRemainder,
+        ChooseToHandThenTrashRemainder,
         DeployToBattle
     }
 
@@ -1227,7 +1228,14 @@ public partial class BattleGameMain
                 autoPicks.Add(context.Entries[i]);
             }
 
-            CommitLookedToDeckTopThenTrashRemainder(context, autoPicks);
+            if (ShouldPleTwelveAddLookedCardToHand(context))
+            {
+                CommitLookedToHandThenTrashRemainder(context, autoPicks);
+            }
+            else
+            {
+                CommitLookedToDeckTopThenTrashRemainder(context, autoPicks);
+            }
             onComplete?.Invoke();
             return;
         }
@@ -1309,18 +1317,108 @@ public partial class BattleGameMain
             + $"deck:{context.DeckLabel} by cardId:{context.SourceCard?.Data?.id}");
     }
 
+    private bool ShouldPleTwelveAddLookedCardToHand(LookResolutionContext context)
+    {
+        if (context?.SourceCard?.Data?.id != 1000665)
+        {
+            return false;
+        }
+
+        int playerShields = cardGameRule != null
+            ? cardGameRule.GetShieldZoneCardCount()
+            : gundamRule?.Player != null ? gundamRule.Player.shield : int.MaxValue;
+        int enemyShields = enemyCardGameRule != null
+            ? enemyCardGameRule.GetShieldZoneCardCount()
+            : gundamRule?.Enemy != null ? gundamRule.Enemy.shield : int.MaxValue;
+
+        bool addToHand = playerShields <= 3 || enemyShields <= 3;
+        Debug.Log(
+            $"[ST12-012] シールド条件 Player:{playerShields} Enemy:{enemyShields} "
+            + $"=> {(addToHand ? "手札へ加える" : "山札の上へ戻す")}");
+        return addToHand;
+    }
+
+    private void CommitLookedToHandThenTrashRemainder(
+        LookResolutionContext context,
+        List<LookedDeckEntry> chosenForHand)
+    {
+        if (context?.DeckRule == null)
+        {
+            return;
+        }
+
+        HashSet<int> chosenDeckIndexes = new HashSet<int>();
+        List<int> handIds = new List<int>();
+        if (chosenForHand != null)
+        {
+            for (int i = 0; i < chosenForHand.Count; i++)
+            {
+                LookedDeckEntry pick = chosenForHand[i];
+                if (pick != null && chosenDeckIndexes.Add(pick.DeckIndex))
+                {
+                    handIds.Add(pick.CardId);
+                }
+            }
+        }
+
+        List<LookedDeckEntry> toRemove = new List<LookedDeckEntry>(context.Entries);
+        toRemove.Sort((a, b) => b.DeckIndex.CompareTo(a.DeckIndex));
+        List<int> trashIds = new List<int>();
+
+        WithZoneSyncSuppressed(() =>
+        {
+            for (int i = 0; i < toRemove.Count; i++)
+            {
+                LookedDeckEntry entry = toRemove[i];
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                context.DeckRule.TryTakeCardAtDeckIndex(entry.DeckIndex, out _);
+                if (!chosenDeckIndexes.Contains(entry.DeckIndex))
+                {
+                    trashIds.Add(entry.CardId);
+                    context.DeckRule.AddCardToTrash(entry.CardId);
+                }
+            }
+        });
+
+        for (int i = 0; i < handIds.Count; i++)
+        {
+            context.TakenCardIds.Add(handIds[i]);
+            AddCardIdToHand(context.DeckRule, context.OwnerType, handIds[i]);
+        }
+
+        int deckRemain = context.DeckRule.GetRemainingCount();
+        SyncGundamRuleDeckCount(context.DeckOwnerType, deckRemain);
+        if (trashIds.Count > 0)
+        {
+            NotifyLocalZoneDeckToTrash(context.DeckOwnerType, trashIds, deckRemain);
+        }
+
+        Debug.Log(
+            $"[OnLook][ST12-012] hand:{handIds.Count} trash:{trashIds.Count} "
+            + $"deck:{context.DeckLabel}");
+    }
+
     private void ShowLookDeckPickToTopThenTrashPopup(
         LookResolutionContext context,
         int pickCount,
         System.Action onComplete)
     {
-        string subtitle = pickCount <= 1
+        bool addToHand = ShouldPleTwelveAddLookedCardToHand(context);
+        string subtitle = addToHand
             ? GameLocale.T(
-                "1枚選んで OK（山札の上へ。残りはトラッシュ）",
-                "Choose 1 card, then OK (put on top; rest to trash)")
-            : GameLocale.T(
-                $"{pickCount}枚選んで OK（山札の上へ。残りはトラッシュ）",
-                $"Choose {pickCount} cards, then OK (put on top; rest to trash)");
+                $"{pickCount}枚選んで OK（手札へ。残りはトラッシュ）",
+                $"Choose {pickCount}, then OK (add to hand; rest to trash)")
+            : pickCount <= 1
+                ? GameLocale.T(
+                    "1枚選んで OK（山札の上へ。残りはトラッシュ）",
+                    "Choose 1 card, then OK (put on top; rest to trash)")
+                : GameLocale.T(
+                    $"{pickCount}枚選んで OK（山札の上へ。残りはトラッシュ）",
+                    $"Choose {pickCount} cards, then OK (put on top; rest to trash)");
 
         ShowLookDeckPopupCore(
             context,
@@ -1331,7 +1429,9 @@ public partial class BattleGameMain
             addEffect: null,
             onComplete,
             subtitle,
-            LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder,
+            addToHand
+                ? LookDeckPickCommitKind.ChooseToHandThenTrashRemainder
+                : LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder,
             allowSkip: false);
     }
 
@@ -1573,14 +1673,22 @@ public partial class BattleGameMain
                 return;
             }
 
-            if (commitKind == LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder)
+            if (commitKind == LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder
+                || commitKind == LookDeckPickCommitKind.ChooseToHandThenTrashRemainder)
             {
                 if (pendingPicks.Count != pickCount)
                 {
                     return;
                 }
 
-                CommitLookedToDeckTopThenTrashRemainder(context, pendingPicks);
+                if (commitKind == LookDeckPickCommitKind.ChooseToHandThenTrashRemainder)
+                {
+                    CommitLookedToHandThenTrashRemainder(context, pendingPicks);
+                }
+                else
+                {
+                    CommitLookedToDeckTopThenTrashRemainder(context, pendingPicks);
+                }
                 ClosePopup();
                 return;
             }
