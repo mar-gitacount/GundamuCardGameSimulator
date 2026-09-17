@@ -38,7 +38,7 @@ MonoBehaviour:
   - timing: 8
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: TwoUnicorns_ChooseActionEffect
     effects:
     - type: 0
       value: 2

@@ -111,6 +111,24 @@ public partial class BattleGameMain
             return;
         }
 
+        if (sourceCard?.Data?.id == 1000668
+            && index == 0
+            && effect.type == EffectType.Damage
+            && effect.target == TargetType.AllyUnit
+            && effects.Count > 1
+            && effects[1] != null
+            && effects[1].type == EffectType.Damage
+            && effects[1].target == TargetType.EnemyUnit)
+        {
+            ResolveTwoUnicornsDualDamageChoice(
+                sourceCard,
+                ownerType,
+                effect,
+                effects[1],
+                onDone);
+            return;
+        }
+
         EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
         if (!ShouldApplyChainedEffect(effect, activationContext, "ChooseOneBranch"))
         {
@@ -239,12 +257,17 @@ public partial class BattleGameMain
         title.alignment = TextAlignmentOptions.Center;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -36f);
 
+        bool mandatoryTwoUnicornsChoice = sourceCard?.Data?.id == 1000668;
         string promptJa = !string.IsNullOrWhiteSpace(effect.choicePromptJa)
             ? effect.choicePromptJa.Trim()
-            : "効果を1つ選んでから OK を押すと発動します。Cancel で中止します。";
+            : mandatoryTwoUnicornsChoice
+                ? "発動する効果を1つ選んで、OKを押してください。"
+                : "効果を1つ選んでから OK を押すと発動します。Cancel で中止します。";
         string promptEn = !string.IsNullOrWhiteSpace(effect.choicePromptEn)
             ? effect.choicePromptEn.Trim()
-            : "Select 1 effect, then press OK. Press Cancel to abort.";
+            : mandatoryTwoUnicornsChoice
+                ? "Choose 1 effect, then press OK."
+                : "Select 1 effect, then press OK. Press Cancel to abort.";
 
         TextMeshProUGUI promptText = root.CreateChildTextCustom("EffectChoicePrompt", UIAnchor.TopCenter, 920, 52);
         promptText.SetLocalizedText(promptJa, promptEn);
@@ -391,26 +414,12 @@ public partial class BattleGameMain
         okRt.anchorMin = new Vector2(0.5f, 0f);
         okRt.anchorMax = new Vector2(0.5f, 0f);
         okRt.pivot = new Vector2(0.5f, 0f);
-        okRt.anchoredPosition = new Vector2(-120f, 40f);
+        okRt.anchoredPosition = new Vector2(mandatoryTwoUnicornsChoice ? 0f : -120f, 40f);
         okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (okLabel != null)
         {
             okLabel.SetLocalizedText("OK", "OK");
             okLabel.fontSize = 22;
-        }
-
-        Button cancelBtn = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
-        RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
-        cancelRt.sizeDelta = new Vector2(200f, 52f);
-        cancelRt.anchorMin = new Vector2(0.5f, 0f);
-        cancelRt.anchorMax = new Vector2(0.5f, 0f);
-        cancelRt.pivot = new Vector2(0.5f, 0f);
-        cancelRt.anchoredPosition = new Vector2(120f, 40f);
-        TextMeshProUGUI cancelLabel = cancelBtn.GetComponentInChildren<TextMeshProUGUI>();
-        if (cancelLabel != null)
-        {
-            cancelLabel.SetLocalizedText("キャンセル", "Cancel");
-            cancelLabel.fontSize = 22;
         }
 
         okBtn.onClick.AddListener(() =>
@@ -423,7 +432,23 @@ public partial class BattleGameMain
             CloseWithResult(selectedIndex);
         });
 
-        cancelBtn.onClick.AddListener(() => CloseWithResult(-1));
+        if (!mandatoryTwoUnicornsChoice)
+        {
+            Button cancelBtn = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
+            RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
+            cancelRt.sizeDelta = new Vector2(200f, 52f);
+            cancelRt.anchorMin = new Vector2(0.5f, 0f);
+            cancelRt.anchorMax = new Vector2(0.5f, 0f);
+            cancelRt.pivot = new Vector2(0.5f, 0f);
+            cancelRt.anchoredPosition = new Vector2(120f, 40f);
+            TextMeshProUGUI cancelLabel = cancelBtn.GetComponentInChildren<TextMeshProUGUI>();
+            if (cancelLabel != null)
+            {
+                cancelLabel.SetLocalizedText("キャンセル", "Cancel");
+                cancelLabel.fontSize = 22;
+            }
+            cancelBtn.onClick.AddListener(() => CloseWithResult(-1));
+        }
 
         RefreshSelection();
     }
@@ -538,9 +563,88 @@ public partial class BattleGameMain
                     return false;
                 }
             }
+            else if (EffectRequiresManualUnitSelection(effect))
+            {
+                int required = effect.GetSelectMinCount();
+                if (ResolveSelectableEffectTargets(sourceCard, ownerType, effect).Count < required)
+                {
+                    return false;
+                }
+            }
         }
 
         return true;
+    }
+
+    private void ResolveTwoUnicornsDualDamageChoice(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData allyPickEffect,
+        EffectData enemyPickEffect,
+        Action onComplete)
+    {
+        List<CardController> allyCandidates =
+            ResolveSelectableEffectTargets(sourceCard, ownerType, allyPickEffect);
+        List<CardController> enemyCandidates =
+            ResolveSelectableEffectTargets(sourceCard, ownerType, enemyPickEffect);
+        if (allyCandidates.Count == 0 || enemyCandidates.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        void ApplyToBoth(CardController ally, CardController enemy)
+        {
+            if (ally != null && enemy != null)
+            {
+                EffectData damageBoth = new EffectData
+                {
+                    type = EffectType.Damage,
+                    value = 2,
+                    target = TargetType.AnyUnit,
+                    selectionMode = EffectSelectionMode.Unset
+                };
+                ApplyEffectToSpecificTargets(
+                    sourceCard,
+                    ownerType,
+                    damageBoth,
+                    new List<CardController> { ally, enemy });
+            }
+            onComplete?.Invoke();
+        }
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            EnemyAiEffectPickContext pickContext =
+                BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+            ApplyToBoth(
+                PickEnemyAiEffectTarget(allyPickEffect, pickContext, allyCandidates),
+                PickEnemyAiEffectTarget(enemyPickEffect, pickContext, enemyCandidates));
+            return;
+        }
+
+        OpenManualUnitTargetSelectionUI(
+            sourceCard,
+            ownerType,
+            allyPickEffect,
+            allyCandidates,
+            null,
+            ally =>
+            {
+                if (ally == null)
+                {
+                    onComplete?.Invoke();
+                    return;
+                }
+
+                OpenManualUnitTargetSelectionUI(
+                    sourceCard,
+                    ownerType,
+                    enemyPickEffect,
+                    enemyCandidates,
+                    null,
+                    enemy => ApplyToBoth(ally, enemy));
+            });
     }
 
     /// <summary>オーナーのトラッシュに指定 featureId を持つカードが何枚あるか（ChooseOne 診断用）。</summary>
@@ -605,6 +709,11 @@ public partial class BattleGameMain
         CardController source,
         TimedEffectData timed)
     {
+        if (source?.Data?.id == 1000669 && TimedStartsWithRestSelf(timed))
+        {
+            return true;
+        }
+
         IReadOnlyList<EffectData> effects = timed?.GetResolvedEffects();
         if (effects == null || effects.Count == 0)
         {
