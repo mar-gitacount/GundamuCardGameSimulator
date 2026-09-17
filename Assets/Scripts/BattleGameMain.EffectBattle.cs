@@ -10,6 +10,174 @@ using UnityEngine.UI;
 /// </summary>
 public partial class BattleGameMain
 {
+    private CardController _effectBattleAttackerOverride;
+
+    private bool TryResolveFinalVictorEffectBattle(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        Action onComplete)
+    {
+        if (sourceCard?.Data?.id != 1000666 || effect == null || effect.type != EffectType.EffectBattle)
+        {
+            return false;
+        }
+
+        List<CardController> ownerUnits = GetAliveUnitsForEffectBattle(ownerType);
+        PlayerType opponentType = ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        List<CardController> opponentUnits = GetAliveUnitsForEffectBattle(opponentType);
+        if (ownerUnits.Count == 0 || opponentUnits.Count == 0)
+        {
+            Debug.Log(
+                $"[ST12-013] バトルに必要なユニットが不足 owner:{ownerUnits.Count} "
+                + $"opponent:{opponentUnits.Count}");
+            onComplete?.Invoke();
+            return true;
+        }
+
+        void ResolveWithAttacker(CardController attacker)
+        {
+            if (attacker == null)
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
+            if (ownerType == PlayerType.Player && IsOnlineBattle() && !_applyingRemoteBattleAction)
+            {
+                EffectData opponentPickEffect = new EffectData
+                {
+                    type = EffectType.EffectBattle,
+                    value = 1,
+                    target = TargetType.EnemyUnit,
+                    selectionMode = EffectSelectionMode.SelectSingle,
+                    opponentChoosesTarget = true
+                };
+                _effectBattleAttackerOverride = attacker;
+                Action finishOnlinePick = () =>
+                {
+                    _effectBattleAttackerOverride = null;
+                    onComplete?.Invoke();
+                };
+                if (TryBeginOnlineOpponentUnitPick(
+                    sourceCard,
+                    attacker,
+                    ownerType,
+                    opponentPickEffect,
+                    opponentUnits,
+                    finishOnlinePick,
+                    finishOnlinePick))
+                {
+                    return;
+                }
+
+                _effectBattleAttackerOverride = null;
+            }
+
+            if (ownerType == PlayerType.Enemy)
+            {
+                EffectData defenderPickEffect = new EffectData
+                {
+                    type = EffectType.EffectBattle,
+                    value = 1,
+                    target = TargetType.EnemyUnit,
+                    selectionMode = EffectSelectionMode.SelectSingle,
+                    opponentChoosesTarget = true
+                };
+                OpenManualUnitTargetSelectionUI(
+                    sourceCard,
+                    ownerType,
+                    defenderPickEffect,
+                    opponentUnits,
+                    null,
+                    defender =>
+                    {
+                        if (defender != null)
+                        {
+                            ResolveEffectBattleCombat(attacker, defender, ownerType);
+                        }
+                        onComplete?.Invoke();
+                    });
+                return;
+            }
+
+            CardController aiDefender = PickHighestPowerEffectBattleUnit(opponentUnits);
+            if (aiDefender != null)
+            {
+                ResolveEffectBattleCombat(attacker, aiDefender, ownerType);
+            }
+            onComplete?.Invoke();
+        }
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            ResolveWithAttacker(PickHighestPowerEffectBattleUnit(ownerUnits));
+            return true;
+        }
+
+        EffectData ownerPickEffect = new EffectData
+        {
+            type = EffectType.EffectBattle,
+            value = 1,
+            target = TargetType.AllyUnit,
+            selectionMode = EffectSelectionMode.SelectSingle
+        };
+        OpenManualUnitTargetSelectionUI(
+            sourceCard,
+            ownerType,
+            ownerPickEffect,
+            ownerUnits,
+            null,
+            ResolveWithAttacker);
+        return true;
+    }
+
+    private List<CardController> GetAliveUnitsForEffectBattle(PlayerType ownerType)
+    {
+        List<CardController> source =
+            ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        List<CardController> result = new List<CardController>();
+        if (source == null)
+        {
+            return result;
+        }
+
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController unit = source[i];
+            if (unit != null
+                && unit.Data != null
+                && unit.Data.IsUnitLike()
+                && unit.CurrentHp > 0
+                && IsCardOnBattleZone(unit))
+            {
+                result.Add(unit);
+            }
+        }
+        return result;
+    }
+
+    private static CardController PickHighestPowerEffectBattleUnit(List<CardController> candidates)
+    {
+        CardController best = null;
+        for (int i = 0; candidates != null && i < candidates.Count; i++)
+        {
+            CardController unit = candidates[i];
+            if (unit == null || unit.Data == null || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (best == null
+                || unit.CurrentPower > best.CurrentPower
+                || (unit.CurrentPower == best.CurrentPower && unit.CurrentHp > best.CurrentHp))
+            {
+                best = unit;
+            }
+        }
+        return best;
+    }
+
     private void TryBeginOptionalConfirmedEffect(
         CardController sourceCard,
         PlayerType ownerType,
@@ -286,7 +454,11 @@ public partial class BattleGameMain
             _suppressOnlineDefenderAreaStateNotify = true;
             try
             {
-                SendCardToTrash(defender, defenderOwner, attacker);
+                SendCardToTrash(
+                    defender,
+                    defenderOwner,
+                    attacker,
+                    destroyedByBattleDamage: true);
             }
             finally
             {
@@ -345,7 +517,10 @@ public partial class BattleGameMain
             return;
         }
 
-        CardController attacker = sourceCard;
+        CardController attacker = _effectBattleAttackerOverride != null
+            ? _effectBattleAttackerOverride
+            : sourceCard;
+        _effectBattleAttackerOverride = null;
         if (attacker.Data == null || !attacker.Data.IsUnitLike())
         {
             // パイロット側から発火した場合は搭乗ホストを攻撃側にする

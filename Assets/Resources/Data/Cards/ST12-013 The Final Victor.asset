@@ -106,6 +106,22 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: FinalVictor_ChooseBothUnitsEffectBattle
+    effects:
+    - type: 30
+      value: 1
+      target: 2
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      opponentChoosesTarget: 1
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features: []
   pilotIds: []
   link: []
