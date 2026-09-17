@@ -12,6 +12,86 @@ public partial class BattleGameMain
 {
     private CardController _effectBattleAttackerOverride;
 
+    private bool TryResolveQubeleyTokenEffectBattle(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        Action onComplete)
+    {
+        if (sourceCard?.Data?.id != 1000670 || effect == null || effect.type != EffectType.EffectBattle)
+        {
+            return false;
+        }
+
+        List<CardController> ownerUnits = GetAliveUnitsForEffectBattle(ownerType);
+        ownerUnits.RemoveAll(unit => unit?.Data == null || !unit.Data.IsUnitToken());
+        PlayerType opponentType = ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        List<CardController> enemyUnits = GetAliveUnitsForEffectBattle(opponentType);
+        if (ownerUnits.Count == 0 || enemyUnits.Count == 0)
+        {
+            onComplete?.Invoke();
+            return true;
+        }
+
+        EffectData tokenPickEffect = new EffectData
+        {
+            type = EffectType.EffectBattle,
+            value = 1,
+            target = TargetType.TokenUnit,
+            selectionMode = EffectSelectionMode.SelectSingle,
+            filterByTargetCardType = true,
+            targetCardType = Type.UnitToken
+        };
+        EffectData enemyPickEffect = new EffectData
+        {
+            type = EffectType.EffectBattle,
+            value = 1,
+            target = TargetType.EnemyUnit,
+            selectionMode = EffectSelectionMode.SelectSingle
+        };
+
+        void ResolvePair(CardController token, CardController enemy)
+        {
+            if (token != null && enemy != null)
+            {
+                ResolveEffectBattleCombat(token, enemy, ownerType);
+            }
+            onComplete?.Invoke();
+        }
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            ResolvePair(
+                PickHighestPowerEffectBattleUnit(ownerUnits),
+                PickHighestPowerEffectBattleUnit(enemyUnits));
+            return true;
+        }
+
+        OpenManualUnitTargetSelectionUI(
+            sourceCard,
+            ownerType,
+            tokenPickEffect,
+            ownerUnits,
+            null,
+            token =>
+            {
+                if (token == null)
+                {
+                    onComplete?.Invoke();
+                    return;
+                }
+
+                OpenManualUnitTargetSelectionUI(
+                    sourceCard,
+                    ownerType,
+                    enemyPickEffect,
+                    enemyUnits,
+                    null,
+                    enemy => ResolvePair(token, enemy));
+            });
+        return true;
+    }
+
     private bool TryResolveFinalVictorEffectBattle(
         CardController sourceCard,
         PlayerType ownerType,

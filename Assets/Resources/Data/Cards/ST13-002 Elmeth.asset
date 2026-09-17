@@ -34,7 +34,25 @@ MonoBehaviour:
   type: 0
   battleZones: 1
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Qubeley_Deploy1BitFunnelToken
+    effects:
+    - type: 22
+      value: 1
+      target: 5
+      selectionMode: -1
+      statTarget: 0
+      duration: 0
+      valueMode: 0
+      deployUnitSource: 0
+      deployCardId: 1000703
+      deployUnitTriggerOnPlayed: 0
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   pilotIds: []

@@ -574,10 +574,12 @@ public partial class BattleGameMain
             return;
         }
 
-        if (!effect.HasTargetFeatureFilter())
+        bool hasCardTypeFilter = effect.filterByTargetCardType || effect.filterTargetAsUnitOrPilot;
+        if (!effect.HasTargetFeatureFilter() && !hasCardTypeFilter)
         {
             Debug.LogWarning(
-                $"[OnLook] AddToHandFromLooked には targetFeature / targetFeatureId の指定が必要です "
+                $"[OnLook] AddToHandFromLooked には targetFeature / targetFeatureId、"
+                + $"または filterByTargetCardType / filterTargetAsUnitOrPilot の指定が必要です "
                 + $"(cardId:{context.SourceCard?.Data?.id})");
             if (context.OwnerType == PlayerType.Player)
             {
@@ -596,15 +598,24 @@ public partial class BattleGameMain
         CardGameRule handRule = handOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         List<LookedDeckEntry> selectable = FilterLookedEntriesForAddEffect(context.Entries, effect);
         string featureLabel = effect.FormatTargetFeaturesLabel();
-        if (string.IsNullOrEmpty(featureLabel))
-        {
-            featureLabel = GameLocale.T("未指定", "Any");
-        }
-
         string typeLabel = effect.FormatTargetCardTypeFilterLabel();
-        string filterLabel = string.IsNullOrEmpty(typeLabel)
-            ? featureLabel
-            : $"{typeLabel}・{featureLabel}";
+        string filterLabel;
+        if (!string.IsNullOrEmpty(typeLabel) && !string.IsNullOrEmpty(featureLabel))
+        {
+            filterLabel = $"{typeLabel}・{featureLabel}";
+        }
+        else if (!string.IsNullOrEmpty(typeLabel))
+        {
+            filterLabel = typeLabel;
+        }
+        else if (!string.IsNullOrEmpty(featureLabel))
+        {
+            filterLabel = featureLabel;
+        }
+        else
+        {
+            filterLabel = GameLocale.T("未指定", "Any");
+        }
 
         if (context.OwnerType == PlayerType.Enemy)
         {

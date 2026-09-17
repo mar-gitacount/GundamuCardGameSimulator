@@ -1598,6 +1598,7 @@ public partial class BattleGameMain : MonoBehaviour
                 && currentPhase == BattlePhase.MainPhase
                 && IsActingSideForUi(ownerType)
                 && cardController.Data.IsUnitLike()
+                && cardController.Data.id != 1000703
                 && cardController.AttackFlgState == AttackFlg.True;
 
             if (canShowUnitAttackMenu)
@@ -2662,6 +2663,11 @@ public partial class BattleGameMain : MonoBehaviour
         foreach (CardController unit in snapshot)
         {
             if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            if (unit.Data.id == 1000703)
             {
                 continue;
             }
@@ -8078,6 +8084,12 @@ public partial class BattleGameMain : MonoBehaviour
         bool skipOnlineBlockPhase = false,
         int onlineChosenBlockerInstanceId = 0)
     {
+        if (attacker?.Data?.id == 1000703)
+        {
+            Debug.Log("[T-029] ビット/ファンネルトークンは通常アタックできません。");
+            return;
+        }
+
         if (enableShieldAttackFlowDebugLog)
         {
             string attackerName = attacker != null && attacker.Data != null ? attacker.Data.cardName : "null";
@@ -9074,6 +9086,12 @@ public partial class BattleGameMain : MonoBehaviour
         int onlineChosenBlockerInstanceId = 0,
         bool resumeAfterPreCombatOnAttack = false)
     {
+        if (attacker?.Data?.id == 1000703)
+        {
+            Debug.Log("[T-029] ビット/ファンネルトークンは通常アタックできません。");
+            return;
+        }
+
         if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
         {
             Debug.Log("[UnitAttack] Paused — attacked-side block panel is still open.");
@@ -13194,7 +13212,8 @@ public partial class BattleGameMain : MonoBehaviour
         bool mandatoryUnitPick =
             (source?.Data?.id == 1000666 && effect?.type == EffectType.EffectBattle)
             || source?.Data?.id == 1000668
-            || source?.Data?.id == 1000669;
+            || source?.Data?.id == 1000669
+            || source?.Data?.id == 1000670;
         if (!mandatoryUnitPick)
         {
             Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
@@ -18856,6 +18875,29 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (source?.Data?.id == 1000670 && effect.type == EffectType.EffectBattle)
+        {
+            if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+            {
+                onDone?.Invoke();
+                return;
+            }
+
+            TryResolveQubeleyTokenEffectBattle(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side,
+                    source,
+                    effects,
+                    index + 1,
+                    true,
+                    chainActivationContext,
+                    onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect);
@@ -19208,6 +19250,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect.type == EffectType.EffectBattle)
         {
+            if (effect.target == TargetType.TokenUnit)
+            {
+                return GameLocale.T(
+                    "キュベレイ — バトルを行う味方ユニットトークンを選択",
+                    "Qubeley — Choose an allied Unit Token for battle");
+            }
+
             if (effect.target == TargetType.AllyUnit)
             {
                 return GameLocale.T(

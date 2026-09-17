@@ -724,6 +724,17 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (source?.Data?.id == 1000670)
+        {
+            List<CardController> ownerUnits = GetAliveUnitsForEffectBattle(side);
+            bool hasToken = ownerUnits.Exists(unit => unit?.Data != null && unit.Data.IsUnitToken());
+            PlayerType opponent = side == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+            if (!hasToken || GetAliveUnitsForEffectBattle(opponent).Count == 0)
+            {
+                return false;
+            }
+        }
+
         if (IsDeferredOnMainDestroyCost(timed))
         {
             EffectData destroyCost = timed.GetResolvedEffects()[0];

@@ -36,9 +36,45 @@ MonoBehaviour:
   attackFlg: 0
   timedEffects:
   - timing: 0
-    activationConditions: []
+    activationConditions:
+    - boardSide: 1
+      checkKind: 1
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds:
+      minimumCount: 4
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains:
     requireChainObservationContext: 0
     effectsName: LookTop5_SelfDeck
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnLook_AddPilot1_Reveal_Optional
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ShuffleLookedRemainderToDeckBottom
     effects: []
     activationCost: 0
     oncePerTurn: 0
