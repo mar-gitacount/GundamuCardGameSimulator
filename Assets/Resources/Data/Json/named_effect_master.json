@@ -4064,6 +4064,98 @@
             ]
         },
         {
+            "effectSetName": "TwoUnicorns_DestroyEnemyLv2OrLess",
+            "displayName": "Lv2以下の相手ユニット1体を破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2,
+                    "abortRemainingChainOnSkip": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "TwoUnicorns_Damage2AllyAndEnemyLv5Plus",
+            "displayName": "味方1体とLv5以上の相手1体を選び両方に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 5,
+                    "abortRemainingChainOnSkip": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "TwoUnicorns_ChooseActionEffect",
+            "displayName": "アクション：2つの効果から1つを選択",
+            "effects": [
+                {
+                    "type": 38,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "choicePromptJa": "以下の効果から1つを選択し、OKで発動します。",
+                    "choicePromptEn": "Choose 1 of the following effects, then press OK.",
+                    "choiceBranches": [
+                        {
+                            "labelJa": "■Lv.2以下の相手のユニット1つを選ぶ。それを破壊する。",
+                            "labelEn": "■Choose 1 enemy Unit that is Lv.2 or lower. Destroy it.",
+                            "effectsName": "TwoUnicorns_DestroyEnemyLv2OrLess"
+                        },
+                        {
+                            "labelJa": "■味方のユニット1つと、Lv.5以上の相手のユニット1つを選ぶ。それらに2ダメージを与える。",
+                            "labelEn": "■Choose 1 allied Unit and 1 enemy Unit that is Lv.5 or higher. Deal 2 damage to both.",
+                            "effectsName": "TwoUnicorns_Damage2AllyAndEnemyLv5Plus"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "Libra_RestSelfThenDamage1EnemyLv4OrLess",
+            "displayName": "メイン：自身をRESTしてパイロット搭乗ユニットの戦闘撃破を待機",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
             "effectSetName": "Choose1TopTrashOther_PleTwelve",
             "displayName": "見た2枚から1枚を上、残りをトラッシュ（シールド3以下なら選択札を手札）",
             "effects": [

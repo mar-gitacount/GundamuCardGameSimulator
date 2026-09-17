@@ -2481,6 +2481,7 @@ public partial class BattleGameMain : MonoBehaviour
     {
         Debug.Log("ターン開始フェイズの処理を実行します。");
         // ターン開始フェイズの具体的な処理をここに書く
+        ClearPilotSetBattleDamageKillThisTurn();
         RefreshAllFieldOwnerTurnPassives();
 
         if(currentPlayerType == PlayerType.Player)
@@ -12154,6 +12155,22 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (TryResolveArmedLibraAfterPilotBattleKill(
+            killer,
+            killerOwner,
+            destroyedByBattleDamage,
+            () => TriggerOnEnemyUnitDestroyedEffects(
+                destroyedUnit,
+                destroyedOwner,
+                destroyedBy,
+                destroyedByBattleDamage,
+                destroyedByEffectDamage,
+                destroyedUnitWasLinked,
+                onComplete)))
+        {
+            return;
+        }
+
         // ST12-001 は戦闘または効果の「ダメージ」で破壊した場合のみ誘発する。
         if (killer?.Data?.id == 1000654
             && !destroyedByBattleDamage
@@ -13174,9 +13191,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         StartCoroutine(CoEnableManualUnitPickButtonsAfterOpen(pickButtons, () => acceptPickInput = true));
 
-        bool mandatoryFinalVictorPick =
-            source?.Data?.id == 1000666 && effect?.type == EffectType.EffectBattle;
-        if (!mandatoryFinalVictorPick)
+        bool mandatoryUnitPick =
+            (source?.Data?.id == 1000666 && effect?.type == EffectType.EffectBattle)
+            || source?.Data?.id == 1000668
+            || source?.Data?.id == 1000669;
+        if (!mandatoryUnitPick)
         {
             Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
             RectTransform cancelRt = cancel.GetComponent<RectTransform>();
@@ -17939,6 +17958,30 @@ public partial class BattleGameMain : MonoBehaviour
             ApplyEffect(command, side, suppressEffect);
             actionChainResolved = true;
         }
+        else if (command.Data.id == 1000668)
+        {
+            EffectData chooseEffect = null;
+            for (int i = 0; i < allOnActionEffects.Count; i++)
+            {
+                if (allOnActionEffects[i]?.type == EffectType.ChooseOne)
+                {
+                    chooseEffect = allOnActionEffects[i];
+                    break;
+                }
+            }
+
+            if (chooseEffect != null)
+            {
+                bool choiceResolved = false;
+                ApplyChooseOneEffect(
+                    command,
+                    side,
+                    chooseEffect,
+                    () => choiceResolved = true);
+                yield return new WaitUntil(() => choiceResolved);
+                actionChainResolved = true;
+            }
+        }
 
         MarkActionStepCardUsed(side, command);
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
@@ -19662,6 +19705,10 @@ public partial class BattleGameMain : MonoBehaviour
         if (TryApplyRestToUnit(source))
         {
             QueueOnlineUnitRest(source);
+            if (source.Data?.id == 1000669)
+            {
+                ArmLibraAfterRest(source, side);
+            }
             Debug.Log(
                 $"[OnMain] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
         }

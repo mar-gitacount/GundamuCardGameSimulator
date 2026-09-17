@@ -513,6 +513,26 @@ public partial class BattleGameMain
             }
         }
 
+        if (source?.Data?.id == 1000668)
+        {
+            IReadOnlyList<EffectData> resolvedEffects = timed.GetResolvedEffects();
+            EffectData chooseEffect = null;
+            for (int i = 0; i < resolvedEffects.Count; i++)
+            {
+                if (resolvedEffects[i]?.type == EffectType.ChooseOne)
+                {
+                    chooseEffect = resolvedEffects[i];
+                    break;
+                }
+            }
+
+            if (chooseEffect == null
+                || CollectAvailableChoiceBranchIndices(side, source, chooseEffect).Count == 0)
+            {
+                return false;
+            }
+        }
+
         if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
         {
             return false;
