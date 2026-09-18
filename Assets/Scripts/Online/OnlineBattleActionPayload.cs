@@ -163,7 +163,8 @@ public class OnlineBattleActionPayload
         int resourceAfter = 0,
         int exResourceAfter = 0,
         int levelAfter = 0,
-        int requestId = 0)
+        int requestId = 0,
+        int replacedUnitInstanceId = 0)
     {
         // extras は必要なときだけ付ける（通常配備のパケット肥大化を防ぐ）
         OnlineDeployUnitExtras extras = null;
@@ -172,7 +173,8 @@ public class OnlineBattleActionPayload
             || deployOverrideHp > 0
             || deployForceUnitType
             || deployPrintedType >= 0
-            || deployAsRested)
+            || deployAsRested
+            || replacedUnitInstanceId > 0)
         {
             extras = new OnlineDeployUnitExtras
             {
@@ -181,7 +183,8 @@ public class OnlineBattleActionPayload
                 deployOverrideHp = deployOverrideHp,
                 deployForceUnitType = deployForceUnitType,
                 deployPrintedType = deployPrintedType,
-                deployAsRested = deployAsRested
+                deployAsRested = deployAsRested,
+                replacedUnitInstanceId = replacedUnitInstanceId
             };
         }
 
@@ -608,6 +611,11 @@ public class OnlineDeployUnitExtras
     public int deployPrintedType = -1;
     /// <summary>true なら受信側も配備直後に REST（ジオングヘッド等）。</summary>
     public bool deployAsRested;
+    /// <summary>
+    /// 満杯置換で場から外したユニットの instanceId（送信側視点）。
+    /// 受信側ではこのユニットを先に消してから新規配備する。
+    /// </summary>
+    public int replacedUnitInstanceId;
 }
 
 /// <summary>DeployUnit 送信用 lean DTO（EOS ~1170B 対策）。</summary>
