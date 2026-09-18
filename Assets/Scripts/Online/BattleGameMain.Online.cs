@@ -962,7 +962,9 @@ public partial class BattleGameMain
         CardController cardController,
         PlayerType deployTargetZoneOwner = PlayerType.Player,
         bool allowOffTurnDeploy = false,
-        bool deployAsRested = false)
+        bool deployAsRested = false,
+        int replacedUnitInstanceId = -1,
+        bool waitForOpponentConfirm = true)
     {
         if (!IsOnlineBattle() || cardController == null || cardController.Data == null)
         {
@@ -1013,8 +1015,17 @@ public partial class BattleGameMain
             levelAfter = payState.level;
         }
 
+        int resolvedReplaceInstanceId = replacedUnitInstanceId >= 0
+            ? replacedUnitInstanceId
+            : ConsumePendingBattleZoneReplaceVictimInstanceId();
+        if (replacedUnitInstanceId >= 0)
+        {
+            // 明示指定時も pending を消費し、次配備へ漏れないようにする
+            ConsumePendingBattleZoneReplaceVictimInstanceId();
+        }
+
         int requestId = 0;
-        if (!_applyingRemoteBattleAction)
+        if (waitForOpponentConfirm && !_applyingRemoteBattleAction)
         {
             requestId = BeginPendingOpponentCardConfirmRequest();
         }
@@ -1034,9 +1045,11 @@ public partial class BattleGameMain
                 resourceAfter,
                 exResourceAfter,
                 levelAfter,
-                requestId)));
+                requestId,
+                resolvedReplaceInstanceId)));
         Debug.Log(
             $"[OnlineBattle] DeployUnit sync sent id:{cardController.Data.id} inst:{cardController.BattleInstanceId} "
+            + $"replacedInst:{resolvedReplaceInstanceId} "
             + $"resource:{resourceAfter} ex:{exResourceAfter} level:{levelAfter} includeRes:{includeResource} "
             + $"requestId:{requestId}");
 
@@ -1233,7 +1246,7 @@ public partial class BattleGameMain
                 HandleRemoteEndTurnAck(message.payload);
                 break;
             case "PlayCard":
-                StartCoroutine(HandleRemotePlayCardCoroutine(message.payload));
+                EnqueueRemotePlayCard(message.payload);
                 break;
             case "Attack":
                 HandleRemoteAttack(message.payload);
@@ -1700,6 +1713,52 @@ public partial class BattleGameMain
         }
     }
 
+    private readonly Queue<string> _pendingRemotePlayCardPayloads = new Queue<string>();
+    private bool _remotePlayCardPumpRunning;
+
+    /// <summary>
+    /// PlayCard は同時コルーチンだと満杯置換＋複数トークン配備で枠取り合い／欠損が起きるため直列処理する。
+    /// </summary>
+    private void EnqueueRemotePlayCard(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return;
+        }
+
+        _pendingRemotePlayCardPayloads.Enqueue(payload);
+        if (_remotePlayCardPumpRunning)
+        {
+            return;
+        }
+
+        StartCoroutine(CoPumpRemotePlayCards());
+    }
+
+    private IEnumerator CoPumpRemotePlayCards()
+    {
+        if (_remotePlayCardPumpRunning)
+        {
+            yield break;
+        }
+
+        _remotePlayCardPumpRunning = true;
+        try
+        {
+            while (_pendingRemotePlayCardPayloads.Count > 0)
+            {
+                string payload = _pendingRemotePlayCardPayloads.Dequeue();
+                yield return HandleRemotePlayCardCoroutine(payload);
+                // Destroy の親子解除を次フレームまで待たせ、連続配備の枠判定を安定させる
+                yield return null;
+            }
+        }
+        finally
+        {
+            _remotePlayCardPumpRunning = false;
+        }
+    }
+
     private IEnumerator HandleRemotePlayCardCoroutine(string payload)
     {
         if (!OnlineBattleActionPayload.TryParse(payload, out OnlineBattleActionPayload action))
@@ -1783,6 +1842,41 @@ public partial class BattleGameMain
         }
 
         OnlineDeployUnitExtras extras = action.deployUnitExtras;
+        int replacedUnitInstanceId = extras != null ? extras.replacedUnitInstanceId : 0;
+        int preferredSlotIndex = -1;
+        if (replacedUnitInstanceId > 0)
+        {
+            CardController replaced = FindBattleZoneUnitForRemoteSync(replacedUnitInstanceId, senderZoneOwner);
+            if (replaced != null)
+            {
+                preferredSlotIndex = rule.GetBattleZoneSlotIndex(replaced);
+                Debug.Log(
+                    $"[OnlineBattle] Remote deploy replace remove "
+                    + $"senderInst:{replacedUnitInstanceId} localZone:{localZoneOwner} "
+                    + $"slot:{preferredSlotIndex} {replaced.Data?.cardName}");
+                ApplyRemoteUnitRemovedFromField(replaced);
+            }
+            else
+            {
+                Debug.LogWarning(
+                    $"[OnlineBattle] Remote deploy replace target missing "
+                    + $"senderInst:{replacedUnitInstanceId} localZone:{localZoneOwner}");
+            }
+        }
+        else if (IsBattleZoneAtCapacity(localZoneOwner))
+        {
+            // 旧クライアント互換: 置換 ID が無い場合は自動で1枠空ける
+            CardController autoVictim = PickAutoBattleZoneReplaceVictim(localZoneOwner);
+            if (autoVictim != null)
+            {
+                preferredSlotIndex = rule.GetBattleZoneSlotIndex(autoVictim);
+                Debug.LogWarning(
+                    $"[OnlineBattle] Remote deploy at capacity without replace id — auto remove "
+                    + $"{autoVictim.Data?.cardName}(inst:{autoVictim.BattleInstanceId}) slot:{preferredSlotIndex}");
+                ApplyRemoteUnitRemovedFromField(autoVictim);
+            }
+        }
+
         CardData cardData = printed;
         bool temporaryBurstUnit = extras != null && extras.deployForceUnitType;
         int overrideAp = extras != null ? extras.deployOverrideAp : 0;
@@ -1819,7 +1913,31 @@ public partial class BattleGameMain
             controller.MarkTemporaryBurstBattleUnit(printedType, printed.power, printed.hp);
         }
 
-        rule.TryPlaceUnitInBattleZone(controller);
+        rule.CleanupDestroyedChildrenInBattleZoneSlots();
+        if (!rule.TryPlaceUnitInBattleZone(controller, preferredSlotIndex))
+        {
+            // 置換 ID 欠落・到着順ずれでも枠を空けて再試行する
+            CardController autoVictim = PickAutoBattleZoneReplaceVictim(localZoneOwner);
+            if (autoVictim != null && autoVictim != controller)
+            {
+                preferredSlotIndex = rule.GetBattleZoneSlotIndex(autoVictim);
+                Debug.LogWarning(
+                    $"[OnlineBattle] Remote deploy retry — auto remove "
+                    + $"{autoVictim.Data?.cardName}(inst:{autoVictim.BattleInstanceId})");
+                ApplyRemoteUnitRemovedFromField(autoVictim);
+                rule.CleanupDestroyedChildrenInBattleZoneSlots();
+            }
+
+            if (!rule.TryPlaceUnitInBattleZone(controller, preferredSlotIndex))
+            {
+                Debug.LogWarning(
+                    $"[OnlineBattle] Remote deploy placement failed (no empty slot) "
+                    + $"{cardData.cardName} zone:{localZoneOwner} — discarding orphan");
+                Destroy(cardObject);
+                ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
+                return null;
+            }
+        }
 
         if (zone != null && !zone.Contains(controller))
         {
@@ -1850,6 +1968,7 @@ public partial class BattleGameMain
         Debug.Log(
             $"[OnlineBattle] Remote unit deployed zone:{localZoneOwner} senderZone:{senderZoneOwner} "
             + $"{cardData.cardName} ({cardId}) inst:{controller.BattleInstanceId} "
+            + $"replacedInst:{replacedUnitInstanceId} "
             + $"forceUnit:{temporaryBurstUnit} AP:{cardData.power} HP:{cardData.hp} "
             + $"rested:{(extras != null && extras.deployAsRested)} "
             + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");

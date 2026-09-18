@@ -473,6 +473,7 @@ public partial class BattleGameMain
 
     /// <summary>バトルゾーンへ配備（手札／トラッシュ／トークン共通のフィールド反映）。</summary>
     /// <param name="bypassBattleZoneCap">true のとき 6 体上限チェックをスキップ（枠確保済み／リモート適用向け）。</param>
+    /// <param name="replacedUnitInstanceId">満杯置換で外したユニットの instanceId。未指定は -1（pending を消費）。</param>
     private bool DeployUnitToBattleZone(
         CardController unit,
         PlayerType recipient,
@@ -481,7 +482,8 @@ public partial class BattleGameMain
         bool fromHand,
         bool deployAsRested = false,
         bool fromTrash = false,
-        bool bypassBattleZoneCap = false)
+        bool bypassBattleZoneCap = false,
+        int replacedUnitInstanceId = -1)
     {
         if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || rule == null)
         {
@@ -569,7 +571,8 @@ public partial class BattleGameMain
                     unit,
                     recipient,
                     allowOffTurnDeploy: allowOffTurn,
-                    deployAsRested: deployAsRested);
+                    deployAsRested: deployAsRested,
+                    replacedUnitInstanceId: replacedUnitInstanceId);
             }
         }
 
@@ -580,7 +583,8 @@ public partial class BattleGameMain
 
         Debug.Log(
             $"[DeployUnit] {unit.Data.cardName}(id:{unit.Data.id}) → {recipient} battle zone "
-            + $"(triggerOnPlayed:{triggerOnPlayed} rested:{deployAsRested})");
+            + $"(triggerOnPlayed:{triggerOnPlayed} rested:{deployAsRested} "
+            + $"replacedInst:{replacedUnitInstanceId})");
         return true;
     }
 
@@ -747,6 +751,12 @@ public partial class BattleGameMain
         BeginOnlineEffectSyncBatch(sourceOwner);
         for (int i = 0; i < deployCount; i++)
         {
+            // 複数トークン連続配備は、前の相手確認待ちを潰さないよう完了を待つ
+            if (IsOnlineBattle() && !_applyingRemoteBattleAction)
+            {
+                yield return CoInvokeAfterOnlineDeployConfirm(() => { });
+            }
+
             bool slotReady = false;
             bool cancelled = false;
             yield return CoEnsureBattleZoneDeploySlot(
@@ -763,6 +773,8 @@ public partial class BattleGameMain
                 break;
             }
 
+            int replacedUnitInstanceId = PeekPendingBattleZoneReplaceVictimInstanceId();
+
             // プレビュー用に一時スポーンせず、枠確保後に生成
             CardController spawned = InstantiateBattleUnit(tokenData, rule.PlayerDeployPanel);
             if (spawned == null)
@@ -777,9 +789,17 @@ public partial class BattleGameMain
                     effect.deployUnitTriggerOnPlayed,
                     fromHand: false,
                     deployAsRested: effect.deployUnitAsRested,
-                    bypassBattleZoneCap: true))
+                    bypassBattleZoneCap: true,
+                    replacedUnitInstanceId: replacedUnitInstanceId))
             {
                 applied++;
+                if (IsOnlineBattle() && !_applyingRemoteBattleAction)
+                {
+                    yield return CoInvokeAfterOnlineDeployConfirm(() => { });
+                }
+
+                // ローカル側も Destroy 解放を1フレーム待ち、次の枠確保を安定させる
+                yield return null;
             }
             else
             {

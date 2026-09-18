@@ -785,8 +785,8 @@ public class CardGameRule
         }
     }
 
-    /// <summary>空き枠へユニットを配置する。満杯なら false。</summary>
-    public bool TryPlaceUnitInBattleZone(CardController unit)
+    /// <summary>空き枠へユニットを配置する。満杯なら false。preferredSlotIndex 指定時は空きならそこを優先。</summary>
+    public bool TryPlaceUnitInBattleZone(CardController unit, int preferredSlotIndex = -1)
     {
         if (unit == null)
         {
@@ -809,11 +809,22 @@ public class CardGameRule
             return true;
         }
 
+        CleanupDestroyedChildrenInBattleZoneSlots();
+
         // 既にいずれかの枠にいればサイズだけ整える
         int existing = FindBattleZoneSlotIndex(unit);
         if (existing >= 0)
         {
             FitUnitIntoBattleSlot(unit, _battleZoneSlotAnchors[existing]);
+            RefreshBattleZoneDisplay();
+            return true;
+        }
+
+        if (preferredSlotIndex >= 0
+            && preferredSlotIndex < _battleZoneSlotAnchors.Length
+            && GetUnitInBattleSlot(preferredSlotIndex) == null)
+        {
+            FitUnitIntoBattleSlot(unit, _battleZoneSlotAnchors[preferredSlotIndex]);
             RefreshBattleZoneDisplay();
             return true;
         }
@@ -828,6 +839,48 @@ public class CardGameRule
         FitUnitIntoBattleSlot(unit, _battleZoneSlotAnchors[empty]);
         RefreshBattleZoneDisplay();
         return true;
+    }
+
+    /// <summary>Destroy 待ちの残骸子を枠から外し、空き判定を安定させる。</summary>
+    public void CleanupDestroyedChildrenInBattleZoneSlots()
+    {
+        if (_battleZoneSlotAnchors == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _battleZoneSlotAnchors.Length; i++)
+        {
+            RectTransform anchor = _battleZoneSlotAnchors[i];
+            if (anchor == null)
+            {
+                continue;
+            }
+
+            for (int c = anchor.childCount - 1; c >= 0; c--)
+            {
+                Transform child = anchor.GetChild(c);
+                if (child == null)
+                {
+                    continue;
+                }
+
+                CardController cc = child.GetComponent<CardController>();
+                // 生存中のユニットだけ残す。Destroy 済み（擬似 null）や Data 欠落は枠から外す。
+                if (cc != null && cc.Data != null && cc.Data.IsUnitLike())
+                {
+                    continue;
+                }
+
+                child.SetParent(null, false);
+            }
+        }
+    }
+
+    /// <summary>ユニットがいるバトル枠 index。いなければ -1。</summary>
+    public int GetBattleZoneSlotIndex(CardController unit)
+    {
+        return FindBattleZoneSlotIndex(unit);
     }
 
     private int FindFirstEmptyBattleZoneSlot()
@@ -879,7 +932,14 @@ public class CardGameRule
         RectTransform anchor = _battleZoneSlotAnchors[slotIndex];
         for (int c = 0; c < anchor.childCount; c++)
         {
-            CardController cc = anchor.GetChild(c).GetComponent<CardController>();
+            Transform child = anchor.GetChild(c);
+            if (child == null)
+            {
+                continue;
+            }
+
+            CardController cc = child.GetComponent<CardController>();
+            // Destroy 済みは Unity 擬似 null。Data 欠落も枠占有とみなさない。
             if (cc != null && cc.Data != null && cc.Data.IsUnitLike())
             {
                 return cc;

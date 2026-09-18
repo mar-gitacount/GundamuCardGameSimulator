@@ -51,6 +51,12 @@ public partial class BattleGameMain
             RefreshAllFieldOwnerTurnPassives();
         }
 
+        // Destroy はフレーム末まで子として残るため、先に枠から外して空き判定を即時正しくする。
+        if (cardController.transform != null)
+        {
+            cardController.transform.SetParent(null, false);
+        }
+
         Destroy(cardController.gameObject);
         ReconcileShieldStateWithZone(ruleSide);
         RefreshAllHandsConditionalOnHandAuto();

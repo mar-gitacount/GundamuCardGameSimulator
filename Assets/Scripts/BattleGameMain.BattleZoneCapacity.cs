@@ -16,6 +16,41 @@ public partial class BattleGameMain
 
     private bool _battleZoneCapUiOpen;
 
+    /// <summary>
+    /// 満杯置換でトラッシュしたユニットの BattleInstanceId。
+    /// 直後の DeployUnit 同期に同梱し、相手盤面でも同じユニットを外してから配置する。
+    /// </summary>
+    private int _pendingBattleZoneReplaceVictimInstanceId;
+
+    private void RememberBattleZoneReplaceVictimForOnlineSync(CardController victim)
+    {
+        if (victim == null || victim.Data == null || !victim.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(victim);
+        if (victim.BattleInstanceId > 0)
+        {
+            _pendingBattleZoneReplaceVictimInstanceId = victim.BattleInstanceId;
+            Debug.Log(
+                $"[BattleZoneCap] 置換対象を記憶 inst:{victim.BattleInstanceId} "
+                + $"{victim.Data.cardName}(id:{victim.Data.id})");
+        }
+    }
+
+    private int ConsumePendingBattleZoneReplaceVictimInstanceId()
+    {
+        int id = _pendingBattleZoneReplaceVictimInstanceId;
+        _pendingBattleZoneReplaceVictimInstanceId = 0;
+        return id;
+    }
+
+    private int PeekPendingBattleZoneReplaceVictimInstanceId()
+    {
+        return _pendingBattleZoneReplaceVictimInstanceId;
+    }
+
     private int CountBattleZoneUnits(PlayerType ownerType)
     {
         List<CardController> zone = ownerType == PlayerType.Player
@@ -101,6 +136,8 @@ public partial class BattleGameMain
         Action onSlotReady,
         Action onCancelled)
     {
+        // pending 置換 ID は Consume / Cancel でのみ消す。
+        // ここクリアすると連続トークン配備やネスト Ensure で置換同期が欠落する。
         if (!IsBattleZoneAtCapacity(recipient))
         {
             onSlotReady?.Invoke();
@@ -122,6 +159,7 @@ public partial class BattleGameMain
             }
             else
             {
+                _pendingBattleZoneReplaceVictimInstanceId = 0;
                 onCancelled?.Invoke();
             }
 
@@ -132,6 +170,7 @@ public partial class BattleGameMain
         if (candidates.Count == 0)
         {
             Debug.LogWarning("[BattleZoneCap] 満杯だが置換候補がありません。配備を中止します。");
+            _pendingBattleZoneReplaceVictimInstanceId = 0;
             onCancelled?.Invoke();
             yield break;
         }
@@ -175,6 +214,8 @@ public partial class BattleGameMain
         else
         {
             onCancelled?.Invoke();
+            // Cancel 時は未使用の置換 ID を捨てる（前回分の誤同期防止）
+            _pendingBattleZoneReplaceVictimInstanceId = 0;
         }
     }
 
@@ -240,6 +281,8 @@ public partial class BattleGameMain
             onFailed?.Invoke();
             yield break;
         }
+
+        RememberBattleZoneReplaceVictimForOnlineSync(victim);
 
         int pipelineBefore = _pendingSendToTrashPipelines;
         SendCardToTrash(victim, ownerType, cause);
