@@ -14,6 +14,12 @@ public static class EffectMagnitudeResolver
             return 0;
         }
 
+        if (effect.valueMode == EffectValueMode.OpponentPlayerCount)
+        {
+            // 現状は 1v1 固定。多人数対応時は対戦人数から相手数を算出する。
+            return 1;
+        }
+
         int perUnitOrFixed = Mathf.Max(0, Mathf.Abs(effect.value));
         if (perUnitOrFixed == 0)
         {
@@ -55,10 +61,32 @@ public static class EffectMagnitudeResolver
                 return CountAliveUnitsWithLevelAtLeast(zone, effect.valueCountMinUnitLevel, effect, sourceCard);
             case EffectValueCountKind.SourceUnitApPerEvery:
                 return CountSourceUnitApPerEvery(sourceCard, effect.valueCountMinUnitLevel);
+            case EffectValueCountKind.RestedAliveUnits:
+                return CountRestedAliveUnits(zone, effect, sourceCard);
             case EffectValueCountKind.AliveUnits:
             default:
                 return CountAliveUnits(zone, effect, sourceCard);
         }
+    }
+
+    private static int CountRestedAliveUnits(
+        IReadOnlyList<CardController> cards,
+        EffectData effect,
+        CardController sourceCard)
+    {
+        int n = 0;
+        for (int i = 0; i < cards.Count; i++)
+        {
+            CardController c = cards[i];
+            if (!IsAliveUnit(c) || !c.IsRestState || ShouldExcludeSource(c, effect, sourceCard))
+            {
+                continue;
+            }
+
+            n++;
+        }
+
+        return n;
     }
 
     private static int CountSourceUnitApPerEvery(CardController sourceCard, int everyAp)

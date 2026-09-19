@@ -43,6 +43,42 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: LookTop3_OptionalAddOpponentPlayerCount_Reveal_ShuffleRemainderBottom
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 10
+    activationConditions:
+    - boardSide: -1
+      checkKind: 4
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: BattleDamageImmunity_FromEnemyApLteSelf_WhilePaired_OncePerTurn
+    effects: []
+    activationCost: 0
+    oncePerTurn: 1
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 84c3e94b07a84590b8f0300afcd528ce, type: 2}
   pilotIds: []

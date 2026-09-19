@@ -14834,7 +14834,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         FilterTargetsByUnitCondition(result, effect, sourceCard);
         FilterSelectableEffectTargets(result, effect);
-        if (effect.type == EffectType.Rest)
+        if (effect.type == EffectType.Rest && !effect.allowAlreadyRestedTargets)
         {
             FilterOutAlreadyRestedUnits(result);
         }
@@ -19898,7 +19898,7 @@ public partial class BattleGameMain : MonoBehaviour
             FilterAttackActiveEnemyGrantTargetsByMinLevel(result, effect.valueCountMinUnitLevel);
         }
 
-        if (effect.type == EffectType.Rest)
+        if (effect.type == EffectType.Rest && !effect.allowAlreadyRestedTargets)
         {
             FilterOutAlreadyRestedUnits(result);
         }

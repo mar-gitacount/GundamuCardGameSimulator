@@ -4445,6 +4445,131 @@
                     "valueMode": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "RestEnemyLv6OrLess_ThenApMinus2IfOwnTrash7",
+            "displayName": "配備時：Lv6以下の相手をレスト→トラッシュ7以上ならそのユニットAP-2（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 6,
+                    "allowAlreadyRestedTargets": true
+                },
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 4,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": 4,
+                            "checkKind": 50,
+                            "turnCheck": -1,
+                            "minimumCount": 1,
+                            "unitCountCompareOp": 0,
+                            "unitCountThreshold": 7
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "LookTop3_OptionalAddOpponentPlayerCount_Reveal_ShuffleRemainderBottom",
+            "displayName": "OnLook：相手人数分を公開して手札へ加えてもよい→残りを無作為に下へ",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 2,
+                    "revealDiscardedToOpponent": true,
+                    "allowAnyLookedCard": true,
+                    "optionalPlayerConfirm": true
+                },
+                {
+                    "type": 16,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "BattleDamageImmunity_FromEnemyApLteSelf_WhilePaired_OncePerTurn",
+            "displayName": "セット中ターン1回：自身AP以下の相手ユニットからのバトルダメージを受けない",
+            "effects": [
+                {
+                    "type": 52,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "compareTargetStatToSource": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAttack_DebuffEnemyAp_ByOpponentRestedUnitCount_UntilEndOfBattle",
+            "displayName": "アタック時：相手ユニット1体を選び、レスト相手ユニット数だけAP-（このバトル中）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 1,
+                    "valueCountKind": 4,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnPilotMounted_GrantAttackActiveEnemy_AllyLv5Plus_EnemyAp5OrLess_UntilEOT",
+            "displayName": "セット時：Lv5以上の味方1体に、AP5以下のACTIVE敵への攻撃許可（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 5,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5,
+                    "compareTargetStatToSource": false
+                }
+            ]
         }
     ]
 }

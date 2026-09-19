@@ -591,11 +591,11 @@ public partial class BattleGameMain
         }
 
         bool hasCardTypeFilter = effect.filterByTargetCardType || effect.filterTargetAsUnitOrPilot;
-        if (!effect.HasTargetFeatureFilter() && !hasCardTypeFilter)
+        if (!effect.HasTargetFeatureFilter() && !hasCardTypeFilter && !effect.allowAnyLookedCard)
         {
             Debug.LogWarning(
                 $"[OnLook] AddToHandFromLooked には targetFeature / targetFeatureId、"
-                + $"または filterByTargetCardType / filterTargetAsUnitOrPilot の指定が必要です "
+                + $"filterByTargetCardType / filterTargetAsUnitOrPilot、または allowAnyLookedCard の指定が必要です "
                 + $"(cardId:{context.SourceCard?.Data?.id})");
             if (context.OwnerType == PlayerType.Player)
             {
