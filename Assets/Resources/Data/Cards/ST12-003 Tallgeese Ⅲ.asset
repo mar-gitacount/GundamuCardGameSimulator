@@ -35,10 +35,10 @@ MonoBehaviour:
   battleZones: 3
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 16
     activationConditions:
     - boardSide: -1
-      checkKind: -1
+      checkKind: 48
       turnCheck: 0
       feature: {fileID: 0}
       featureId: 0
@@ -63,7 +63,7 @@ MonoBehaviour:
     - type: 0
       value: 1
       target: 4
-      selectionMode: 0
+      selectionMode: -1
       statTarget: 0
       duration: 0
       valueMode: 0

@@ -1442,6 +1442,14 @@ public partial class BattleGameMain
             return;
         }
 
+        // ST12-011 専用適用（他カードの手動選択経路に乗せない）
+        if (IsMilliardoPeacecraftCard(command) && effect.type == EffectType.Damage)
+        {
+            TryApplyMilliardoPeacecraftOnActionDamage(command, side, effect);
+            onAllDone?.Invoke();
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = effect.target.IsSingleOpponentUnitPickTarget()

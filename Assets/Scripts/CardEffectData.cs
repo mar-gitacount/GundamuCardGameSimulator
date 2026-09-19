@@ -834,7 +834,7 @@ public enum EffectActivationCheckKind
     OwnerTotalLevel,
     /// <summary>
     /// ユニット戦闘ダメージ以外（効果ダメージ等）で敵ユニットを破壊したとき。
-    /// DestroyedByBattleDamage の否定。OnEnemyUnitDestroyed 等と組み合わせる。
+    /// EffectActivationContext.DestroyedByEffectDamage を参照。
     /// </summary>
     DestroyedByEffectDamage,
     /// <summary>
@@ -860,7 +860,11 @@ public enum EffectActivationCheckKind
     /// feature / featureId / features / featureIds 指定時は、その Feature を持つトークンのみ数える。
     /// 例: 〔地球連合〕ユニットトークンが 0 体 → Equal + threshold 0。
     /// </summary>
-    CompareFieldUnitTokenCount
+    CompareFieldUnitTokenCount,
+    /// <summary>
+    /// 戦闘ダメージまたは効果ダメージで敵ユニットを破壊したとき（Destroy 効果による非ダメージ破壊は含まない）。
+    /// </summary>
+    DestroyedByDamage
 }
 
 public enum EffectTurnCheckKind
@@ -1176,7 +1180,8 @@ public class EffectData
     public int value;
 
     public TargetType target;
-    public EffectSelectionMode selectionMode = EffectSelectionMode.AttackedTargetOnly;
+    [Tooltip("Unset(-1)=target どおり自動解決。AttackedTargetOnly=戦闘相手1体（EnemyUnit 等のみ）。")]
+    public EffectSelectionMode selectionMode = EffectSelectionMode.Unset;
     public EffectStatTarget statTarget = EffectStatTarget.Both;
     public EffectDuration duration = EffectDuration.Permanent;
 
@@ -2512,6 +2517,11 @@ public class TimedEffectData
 
     [Tooltip("true のときこの timed ブロックは1ターンに1回まで（能動発動 / OnUnitDestroyedByOwnerEffect 等の受動トリガー）。")]
     public bool oncePerTurn;
+
+    [Tooltip(
+        "OnAction 専用。true のときアクションステップで必須発動。"
+        + "未使用のあいだ ActionEnd / Cancel を押せない（他カードでも再利用可）。")]
+    public bool forcedAction;
 
     [Tooltip("OnObservedUnitTrigger: 応答する監視イベント種別。Unset なら全種別に応答。")]
     public ObservedUnitTriggerKind observedUnitTriggerKind = ObservedUnitTriggerKind.Unset;

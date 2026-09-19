@@ -765,12 +765,22 @@ public partial class BattleGameMain
         {
             btn.targetGraphic = baseImage;
             baseImage.raycastTarget = true;
+            if (selectedSet != null && selectedSet.Contains(captured))
+            {
+                baseImage.color = new Color(0.7f, 1f, 0.7f, 1f);
+            }
         }
 
         btn.onClick.AddListener(() =>
         {
             if (selectedSet.Contains(captured))
             {
+                // 強制 OnAction は選択解除不可
+                if (IsForcedOnActionSource(captured))
+                {
+                    return;
+                }
+
                 selectedSet.Remove(captured);
                 if (baseImage != null)
                 {

@@ -52,6 +52,9 @@ public sealed class EffectActivationContext
     /// <summary>ユニット戦闘ダメージで破壊されたか（OnEnemyUnitDestroyed のバトル破壊限定条件用）。</summary>
     public bool DestroyedByBattleDamage { get; }
 
+    /// <summary>効果ダメージで破壊されたか（OnEnemyUnitDestroyed の効果ダメージ破壊限定条件用）。</summary>
+    public bool DestroyedByEffectDamage { get; }
+
     /// <summary>このターン中にオーナーが〔必殺技〕コマンドのメイン／アクションを発動済みか。</summary>
     public bool OwnerActivatedSpecialMoveCommandThisTurn { get; }
 
@@ -99,6 +102,7 @@ public sealed class EffectActivationContext
         bool hasDestroyingCardOwner = false,
         BattleGameMain.PlayerType destroyingCardOwner = default,
         bool destroyedByBattleDamage = false,
+        bool destroyedByEffectDamage = false,
         bool ownerActivatedSpecialMoveCommandThisTurn = false,
         bool ownerHasDeployedBase = false,
         bool sourceAttackingEnemyUnit = false,
@@ -127,6 +131,7 @@ public sealed class EffectActivationContext
         HasDestroyingCardOwner = hasDestroyingCardOwner;
         DestroyingCardOwner = destroyingCardOwner;
         DestroyedByBattleDamage = destroyedByBattleDamage;
+        DestroyedByEffectDamage = destroyedByEffectDamage;
         OwnerActivatedSpecialMoveCommandThisTurn = ownerActivatedSpecialMoveCommandThisTurn;
         OwnerHasDeployedBase = ownerHasDeployedBase;
         SourceAttackingEnemyUnit = sourceAttackingEnemyUnit;
@@ -195,6 +200,7 @@ public sealed class EffectActivationContext
             HasDestroyingCardOwner,
             DestroyingCardOwner,
             DestroyedByBattleDamage,
+            DestroyedByEffectDamage,
             OwnerActivatedSpecialMoveCommandThisTurn,
             OwnerHasDeployedBase,
             SourceAttackingEnemyUnit,
@@ -400,7 +406,12 @@ public static class EffectActivationEvaluator
 
         if (c.checkKind == EffectActivationCheckKind.DestroyedByEffectDamage)
         {
-            return ctx.HasDestroyingCardOwner && !ctx.DestroyedByBattleDamage;
+            return ctx.DestroyedByEffectDamage;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.DestroyedByDamage)
+        {
+            return ctx.DestroyedByBattleDamage || ctx.DestroyedByEffectDamage;
         }
 
         if (c.checkKind == EffectActivationCheckKind.TrashHasCardNameContains)

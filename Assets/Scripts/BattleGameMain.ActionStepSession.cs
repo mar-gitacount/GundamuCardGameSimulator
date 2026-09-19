@@ -22,6 +22,8 @@ public partial class BattleGameMain
         public string DefenderContext = string.Empty;
         public string AttackerContext = string.Empty;
         public CardController AttackingUnit;
+        /// <summary>攻撃フロー由来のアクション時のみ。最終バトル相手（ブロッカー優先）。</summary>
+        public CardController DefendingUnit;
         public System.Action OnComplete;
         public bool PlayerEnded;
         public bool EnemyEnded;
@@ -120,7 +122,8 @@ public partial class BattleGameMain
         string defenderContext,
         string attackerContext,
         CardController attackingUnit,
-        System.Action onComplete)
+        System.Action onComplete,
+        CardController defendingUnit = null)
     {
         _actionStepSession = new ActionStepSessionState
         {
@@ -130,6 +133,7 @@ public partial class BattleGameMain
             DefenderContext = defenderContext ?? string.Empty,
             AttackerContext = attackerContext ?? string.Empty,
             AttackingUnit = attackingUnit,
+            DefendingUnit = defendingUnit,
             OnComplete = onComplete,
             CurrentActorSide = firstActorSide,
         };
@@ -271,6 +275,16 @@ public partial class BattleGameMain
 
         if (side == PlayerType.Enemy)
         {
+            if (TryExecuteEnemyForcedOnActionsIfAny(
+                    () =>
+                    {
+                        AdvanceActionStepSession(PlayerType.Enemy, ActionStepPassKind.Pass);
+                    },
+                    attackingUnit))
+            {
+                return;
+            }
+
             if (TryExecuteEnemyOnActionStep(context, () =>
                 {
                     AdvanceActionStepSession(PlayerType.Enemy, ActionStepPassKind.Pass);
@@ -285,6 +299,13 @@ public partial class BattleGameMain
 
         if (!TryOpenOnActionCommandSelection(side, context, null, attackingUnit))
         {
+            if (HasPendingForcedOnAction(side))
+            {
+                Debug.LogWarning(
+                    $"[ActionStep] UI could not open for {side} but forced OnAction pending — retry.");
+                return;
+            }
+
             Debug.LogWarning($"[ActionStep] UI could not open for {side} — treating as ActionEnd.");
             AdvanceActionStepSession(side, ActionStepPassKind.ActionEnd);
         }
@@ -292,6 +313,25 @@ public partial class BattleGameMain
 
     private void ResolveActionStepUi(PlayerType side, ActionStepPassKind passKind, GameObject popupRoot)
     {
+        if (ShouldBlockActionStepPassOrEnd(side, passKind, null)
+            && passKind == ActionStepPassKind.ActionEnd)
+        {
+            Debug.LogWarning(
+                $"[ForcedOnAction] ResolveActionStepUi blocked ActionEnd for {side} — reopen UI.");
+            if (popupRoot != null)
+            {
+                Destroy(popupRoot);
+            }
+
+            CloseActionStepPopupState();
+            if (IsActionStepSessionActive)
+            {
+                RunActionStepForSide(side);
+            }
+
+            return;
+        }
+
         if (popupRoot != null)
         {
             Destroy(popupRoot);

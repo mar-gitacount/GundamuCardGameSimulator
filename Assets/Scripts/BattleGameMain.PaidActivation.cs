@@ -317,6 +317,13 @@ public partial class BattleGameMain
             return false;
         }
 
+        // 搭乗中パイロットは手札扱いしない（同名カードが手札にあっても場起動）
+        if (card.Data.IsPilot()
+            && (card.MountedUnit != null || host.FindHostUnitMountingPilot(card) != null))
+        {
+            return false;
+        }
+
         List<CardData> hand = ownerType == PlayerType.Player
             ? host.playerHandCards
             : host.enemyHandCards;
@@ -364,6 +371,22 @@ public partial class BattleGameMain
         if (card.Data.IsCommand())
         {
             return false;
+        }
+
+        // 搭乗中パイロットの【起動・アクション】はホストが場にいれば場起動扱い（ST12-011 等）
+        if (card.Data.IsPilot())
+        {
+            CardController hostUnit = card.MountedUnit != null
+                ? card.MountedUnit
+                : FindHostUnitMountingPilot(card);
+            if (hostUnit != null
+                && hostUnit.Data != null
+                && hostUnit.Data.IsUnitLike()
+                && hostUnit.CurrentHp > 0
+                && IsCardOnBattleZone(hostUnit))
+            {
+                return true;
+            }
         }
 
         // バトルゾーン上のユニット、またはベーススロット上のベース、または手札に無い実体
@@ -486,22 +509,21 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(side, source, blockIndex))
+        if (timed.oncePerTurn)
         {
-            return false;
-        }
-
-        // ST12-011【起動・アクション】：搭乗ユニットと現在バトル中で、
-        // かつ既にダメージを受けている相手ユニットがいる場合だけ発動可能。
-        if (source?.Data?.id == 1000664)
-        {
-            CardController battlingEnemy = ResolveBattlingEnemyUnitFor(source);
-            if (battlingEnemy == null
-                || battlingEnemy.CurrentHp <= 0
-                || !battlingEnemy.IsDamagedForWhileDamagedEffects())
+            CardController onceKeyCard = source?.Data?.id == 1000664
+                ? ResolveMilliardoOncePerTurnKeyCard(source)
+                : source;
+            if (HasUsedPaidActivationThisTurn(side, onceKeyCard, blockIndex))
             {
                 return false;
             }
+        }
+
+        // ST12-011: ユニットバトル中のダメージ済み相手がいるときのみ【起動・アクション】可
+        if (source?.Data?.id == 1000664 && !CanActivateMilliardoPeacecraftOnAction(source))
+        {
+            return false;
         }
 
         if (source?.Data?.id == 1000659)
@@ -551,13 +573,22 @@ public partial class BattleGameMain
             for (int i = startIndex; i < resolved.Count; i++)
             {
                 EffectData effectData = resolved[i];
-                if (effectData == null || !EffectRequiresManualUnitSelection(effectData))
+                if (effectData == null)
                 {
                     continue;
                 }
 
                 // 「選んでもよい」効果は候補0でも発動可（シャイニングフィンガー等）
                 if (effectData.optionalPlayerConfirm)
+                {
+                    continue;
+                }
+
+                // ST12-011 は CanActivateMilliardo で可否判定済み。汎用 AttackedTargetOnly ゲートは使わない
+                bool needsTargetGate = source?.Data?.id != 1000664
+                    && (effectData.selectionMode.IsAttackedTargetOnlyMode()
+                        || EffectRequiresManualUnitSelection(effectData));
+                if (!needsTargetGate)
                 {
                     continue;
                 }
@@ -590,7 +621,10 @@ public partial class BattleGameMain
             return true;
         }
 
-        return !HasUsedPaidActivationThisTurn(side, source, blockIndex);
+        CardController onceKeyCard = source?.Data?.id == 1000664
+            ? ResolveMilliardoOncePerTurnKeyCard(source)
+            : source;
+        return !HasUsedPaidActivationThisTurn(side, onceKeyCard, blockIndex);
     }
 
     private void MarkOnActionOncePerTurnUsedIfNeeded(PlayerType side, CardController source)
@@ -601,7 +635,10 @@ public partial class BattleGameMain
             return;
         }
 
-        MarkPaidActivationUsedThisTurn(side, source, blockIndex);
+        CardController onceKeyCard = source?.Data?.id == 1000664
+            ? ResolveMilliardoOncePerTurnKeyCard(source)
+            : source;
+        MarkPaidActivationUsedThisTurn(side, onceKeyCard, blockIndex);
     }
 
     private bool CanAffordOnMainActivation(PlayerType side, CardController source, TimedEffectData timed)

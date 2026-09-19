@@ -82,7 +82,7 @@ MonoBehaviour:
     - type: 2
       value: 1
       target: 3
-      selectionMode: 0
+      selectionMode: -1
       statTarget: 0
       duration: 1
       valueMode: 0
