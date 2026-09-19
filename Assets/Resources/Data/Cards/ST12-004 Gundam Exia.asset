@@ -42,6 +42,7 @@ MonoBehaviour:
     effects: []
     activationCost: 0
     oncePerTurn: 0
+    forcedAction: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 374064caad5947b0bb2b44e5adee549a, type: 2}

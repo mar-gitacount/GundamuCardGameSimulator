@@ -42,10 +42,10 @@ MonoBehaviour:
     effects:
     - type: 48
       value: 3
-      target: 0
+      target: 1
       selectionMode: -1
       statTarget: 0
-      duration: 0
+      duration: 1
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0
@@ -59,9 +59,9 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: -1
-      targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 0
+      targetUnitFilterStat: 0
+      targetUnitStatCompareOp: 0
+      targetUnitStatCompareValue: 5
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
@@ -97,6 +97,8 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 0
+      requireTargetIsLinked: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -105,6 +107,7 @@ MonoBehaviour:
       choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
+    forcedAction: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: d9e0f1a2b3c4d5e6f708192a3b4c5d6e, type: 2}
