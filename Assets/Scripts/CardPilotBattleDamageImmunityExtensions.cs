@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -8,15 +9,17 @@ public static class CardPilotBattleDamageImmunityExtensions
 {
     /// <summary>
     /// BattleDamageImmunityFromLowApEnemy により、
-    /// 敵ユニット（AP または Lv が value 以下）からの戦闘ダメージを無効化するか。
-    /// statTarget=Level のときは CardData.level 基準の CurrentLevel を比較する。
+    /// 敵ユニット（AP または Lv が閾値以下）からの戦闘ダメージを無効化するか。
+    /// compareTargetStatToSource 時は閾値＝ダメージ受け側の実効 AP。
+    /// timed.oncePerTurn 時は canConsumeOncePerTurnBlock で消費する。
     /// </summary>
     public static bool ShouldIgnoreBattleDamageFromAttacker(
         CardController damageTarget,
         CardController damageSource,
         BattleGameMain.PlayerType damageTargetOwner,
         BattleGameMain.PlayerType damageSourceOwner,
-        bool isDamageTargetOwnerTurn)
+        bool isDamageTargetOwnerTurn,
+        Func<TimedEffectData, int, bool> canConsumeOncePerTurnBlock = null)
     {
         if (damageTarget == null
             || damageSource == null
@@ -39,7 +42,8 @@ public static class CardPilotBattleDamageImmunityExtensions
                 damageTarget,
                 damageSource,
                 ctx,
-                damageTarget.Data.cardName))
+                damageTarget.Data.cardName,
+                canConsumeOncePerTurnBlock))
         {
             return true;
         }
@@ -51,7 +55,8 @@ public static class CardPilotBattleDamageImmunityExtensions
                 pilot,
                 damageSource,
                 ctx,
-                pilot.Data.cardName))
+                pilot.Data.cardName,
+                canConsumeOncePerTurnBlock))
         {
             return true;
         }
@@ -64,7 +69,8 @@ public static class CardPilotBattleDamageImmunityExtensions
         CardController effectOwner,
         CardController damageSource,
         EffectActivationContext ctx,
-        string ownerLabel)
+        string ownerLabel,
+        Func<TimedEffectData, int, bool> canConsumeOncePerTurnBlock)
     {
         for (int ti = 0; ti < timedEffects.Count; ti++)
         {
@@ -83,20 +89,41 @@ public static class CardPilotBattleDamageImmunityExtensions
                     continue;
                 }
 
-                int threshold = effect.value > 0 ? effect.value : 3;
+                int threshold = ResolveImmunityThreshold(effect, ctx.SourceCard);
                 int attackerStat = ResolveAttackerStatForImmunity(damageSource, effect);
-                if (attackerStat <= threshold)
+                if (attackerStat > threshold)
                 {
-                    string statLabel = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
-                    Debug.Log(
-                        $"[BattleDamageImmunity] {ctx.SourceCard?.Data?.cardName} ignores {attackerStat} dmg "
-                        + $"from {damageSource.Data.cardName} (owner:{ownerLabel}, max{statLabel}:{threshold})");
-                    return true;
+                    continue;
                 }
+
+                if (timed.oncePerTurn)
+                {
+                    if (canConsumeOncePerTurnBlock == null || !canConsumeOncePerTurnBlock(timed, ti))
+                    {
+                        continue;
+                    }
+                }
+
+                string statLabel = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+                Debug.Log(
+                    $"[BattleDamageImmunity] {ctx.SourceCard?.Data?.cardName} ignores {attackerStat} dmg "
+                    + $"from {damageSource.Data.cardName} (owner:{ownerLabel}, max{statLabel}:{threshold}"
+                    + (timed.oncePerTurn ? ", oncePerTurn" : string.Empty) + ")");
+                return true;
             }
         }
 
         return false;
+    }
+
+    private static int ResolveImmunityThreshold(EffectData effect, CardController damageTarget)
+    {
+        if (effect != null && effect.compareTargetStatToSource && damageTarget != null)
+        {
+            return damageTarget.CurrentPower;
+        }
+
+        return effect != null && effect.value > 0 ? effect.value : 3;
     }
 
     private static int ResolveAttackerStatForImmunity(CardController attacker, EffectData effect)

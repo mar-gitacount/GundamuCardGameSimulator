@@ -169,7 +169,9 @@ public partial class BattleGameMain
 
         // 手動ユニット選択は ResolveSelectableEffectTargets で候補ごとに effectActivationConditions を評価する。
         // ここで効果元（コマンド等）に対して評価すると SourceUnitIsLinked 等が誤って false になる。
-        if (EffectRequiresManualUnitSelection(effect))
+        // UsePriorChainPickedTarget は選択 UI を出さないため、ここで条件（トラッシュ枚数等）を評価する。
+        if (EffectRequiresManualUnitSelection(effect)
+            && !effect.selectionMode.IsUsePriorChainPickedTargetMode())
         {
             return true;
         }

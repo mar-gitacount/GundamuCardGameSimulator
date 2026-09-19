@@ -541,6 +541,13 @@ public static class EffectActivationEvaluator
             return CompareInts(count, c.unitCountThreshold, c.unitCountCompareOp);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.CompareTrashCardCount)
+        {
+            IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+            int trashCount = trashIds != null ? trashIds.Count : 0;
+            return CompareInts(trashCount, c.unitCountThreshold, c.unitCountCompareOp);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.CompareFieldUnitTokenCount)
         {
             if (c.boardSide == EffectBoardSide.Unset)

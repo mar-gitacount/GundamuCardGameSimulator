@@ -252,7 +252,22 @@ public partial class BattleGameMain
                 damageSource,
                 damageTargetOwner,
                 damageSourceOwner,
-                isTargetOwnerTurn))
+                isTargetOwnerTurn,
+                canConsumeOncePerTurnBlock: (timed, blockIndex) =>
+                {
+                    if (timed == null || !timed.oncePerTurn)
+                    {
+                        return true;
+                    }
+
+                    if (HasUsedPaidActivationThisTurn(damageTargetOwner, damageTarget, blockIndex))
+                    {
+                        return false;
+                    }
+
+                    MarkPaidActivationUsedThisTurn(damageTargetOwner, damageTarget, blockIndex);
+                    return true;
+                }))
         {
             return;
         }

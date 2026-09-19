@@ -270,7 +270,9 @@ public enum EffectType
     /// ユニット本体／搭乗パイロットの常時パッシブ（戦闘ダメージ判定）。
     /// statTarget=AP（既定）: AP が value 以下の敵からの戦闘ダメージを無効。
     /// statTarget=Level: Lv が value 以下の敵からの戦闘ダメージを無効。
-    /// timed.activationConditions に turnCheck:OwnerTurn 等を指定する。
+    /// compareTargetStatToSource=true のとき閾値は効果源ユニットの実効 AP（「これの AP 以下」）。
+    /// timed.activationConditions に MountedPilot（セット中）等を指定する。
+    /// timed.oncePerTurn でターン1回に制限できる。
     /// </summary>
     BattleDamageImmunityFromLowApEnemy,
     /// <summary>
@@ -877,7 +879,12 @@ public enum EffectActivationCheckKind
     /// ソースユニットが現在アタック中（敵ユニット攻撃／相手プレイヤー攻撃のいずれか）。
     /// SourceAttackingEnemyUnit と SourceAttackingEnemyPlayer の OR。
     /// </summary>
-    SourceIsAttacking
+    SourceIsAttacking,
+    /// <summary>
+    /// 指定トラッシュの総枚数を unitCountThreshold と unitCountCompareOp で比較。
+    /// 例: 自分のトラッシュが 7 枚以上 → OwnerTrash + GreaterOrEqual + threshold 7（GファルコンDX 等）。
+    /// </summary>
+    CompareTrashCardCount
 }
 
 public enum EffectTurnCheckKind
@@ -930,7 +937,12 @@ public enum EffectValueMode
     /// <summary>SerializeField の value をそのまま使用（既存カード互換）。</summary>
     Fixed,
     /// <summary>value × 盤面カウント（1体あたり value）。相手ユニット数などに連動。</summary>
-    MultiplyByBoardCount
+    MultiplyByBoardCount,
+    /// <summary>
+    /// 相手プレイヤー人数（1v1 では常に 1）。
+    /// value は無視。ST14-006 等の「相手プレイヤーの人数と同じ数」用。
+    /// </summary>
+    OpponentPlayerCount
 }
 
 /// <summary>MultiplyByBoardCount 時に何を数えるか。</summary>
@@ -946,7 +958,12 @@ public enum EffectValueCountKind
     /// 効果源ユニットの AP ÷ valueCountMinUnitLevel（切り捨て）。
     /// MultiplyByBoardCount と組み合わせ、value が 1 体あたり量（例: Providence AP/4 ダメージ）。
     /// </summary>
-    SourceUnitApPerEvery
+    SourceUnitApPerEvery,
+    /// <summary>
+    /// 指定ゾーンの REST 状態の生存ユニット体数（ST14-011 シロッコ等）。
+    /// 明示指定したカードのみ参照するため、既存の AliveUnits 挙動は変えない。
+    /// </summary>
+    RestedAliveUnits
 }
 
 [Serializable]
@@ -1324,6 +1341,16 @@ public class EffectData
         "DiscardFromHand / AddToHandFromLooked: true のとき対象カードを相手に公開"
         + "（オンラインは OK まで進行停止）。")]
     public bool revealDiscardedToOpponent;
+
+    [Tooltip(
+        "AddToHandFromLooked: true のとき Feature／種類フィルタなしで見たカードすべてを候補にする"
+        + "（ST14-006 等の「その中のカード」）。")]
+    public bool allowAnyLookedCard;
+
+    [Tooltip(
+        "Rest: true のとき既に REST のユニットも選択可。"
+        + "レスト処理は失敗しても選択は記録され、後続の UsePriorChainPickedTarget に渡る（GファルコンDX FAQ）。")]
+    public bool allowAlreadyRestedTargets;
 
     [Tooltip(
         "DiscardFromHand: true のとき手札選択 UI のキャンセル（Skip）を出さない。"
@@ -2244,11 +2271,15 @@ public static class EffectDataExtensions
         }
 
         // Feature 未指定でも種類フィルタ（例: パイロットのみ）があれば通す。
+        // allowAnyLookedCard なら見たカードすべて可（ST14-006 等）。
         if (!effect.HasTargetFeatureFilter())
         {
             if (!effect.filterByTargetCardType && !effect.filterTargetAsUnitOrPilot)
             {
-                return false;
+                if (!effect.allowAnyLookedCard)
+                {
+                    return false;
+                }
             }
         }
         else if (!effect.MatchesTargetFeatureOnCard(card))
