@@ -38,7 +38,15 @@ MonoBehaviour:
   - timing: 12
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: LookTop4_SelfDeck
+    effectsName: DestroyAllyUnit1_ThenLookTop4
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnLook_OptionalDeployUnitLv4OrLess_ThenShuffleRemainderBottom
     effects: []
     activationCost: 0
     oncePerTurn: 0

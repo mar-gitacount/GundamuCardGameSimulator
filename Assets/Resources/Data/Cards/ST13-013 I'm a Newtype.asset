@@ -31,14 +31,23 @@ MonoBehaviour:
   sourceTitle: 8
   filterType: 0
   color: 1
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Qubeley_ChooseDeploy1Or2BitFunnelTokens
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 947167923db749bea750d3d559a64ec7, type: 2}
   - {fileID: 11400000, guid: f708192a3b4c5d6e7f8012a3b4c5d6e7, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: bdb320854b8742ce91eb11c1cf6666e3, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
