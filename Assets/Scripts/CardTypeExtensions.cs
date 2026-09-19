@@ -66,12 +66,18 @@ public static class CardTypeExtensions
     /// <summary>
     /// 効果の targetCardType 絞り込み。
     /// Pilot / Command 指定時は兼用の CommandPilot も含める。
+    /// Unit 指定時は UnitToken も含める（「ユニットカード」表記）。
     /// </summary>
     public static bool MatchesTypeFilter(Type required, Type actual)
     {
         if (required == actual)
         {
             return true;
+        }
+
+        if (required == Type.Unit)
+        {
+            return IsUnitLike(actual);
         }
 
         if (required == Type.Pilot)

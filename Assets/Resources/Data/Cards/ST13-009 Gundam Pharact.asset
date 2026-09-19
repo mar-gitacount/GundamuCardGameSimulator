@@ -38,12 +38,12 @@ MonoBehaviour:
   - timing: 3
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: OnAttack_OpponentExile2UnitsFromTrash_Mandatory
     effects:
     - type: 21
       value: 2
       target: 6
-      selectionMode: 1
+      selectionMode: -1
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -68,7 +68,7 @@ MonoBehaviour:
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
-      filterByTargetCardType: 0
+      filterByTargetCardType: 1
       targetCardType: 0
       deployUnitSource: 0
       deployCardId: 0
@@ -91,7 +91,7 @@ MonoBehaviour:
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
       trashRelaxFilterMinCopies: 2
-      requireExactExileCount: 0
+      requireExactExileCount: 1
       targetCardNameContains: 
       targetCardNameExcludes: 
       targetPilotId: 0
@@ -99,7 +99,7 @@ MonoBehaviour:
       requireTargetHasNoPilot: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
-      opponentChoosesTarget: 0
+      opponentChoosesTarget: 1
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 

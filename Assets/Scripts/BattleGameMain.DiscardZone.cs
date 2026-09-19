@@ -319,7 +319,7 @@ public partial class BattleGameMain
     {
         if (effect == null)
         {
-            return "card";
+            return GameLocale.T("カード", "card");
         }
 
         string featureLabel = FormatExileTargetFeaturesEnglishLabel(effect);
@@ -330,10 +330,15 @@ public partial class BattleGameMain
 
         if (effect.filterByTargetCardType)
         {
+            if (effect.targetCardType == Type.Unit)
+            {
+                return GameLocale.T("ユニット", "Unit");
+            }
+
             return effect.targetCardType.ToString();
         }
 
-        return "card";
+        return GameLocale.T("カード", "card");
     }
 
     private static string FormatExileTargetFeaturesEnglishLabel(EffectData effect)
@@ -468,6 +473,10 @@ public partial class BattleGameMain
         PlayerType trashOwner = effect != null && effect.target == TargetType.EnemyPlayer
             ? (ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
             : ownerType;
+        // opponentChoosesTarget: トラッシュ所有者自身が選ぶ（ファラクト等）
+        PlayerType chooserSide = effect != null && effect.opponentChoosesTarget
+            ? trashOwner
+            : ownerType;
         string trashLabel = FormatTrashOwnerLabel(trashOwner);
         List<TrashExileCandidate> candidates = CollectTrashExileCandidates(trashRule, effect);
         if (candidates.Count == 0)
@@ -488,7 +497,7 @@ public partial class BattleGameMain
         }
 
         int pickCount = Mathf.Min(magnitude, candidates.Count);
-        if (ownerType == PlayerType.Enemy)
+        if (!ShouldShowExileFromTrashSelectionUi(chooserSide))
         {
             ApplyExileFromTrashAuto(trashRule, candidates, pickCount, trashLabel, sourceCard, trashOwner);
             onComplete?.Invoke();
@@ -505,6 +514,28 @@ public partial class BattleGameMain
             pickCount,
             onComplete,
             onSkipped));
+    }
+
+    /// <summary>
+    /// トラッシュ除外の選択 UI をローカル表示するか。
+    /// ファラクト等の【アタック時】はアクション前に止める必要があるため、
+    /// TestPlay／オフラインでは chooser に関わらず UI を出す（相手選択もローカルが代行）。
+    /// オンラインはローカル側（Player）が選ぶときだけ表示する。
+    /// </summary>
+    private bool ShouldShowExileFromTrashSelectionUi(PlayerType chooserSide)
+    {
+        if (_applyingRemoteBattleAction)
+        {
+            return false;
+        }
+
+        // TestPlay・オフライン AI: 攻撃フローを止めてアクション前に解決する
+        if (IsTestPlayBattle() || !IsOnlineBattle())
+        {
+            return true;
+        }
+
+        return chooserSide == PlayerType.Player;
     }
 
     private IEnumerator ShowExileFromTrashSelectionCoroutine(
@@ -532,6 +563,7 @@ public partial class BattleGameMain
         }
 
         string filterLabel = FormatExileFromTrashFilterLabel(effect);
+        bool forbidSkip = effect != null && effect.opponentChoosesTarget;
         DestroyActiveOnActionPopupIfAny();
         GameObject root = new GameObject(
             "ExileFromTrashSelect",
@@ -548,16 +580,33 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         TextMeshProUGUI title = root.CreateChildTextCustom("ExileTrashTitle", UIAnchor.TopCenter, 760, 48);
-        title.text = "Select cards to Exile";
+        title.text = GameLocale.T("トラッシュから除外", "Exile from Trash");
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -18f);
 
         TextMeshProUGUI subtitle = root.CreateChildTextCustom("ExileTrashSubtitle", UIAnchor.TopCenter, 760, 36);
-        subtitle.text = pickCount <= 1
-            ? $"Choose 1 {filterLabel} from {trashLabel} trash to Exile"
-            : $"Choose {pickCount} {filterLabel} cards from {trashLabel} trash to Exile";
+        if (forbidSkip)
+        {
+            subtitle.text = pickCount <= 1
+                ? GameLocale.T(
+                    $"自分のトラッシュから{filterLabel}を1枚選び、ゲームから除外してください（スキップ不可）",
+                    $"Choose 1 {filterLabel} from your trash to Exile (cannot skip)")
+                : GameLocale.T(
+                    $"自分のトラッシュから{filterLabel}を{pickCount}枚選び、ゲームから除外してください（スキップ不可）",
+                    $"Choose {pickCount} {filterLabel} cards from your trash to Exile (cannot skip)");
+        }
+        else
+        {
+            subtitle.text = pickCount <= 1
+                ? GameLocale.T(
+                    $"{trashLabel}のトラッシュから{filterLabel}を1枚選んで除外",
+                    $"Choose 1 {filterLabel} from {trashLabel} trash to Exile")
+                : GameLocale.T(
+                    $"{trashLabel}のトラッシュから{filterLabel}を{pickCount}枚選んで除外",
+                    $"Choose {pickCount} {filterLabel} cards from {trashLabel} trash to Exile");
+        }
         subtitle.fontSize = 17;
         subtitle.color = new Color(0.85f, 0.92f, 1f, 1f);
         subtitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -56f);
@@ -643,26 +692,29 @@ public partial class BattleGameMain
             }
         }
 
-        Button cancelBtn = root.CreateChildButton("Cancel");
-        RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
-        cancelRt.sizeDelta = new Vector2(180f, 50f);
-        cancelRt.anchorMin = new Vector2(0.5f, 0f);
-        cancelRt.anchorMax = new Vector2(0.5f, 0f);
-        cancelRt.pivot = new Vector2(0.5f, 0f);
-        cancelRt.anchoredPosition = new Vector2(-110f, 36f);
-        TextMeshProUGUI cancelLabel = cancelBtn.GetComponentInChildren<TextMeshProUGUI>();
-        if (cancelLabel != null)
+        if (!forbidSkip)
         {
-            cancelLabel.text = "Cancel";
-        }
+            Button cancelBtn = root.CreateChildButton("Cancel");
+            RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
+            cancelRt.sizeDelta = new Vector2(180f, 50f);
+            cancelRt.anchorMin = new Vector2(0.5f, 0f);
+            cancelRt.anchorMax = new Vector2(0.5f, 0f);
+            cancelRt.pivot = new Vector2(0.5f, 0f);
+            cancelRt.anchoredPosition = new Vector2(-110f, 36f);
+            TextMeshProUGUI cancelLabel = cancelBtn.GetComponentInChildren<TextMeshProUGUI>();
+            if (cancelLabel != null)
+            {
+                cancelLabel.text = GameLocale.T("キャンセル", "Cancel");
+            }
 
-        cancelBtn.onClick.AddListener(() =>
-        {
-            dismissed = true;
-            confirmed = false;
-            ClearOnMainPaidBlock();
-            ClosePopup();
-        });
+            cancelBtn.onClick.AddListener(() =>
+            {
+                dismissed = true;
+                confirmed = false;
+                ClearOnMainPaidBlock();
+                ClosePopup();
+            });
+        }
 
         okBtn = root.CreateChildButton("OK");
         RectTransform okRt = okBtn.GetComponent<RectTransform>();
@@ -670,7 +722,7 @@ public partial class BattleGameMain
         okRt.anchorMin = new Vector2(0.5f, 0f);
         okRt.anchorMax = new Vector2(0.5f, 0f);
         okRt.pivot = new Vector2(0.5f, 0f);
-        okRt.anchoredPosition = new Vector2(110f, 36f);
+        okRt.anchoredPosition = forbidSkip ? new Vector2(0f, 36f) : new Vector2(110f, 36f);
         okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (okLabel != null)
         {
