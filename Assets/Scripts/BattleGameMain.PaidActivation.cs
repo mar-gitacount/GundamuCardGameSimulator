@@ -90,7 +90,7 @@ public partial class BattleGameMain
     }
 
     /// <summary>
-    /// 起動・メインの先頭にある「自身以外の味方1体を選んで破壊」を発動条件として扱う。
+    /// 起動・メインの先頭にある「味方（他ユニット／トークン）を選んで破壊」を発動コストとして扱う。
     /// 対象を選ぶ前にターン1回を消費せず、実際に選択して破壊する直前に確定する。
     /// </summary>
     private static bool IsDeferredOnMainDestroyCost(TimedEffectData timed)
@@ -102,10 +102,15 @@ public partial class BattleGameMain
         }
 
         EffectData first = effects[0];
-        return first != null
-            && first.type == EffectType.Destroy
-            && first.target == TargetType.AllyOtherUnit
-            && first.selectionMode.RequiresManualUnitPick();
+        if (first == null
+            || first.type != EffectType.Destroy
+            || !first.selectionMode.RequiresManualUnitPick())
+        {
+            return false;
+        }
+
+        return first.target == TargetType.AllyOtherUnit
+            || first.target == TargetType.TokenUnit;
     }
 
     /// <summary>

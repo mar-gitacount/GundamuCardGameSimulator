@@ -864,7 +864,12 @@ public enum EffectActivationCheckKind
     /// <summary>
     /// 戦闘ダメージまたは効果ダメージで敵ユニットを破壊したとき（Destroy 効果による非ダメージ破壊は含まない）。
     /// </summary>
-    DestroyedByDamage
+    DestroyedByDamage,
+    /// <summary>
+    /// ソースユニットが現在アタック中（敵ユニット攻撃／相手プレイヤー攻撃のいずれか）。
+    /// SourceAttackingEnemyUnit と SourceAttackingEnemyPlayer の OR。
+    /// </summary>
+    SourceIsAttacking
 }
 
 public enum EffectTurnCheckKind
