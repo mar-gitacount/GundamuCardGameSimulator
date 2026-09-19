@@ -4611,6 +4611,13 @@ public partial class BattleGameMain : MonoBehaviour
                 destroyedUnitWasLinked,
                 () =>
             {
+                TriggerWhileAttackingEffectDamageDestroyWatch(
+                    cardController,
+                    ownerType,
+                    destroyedByEffectDamage,
+                    destroyedBy,
+                    () =>
+                {
                 NotifyDeployedBaseOnAllyEnemyUnitDestroyed(
                     cardController,
                     ownerType,
@@ -4638,6 +4645,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     CompleteSendCardToTrashPipeline(cardController, ownerType);
                 }
+                });
                 });
             });
         }
@@ -12337,7 +12345,8 @@ public partial class BattleGameMain : MonoBehaviour
             destroyedByBattleDamage: destroyedByBattleDamage,
             destroyedByEffectDamage: destroyedByEffectDamage,
             sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(killer, allowDestroyedDefender: true),
-            destroyedUnitWasLinked: destroyedUnitWasLinked);
+            destroyedUnitWasLinked: destroyedUnitWasLinked,
+            sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(killer));
         List<TimedEffectData> unitBlocks = new List<TimedEffectData>();
         List<TimedEffectData> pilotBlocks = new List<TimedEffectData>();
         AppendOnEnemyUnitDestroyedBlocks(killer, activationContext, unitBlocks);
@@ -18640,8 +18649,20 @@ public partial class BattleGameMain : MonoBehaviour
                 + $"(card:{attackingUnitInAttackFlow.Data.cardName})");
         }
 
-        // 手動選択効果の後続（例: Bounce → Draw）を同じ OnAction チェーンで解決する
-        ApplyRemainingOnActionEffectsAfterManualTarget(command, side, effect);
+        // 手動選択効果の後続（例: Rest 味方 → Damage 敵 / Bounce → Draw）を同じ OnAction チェーンで解決する
+        if (TryContinueOnActionManualEffectsAfterApply(
+                command,
+                side,
+                effect,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                paymentAndOnceAlreadyConsumed: true))
+        {
+            // 次の手動選択 UI を開いたので、ここでは Finish しない
+            yield break;
+        }
 
         // OK 後: 保留していた破壊時 Look／手札回収を実行し、完了まで待機
         EndOnDestroyedLatencyHold();
@@ -18668,9 +18689,33 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType side,
         EffectData appliedManualEffect)
     {
+        TryContinueOnActionManualEffectsAfterApply(
+            command,
+            side,
+            appliedManualEffect,
+            onDone: null,
+            attackingUnitInAttackFlow: null,
+            commandQueueIndex: -1,
+            commandQueueCount: -1,
+            paymentAndOnceAlreadyConsumed: false);
+    }
+
+    /// <summary>
+    /// 手動選択効果の後続を解決する。次が手動ユニット選択なら UI を開き true を返す（呼び出し側は Finish しない）。
+    /// </summary>
+    private bool TryContinueOnActionManualEffectsAfterApply(
+        CardController command,
+        PlayerType side,
+        EffectData appliedManualEffect,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        bool paymentAndOnceAlreadyConsumed)
+    {
         if (command?.Data == null || appliedManualEffect == null)
         {
-            return;
+            return false;
         }
 
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
@@ -18700,13 +18745,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (startIndex < 0)
         {
-            return;
+            return false;
         }
 
         // 「そうしたなら」：Bounce が1体も戻せていなければ後続（Draw 等）を打ち切る
         if (ShouldAbortRemainingChainAfterManualUnitEffect(appliedManualEffect))
         {
-            return;
+            return false;
         }
 
         for (int i = startIndex; i < onActionEffects.Count; i++)
@@ -18717,16 +18762,163 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (EffectRequiresManualUnitSelection(next) || EffectRequiresManualHandSelection(next))
+            if (EffectRequiresManualHandSelection(next))
             {
                 Debug.LogWarning(
-                    $"[OnAction] Remaining chain stopped at further manual effect ({next.type}) "
+                    $"[OnAction] Remaining chain stopped at further manual hand effect ({next.type}) "
                     + $"cardId:{command.Data.id}");
-                break;
+                return false;
+            }
+
+            if (EffectRequiresManualUnitSelection(next))
+            {
+                if (!paymentAndOnceAlreadyConsumed || onDone == null)
+                {
+                    Debug.LogWarning(
+                        $"[OnAction] Remaining chain stopped at further manual effect ({next.type}) "
+                        + $"cardId:{command.Data.id}");
+                    return false;
+                }
+
+                Debug.Log(
+                    $"[OnAction] Continuing manual chain → {next.type} target:{next.target} "
+                    + $"cardId:{command.Data.id}");
+                OpenOnActionFollowUpUnitTargetSelection(
+                    side,
+                    command,
+                    next,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+                return true;
             }
 
             ApplyEffect(command, side, next);
         }
+
+        return false;
+    }
+
+    /// <summary>
+    /// OnAction チェーン内の 2 回目以降のユニット選択（Rest コスト後の Damage 等）。
+    /// リソース消費・ターン1回マークは初回で済んでいる前提。
+    /// </summary>
+    private void OpenOnActionFollowUpUnitTargetSelection(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount)
+    {
+        List<CardController> candidates = ResolveSelectableEffectTargets(command, side, effect);
+        if (candidates.Count == 0)
+        {
+            Debug.Log($"OnAction follow-up: 選択可能な対象ユニットがいません ({effect?.FormatEffectSelectionSummary()}).");
+            EndOnDestroyedLatencyHold();
+            FinalizeOnActionSourceCard(command, side);
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            return;
+        }
+
+        bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
+        string title = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
+        string effectSummary = effect != null ? effect.FormatEffectSelectionSummary() : string.Empty;
+        CardController blockRedirectUnit = isAttackContext
+            && attackFlowBlockRedirectEngaged
+            && IsCardControllerInstanceValid(attackFlowBlockRedirectUnit)
+            ? attackFlowBlockRedirectUnit
+            : null;
+
+        OpenCommandWithTargetsSelectionUI(
+            title,
+            effectSummary,
+            command,
+            candidates,
+            attackingUnitInAttackFlow,
+            picked =>
+            {
+                if (picked == null)
+                {
+                    EndOnDestroyedLatencyHold();
+                    FinalizeOnActionSourceCard(command, side);
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+                    return;
+                }
+
+                StartCoroutine(CoApplyOnActionFollowUpUnitTarget(
+                    side,
+                    command,
+                    effect,
+                    picked,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount,
+                    onDone));
+            },
+            () =>
+            {
+                EndOnDestroyedLatencyHold();
+                FinalizeOnActionSourceCard(command, side);
+                FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            },
+            blockRedirectUnit);
+    }
+
+    private IEnumerator CoApplyOnActionFollowUpUnitTarget(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        CardController picked,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (picked == null || command == null || effect == null)
+        {
+            EndOnDestroyedLatencyHold();
+            FinalizeOnActionSourceCard(command, side);
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            yield break;
+        }
+
+        List<CardController> pickedTargets = new List<CardController> { picked };
+        List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(pickedTargets);
+
+        if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
+        {
+            InvokePlayerManualUnitSelectionCallback(() =>
+                ApplyEffectToSpecificTargets(command, side, effect, pickedTargets));
+        }
+        else
+        {
+            ApplyEffectToSpecificTargets(command, side, effect, pickedTargets);
+        }
+
+        if (TryContinueOnActionManualEffectsAfterApply(
+                command,
+                side,
+                effect,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                paymentAndOnceAlreadyConsumed: true))
+        {
+            yield break;
+        }
+
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+
+        LogOnActionCommandAppliedToUnitsBattleOutcome(
+            command, side, effect, "OnAction_AfterApplyFollowUpUnitTarget", beforeSnapsPick);
+        FinalizeOnActionSourceCard(command, side);
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
 
     private static string FormatOnActionPickedTargetsSummary(List<CardController> pickedTargets)
@@ -19340,6 +19532,8 @@ public partial class BattleGameMain : MonoBehaviour
             || targetType == TargetType.RestEnemyUnit
             || targetType == TargetType.AllyUnit
             || targetType == TargetType.AllyOtherUnit
+            || targetType == TargetType.TokenUnit
+            || targetType == TargetType.EnemyTokenUnit
             || targetType == TargetType.AnyUnit;
     }
 
@@ -19690,6 +19884,20 @@ public partial class BattleGameMain : MonoBehaviour
                 : GameLocale.T(
                     "味方ユニット1体を選択（自身以外）",
                     "Choose 1 ally Unit (not self)");
+        }
+
+        if (effect.target == TargetType.TokenUnit)
+        {
+            if (effect.type == EffectType.Destroy)
+            {
+                return GameLocale.T(
+                    "破壊する味方ユニットトークンを選択",
+                    "Choose an allied Unit Token to destroy");
+            }
+
+            return GameLocale.T(
+                "味方ユニットトークンを選択",
+                "Choose an allied Unit Token");
         }
 
         if (effect.target == TargetType.AnyUnit)

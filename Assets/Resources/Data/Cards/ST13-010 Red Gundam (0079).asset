@@ -38,11 +38,11 @@ MonoBehaviour:
   - timing: 12
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: OnMain_DestroyAllyToken_GrantBreach3_Self_UntilEOT
     effects:
     - type: 18
       value: 1
-      target: 2
+      target: 9
       selectionMode: 1
       statTarget: 0
       duration: 0
@@ -108,7 +108,7 @@ MonoBehaviour:
       target: 0
       selectionMode: -1
       statTarget: 0
-      duration: 0
+      duration: 1
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0

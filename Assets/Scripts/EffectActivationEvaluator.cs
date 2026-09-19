@@ -464,6 +464,12 @@ public static class EffectActivationEvaluator
             return ctx != null && ctx.SourceAttackingEnemyPlayer;
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceIsAttacking)
+        {
+            return ctx != null
+                && (ctx.SourceAttackingEnemyUnit || ctx.SourceAttackingEnemyPlayer);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.BattlingEnemyUnitStat)
         {
             return EvaluateBattlingEnemyUnitStat(c, ctx);

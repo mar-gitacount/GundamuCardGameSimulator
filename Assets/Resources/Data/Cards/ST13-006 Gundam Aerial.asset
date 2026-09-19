@@ -57,13 +57,33 @@ MonoBehaviour:
       observedCardType: 0
       destroyedByOwnerRelation: 0
       cardNameContains: 
+    - boardSide: -1
+      checkKind: 33
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: Mounted_OnAttack_Player_Damage2_EnemyUnit
     effects:
     - type: 0
       value: 2
-      target: 6
-      selectionMode: -1
+      target: 2
+      selectionMode: 1
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -129,11 +149,11 @@ MonoBehaviour:
   - timing: 8
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: OnAction_RestAlly_Damage1_EnemyLv4OrLess
     effects:
-    - type: 0
+    - type: 10
       value: 1
-      target: 2
+      target: 1
       selectionMode: 1
       statTarget: 0
       duration: 0
@@ -150,9 +170,9 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 3
+      targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 4
+      targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
@@ -194,7 +214,7 @@ MonoBehaviour:
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    - type: 10
+    - type: 0
       value: 1
       target: 2
       selectionMode: 1
