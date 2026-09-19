@@ -57,6 +57,7 @@ public partial class BattleGameMain
         hasDestroyingCardOwner: true,
         destroyingCardOwner: killerOwner,
         destroyedByBattleDamage: destroyedByBattleDamage,
+        destroyedByEffectDamage: false,
         sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(killer, allowDestroyedDefender: true));
 
     List<TimedEffectData> blocks = new List<TimedEffectData>();

@@ -554,6 +554,17 @@ public partial class BattleGameMain : MonoBehaviour
         attackFlowAttackerOwner = attackerOwner;
         attackFlowDeclaredDefenderUnit = declaredDefenderOrNull;
         attackFlowBlockRedirectUnit = null;
+        if (attacker != null)
+        {
+            pendingUnitAttackAttacker = attacker;
+            AssignBattleInstanceIdIfNeeded(attacker);
+        }
+
+        if (declaredDefenderOrNull != null)
+        {
+            AssignBattleInstanceIdIfNeeded(declaredDefenderOrNull);
+        }
+
         pendingOnAttackEffectResolvedAttacker = attacker;
 
         if (attackFlowPostBlockPassOnActionDone)
@@ -598,7 +609,12 @@ public partial class BattleGameMain : MonoBehaviour
         };
 
         attackFlowPostBlockPassInProgress = true;
-        TryRunAttackActionSteps(defenderSideForOnAction, attackerOwner, finishOnAction, attacker);
+        TryRunAttackActionSteps(
+            defenderSideForOnAction,
+            attackerOwner,
+            finishOnAction,
+            attacker,
+            declaredDefenderOrNull);
 
         // オフラインは同期的に onComplete が返るが、オンラインは P2P 待ちのため
         // isOnActionPopupOpen だけでは完了判定できない（待機オーバーレイのみの段階がある）。
@@ -737,6 +753,22 @@ public partial class BattleGameMain : MonoBehaviour
         attackFlowAttackerOwner = attackerOwner;
         attackFlowDeclaredDefenderUnit = declaredDefenderOrNull;
         attackFlowBlockRedirectUnit = blockRedirectUnitOrNull;
+        if (attacker != null)
+        {
+            pendingUnitAttackAttacker = attacker;
+            AssignBattleInstanceIdIfNeeded(attacker);
+        }
+
+        if (declaredDefenderOrNull != null)
+        {
+            AssignBattleInstanceIdIfNeeded(declaredDefenderOrNull);
+        }
+
+        if (blockRedirectUnitOrNull != null)
+        {
+            AssignBattleInstanceIdIfNeeded(blockRedirectUnitOrNull);
+        }
+
         attackFlowDefenderShieldCountAtStrike = -1;
         if (strike == AttackFlowStrikeKind.Shield && gundamRule != null)
         {
@@ -3121,30 +3153,8 @@ public partial class BattleGameMain : MonoBehaviour
 
     private List<CardController> CollectEligibleEnemyHandCommandsForEnemyAiSim()
     {
-        List<CardController> list = new List<CardController>();
-        RectTransform hand = enemyCardGameRule != null ? enemyCardGameRule.HandScrollContent : null;
-        if (hand == null)
-        {
-            return list;
-        }
-
-        for (int i = 0; i < hand.childCount; i++)
-        {
-            CardController cc = hand.GetChild(i).GetComponent<CardController>();
-            if (cc == null || cc.Data == null || !cc.Data.IsCommand())
-            {
-                continue;
-            }
-
-            if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc))
-            {
-                continue;
-            }
-
-            list.Add(cc);
-        }
-
-        return list;
+        // 手札コマンドに加え、場のユニット／搭乗パイロットの【起動・アクション】も含める
+        return CollectOnActionSelectableSources(PlayerType.Enemy);
     }
 
     private void ApplyEnemyOnActionVirtualChainToBattleSnaps(
@@ -7610,9 +7620,9 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        // 攻撃対象限定かつ手動選択不要タイプのみ例外（攻撃フロー専用）
-        if (effect.selectionMode == EffectSelectionMode.AttackedTargetOnly
-            && !effect.type.RequiresManualUnitSelection())
+        // 攻撃対象限定は戦闘中の相手が自動確定するため選択 UI 不要
+        // （selectionMode が明示的に AttackedTargetOnly のカードのみ。ST12-011 は専用経路）
+        if (effect.selectionMode.IsAttackedTargetOnlyMode())
         {
             return false;
         }
@@ -9441,7 +9451,8 @@ public partial class BattleGameMain : MonoBehaviour
                         attackFlowAttackerOwner,
                         ResolveCardOwner(combatDefender.transform));
                 },
-                attacker))
+                attacker,
+                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender))
         {
             return;
         }
@@ -9544,7 +9555,8 @@ public partial class BattleGameMain : MonoBehaviour
                 blockerOwner,
                 attackerOwner,
                 resumeCombatAfterOnAction,
-                attacker))
+                attacker,
+                blocker))
             {
                 return;
             }
@@ -11217,13 +11229,101 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>source から見た現在バトルの相手ユニット（ブロック後の最終対戦相手）。</summary>
-    private CardController ResolveBattlingEnemyUnitFor(CardController source)
+    /// <summary>
+    /// 効果ソースのバトルホスト。パイロットなら搭乗ユニット（MountedUnit 欠落時は盤面から逆引き）。
+    /// </summary>
+    private CardController ResolveEffectSourceBattleHost(CardController source)
     {
-        if (source == null || attackFlowAttackerUnit == null)
+        if (source == null || source.Data == null)
         {
             return null;
         }
 
+        if (source.Data.IsUnitLike())
+        {
+            return source;
+        }
+
+        if (!source.Data.IsPilot())
+        {
+            return source;
+        }
+
+        if (source.MountedUnit != null
+            && source.MountedUnit.Data != null
+            && source.MountedUnit.Data.IsUnitLike())
+        {
+            return source.MountedUnit;
+        }
+
+        return FindHostUnitMountingPilot(source);
+    }
+
+    /// <summary>盤面から「このパイロットを乗せているユニット」を探す。</summary>
+    private CardController FindHostUnitMountingPilot(CardController pilot)
+    {
+        if (pilot == null)
+        {
+            return null;
+        }
+
+        CardController fromPlayer = FindHostUnitMountingPilotInZone(playerBattleZoneCards, pilot);
+        if (fromPlayer != null)
+        {
+            return fromPlayer;
+        }
+
+        return FindHostUnitMountingPilotInZone(enemyBattleZoneCards, pilot);
+    }
+
+    private static CardController FindHostUnitMountingPilotInZone(
+        List<CardController> zone,
+        CardController pilot)
+    {
+        if (zone == null || pilot == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (unit.MountedPilot == null)
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(unit.MountedPilot, pilot)
+                || (pilot.BattleInstanceId > 0
+                    && unit.MountedPilot.BattleInstanceId == pilot.BattleInstanceId))
+            {
+                return unit;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// ソース（ユニットまたは搭乗パイロット）と現在バトル中の相手ユニット。
+    /// 自分攻撃・相手攻撃のどちらでも、ホストが攻撃者／現防衛者なら相手を返す。
+    /// </summary>
+    private CardController ResolveBattlingEnemyUnitFor(CardController source)
+    {
+        CardController attacker = attackFlowAttackerUnit != null
+            ? attackFlowAttackerUnit
+            : pendingUnitAttackAttacker;
+        if (source == null || attacker == null)
+        {
+            return null;
+        }
+
+        // ブロック確定後はブロッカーが「バトル中」の相手。未ブロックなら宣言された防衛ユニット。
         CardController defender = attackFlowBlockRedirectUnit != null
             ? attackFlowBlockRedirectUnit
             : attackFlowDeclaredDefenderUnit;
@@ -11232,20 +11332,20 @@ public partial class BattleGameMain : MonoBehaviour
             return null;
         }
 
-        CardController host = source;
-        if (source.Data != null && source.Data.IsPilot() && source.MountedUnit != null)
+        CardController host = ResolveEffectSourceBattleHost(source);
+        if (host == null || host.CurrentHp <= 0)
         {
-            host = source.MountedUnit;
+            return null;
         }
 
-        if (IsSameBattleUnit(host, attackFlowAttackerUnit))
+        if (IsSameBattleUnit(host, attacker))
         {
             return defender;
         }
 
         if (IsSameBattleUnit(host, defender))
         {
-            return attackFlowAttackerUnit;
+            return attacker;
         }
 
         return null;
@@ -12235,6 +12335,7 @@ public partial class BattleGameMain : MonoBehaviour
             hasDestroyingCardOwner: true,
             destroyingCardOwner: killerOwner,
             destroyedByBattleDamage: destroyedByBattleDamage,
+            destroyedByEffectDamage: destroyedByEffectDamage,
             sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(killer, allowDestroyedDefender: true),
             destroyedUnitWasLinked: destroyedUnitWasLinked);
         List<TimedEffectData> unitBlocks = new List<TimedEffectData>();
@@ -14619,19 +14720,15 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> enemies = ownerType == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
         List<CardController> result = new List<CardController>();
 
-        if (effect.selectionMode.IsAttackedTargetOnlyMode())
+        // ST12-011 専用（他カードの selectionMode には一切干渉しない）
+        if (IsMilliardoPeacecraftCard(sourceCard) && effect.type == EffectType.Damage)
         {
-            CardController battlingEnemy = ResolveBattlingEnemyUnitFor(sourceCard);
-            bool requiresDamagedBattlingEnemy = sourceCard?.Data?.id == 1000664;
-            if (battlingEnemy != null
-                && battlingEnemy.CurrentHp > 0
-                && (!requiresDamagedBattlingEnemy || battlingEnemy.IsDamagedForWhileDamagedEffects()))
+            CardController milliardoTarget = ResolveMilliardoForcedDamageTarget(sourceCard);
+            if (milliardoTarget != null && milliardoTarget.CurrentHp > 0)
             {
-                result.Add(battlingEnemy);
+                result.Add(milliardoTarget);
             }
 
-            FilterTargetsByUnitCondition(result, effect, sourceCard);
-            FilterSelectableEffectTargets(result, effect);
             return result;
         }
 
@@ -15214,26 +15311,48 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
-    /// 攻撃フロー後半：ブロック応答後の OnAction。防御側（非ターンプレイヤー）→攻撃側→交互。
+    /// 攻撃フロー後半：ブロック応答後の OnAction（防御側→攻撃側）。
+    /// 【起動・アクション】はアクション一覧から条件付きで選択する。
     /// </summary>
     private bool TryRunAttackOnActionPhasesAfterBlock(
         PlayerType defenderSide,
         PlayerType attackerSide,
         System.Action onComplete,
-        CardController attackingUnitInAttackFlow = null)
+        CardController attackingUnitInAttackFlow = null,
+        CardController defendingUnitInAttackFlow = null)
     {
-        if (IsTestPlayBattle())
-        {
-            onComplete?.Invoke();
-            return true;
-        }
-
         string defenderContext = defenderSide == PlayerType.Player
             ? "attack:player-action"
             : "attack:enemy-action";
         string attackerContext = attackerSide == PlayerType.Player
             ? "attack:player-action"
             : "attack:enemy-action";
+
+        CardController defendingUnitForSession = defendingUnitInAttackFlow;
+        if (defendingUnitForSession == null || defendingUnitForSession.CurrentHp <= 0)
+        {
+            defendingUnitForSession = attackFlowBlockRedirectUnit != null
+                ? attackFlowBlockRedirectUnit
+                : attackFlowDeclaredDefenderUnit;
+        }
+
+        if (attackingUnitInAttackFlow != null)
+        {
+            attackFlowAttackerUnit = attackingUnitInAttackFlow;
+            pendingUnitAttackAttacker = attackingUnitInAttackFlow;
+            AssignBattleInstanceIdIfNeeded(attackingUnitInAttackFlow);
+        }
+
+        if (defendingUnitForSession != null)
+        {
+            if (attackFlowBlockRedirectUnit == null
+                || !IsSameBattleUnit(attackFlowBlockRedirectUnit, defendingUnitForSession))
+            {
+                attackFlowDeclaredDefenderUnit = defendingUnitForSession;
+            }
+
+            AssignBattleInstanceIdIfNeeded(defendingUnitForSession);
+        }
 
         BeginActionStepSession(
             attackerSide,
@@ -15242,7 +15361,8 @@ public partial class BattleGameMain : MonoBehaviour
             defenderContext,
             attackerContext,
             attackingUnitInAttackFlow,
-            onComplete);
+            onComplete,
+            defendingUnitForSession);
         return true;
     }
 
@@ -15250,7 +15370,8 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType defenderSide,
         PlayerType attackerSide,
         System.Action onComplete,
-        CardController attackingUnitInAttackFlow = null)
+        CardController attackingUnitInAttackFlow = null,
+        CardController defendingUnitInAttackFlow = null)
     {
         if (enableShieldAttackFlowDebugLog)
         {
@@ -15263,7 +15384,8 @@ public partial class BattleGameMain : MonoBehaviour
             defenderSide,
             attackerSide,
             onComplete,
-            attackingUnitInAttackFlow);
+            attackingUnitInAttackFlow,
+            defendingUnitInAttackFlow);
     }
 
     /// <summary>プレイヤー盤面ユニットの仮想 HP/AP（本番の CardController は変更しない）。</summary>
@@ -17373,18 +17495,15 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     // アクションステップ時に利用できるコマンドカードを一覧にUI表示するメソッド
-    private bool TryOpenOnActionCommandSelection(
-        PlayerType side,
-        string context,
-        System.Action onStepDone,
-        CardController attackingUnitInAttackFlow = null)
+    /// <summary>
+    /// アクションステップで発動可能なソースを収集する。
+    /// 場のユニット／搭乗パイロット／配備ベース／手札コマンドを含む。
+    /// </summary>
+    private List<CardController> CollectOnActionSelectableSources(PlayerType side)
     {
-        if (CardImagePrefab == null)
-        {
-            return false;
-        }
+        SyncActionStepCombatPairToAttackFlow();
 
-        List<CardController> ownFieldUnitsWithOnAction = new List<CardController>();
+        List<CardController> sources = new List<CardController>();
         List<CardController> ownBattleZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         if (ownBattleZone != null)
         {
@@ -17401,12 +17520,24 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (!HasEffectTiming(uc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(side, uc))
+                if (HasEffectTiming(uc.Data, EffectTiming.OnAction) && CanExecuteOnActionCardNow(side, uc))
                 {
-                    continue;
+                    sources.Add(uc);
                 }
 
-                ownFieldUnitsWithOnAction.Add(uc);
+                // 搭乗パイロットの【起動・アクション】
+                CardController pilot = uc.MountedPilot;
+                if (pilot != null
+                    && pilot.Data != null
+                    && pilot.Data.IsPilot()
+                    && HasEffectTiming(pilot.Data, EffectTiming.OnAction)
+                    && CanExecuteOnActionCardNow(side, pilot))
+                {
+                    sources.Add(pilot);
+                    Debug.Log(
+                        $"[OnAction] field pilot eligible: {pilot.Data.cardName}(id:{pilot.Data.id}) "
+                        + $"host:{uc.Data.cardName} side:{side}");
+                }
             }
         }
 
@@ -17419,11 +17550,12 @@ public partial class BattleGameMain : MonoBehaviour
             && HasEffectTiming(deployedBase.Data, EffectTiming.OnAction)
             && CanExecuteOnActionCardNow(side, deployedBase))
         {
-            ownFieldUnitsWithOnAction.Add(deployedBase);
+            sources.Add(deployedBase);
         }
 
-        RectTransform hand = side == PlayerType.Player ? cardGameRule.HandScrollContent : enemyCardGameRule.HandScrollContent;
-        List<CardController> commandCards = new List<CardController>();
+        RectTransform hand = side == PlayerType.Player
+            ? cardGameRule?.HandScrollContent
+            : enemyCardGameRule?.HandScrollContent;
         if (hand != null)
         {
             for (int i = 0; i < hand.childCount; i++)
@@ -17439,13 +17571,28 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                commandCards.Add(cc);
+                sources.Add(cc);
             }
         }
 
-        List<CardController> onActionSelectableSources = new List<CardController>();
-        onActionSelectableSources.AddRange(ownFieldUnitsWithOnAction);
-        onActionSelectableSources.AddRange(commandCards);
+        return sources;
+    }
+
+    private bool TryOpenOnActionCommandSelection(
+        PlayerType side,
+        string context,
+        System.Action onStepDone,
+        CardController attackingUnitInAttackFlow = null)
+    {
+        if (CardImagePrefab == null)
+        {
+            return false;
+        }
+
+        // UI オープン直前に交戦ペアを確定（被攻撃側アクションでも他カードと同様に条件判定できるようにする）
+        PrepareOnActionCombatContextForUi(attackingUnitInAttackFlow);
+
+        List<CardController> onActionSelectableSources = CollectOnActionSelectableSources(side);
 
         if (_isActionStepCommandResolving || _activeResourcePaymentOverlay != null)
         {
@@ -17467,12 +17614,18 @@ public partial class BattleGameMain : MonoBehaviour
         LogFullBoardSnapshotForCommandTiming(context, side, attackingUnitInAttackFlow);
         _onlineOnActionActiveContext = context;
 
-        for (int vci = 0; vci < commandCards.Count; vci++)
+        for (int vci = 0; vci < onActionSelectableSources.Count; vci++)
         {
-            LogVirtualOnActionCommandOutcomeForPlayerUnits(commandCards[vci], side, context);
+            CardController source = onActionSelectableSources[vci];
+            if (source?.Data == null || !source.Data.IsCommand())
+            {
+                continue;
+            }
+
+            LogVirtualOnActionCommandOutcomeForPlayerUnits(source, side, context);
             if (attackFlowBlockRedirectUnit != null)
             {
-                LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(commandCards[vci], side, attackFlowBlockRedirectUnit, context);
+                LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(source, side, attackFlowBlockRedirectUnit, context);
             }
         }
 
@@ -17488,19 +17641,42 @@ public partial class BattleGameMain : MonoBehaviour
         dim.raycastTarget = true;
 
         bool hasSelectableCards = onActionSelectableSources.Count > 0;
+        bool hasPendingForced = HasPendingForcedOnAction(side);
         bool useAlternatingActionStepUi = IsActionStepSessionActive
             || IsOnlineBattle();
         string roleLabel = GetActionStepThinkSubtitle(side, context);
         TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, AttackFlowPopupContentWidth, 48);
-        title.text = hasSelectableCards
-            ? $"Action Step — {roleLabel}"
-            : $"Action Step — {roleLabel} (no playable cards)";
+        if (hasPendingForced)
+        {
+            title.text = hasSelectableCards
+                ? $"Action Step — {roleLabel} (Forced)"
+                : $"Action Step — {roleLabel} (Forced required)";
+        }
+        else
+        {
+            title.text = hasSelectableCards
+                ? $"Action Step — {roleLabel}"
+                : $"Action Step — {roleLabel} (no playable cards)";
+        }
         title.color = Color.white;
         title.fontSize = 22;
         title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
 
         HashSet<CardController> selectedSet = new HashSet<CardController>();
         List<CardController> selectedCommands = new List<CardController>();
+
+        // 強制 OnAction は最初から選択済みにして、Confirm で発動できるようにする
+        if (hasPendingForced)
+        {
+            List<CardController> pendingForced = CollectPendingForcedOnActionSources(side);
+            for (int fi = 0; fi < pendingForced.Count; fi++)
+            {
+                if (pendingForced[fi] != null)
+                {
+                    selectedSet.Add(pendingForced[fi]);
+                }
+            }
+        }
 
         if (hasSelectableCards)
         {
@@ -17582,6 +17758,14 @@ public partial class BattleGameMain : MonoBehaviour
 
         void finishUi(ActionStepPassKind passKind)
         {
+            if (ShouldBlockActionStepPassOrEnd(side, passKind, selectedCommands))
+            {
+                Debug.Log(
+                    $"[ForcedOnAction] Block {passKind} — pending forced OnAction "
+                    + $"count:{CollectPendingForcedOnActionSources(side).Count} side:{side}");
+                return;
+            }
+
             if (!IsOnlineBattle())
             {
                 LogAttackOnActionDecisionWithBoard(
@@ -17689,7 +17873,7 @@ public partial class BattleGameMain : MonoBehaviour
         TextMeshProUGUI confirmLabel = confirmBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (confirmLabel != null)
         {
-            confirmLabel.text = "Confirm";
+            confirmLabel.text = hasPendingForced ? "OK" : "Confirm";
         }
 
         SetActionStepButtonInteractable(confirmBtn, hasSelectableCards);
@@ -17719,6 +17903,12 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
+            if (hasPendingForced && !SelectedCommandsIncludeAllPendingForced(side, selectedCommands))
+            {
+                Debug.Log("OnAction: Forced action must be confirmed before OK.");
+                return;
+            }
+
             finishUi(ActionStepPassKind.Pass);
         });
 
@@ -17735,10 +17925,11 @@ public partial class BattleGameMain : MonoBehaviour
             cancelLabel.text = "Cancel";
         }
 
-        SetActionStepButtonInteractable(cancelBtn, hasSelectableCards);
+        // 強制アクション未消化時は Cancel / ActionEnd 不可（Confirm/OK のみ）
+        SetActionStepButtonInteractable(cancelBtn, hasSelectableCards && !hasPendingForced);
         cancelBtn.onClick.AddListener(() =>
         {
-            if (!hasSelectableCards)
+            if (!hasSelectableCards || hasPendingForced)
             {
                 return;
             }
@@ -17760,8 +17951,14 @@ public partial class BattleGameMain : MonoBehaviour
             actionEndLabel.text = "ActionEnd";
         }
 
+        SetActionStepButtonInteractable(actionEndBtn, !hasPendingForced);
         actionEndBtn.onClick.AddListener(() =>
         {
+            if (hasPendingForced)
+            {
+                return;
+            }
+
             selectedCommands.Clear();
             finishUi(ActionStepPassKind.ActionEnd);
         });
@@ -17831,7 +18028,18 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < onActionEffects.Count; i++)
         {
             EffectData e = onActionEffects[i];
-            if (e != null && EffectRequiresManualUnitSelection(e))
+            if (e == null)
+            {
+                continue;
+            }
+
+            // ST12-011 は対象自動確定のため手動選択 UI を開かない
+            if (IsMilliardoPeacecraftCard(command))
+            {
+                continue;
+            }
+
+            if (EffectRequiresManualUnitSelection(e))
             {
                 manualTargetEffect = e;
                 break;
@@ -17867,7 +18075,47 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         EffectData applied = onActionEffects[0];
-        List<CardController> resolvedBeforeApply = ResolveEffectTargets(command, side, applied);
+        List<CardController> resolvedBeforeApply = IsMilliardoPeacecraftCard(command)
+            ? (ResolveMilliardoForcedDamageTarget(command) is CardController mt
+                ? new List<CardController> { mt }
+                : new List<CardController>())
+            : ResolveEffectTargets(command, side, applied);
+        if (IsMilliardoPeacecraftCard(command)
+            && (resolvedBeforeApply == null || resolvedBeforeApply.Count == 0))
+        {
+            Debug.Log("[ST12-011] OnAction skip — no damaged battling enemy.");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoMilliardoTarget",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:ST12-011 ResolveMilliardoForcedDamageTarget empty");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            return;
+        }
+
+        if (applied != null
+            && applied.selectionMode.IsAttackedTargetOnlyMode()
+            && !IsMilliardoPeacecraftCard(command)
+            && (resolvedBeforeApply == null || resolvedBeforeApply.Count == 0))
+        {
+            Debug.Log(
+                $"[OnAction] AttackedTargetOnly 対象なし — skip "
+                + $"{command.Data.cardName}(id:{command.Data.id})");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoAttackedTarget",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:AttackedTargetOnly ResolveEffectTargets empty");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            return;
+        }
+
         StartCoroutine(ExecuteOnActionDirectEffectAfterPreview(
             side,
             command,
@@ -18002,6 +18250,36 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        // ST12-011: 適用成功後にだけターン1回／使用済みを消費（失敗で消費しない）
+        if (!actionChainResolved && IsMilliardoPeacecraftCard(command))
+        {
+            List<UnitStatSnapForCommandLog> milliardoBeforeSnaps =
+                SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
+            if (!TryApplyMilliardoPeacecraftOnActionDamage(command, side, applied))
+            {
+                EndOnDestroyedLatencyHold();
+                FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                yield break;
+            }
+
+            MarkActionStepCardUsed(side, command);
+            MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+            TryApplyOnActionRestSelfCostIfPresent(command, side);
+            actionChainResolved = true;
+            EndOnDestroyedLatencyHold();
+            yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+            yield return FlushPendingExResourceRemovedWatchesCoroutine();
+            LogOnActionCommandAppliedToUnitsBattleOutcome(
+                command,
+                side,
+                applied,
+                "OnAction_AfterApplyDirectEffect",
+                milliardoBeforeSnaps);
+            FinalizeOnActionSourceCard(command, side);
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            yield break;
+        }
+
         MarkActionStepCardUsed(side, command);
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
@@ -18017,7 +18295,13 @@ public partial class BattleGameMain : MonoBehaviour
         for (int ei = 0; !actionChainResolved && ei < chain.Count; ei++)
         {
             EffectData effect = chain[ei];
-            if (effect == null || EffectRequiresManualUnitSelection(effect) || EffectRequiresManualHandSelection(effect))
+            if (effect == null || EffectRequiresManualHandSelection(effect))
+            {
+                continue;
+            }
+
+            // 手動選択が必要な効果はここではスキップ（別 UI 経路）
+            if (EffectRequiresManualUnitSelection(effect))
             {
                 continue;
             }
@@ -19073,19 +19357,15 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> result = new List<CardController>();
 
-        if (effect.selectionMode.IsAttackedTargetOnlyMode())
+        // ST12-011 専用（他カードの selectionMode には一切干渉しない）
+        if (IsMilliardoPeacecraftCard(sourceCard) && effect.type == EffectType.Damage)
         {
-            CardController battlingEnemy = ResolveBattlingEnemyUnitFor(sourceCard);
-            bool requiresDamagedBattlingEnemy = sourceCard?.Data?.id == 1000664;
-            if (battlingEnemy != null
-                && battlingEnemy.CurrentHp > 0
-                && (!requiresDamagedBattlingEnemy || battlingEnemy.IsDamagedForWhileDamagedEffects()))
+            CardController milliardoTarget = ResolveMilliardoForcedDamageTarget(sourceCard);
+            if (milliardoTarget != null && milliardoTarget.CurrentHp > 0)
             {
-                result.Add(battlingEnemy);
+                result.Add(milliardoTarget);
             }
 
-            FilterSelectableEffectTargets(result, effect);
-            FilterTargetsByUnitCondition(result, effect, sourceCard);
             return result;
         }
 

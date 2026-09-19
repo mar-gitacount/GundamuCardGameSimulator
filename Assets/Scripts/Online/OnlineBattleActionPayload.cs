@@ -410,7 +410,8 @@ public class OnlineBattleActionPayload
         int actingZoneSide,
         string context,
         int attackerInstanceId,
-        int actionStepSessionId = 0)
+        int actionStepSessionId = 0,
+        int defenderInstanceId = 0)
     {
         // OnlineBattleActionPayload 全体を載せると EOS ~1170B を超え得るため lean DTO のみ送る
         return JsonUtility.ToJson(new OnlineOnActionBeginDto
@@ -420,6 +421,7 @@ public class OnlineBattleActionPayload
             actingZoneSide = actingZoneSide,
             onActionContext = context ?? string.Empty,
             attackerInstanceId = attackerInstanceId,
+            defenderInstanceId = defenderInstanceId,
             actionStepSessionId = actionStepSessionId
         });
     }
@@ -828,6 +830,7 @@ public class OnlineOnActionBeginDto
     public int actingZoneSide;
     public string onActionContext;
     public int attackerInstanceId;
+    public int defenderInstanceId;
     public int actionStepSessionId;
 }
 

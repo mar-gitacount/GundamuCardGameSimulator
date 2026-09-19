@@ -41,6 +41,67 @@ public partial class BattleGameMain
         EndActionStepCommandResolve();
         CloseResourcePaymentOverlay(_activeResourcePaymentOverlay);
     }
+
+    /// <summary>OnActionBegin 送信用の防衛側インスタンス ID。</summary>
+    private int ResolveOnActionDefenderInstanceIdForSend()
+    {
+        CardController defender = attackFlowBlockRedirectUnit != null
+            ? attackFlowBlockRedirectUnit
+            : attackFlowDeclaredDefenderUnit;
+        if (defender == null
+            && _actionStepSession != null
+            && _actionStepSession.DefendingUnit != null)
+        {
+            defender = _actionStepSession.DefendingUnit;
+        }
+
+        return defender != null ? defender.BattleInstanceId : 0;
+    }
+
+    /// <summary>リモート OnActionBegin 受信時に交戦ペアをローカル攻撃フローへ復元する。</summary>
+    private void PrepareOnActionCombatContextFromIds(
+        int attackerInstanceId,
+        int defenderInstanceId,
+        CardController attackingUnitOrNull)
+    {
+        CardController attacker = attackingUnitOrNull;
+        if (attacker == null && attackerInstanceId > 0)
+        {
+            attacker = FindBattleZoneUnitByInstanceId(attackerInstanceId, PlayerType.Enemy);
+            if (attacker == null)
+            {
+                attacker = FindBattleZoneUnitByInstanceId(attackerInstanceId, PlayerType.Player);
+            }
+        }
+
+        if (attacker != null && attacker.CurrentHp > 0)
+        {
+            attackFlowAttackerUnit = attacker;
+            pendingUnitAttackAttacker = attacker;
+            AssignBattleInstanceIdIfNeeded(attacker);
+        }
+
+        if (defenderInstanceId > 0)
+        {
+            CardController defender = FindBattleZoneUnitByInstanceId(defenderInstanceId, PlayerType.Player);
+            if (defender == null)
+            {
+                defender = FindBattleZoneUnitByInstanceId(defenderInstanceId, PlayerType.Enemy);
+            }
+
+            if (defender != null && defender.CurrentHp > 0)
+            {
+                if (attackFlowBlockRedirectUnit == null
+                    || !IsSameBattleUnit(attackFlowBlockRedirectUnit, defender))
+                {
+                    attackFlowDeclaredDefenderUnit = defender;
+                }
+
+                AssignBattleInstanceIdIfNeeded(defender);
+            }
+        }
+    }
+
     private void ResetOnlineActionStepEndedTracking()
     {
         _onlineActionStepPlayerEnded = false;
@@ -84,6 +145,14 @@ public partial class BattleGameMain
     }
     private void ApplyLocalActionStepPass(PlayerType side, ActionStepPassKind passKind)
     {
+        if (ShouldBlockActionStepPassOrEnd(side, passKind, null)
+            && passKind == ActionStepPassKind.ActionEnd)
+        {
+            Debug.LogWarning(
+                $"[ForcedOnAction] Online ApplyLocalActionStepPass blocked ActionEnd for {side}");
+            return;
+        }
+
         if (passKind != ActionStepPassKind.ActionEnd)
         {
             return;
@@ -241,13 +310,15 @@ public partial class BattleGameMain
         int requestId = ++_onlineOnActionRequestIdCounter;
         _pendingOnlineOnActionRequestId = requestId;
         int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
+        int defenderInstanceId = ResolveOnActionDefenderInstanceIdForSend();
         string beginMessage = EosOnlineBattleMessage.CreateOnActionBegin(
             OnlineBattleActionPayload.CreateOnActionBegin(
                 requestId,
                 (int)PlayerType.Player,
                 context,
                 attackerInstanceId,
-                GetActiveActionStepSessionIdForSend()));
+                GetActiveActionStepSessionIdForSend(),
+                defenderInstanceId));
         _pendingOnlineOnActionBeginJson = beginMessage;
         SendOnlineBattleMessage(beginMessage);
         System.Action complete = () =>
@@ -264,6 +335,13 @@ public partial class BattleGameMain
                 complete,
                 attackingUnitInAttackFlow))
         {
+            if (HasPendingForcedOnAction(PlayerType.Player))
+            {
+                Debug.LogWarning(
+                    "[OnlineBattle] Local Player OnAction UI could not open — forced pending, no auto end.");
+                return;
+            }
+
             Debug.Log("[OnlineBattle] Local Player OnAction UI could not open — auto pass.");
             if (IsActionStepSessionActive)
             {
@@ -290,6 +368,7 @@ public partial class BattleGameMain
         _pendingOnlineOnActionRequestId = requestId;
         _pendingOnlineOnActionCallback = onComplete;
         int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
+        int defenderInstanceId = ResolveOnActionDefenderInstanceIdForSend();
         RememberTurnEndActionStepFromContext(context);
         string beginMessage = EosOnlineBattleMessage.CreateOnActionBegin(
             OnlineBattleActionPayload.CreateOnActionBegin(
@@ -297,7 +376,8 @@ public partial class BattleGameMain
                 (int)actingZoneSideOnAttackerClient,
                 context,
                 attackerInstanceId,
-                GetActiveActionStepSessionIdForSend()));
+                GetActiveActionStepSessionIdForSend(),
+                defenderInstanceId));
         _pendingOnlineOnActionBeginJson = beginMessage;
         bool sent = SendOnlineBattleMessage(beginMessage);
         if (!sent)
@@ -387,7 +467,18 @@ public partial class BattleGameMain
         if (action.attackerInstanceId > 0)
         {
             attackingUnit = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
+            if (attackingUnit == null)
+            {
+                attackingUnit = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Player);
+            }
         }
+
+        // 被攻撃側クライアントでも交戦ペアを復元（ST12-011 等のバトル中判定用）
+        PrepareOnActionCombatContextFromIds(
+            action.attackerInstanceId,
+            action.defenderInstanceId,
+            attackingUnit);
+
         string context = string.IsNullOrWhiteSpace(action.onActionContext)
             ? "attack:remote-enemy-action"
             : action.onActionContext;
@@ -411,6 +502,13 @@ public partial class BattleGameMain
         }
         if (!opened)
         {
+            if (HasPendingForcedOnAction(PlayerType.Player))
+            {
+                Debug.LogWarning(
+                    "[OnlineBattle] OnActionBegin: UI could not open — forced pending, no auto end.");
+                return;
+            }
+
             Debug.Log("[OnlineBattle] OnActionBegin: UI could not open — auto pass.");
             SendOnlineActionStepResolution(action.requestId, PlayerType.Player, ActionStepPassKind.ActionEnd);
             completeAndNotify.Invoke();

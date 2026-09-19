@@ -114,7 +114,7 @@ MonoBehaviour:
     - type: 0
       value: 2
       target: 2
-      selectionMode: 0
+      selectionMode: -1
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -168,6 +168,8 @@ MonoBehaviour:
       targetPilotId: 0
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
+      requireTargetDamaged: 1
+      requireTargetIsLinked: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -176,6 +178,7 @@ MonoBehaviour:
       choicePromptEn: 
     activationCost: 0
     oncePerTurn: 1
+    forcedAction: 1
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 8ddf91e927b6496489bd5c776ff5f567, type: 2}
