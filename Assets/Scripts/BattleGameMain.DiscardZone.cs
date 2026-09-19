@@ -499,6 +499,13 @@ public partial class BattleGameMain
         int pickCount = Mathf.Min(magnitude, candidates.Count);
         if (!ShouldShowExileFromTrashSelectionUi(chooserSide))
         {
+            // OnMain 遅延支払い中は除外確定前にコストを確定する
+            if (!TryCommitOnMainPaidBlockBeforeExile())
+            {
+                (onSkipped ?? onComplete)?.Invoke();
+                return;
+            }
+
             ApplyExileFromTrashAuto(trashRule, candidates, pickCount, trashLabel, sourceCard, trashOwner);
             onComplete?.Invoke();
             return;

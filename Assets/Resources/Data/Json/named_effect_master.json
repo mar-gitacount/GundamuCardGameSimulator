@@ -95,6 +95,38 @@
             ]
         },
         {
+            "effectSetName": "AddShield1_ThenDeploy1BitFunnel_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ→ビット/ファンネルトークン1体を配備",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000703,
+                    "deployUnitTriggerOnPlayed": false
+                }
+            ]
+        },
+        {
             "effectSetName": "DeployBase1_OnBurst",
             "displayName": "バースト：破壊されたカード自身をベースゾーンへ配備",
             "effects": [
@@ -3250,6 +3282,90 @@
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0,
                     "requireChainObservationContext": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Exile3_OwnTrashUnits_ThenDamage3_Enemy",
+            "displayName": "自分のトラッシュのユニット3枚除外→敵ユニット1体に3ダメージ",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 3,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 0,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "requireChainObservationContext": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyAllyUnit1_ThenLookTop4",
+            "displayName": "味方ユニット1体を破壊→そうしたなら山札上4枚を見る",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 13,
+                    "value": 4,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLook_OptionalDeployUnitLv4OrLess_ThenShuffleRemainderBottom",
+            "displayName": "OnLook：Lv4以下ユニット1枚を配備してもよい→残りを山札下へランダム",
+            "effects": [
+                {
+                    "type": 51,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4,
+                    "optionalPlayerConfirm": true
+                },
+                {
+                    "type": 16,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
                 }
             ]
         },

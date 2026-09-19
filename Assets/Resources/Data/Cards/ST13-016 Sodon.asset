@@ -32,7 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 1
   type: 3
-  battleZones: 0
+  battleZones: 3
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -46,7 +46,7 @@ MonoBehaviour:
   - timing: 6
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: AddShield1_OnBaseDeployed
+    effectsName: AddShield1_ThenDeploy1BitFunnel_OnBaseDeployed
     effects: []
     activationCost: 0
     oncePerTurn: 0

@@ -18033,6 +18033,19 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // トラッシュ除外が手動ユニット選択より先にある場合（ソロモン迎撃等）は除外完了まで待ってから続行する
+        if (TryBeginOnActionExileFromTrashPrefixChain(
+                side,
+                command,
+                onActionEffects,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount))
+        {
+            return;
+        }
+
         EffectData manualTargetEffect = null;
         for (int i = 0; i < onActionEffects.Count; i++)
         {
@@ -18135,6 +18148,202 @@ public partial class BattleGameMain : MonoBehaviour
             commandQueueIndex,
             commandQueueCount,
             onDone));
+    }
+
+    /// <summary>
+    /// OnAction で ExileFromTrash が手動ユニット選択より先にあるとき true（除外 UI 完了後にダメージ等へ進む）。
+    /// </summary>
+    private bool TryBeginOnActionExileFromTrashPrefixChain(
+        PlayerType side,
+        CardController command,
+        List<EffectData> onActionEffects,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount)
+    {
+        if (command == null || onActionEffects == null || onActionEffects.Count == 0)
+        {
+            return false;
+        }
+
+        int exileIndex = -1;
+        int manualIndex = -1;
+        for (int i = 0; i < onActionEffects.Count; i++)
+        {
+            EffectData e = onActionEffects[i];
+            if (e == null)
+            {
+                continue;
+            }
+
+            if (exileIndex < 0 && e.type == EffectType.ExileFromTrash)
+            {
+                exileIndex = i;
+            }
+
+            if (manualIndex < 0 && EffectRequiresManualUnitSelection(e))
+            {
+                manualIndex = i;
+            }
+        }
+
+        if (exileIndex < 0)
+        {
+            return false;
+        }
+
+        // 手動選択が除外より先なら従来の選択 UI 経路へ任せる
+        if (manualIndex >= 0 && manualIndex < exileIndex)
+        {
+            return false;
+        }
+
+        StartCoroutine(CoExecuteOnActionExileFromTrashPrefixChain(
+            side,
+            command,
+            onActionEffects,
+            exileIndex,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            onDone));
+        return true;
+    }
+
+    private IEnumerator CoExecuteOnActionExileFromTrashPrefixChain(
+        PlayerType side,
+        CardController command,
+        List<EffectData> onActionEffects,
+        int startIndex,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (command == null || command.Data == null || onActionEffects == null)
+        {
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        BeginOnDestroyedLatencyHold();
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            null,
+            GameLocale.T("コマンド発動", "Command activated"));
+
+        bool paymentOk = false;
+        int exToUse = 0;
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForAfford(command, side);
+        yield return WaitForResourcePaymentCoroutine(
+            side,
+            onActionCost,
+            onActionRequiredLevel,
+            (ok, chosenEx) =>
+            {
+                paymentOk = ok;
+                exToUse = chosenEx;
+            });
+        if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
+        {
+            EndOnDestroyedLatencyHold();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            command,
+            "OnAction",
+            null);
+
+        TryApplyOnActionRestSelfCostIfPresent(command, side);
+
+        for (int i = startIndex; i < onActionEffects.Count; i++)
+        {
+            EffectData effect = onActionEffects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type == EffectType.ExileFromTrash)
+            {
+                bool exileFinished = false;
+                bool exileSucceeded = false;
+                ApplyExileFromTrashEffect(
+                    command,
+                    side,
+                    effect,
+                    onComplete: () =>
+                    {
+                        exileSucceeded = true;
+                        exileFinished = true;
+                    },
+                    onSkipped: () => exileFinished = true);
+                yield return new WaitUntil(() => exileFinished);
+
+                if (!exileSucceeded && effect.abortRemainingChainOnSkip)
+                {
+                    Debug.Log(
+                        "[OnAction] ExileFromTrash skipped — abort remaining "
+                        + $"(cardId:{command.Data.id})");
+                    EndOnDestroyedLatencyHold();
+                    // 支払い済みでも除外未成立ならコスト返却し、手札に残す
+                    if (command.Data != null && gundamRule != null)
+                    {
+                        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
+                        if (gundamRule.TryRefundLastResourceUsageForCard(ruleSide, command.Data.id))
+                        {
+                            AfterLocalResourceChanged(ruleSide);
+                        }
+                    }
+
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                    yield break;
+                }
+
+                continue;
+            }
+
+            if (EffectRequiresManualUnitSelection(effect))
+            {
+                EndOnDestroyedLatencyHold();
+                // 除外は成立済み。以降の対象選択へ渡す前に使用済みを確定
+                MarkActionStepCardUsed(side, command);
+                MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+                OpenOnActionFollowUpUnitTargetSelection(
+                    side,
+                    command,
+                    effect,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+                yield break;
+            }
+
+            if (EffectRequiresManualHandSelection(effect))
+            {
+                Debug.LogWarning(
+                    $"[OnAction] Exile prefix chain stopped at hand selection ({effect.type}) "
+                    + $"cardId:{command.Data.id}");
+                break;
+            }
+
+            ApplyEffect(command, side, effect);
+        }
+
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        // 除外〜後続が成立してから使用済み／ターン1回を消費
+        MarkActionStepCardUsed(side, command);
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+        FinalizeOnActionSourceCard(command, side);
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
 
     private IEnumerator ExecuteOnActionDirectEffectAfterPreview(
@@ -19273,6 +19482,43 @@ public partial class BattleGameMain : MonoBehaviour
                 effect,
                 () => TryExecuteOnMainEffectChain(
                     side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
+            return;
+        }
+
+        // トラッシュ除外（ソロモン迎撃等）：「そうしたなら」は abortRemainingChainOnSkip で後続を打ち切る
+        if (effect.type == EffectType.ExileFromTrash)
+        {
+            bool abortRemainingOnSkip = effect.abortRemainingChainOnSkip;
+            ApplyExileFromTrashEffect(
+                source,
+                side,
+                effect,
+                // 除外 UI 内で支払い済み。後続ダメージ選択で再課金しない
+                onComplete: () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, true, chainActivationContext, onDone),
+                onSkipped: () =>
+                {
+                    if (abortRemainingOnSkip)
+                    {
+                        Debug.Log(
+                            "[OnMain] ExileFromTrash skipped — abort remaining chain "
+                            + $"(cardId:{source?.Data?.id})");
+                        // 除外未成立＋コスト未払いのままトラッシュしない（手札に残す）
+                        _chooseOneCancelled = true;
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        TryExecuteOnMainEffectChain(
+                            side,
+                            source,
+                            effects,
+                            index + 1,
+                            activationCostAlreadyPaid,
+                            chainActivationContext,
+                            onDone);
+                    }
+                });
             return;
         }
 
