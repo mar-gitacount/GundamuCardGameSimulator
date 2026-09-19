@@ -4430,6 +4430,21 @@
                     "valueMode": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "PreventOpponentStartPhaseActive_LowestRestUnits",
+            "displayName": "相手のレスト最低Lvユニットはスタートフェイズでアクティブにならない",
+            "effects": [
+                {
+                    "type": 64,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
+                }
+            ]
         }
     ]
 }

@@ -339,7 +339,15 @@ public enum EffectType
     /// timed.activationConditions に turnCheck:NotOwnerTurn + SourceUnitIsRest 等を指定する。
     /// ApplyEffect では何もしない（マーカー）。
     /// </summary>
-    AllyEnemyEffectDamageImmunity
+    AllyEnemyEffectDamageImmunity,
+    /// <summary>
+    /// 場のユニット常時パッシブ（スタートフェイズのアクティブステップ判定）。
+    /// 各相手プレイヤーの、レストの最も Lv が低いユニット（複数可・UnitToken 含む）は、
+    /// 相手ターンのスタートフェイズでアクティブにならない（ST14-001 ジ・O 等）。
+    /// スタートフェイズの通常アクティブ化のみ阻害。効果による Activate は有効。
+    /// Permanent。ApplyEffect では何もしない（マーカー）。
+    /// </summary>
+    PreventOpponentStartPhaseActiveLowestRestUnits
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
