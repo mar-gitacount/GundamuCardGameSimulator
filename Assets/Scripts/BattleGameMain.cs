@@ -5457,17 +5457,40 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType side = currentPlayerType;
         CardGameRule rule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         List<CardController> battleZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        List<CardController> opponentBattleZone = side == PlayerType.Player
+            ? enemyBattleZoneCards
+            : playerBattleZoneCards;
+
+        // 相手場のジ・O 等：レスト中の最低 Lv ユニット（同値すべて・UnitToken 含む）はスタートで起こさない
+        bool preventLowestRest = CardPreventStartPhaseActiveExtensions
+            .HasPreventOpponentStartPhaseActiveLowestRestAbility(opponentBattleZone);
+        int lowestRestedLevel = preventLowestRest
+            ? CardPreventStartPhaseActiveExtensions.FindLowestRestedUnitLevel(battleZone)
+            : -1;
 
         Debug.Log(
             side == PlayerType.Player
                 ? "[TurnStart] プレイヤー：ユニットをアクティブ化、レスト中のベース/シールドを起こす"
                 : "[TurnStart] エネミー：ユニットをアクティブ化、レスト中のベース/シールドを起こす");
+        if (preventLowestRest && lowestRestedLevel >= 0)
+        {
+            Debug.Log(
+                $"[TurnStart] PreventOpponentStartPhaseActiveLowestRest — skip rested Lv.{lowestRestedLevel}");
+        }
 
         for (int i = 0; i < battleZone.Count; i++)
         {
             CardController c = battleZone[i];
             if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
+                continue;
+            }
+
+            if (CardPreventStartPhaseActiveExtensions.ShouldSkipStartPhaseActive(
+                    c, lowestRestedLevel, preventLowestRest && lowestRestedLevel >= 0))
+            {
+                Debug.Log(
+                    $"[TurnStart] Skip active: {c.Data.cardName}(id:{c.Data.id}) Lv:{c.CurrentLevel}");
                 continue;
             }
 
@@ -7968,6 +7991,8 @@ public partial class BattleGameMain : MonoBehaviour
                         magnitude > 0 ? magnitude : 5);
                     break;
                 case EffectType.AllyEnemyEffectDamageImmunity:
+                    break;
+                case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     break;
                 case EffectType.Bounce:
                     break;
@@ -14397,6 +14422,13 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[Effect] AllyEnemyEffectDamageImmunity marker by cardId:{sourceCard.Data.id}");
                 break;
 
+            case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
+                // 場ユニット常時パッシブ。スタートフェイズのアクティブステップでのみ参照する。
+                Debug.Log(
+                    $"[Effect] PreventOpponentStartPhaseActiveLowestRestUnits marker "
+                    + $"by cardId:{sourceCard?.Data?.id}");
+                break;
+
             case EffectType.Bounce:
                 ApplyBounceEffect(effect, targets);
                 break;
@@ -16467,6 +16499,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
                     notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
                     continue;
+                case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
+                    notes.Append("[PreventStartPhaseActiveLowestRest] ");
+                    continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
                     continue;
@@ -16630,6 +16665,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
                     notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
+                    notes.Append("[PreventStartPhaseActiveLowestRest] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
