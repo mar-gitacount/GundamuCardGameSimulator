@@ -38,6 +38,8 @@ public partial class BattleGameMain
     private sealed class LookResolutionContext
     {
         public CardController SourceCard;
+        /// <summary>パイロット効果の Look 時は搭乗ホスト（「このユニットのLv」比較用）。</summary>
+        public CardController MountHostUnit;
         public PlayerType OwnerType;
         public CardGameRule DeckRule;
         public PlayerType DeckOwnerType;
@@ -194,6 +196,7 @@ public partial class BattleGameMain
         LookResolutionContext context = new LookResolutionContext
         {
             SourceCard = sourceCard,
+            MountHostUnit = ResolveLookMountHostUnit(sourceCard),
             OwnerType = ownerType,
             DeckRule = deckRule,
             DeckOwnerType = deckOwner,
@@ -209,6 +212,19 @@ public partial class BattleGameMain
         }
 
         TriggerOnLookEffects(context, onComplete);
+    }
+
+    /// <summary>Look 時の「このユニット」参照。パイロットなら搭乗ホスト、ユニットなら自身。</summary>
+    private CardController ResolveLookMountHostUnit(CardController sourceCard)
+    {
+        if (_pilotMountEffectHostUnit != null
+            && _pilotMountEffectHostUnit.Data != null
+            && _pilotMountEffectHostUnit.Data.IsUnitLike())
+        {
+            return _pilotMountEffectHostUnit;
+        }
+
+        return ResolveEffectSourceBattleHost(sourceCard);
     }
 
     private void ApplyEffectRespectingLookAsync(
@@ -596,7 +612,10 @@ public partial class BattleGameMain
         int pickCount = Mathf.Max(1, ResolveEffectMagnitude(effect, context.OwnerType, context.SourceCard));
         PlayerType handOwner = ResolveHandOwnerForLookEffect(context.OwnerType, effect.target);
         CardGameRule handRule = handOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
-        List<LookedDeckEntry> selectable = FilterLookedEntriesForAddEffect(context.Entries, effect);
+        List<LookedDeckEntry> selectable = FilterLookedEntriesForAddEffect(
+            context.Entries,
+            effect,
+            context.MountHostUnit);
         string featureLabel = effect.FormatTargetFeaturesLabel();
         string typeLabel = effect.FormatTargetCardTypeFilterLabel();
         string filterLabel;
@@ -615,6 +634,14 @@ public partial class BattleGameMain
         else
         {
             filterLabel = GameLocale.T("未指定", "Any");
+        }
+
+        if (effect.compareTargetStatToMountHostUnit && context.MountHostUnit != null)
+        {
+            int hostLv = context.MountHostUnit.CurrentLevel;
+            filterLabel = GameLocale.T(
+                $"{filterLabel}・ホストLv.{hostLv}以下",
+                $"{filterLabel} · host Lv.{hostLv} or less");
         }
 
         if (context.OwnerType == PlayerType.Enemy)
@@ -901,7 +928,8 @@ public partial class BattleGameMain
 
     private static List<LookedDeckEntry> FilterLookedEntriesForAddEffect(
         List<LookedDeckEntry> entries,
-        EffectData effect)
+        EffectData effect,
+        CardController mountHostUnit = null)
     {
         List<LookedDeckEntry> result = new List<LookedDeckEntry>();
         if (entries == null)
@@ -912,7 +940,8 @@ public partial class BattleGameMain
         for (int i = 0; i < entries.Count; i++)
         {
             LookedDeckEntry entry = entries[i];
-            if (entry?.Data != null && effect.MatchesLookedCardDataFeatureFilter(entry.Data))
+            if (entry?.Data != null
+                && effect.MatchesLookedCardDataFeatureFilter(entry.Data, mountHostUnit))
             {
                 result.Add(entry);
             }

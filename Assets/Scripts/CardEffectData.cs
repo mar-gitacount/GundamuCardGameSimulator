@@ -1414,8 +1414,9 @@ public class EffectData
     public bool optionalPlayerConfirm;
 
     [Tooltip(
-        "Destroy 等の手動ユニット選択: true のとき効果オーナーではなく相手プレイヤーが対象を選ぶ。"
-        + "例: 攻撃側が Destroy(EnemyUnit) を解決し、相手が自分のユニット1体を選んで破壊する。")]
+        "手動選択系: true のとき効果オーナーではなく相手プレイヤーが対象を選ぶ。"
+        + "Destroy(EnemyUnit) のほか、ExileFromTrash(EnemyPlayer) ではトラッシュ所有者自身が選ぶ"
+        + "（ファラクト等。スキップ不可）。")]
     public bool opponentChoosesTarget;
 
     [Tooltip("ChooseOne: 選択肢一覧。各枝から1つだけ発動する。")]
@@ -1592,10 +1593,20 @@ public static class EffectDataExtensions
 
     /// <summary>
     /// トラッシュ等・カード実体がない候補向け。targetUnitFilterStat を CardData の印刷値で判定する。
+    /// compareTargetStatToMountHostUnit 時は mountHostUnit の実効ステータスと比較する（Look の「ホストLv以下」等）。
     /// </summary>
-    public static bool MatchesCardDataStatFilter(this EffectData effect, CardData card)
+    public static bool MatchesCardDataStatFilter(
+        this EffectData effect,
+        CardData card,
+        CardController mountHostUnit = null)
     {
-        if (effect == null || !effect.HasTargetUnitStatFilter())
+        if (effect == null)
+        {
+            return true;
+        }
+
+        bool compareToMountHost = effect.compareTargetStatToMountHostUnit;
+        if (!effect.HasTargetUnitStatFilter() && !compareToMountHost)
         {
             return true;
         }
@@ -1608,12 +1619,29 @@ public static class EffectDataExtensions
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
         if (statFilter == EffectTargetUnitFilterStat.Unset)
         {
-            return true;
+            if (!compareToMountHost)
+            {
+                return true;
+            }
+
+            // 搭乗ホスト比較でステータス未指定ならレベル比較とみなす
+            statFilter = EffectTargetUnitFilterStat.Level;
+        }
+
+        int compareValue = effect.targetUnitStatCompareValue;
+        if (compareToMountHost)
+        {
+            if (mountHostUnit == null)
+            {
+                return false;
+            }
+
+            compareValue = GetTargetUnitFilterStatValue(mountHostUnit, statFilter);
         }
 
         return EffectCompareHelper.Compare(
             GetCardDataFilterStatValue(card, statFilter),
-            effect.targetUnitStatCompareValue,
+            compareValue,
             effect.targetUnitStatCompareOp);
     }
 
@@ -2191,8 +2219,11 @@ public static class EffectDataExtensions
             $"{effect.type} / {effect.target} / Value:{effect.value}{statNote} / Filter:{filter}");
     }
 
-    /// <summary>Look 直後に見た山札カードが effect の Feature／カード種類フィルタに合うか。</summary>
-    public static bool MatchesLookedCardDataFeatureFilter(this EffectData effect, CardData card)
+    /// <summary>Look 直後に見た山札カードが effect の Feature／カード種類／ステータスフィルタに合うか。</summary>
+    public static bool MatchesLookedCardDataFeatureFilter(
+        this EffectData effect,
+        CardData card,
+        CardController mountHostUnit = null)
     {
         if (effect == null || card == null)
         {
@@ -2207,10 +2238,17 @@ public static class EffectDataExtensions
         // Feature 未指定でも種類フィルタ（例: パイロットのみ）があれば通す。
         if (!effect.HasTargetFeatureFilter())
         {
-            return effect.filterByTargetCardType || effect.filterTargetAsUnitOrPilot;
+            if (!effect.filterByTargetCardType && !effect.filterTargetAsUnitOrPilot)
+            {
+                return false;
+            }
+        }
+        else if (!effect.MatchesTargetFeatureOnCard(card))
+        {
+            return false;
         }
 
-        return effect.MatchesTargetFeatureOnCard(card);
+        return effect.MatchesCardDataStatFilter(card, mountHostUnit);
     }
 
     /// <summary>
