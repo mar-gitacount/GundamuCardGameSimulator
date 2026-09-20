@@ -58,6 +58,9 @@ public sealed class EffectActivationContext
     /// <summary>このターン中にオーナーが〔必殺技〕コマンドのメイン／アクションを発動済みか。</summary>
     public bool OwnerActivatedSpecialMoveCommandThisTurn { get; }
 
+    /// <summary>このターン中にオーナーが効果で自分のリソースをアクティブにしたか。</summary>
+    public bool OwnerActivatedResourceByEffectThisTurn { get; }
+
     /// <summary>オーナーの配備ベースが生存している。</summary>
     public bool OwnerHasDeployedBase { get; }
 
@@ -110,7 +113,8 @@ public sealed class EffectActivationContext
         bool sourceAttackingEnemyPlayer = false,
         CardController battlingEnemyUnit = null,
         int ownerTotalLevel = -1,
-        int ownerExResource = -1)
+        int ownerExResource = -1,
+        bool ownerActivatedResourceByEffectThisTurn = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -140,6 +144,7 @@ public sealed class EffectActivationContext
         BattlingEnemyUnit = battlingEnemyUnit;
         OwnerTotalLevel = ownerTotalLevel;
         OwnerExResource = ownerExResource;
+        OwnerActivatedResourceByEffectThisTurn = ownerActivatedResourceByEffectThisTurn;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -208,7 +213,8 @@ public sealed class EffectActivationContext
             SourceAttackingEnemyPlayer,
             BattlingEnemyUnit,
             OwnerTotalLevel,
-            OwnerExResource);
+            OwnerExResource,
+            OwnerActivatedResourceByEffectThisTurn);
     }
 }
 
@@ -427,6 +433,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.OwnerActivatedSpecialMoveCommandThisTurn)
         {
             return ctx.OwnerActivatedSpecialMoveCommandThisTurn;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerHasNotActivatedResourceByEffectThisTurn)
+        {
+            return ctx != null && !ctx.OwnerActivatedResourceByEffectThisTurn;
         }
 
         if (c.checkKind == EffectActivationCheckKind.OwnerBattleUnitNameContains)

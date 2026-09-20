@@ -870,6 +870,9 @@ public partial class BattleGameMain
             return;
         }
 
+        // 効果によるリソースアクティブ化をターン記録（ST14-015 等の条件判定用）
+        MarkOwnerActivatedResourceByEffectThisTurn(targetPlayer);
+
         SyncResourceViewsFromRule(side);
         if (side == Gundam2024RuleScript.PlayerSide.Player)
         {

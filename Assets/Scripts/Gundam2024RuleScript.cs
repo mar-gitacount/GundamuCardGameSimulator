@@ -399,17 +399,27 @@ public class Gundam2024RuleScript
     /// <summary>
     /// リソースを amount 個レストで置く（Place rested Resource）。
     /// level を増やし、追加分はレストのため当ターンの resource（利用可能数）には加えない。
-    /// maxLevel を超えても level は増える（Mutual Attraction 等）。
+    /// <see cref="MaxLevel"/> を超える分は置かず、置けない場合は false。
     /// </summary>
     public bool TryPlaceRestedResource(PlayerSide side, int amount)
     {
         PlayerState state = GetState(side);
-        int placeCount = Mathf.Max(1, amount);
+        int requested = Mathf.Max(1, amount);
+        int room = Mathf.Max(0, MaxLevel - state.level);
+        if (room <= 0)
+        {
+            Debug.Log(
+                $"[Resource] PlaceRestedResource failed at maxLevel:{MaxLevel} "
+                + $"side:{side} level:{state.level} requested:{requested}");
+            return false;
+        }
+
+        int placeCount = Mathf.Min(requested, room);
         state.level += placeCount;
         // レスト配置のため resource は増やさない（次ターン GainLevelAndRefreshResource で同期）
         Debug.Log(
             $"[Resource] PlaceRestedResource x{placeCount} side:{side} "
-            + $"level:{state.level} activeResource:{state.resource}");
+            + $"level:{state.level} activeResource:{state.resource} max:{MaxLevel}");
         return true;
     }
 
@@ -694,11 +704,14 @@ public class Gundam2024RuleScript
 
     private void GainLevelAndRefreshResource(PlayerState state)
     {
-        // 通常は maxLevel までしか上がらない。
-        // 効果で maxLevel を超えた level は下げず、そのターンはレベル増加のみスキップしてリソース同期する。
+        // 通常は maxLevel までしか上がらない。既に超過している場合は上限へ戻す。
         if (state.level < Config.maxLevel)
         {
             state.level = Mathf.Min(Config.maxLevel, state.level + Config.levelGainPerTurn);
+        }
+        else if (state.level > Config.maxLevel)
+        {
+            state.level = Config.maxLevel;
         }
 
         // EXは自動でResourceに加算しない。必要時にボタン等で変換して使う。

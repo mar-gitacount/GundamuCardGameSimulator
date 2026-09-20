@@ -98,7 +98,8 @@ public partial class BattleGameMain
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
-            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType));
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
     }
 
     private void RunAllyUnitDeployWatchUnits(
