@@ -11794,7 +11794,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
         {
-            onComplete?.Invoke();
+            NotifyAllyUnitLinked(ownerType, hostUnit, pilot, onComplete);
             return;
         }
 
@@ -11808,7 +11808,7 @@ public partial class BattleGameMain : MonoBehaviour
             _pilotMountEffectHostUnit = null;
             EndEffectChainObservationScope();
             RefreshAllFieldOwnerTurnPassives();
-            onComplete?.Invoke();
+            NotifyAllyUnitLinked(ownerType, hostUnit, pilot, onComplete);
         }
 
         _pilotMountEffectHostUnit = hostUnit;

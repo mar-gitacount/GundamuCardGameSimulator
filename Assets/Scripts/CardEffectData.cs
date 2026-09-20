@@ -68,6 +68,12 @@ public enum EffectTiming
     /// 例: ST11-006 シャンブロの「相手のターン開始時…このターン中シールドエリアの効果ダメージを軽減」。
     /// </summary>
     OnOpponentTurnStart = 27,
+    /// <summary>
+    /// 自分のユニットが Link 条件を満たしてリンクしたとき、場の監視カード（配備ベース等）が効果を解決する。
+    /// 例: ST14-016 グリプス2「味方のユニットがリンクしたとき…相手ユニット AP-1」。
+    /// MountHostUnit にリンクしたユニット、MountedPilot に搭乗パイロットを載せる。
+    /// </summary>
+    OnAllyUnitLinked = 28,
 }
 
 public enum EffectType
@@ -3039,6 +3045,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnAllyUnitAttack
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>味方ユニットがリンクしたとき（OnAllyUnitLinked）に解決するブロック。</summary>
+    public static bool IsOnAllyUnitLinkedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnAllyUnitLinked
             || !timed.HasResolvedEffects())
         {
             return false;
