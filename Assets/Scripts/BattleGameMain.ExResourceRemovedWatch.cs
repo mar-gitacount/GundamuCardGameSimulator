@@ -288,7 +288,8 @@ public partial class BattleGameMain
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
             ownerTotalLevel: ownerState != null ? ownerState.TotalLevel : -1,
-            ownerExResource: ownerState != null ? ownerState.exResource : -1);
+            ownerExResource: ownerState != null ? ownerState.exResource : -1,
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
     }
 
     private void RunExResourceRemovedWatchEntries(

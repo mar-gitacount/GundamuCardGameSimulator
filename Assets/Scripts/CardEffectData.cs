@@ -198,7 +198,7 @@ public enum EffectType
     /// <summary>
     /// リソースを value 個「レストで置く」（Place rested Resource）。
     /// level を増やし、追加分はレストのため当ターンの利用可能 resource には加えない。
-    /// 次ターン開始のリフレッシュで resource = level となる。0 以下は 1 扱い。
+    /// maxLevel を超える分は置けない。次ターン開始のリフレッシュで resource = level となる。0 以下は 1 扱い。
     /// </summary>
     RestResource,
     /// <summary>
@@ -884,7 +884,12 @@ public enum EffectActivationCheckKind
     /// 指定トラッシュの総枚数を unitCountThreshold と unitCountCompareOp で比較。
     /// 例: 自分のトラッシュが 7 枚以上 → OwnerTrash + GreaterOrEqual + threshold 7（GファルコンDX 等）。
     /// </summary>
-    CompareTrashCardCount
+    CompareTrashCardCount,
+    /// <summary>
+    /// このターン中、オーナーが効果（ActivateResource）で自分のリソースをアクティブにしていない。
+    /// ターン開始のリフレッシュやコスト支払いは含まない。ST14-015 等。
+    /// </summary>
+    OwnerHasNotActivatedResourceByEffectThisTurn
 }
 
 public enum EffectTurnCheckKind
@@ -1402,7 +1407,15 @@ public class EffectData
         + "対象ユニットのステータス絞り込み（Lv 等）を無効化する。")]
     public bool relaxTargetUnitStatFilterWhenTrashHasSourceCopies;
 
-    [Tooltip("relaxTargetUnitStatFilterWhenTrashHasSourceCopies 時の必要枚数（0 以下は 2）。")]
+    [Tooltip(
+        "true のとき、オーナー墓地のコマンド（Command / CommandPilot）が "
+        + "trashRelaxFilterMinCopies 枚以上あると、対象ユニットのステータス絞り込み（Lv 等）を無効化する。"
+        + "発動中のこのカードはトラッシュ前のため件数に含まれない。")]
+    public bool relaxTargetUnitStatFilterWhenTrashHasCommands;
+
+    [Tooltip(
+        "relaxTargetUnitStatFilterWhenTrashHasSourceCopies 時は同 ID 必要枚数（0 以下は 2）。"
+        + "relaxTargetUnitStatFilterWhenTrashHasCommands 時はコマンド必要枚数（0 以下は 4）。")]
     public int trashRelaxFilterMinCopies = 2;
 
     [Tooltip(
@@ -1924,26 +1937,69 @@ public static class EffectDataExtensions
     }
 
     /// <summary>
-    /// オーナー墓地に発動元と同 ID が十分あるとき、対象ステータス絞り込みを緩和するか。
+    /// オーナー墓地条件（同 ID 枚数／コマンド枚数）を満たすとき、対象ステータス絞り込みを緩和するか。
     /// </summary>
     public static bool ShouldRelaxTargetUnitStatFilter(
         this EffectData effect,
         CardController sourceCard,
         IReadOnlyList<int> ownerTrashCardIds)
     {
-        if (effect == null || !effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies)
+        if (effect == null)
         {
             return false;
         }
 
-        int cardId = sourceCard != null && sourceCard.Data != null ? sourceCard.Data.id : 0;
-        if (cardId <= 0)
+        if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies)
+        {
+            int cardId = sourceCard != null && sourceCard.Data != null ? sourceCard.Data.id : 0;
+            if (cardId > 0)
+            {
+                int needCopies = effect.trashRelaxFilterMinCopies > 0
+                    ? effect.trashRelaxFilterMinCopies
+                    : 2;
+                if (TrashCardQuery.HasAtLeast(ownerTrashCardIds, cardId, needCopies))
+                {
+                    return true;
+                }
+            }
+        }
+
+        // ST14-014 はアセット側フラグ欠落時もカード ID でコマンド枚数緩和を適用する
+        bool relaxByCommands = effect.relaxTargetUnitStatFilterWhenTrashHasCommands
+            || IsBlazingMobileSuitRiderDebuff(sourceCard, effect);
+        if (relaxByCommands)
+        {
+            int needCommands = effect.trashRelaxFilterMinCopies > 0
+                ? effect.trashRelaxFilterMinCopies
+                : 4;
+            if (IsBlazingMobileSuitRiderDebuff(sourceCard, effect) && needCommands < 4)
+            {
+                needCommands = 4;
+            }
+
+            if (TrashCardQuery.CountCommands(ownerTrashCardIds) >= needCommands)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsBlazingMobileSuitRiderDebuff(CardController sourceCard, EffectData effect)
+    {
+        if (sourceCard?.Data == null || effect == null || effect.type != EffectType.Debuff)
         {
             return false;
         }
 
-        int need = effect.trashRelaxFilterMinCopies > 0 ? effect.trashRelaxFilterMinCopies : 2;
-        return TrashCardQuery.HasAtLeast(ownerTrashCardIds, cardId, need);
+        if (sourceCard.Data.id == 1000699)
+        {
+            return true;
+        }
+
+        return !string.IsNullOrEmpty(sourceCard.Data.gcgOfficialId)
+            && string.Equals(sourceCard.Data.gcgOfficialId, "ST14-014", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

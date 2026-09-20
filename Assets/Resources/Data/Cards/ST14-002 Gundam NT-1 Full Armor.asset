@@ -43,6 +43,11 @@ MonoBehaviour:
     linkPilotIds:
     - {fileID: 11400000, guid: 6c4ea87ac4e14c1084891ad5889ec81b, type: 2}
     linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
     pilotFeatures:
     - {fileID: 11400000, guid: f708192a3b4c5d6e7f8012a3b4c5d6e7, type: 2}
     pilotFeatureIds: 

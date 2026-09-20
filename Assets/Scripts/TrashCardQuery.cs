@@ -40,10 +40,13 @@ public static class TrashCardQuery
         return CountByCardId(trashCardIds, cardId) < need;
     }
 
-    /// <summary>指定カード種類の枚数。</summary>
+    /// <summary>
+    /// 指定カード種類の枚数。
+    /// Command / Pilot / Unit 指定時は兼用タイプ（CommandPilot / UnitToken）も含める。
+    /// </summary>
     public static int CountByCardType(IReadOnlyList<int> trashCardIds, Type cardType)
     {
-        if (trashCardIds == null || trashCardIds.Count == 0 || DeckSettinObject.Instance == null)
+        if (trashCardIds == null || trashCardIds.Count == 0)
         {
             return 0;
         }
@@ -51,14 +54,109 @@ public static class TrashCardQuery
         int count = 0;
         for (int i = 0; i < trashCardIds.Count; i++)
         {
-            CardData data = DeckSettinObject.Instance.GetCardDataById(trashCardIds[i]);
-            if (data != null && data.type == cardType)
+            CardData data = ResolveCardData(trashCardIds[i]);
+            if (data == null)
+            {
+                continue;
+            }
+
+            if (cardType == Type.Command)
+            {
+                if (data.IsCommand())
+                {
+                    count++;
+                }
+
+                continue;
+            }
+
+            if (CardTypeExtensions.MatchesTypeFilter(cardType, data.type))
             {
                 count++;
             }
         }
 
         return count;
+    }
+
+    /// <summary>トラッシュ内のコマンド（Command / CommandPilot）枚数。</summary>
+    public static int CountCommands(IReadOnlyList<int> trashCardIds)
+    {
+        int count = CountByCardType(trashCardIds, Type.Command);
+        // トラッシュに ID があるのに 0 件ならキャッシュ再構築して再集計
+        if (count == 0 && trashCardIds != null && trashCardIds.Count > 0)
+        {
+            InvalidateCardDataCache();
+            count = CountByCardType(trashCardIds, Type.Command);
+        }
+
+        return count;
+    }
+
+    /// <summary>トラッシュ ID から CardData を解決（Resources キャッシュ → CardDatabase → DeckSettin）。</summary>
+    private static Dictionary<int, CardData> _cardDataByIdCache;
+
+    private static CardData ResolveCardData(int cardId)
+    {
+        if (cardId <= 0)
+        {
+            return null;
+        }
+
+        EnsureCardDataCache();
+        if (_cardDataByIdCache != null && _cardDataByIdCache.TryGetValue(cardId, out CardData cached))
+        {
+            return cached;
+        }
+
+        if (CardDatabase.Instance != null)
+        {
+            CardData fromDb = CardDatabase.Instance.GetById(cardId);
+            if (fromDb != null)
+            {
+                return fromDb;
+            }
+        }
+
+        if (DeckSettinObject.Instance != null)
+        {
+            return DeckSettinObject.Instance.GetCardDataById(cardId);
+        }
+
+        return null;
+    }
+
+    private static void EnsureCardDataCache()
+    {
+        // 初回が早すぎて LoadAll が空だった場合に備え、空キャッシュは作り直す
+        if (_cardDataByIdCache != null && _cardDataByIdCache.Count > 0)
+        {
+            return;
+        }
+
+        _cardDataByIdCache = new Dictionary<int, CardData>();
+        CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
+        if (all == null || all.Length == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < all.Length; i++)
+        {
+            CardData data = all[i];
+            if (data == null || data.id <= 0 || _cardDataByIdCache.ContainsKey(data.id))
+            {
+                continue;
+            }
+
+            _cardDataByIdCache[data.id] = data;
+        }
+    }
+
+    /// <summary>キャッシュを破棄（空のまま固まった場合の再構築用）。</summary>
+    public static void InvalidateCardDataCache()
+    {
+        _cardDataByIdCache = null;
     }
 
     /// <summary>指定種類が minimumCount 枚以上あるか。</summary>

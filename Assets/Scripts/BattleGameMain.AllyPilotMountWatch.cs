@@ -110,7 +110,8 @@ public partial class BattleGameMain
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
-            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
     }
 
     private void RunAllyPilotMountWatchUnits(

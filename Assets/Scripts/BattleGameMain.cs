@@ -4056,6 +4056,7 @@ public partial class BattleGameMain : MonoBehaviour
             ClearPreventAllyDestroyByEnemyEffectUntilEot();
             ClearShieldAreaEnemyEffectDamageReduction(OpponentSide(endingTurnSide));
             ClearOwnerSpecialMoveCommandActivatedThisTurn(endingTurnSide);
+            ClearOwnerActivatedResourceByEffectThisTurn(endingTurnSide);
             ClearObservedUnitWatches();
             ForceClearEffectChainObservationScope();
             DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
@@ -6989,7 +6990,7 @@ public partial class BattleGameMain : MonoBehaviour
                         }
 
                         List<CardController> singleTarget = new List<CardController> { attackedTarget };
-                        FilterTargetsByUnitCondition(singleTarget, effect, sourceCard);
+                        FilterTargetsByUnitCondition(singleTarget, effect, sourceCard, attackerOwner);
                         if (singleTarget.Count == 0)
                         {
                             continue;
@@ -10885,7 +10886,7 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 List<CardController> singleTarget = new List<CardController> { defender };
-                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard);
+                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard, ownerType);
                 if (singleTarget.Count == 0)
                 {
                     continue;
@@ -10951,7 +10952,7 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 List<CardController> singleTarget = new List<CardController> { defender };
-                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard);
+                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard, ownerType);
                 if (singleTarget.Count == 0)
                 {
                     continue;
@@ -11174,7 +11175,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
             ownerTotalLevel: ownerState.TotalLevel,
-            ownerExResource: ownerState.exResource);
+            ownerExResource: ownerState.exResource,
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -11206,7 +11208,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
             sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(attacker),
             sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(attacker),
-            battlingEnemyUnit: battlingEnemy);
+            battlingEnemyUnit: battlingEnemy,
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
     }
 
     /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
@@ -13714,7 +13717,8 @@ public partial class BattleGameMain : MonoBehaviour
     private void FilterTargetsByUnitCondition(
         List<CardController> targets,
         EffectData effect,
-        CardController sourceCard = null)
+        CardController sourceCard = null,
+        PlayerType? effectOwnerType = null)
     {
         if (targets == null || effect == null || !effect.HasTargetUnitFilter())
         {
@@ -13726,13 +13730,31 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        IReadOnlyList<int> ownerTrashIds = null;
-        if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies && sourceCard != null)
+        PlayerType sourceOwner = effectOwnerType
+            ?? (sourceCard != null ? ResolveCardOwner(sourceCard.transform) : currentPlayerType);
+        CardGameRule ownerRule = sourceOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        IReadOnlyList<int> ownerTrashIds = ownerRule != null ? ownerRule.GetTrashCardIds() : null;
+
+        // ST14-014: トラッシュのコマンドが4枚以上なら Lv 絞り込みを完全スキップ
+        if (IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect)
+            && ShouldRelaxUnitStatFilterByTrashCommands(sourceCard, effect, sourceOwner, ownerTrashIds))
         {
-            PlayerType sourceOwner = ResolveCardOwner(sourceCard.transform);
-            CardGameRule ownerRule = sourceOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
-            ownerTrashIds = ownerRule != null ? ownerRule.GetTrashCardIds() : null;
-            if (effect.ShouldRelaxTargetUnitStatFilter(sourceCard, ownerTrashIds))
+            Debug.Log(
+                $"[TrashQuery] ST14-014 skip Lv filter — owner:{sourceOwner} "
+                + $"commands:{CountOwnerTrashCommands(sourceOwner, ownerTrashIds)} "
+                + $"trashTotal:{ownerTrashIds?.Count ?? 0} candidates:{targets.Count}");
+            return;
+        }
+
+        IReadOnlyList<int> trashIdsForMatch = null;
+        if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies
+            || effect.relaxTargetUnitStatFilterWhenTrashHasCommands
+            || IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect))
+        {
+            trashIdsForMatch = ownerTrashIds;
+            if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies
+                && effect.ShouldRelaxTargetUnitStatFilter(sourceCard, ownerTrashIds)
+                && sourceCard?.Data != null)
             {
                 Debug.Log(
                     $"[TrashQuery] relax target Lv filter — trash has "
@@ -13763,7 +13785,6 @@ public partial class BattleGameMain : MonoBehaviour
         bool ownerHasLinkedUnit = false;
         if (effect.relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit && sourceCard != null)
         {
-            PlayerType sourceOwner = ResolveCardOwner(sourceCard.transform);
             ownerHasLinkedUnit = EffectActivationEvaluator.OwnerHasAnyLinkedUnit(
                 BuildActivationContext(sourceOwner, sourceCard));
         }
@@ -13773,7 +13794,7 @@ public partial class BattleGameMain : MonoBehaviour
             if (!effect.MatchesTargetUnitFilter(
                     targets[i],
                     sourceCard,
-                    ownerTrashIds,
+                    trashIdsForMatch,
                     priorChainStatCompareValue,
                     ownerHasLinkedUnit,
                     ResolveMountHostFallbackForPilotStatCompare(sourceCard)))
@@ -13781,6 +13802,111 @@ public partial class BattleGameMain : MonoBehaviour
                 targets.RemoveAt(i);
             }
         }
+    }
+
+    /// <summary>
+    /// トラッシュのコマンド枚数で対象ユニットのステータス絞り込みを外すか。
+    /// ST14-014 はフラグ欠落時もカード ID で判定する。
+    /// </summary>
+    private bool ShouldRelaxUnitStatFilterByTrashCommands(
+        CardController sourceCard,
+        EffectData effect,
+        PlayerType ownerType,
+        IReadOnlyList<int> ownerTrashIds)
+    {
+        if (effect == null)
+        {
+            return false;
+        }
+
+        bool wantsRelax = effect.relaxTargetUnitStatFilterWhenTrashHasCommands
+            || IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect);
+        if (!wantsRelax)
+        {
+            return false;
+        }
+
+        int need = effect.trashRelaxFilterMinCopies > 0 ? effect.trashRelaxFilterMinCopies : 4;
+        // ST14-014 の名前付き効果で minCopies が欠落すると default 2 になるため、カード ID 時は最低 4
+        if (IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect) && need < 4)
+        {
+            need = 4;
+        }
+
+        int commandCount = CountOwnerTrashCommands(ownerType, ownerTrashIds);
+        bool ok = commandCount >= need;
+        Debug.Log(
+            $"[TrashQuery] trash-command relax — {commandCount}/{need} ok:{ok} owner:{ownerType} "
+            + $"flag:{effect.relaxTargetUnitStatFilterWhenTrashHasCommands} "
+            + $"source:{sourceCard?.Data?.cardName}(id:{sourceCard?.Data?.id})");
+        return ok;
+    }
+
+    /// <summary>効果オーナーのトラッシュ内コマンド枚数（詳細ログ付き）。</summary>
+    private int CountOwnerTrashCommands(PlayerType ownerType, IReadOnlyList<int> ownerTrashIds = null)
+    {
+        if (ownerTrashIds == null)
+        {
+            CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+            ownerTrashIds = ownerRule != null ? ownerRule.GetTrashCardIds() : null;
+        }
+
+        if (ownerTrashIds == null || ownerTrashIds.Count == 0)
+        {
+            return 0;
+        }
+
+        int count = TrashCardQuery.CountCommands(ownerTrashIds);
+        if (count > 0)
+        {
+            return count;
+        }
+
+        // TrashCardQuery が 0 のとき、DeckSettin / CardDatabase で再集計
+        int fallback = 0;
+        for (int i = 0; i < ownerTrashIds.Count; i++)
+        {
+            int id = ownerTrashIds[i];
+            CardData data = null;
+            if (DeckSettinObject.Instance != null)
+            {
+                data = DeckSettinObject.Instance.GetCardDataById(id);
+            }
+
+            if (data == null && CardDatabase.Instance != null)
+            {
+                data = CardDatabase.Instance.GetById(id);
+            }
+
+            bool isCmd = data != null && data.IsCommand();
+            if (isCmd)
+            {
+                fallback++;
+            }
+
+            Debug.Log(
+                $"[TrashQuery] trash[{i}] id:{id} name:{(data != null ? data.cardName : "?")} "
+                + $"type:{(data != null ? data.type.ToString() : "null")} isCommand:{isCmd}");
+        }
+
+        return fallback;
+    }
+
+    /// <summary>ST14-014 炎のモビルスーツ乗り：トラッシュコマンド4枚以上で Lv 制限解除対象。</summary>
+    private static bool IsBlazingMobileSuitRiderTrashRelaxEffect(CardController sourceCard, EffectData effect)
+    {
+        if (sourceCard?.Data == null || effect == null)
+        {
+            return false;
+        }
+
+        if (sourceCard.Data.id != 1000699
+            && !string.Equals(sourceCard.Data.gcgOfficialId, "ST14-014", System.StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return effect.type == EffectType.Debuff;
     }
 
     /// <summary>
@@ -14832,7 +14958,7 @@ public partial class BattleGameMain : MonoBehaviour
             result.Add(_pilotMountEffectHostUnit);
         }
 
-        FilterTargetsByUnitCondition(result, effect, sourceCard);
+        FilterTargetsByUnitCondition(result, effect, sourceCard, ownerType);
         FilterSelectableEffectTargets(result, effect);
         if (effect.type == EffectType.Rest && !effect.allowAlreadyRestedTargets)
         {
@@ -19863,9 +19989,13 @@ public partial class BattleGameMain : MonoBehaviour
             case TargetType.AllyUnit:
                 AddAllAliveUnits(allies, result, null, requiredFeatures);
                 EnsureAllyUnitSelfInCandidateList(sourceCard, result, requiredFeatures);
+                EnsurePilotMountHostInAllyCandidateList(result, requiredFeatures);
                 break;
             case TargetType.AllyOtherUnit:
-                AddAllAliveUnits(allies, result, sourceCard, requiredFeatures);
+                {
+                    CardController excludeSelf = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+                    AddAllAliveUnits(allies, result, excludeSelf, requiredFeatures);
+                }
                 break;
             case TargetType.TokenUnit:
                 AddAllAliveTokenUnits(allies, result, null, requiredFeatures);
@@ -19883,6 +20013,7 @@ public partial class BattleGameMain : MonoBehaviour
                 AddAllAliveUnits(allies, result, null, requiredFeatures);
                 AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
                 EnsureAllyUnitSelfInCandidateList(sourceCard, result, requiredFeatures);
+                EnsurePilotMountHostInAllyCandidateList(result, requiredFeatures);
                 break;
         }
 
@@ -19891,7 +20022,7 @@ public partial class BattleGameMain : MonoBehaviour
         // 付与候補は Feature に加え、valueCountMinUnitLevel>0 なら Lv 下限で絞る。
         if (effect.type != EffectType.AttackActiveEnemyUnit)
         {
-            FilterTargetsByUnitCondition(result, effect, sourceCard);
+            FilterTargetsByUnitCondition(result, effect, sourceCard, ownerType);
         }
         else if (effect.IsAttackActiveEnemyAllyGrant() && effect.valueCountMinUnitLevel > 0)
         {
@@ -20219,15 +20350,48 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> result,
         IReadOnlyList<CardFeatureData> requiredFeatures)
     {
+        // パイロット効果は搭乗ユニットを「自身」として扱う
+        CardController selfUnit = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
         if (result == null
-            || !IsValidAllyUnitSelfTarget(sourceCard, requiredFeatures)
-            || !IsCardOnBattleZone(sourceCard)
-            || result.Contains(sourceCard))
+            || selfUnit == null
+            || result.Contains(selfUnit)
+            || !IsValidAllyUnitSelfTarget(selfUnit, requiredFeatures))
         {
             return;
         }
 
-        result.Insert(0, sourceCard);
+        // セット時は搭乗先が一時的に盤面リスト外でも候補に含める
+        bool onZoneOrMounting =
+            IsCardOnBattleZone(selfUnit)
+            || ReferenceEquals(selfUnit, _pilotMountEffectHostUnit);
+        if (!onZoneOrMounting)
+        {
+            return;
+        }
+
+        result.Insert(0, selfUnit);
+    }
+
+    /// <summary>
+    /// パイロット【セット時】解決中、搭乗先が一時的に盤面リストから外れる場合がある。
+    /// AllyUnit / AnyUnit の選択候補へ搭乗先を戻す（ST14-012 バナージ等）。
+    /// </summary>
+    private void EnsurePilotMountHostInAllyCandidateList(
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (result == null
+            || _pilotMountEffectHostUnit == null
+            || _pilotMountEffectHostUnit.Data == null
+            || !_pilotMountEffectHostUnit.Data.IsUnitLike()
+            || _pilotMountEffectHostUnit.CurrentHp <= 0
+            || result.Contains(_pilotMountEffectHostUnit)
+            || !MatchesRequiredFeatures(_pilotMountEffectHostUnit.Data, requiredFeatures))
+        {
+            return;
+        }
+
+        result.Insert(0, _pilotMountEffectHostUnit);
     }
 
     private bool IsCardOnBattleZone(CardController card)
