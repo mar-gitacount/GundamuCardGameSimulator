@@ -14439,6 +14439,7 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.ShuffleLookedRemainderToDeckBottom:
             case EffectType.ChooseLookedRemainderDisposition:
             case EffectType.ChooseLookedToDeckTopThenTrashRemainder:
+            case EffectType.ChooseLookedToDeckTopThenBottomRemainder:
                 Debug.LogWarning(
                     $"[Effect] {effect.type} は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
                 break;
@@ -16012,6 +16013,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
             || effect.type == EffectType.ChooseLookedRemainderDisposition
             || effect.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
+            || effect.type == EffectType.ChooseLookedToDeckTopThenBottomRemainder
             || effect.type == EffectType.MillTopToTrash
             || effect.type == EffectType.ExileFromDeck
             || effect.type == EffectType.ExileFromTrash
@@ -16604,6 +16606,7 @@ public partial class BattleGameMain : MonoBehaviour
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
                 || eff.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
+                || eff.type == EffectType.ChooseLookedToDeckTopThenBottomRemainder
                 || eff.type == EffectType.MillTopToTrash
                 || eff.type == EffectType.ExileFromDeck
                 || eff.type == EffectType.ExileFromTrash

@@ -32,7 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 1
   type: 3
-  battleZones: 0
+  battleZones: 2
   attackFlg: 0
   timedEffects:
   - timing: 5
@@ -43,18 +43,18 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
-  - timing: 0
+  - timing: 6
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: LookTop2_SelfDeck
+    effectsName: AddShield1_ThenLookTop2_SelfDeck_OnBaseDeployed
     effects: []
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
-  - timing: 6
+  - timing: 17
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: AddShield1_OnBaseDeployed
+    effectsName: ChooseLooked1ToDeckTop_RemainderToBottom
     effects: []
     activationCost: 0
     oncePerTurn: 0
