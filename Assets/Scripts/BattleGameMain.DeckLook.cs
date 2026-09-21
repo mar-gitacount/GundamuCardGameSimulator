@@ -32,6 +32,7 @@ public partial class BattleGameMain
         AddToHand,
         ChooseToDeckTopThenTrashRemainder,
         ChooseToHandThenTrashRemainder,
+        ChooseToDeckTopThenBottomRemainder,
         DeployToBattle
     }
 
@@ -443,7 +444,9 @@ public partial class BattleGameMain
     private static bool OnLookBlocksContainPickFromLooked(List<TimedEffectData> blocks)
     {
         return OnLookBlocksContainEffectType(blocks, EffectType.AddToHandFromLooked)
-            || OnLookBlocksContainEffectType(blocks, EffectType.DeployUnitFromLooked);
+            || OnLookBlocksContainEffectType(blocks, EffectType.DeployUnitFromLooked)
+            || OnLookBlocksContainEffectType(blocks, EffectType.ChooseLookedToDeckTopThenTrashRemainder)
+            || OnLookBlocksContainEffectType(blocks, EffectType.ChooseLookedToDeckTopThenBottomRemainder);
     }
 
     private static bool OnLookBlocksContainAddToHand(List<TimedEffectData> blocks)
@@ -569,6 +572,15 @@ public partial class BattleGameMain
         if (effect.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder)
         {
             ApplyChooseLookedToDeckTopThenTrashRemainderEffect(
+                context,
+                effect,
+                () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ChooseLookedToDeckTopThenBottomRemainder)
+        {
+            ApplyChooseLookedToDeckTopThenBottomRemainderEffect(
                 context,
                 effect,
                 () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
@@ -1283,6 +1295,39 @@ public partial class BattleGameMain
         ShowLookDeckPickToTopThenTrashPopup(context, pickCount, onComplete);
     }
 
+    /// <summary>
+    /// 見たカードから value 枚を山札上へ、残りを山札下へ（ST02-015 等）。
+    /// </summary>
+    private void ApplyChooseLookedToDeckTopThenBottomRemainderEffect(
+        LookResolutionContext context,
+        EffectData effect,
+        System.Action onComplete)
+    {
+        if (context?.DeckRule == null || context.Entries == null || context.Entries.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        int pickCount = Mathf.Max(1, ResolveEffectMagnitude(effect, context.OwnerType, context.SourceCard));
+        pickCount = Mathf.Min(pickCount, context.Entries.Count);
+
+        if (context.OwnerType == PlayerType.Enemy || context.Entries.Count <= pickCount)
+        {
+            List<LookedDeckEntry> autoPicks = new List<LookedDeckEntry>(pickCount);
+            for (int i = 0; i < pickCount; i++)
+            {
+                autoPicks.Add(context.Entries[i]);
+            }
+
+            CommitLookedToDeckTopThenBottomRemainder(context, autoPicks);
+            onComplete?.Invoke();
+            return;
+        }
+
+        ShowLookDeckPickToTopThenBottomPopup(context, pickCount, onComplete);
+    }
+
     private void CommitLookedToDeckTopThenTrashRemainder(
         LookResolutionContext context,
         List<LookedDeckEntry> chosenTopFirst)
@@ -1354,6 +1399,76 @@ public partial class BattleGameMain
 
         Debug.Log(
             $"[OnLook] ChooseLookedToDeckTopThenTrashRemainder top:{topIds.Count} trash:{trashIds.Count} "
+            + $"deck:{context.DeckLabel} by cardId:{context.SourceCard?.Data?.id}");
+    }
+
+    private void CommitLookedToDeckTopThenBottomRemainder(
+        LookResolutionContext context,
+        List<LookedDeckEntry> chosenTopFirst)
+    {
+        if (context?.DeckRule == null)
+        {
+            return;
+        }
+
+        HashSet<int> chosenDeckIndexes = new HashSet<int>();
+        List<int> topIds = new List<int>();
+        if (chosenTopFirst != null)
+        {
+            for (int i = 0; i < chosenTopFirst.Count; i++)
+            {
+                LookedDeckEntry pick = chosenTopFirst[i];
+                if (pick == null || !chosenDeckIndexes.Add(pick.DeckIndex))
+                {
+                    continue;
+                }
+
+                topIds.Add(pick.CardId);
+            }
+        }
+
+        List<LookedDeckEntry> toRemove = new List<LookedDeckEntry>();
+        List<int> bottomIds = new List<int>();
+        for (int i = 0; i < context.Entries.Count; i++)
+        {
+            LookedDeckEntry entry = context.Entries[i];
+            if (entry == null)
+            {
+                continue;
+            }
+
+            toRemove.Add(entry);
+            if (!chosenDeckIndexes.Contains(entry.DeckIndex))
+            {
+                bottomIds.Add(entry.CardId);
+            }
+        }
+
+        toRemove.Sort((a, b) => b.DeckIndex.CompareTo(a.DeckIndex));
+
+        WithZoneSyncSuppressed(() =>
+        {
+            for (int i = 0; i < toRemove.Count; i++)
+            {
+                context.DeckRule.TryTakeCardAtDeckIndex(toRemove[i].DeckIndex, out _);
+            }
+
+            if (topIds.Count > 0)
+            {
+                context.DeckRule.PrependCardsToTopInOrder(topIds);
+            }
+
+            if (bottomIds.Count > 0)
+            {
+                context.DeckRule.AppendCardsToBottom(bottomIds);
+            }
+        });
+
+        int deckRemain = context.DeckRule.GetRemainingCount();
+        SyncGundamRuleDeckCount(context.DeckOwnerType, deckRemain);
+
+        Debug.Log(
+            $"[OnLook] ChooseLookedToDeckTopThenBottomRemainder top:{topIds.Count} bottom:{bottomIds.Count} "
             + $"deck:{context.DeckLabel} by cardId:{context.SourceCard?.Data?.id}");
     }
 
@@ -1472,6 +1587,32 @@ public partial class BattleGameMain
             addToHand
                 ? LookDeckPickCommitKind.ChooseToHandThenTrashRemainder
                 : LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder,
+            allowSkip: false);
+    }
+
+    private void ShowLookDeckPickToTopThenBottomPopup(
+        LookResolutionContext context,
+        int pickCount,
+        System.Action onComplete)
+    {
+        string subtitle = pickCount <= 1
+            ? GameLocale.T(
+                "1枚選んで OK（山札の上へ。残りは下へ）",
+                "Choose 1 card, then OK (put on top; rest to bottom)")
+            : GameLocale.T(
+                $"{pickCount}枚選んで OK（山札の上へ。残りは下へ）",
+                $"Choose {pickCount} cards, then OK (put on top; rest to bottom)");
+
+        ShowLookDeckPopupCore(
+            context,
+            context.Entries,
+            pickCount,
+            context.OwnerType,
+            handRule: null,
+            addEffect: null,
+            onComplete,
+            subtitle,
+            LookDeckPickCommitKind.ChooseToDeckTopThenBottomRemainder,
             allowSkip: false);
     }
 
@@ -1714,7 +1855,8 @@ public partial class BattleGameMain
             }
 
             if (commitKind == LookDeckPickCommitKind.ChooseToDeckTopThenTrashRemainder
-                || commitKind == LookDeckPickCommitKind.ChooseToHandThenTrashRemainder)
+                || commitKind == LookDeckPickCommitKind.ChooseToHandThenTrashRemainder
+                || commitKind == LookDeckPickCommitKind.ChooseToDeckTopThenBottomRemainder)
             {
                 if (pendingPicks.Count != pickCount)
                 {
@@ -1724,6 +1866,10 @@ public partial class BattleGameMain
                 if (commitKind == LookDeckPickCommitKind.ChooseToHandThenTrashRemainder)
                 {
                     CommitLookedToHandThenTrashRemainder(context, pendingPicks);
+                }
+                else if (commitKind == LookDeckPickCommitKind.ChooseToDeckTopThenBottomRemainder)
+                {
+                    CommitLookedToDeckTopThenBottomRemainder(context, pendingPicks);
                 }
                 else
                 {

@@ -374,7 +374,12 @@ public enum EffectType
     /// Lv.value 以下の相手ユニットからダメージを受けない（ST02-013 穏やかな音色等）。
     /// duration=UntilEndOfBattle。シールド攻撃・効果ダメージ双方。
     /// </summary>
-    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess
+    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess,
+    /// <summary>
+    /// OnLook 専用。見たカードから value 枚を選び山札の上に戻す（選んだ順・先頭が一番上）。
+    /// 選ばなかった見た枚は山札の下へ戻す（ST02-015 聖ガブリエル学園等）。
+    /// </summary>
+    ChooseLookedToDeckTopThenBottomRemainder
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

@@ -705,6 +705,13 @@ public partial class BattleGameMain
                     continue;
                 }
 
+                // Look / OnLook UI は完了待ちが必要（配備時の上に戻す／下に戻す等）
+                if (effect.type == EffectType.Look)
+                {
+                    pendingManualEffects.Add(effect);
+                    continue;
+                }
+
                 // 手動選択以外は即時解決（バースト配備→AddShieldToHand がコミット前に終わるようにする）
                 if (!EffectRequiresManualUnitSelection(effect))
                 {
@@ -775,6 +782,14 @@ public partial class BattleGameMain
                 bool deployDone = false;
                 ApplyDeployUnitEffect(sourceCard, ownerType, effect, () => deployDone = true);
                 yield return new WaitUntil(() => deployDone);
+                continue;
+            }
+
+            if (effect.type == EffectType.Look)
+            {
+                bool lookDone = false;
+                ApplyEffectRespectingLookAsync(sourceCard, ownerType, effect, () => lookDone = true);
+                yield return new WaitUntil(() => lookDone);
                 continue;
             }
 
