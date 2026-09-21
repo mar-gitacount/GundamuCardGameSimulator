@@ -4626,6 +4626,14 @@ public partial class BattleGameMain : MonoBehaviour
                     destroyedByBattleDamage,
                     () =>
                 {
+                NotifyAllyEnemyUnitDestroyedWatch(
+                    cardController,
+                    ownerType,
+                    destroyedBy,
+                    destroyedByBattleDamage,
+                    destroyedByEffectDamage,
+                    () =>
+                {
                 if (TryResolveEnemyUnitKillContext(
                         cardController,
                         ownerType,
@@ -4646,6 +4654,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     CompleteSendCardToTrashPipeline(cardController, ownerType);
                 }
+                });
                 });
                 });
             });

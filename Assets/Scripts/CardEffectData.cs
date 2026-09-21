@@ -80,6 +80,13 @@ public enum EffectTiming
     /// MountHostUnit に回復したユニット、SourceCard に効果源（ユニットまたはパイロット）を載せる。
     /// </summary>
     OnUnitRepaired = 29,
+    /// <summary>
+    /// 自分のユニットが相手のユニットを破壊したとき、場の監視ユニットが効果を解決する。
+    /// 破壊したユニットは監視ユニット自身でも他の味方でもよい。
+    /// MountHostUnit / DestroyingCard にキル元、SourceCard に監視ユニットを載せる。
+    /// 例: GD02-002 ガンダムエピオン「自分のユニットがバトルダメージで相手を破壊したとき…アクティブにする」。
+    /// </summary>
+    OnAllyEnemyUnitDestroyed = 30,
 }
 
 public enum EffectType
@@ -3082,6 +3089,21 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnUnitRepaired
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>
+    /// 味方ユニットが敵ユニットを破壊したとき（OnAllyEnemyUnitDestroyed）に解決するブロック。
+    /// </summary>
+    public static bool IsOnAllyEnemyUnitDestroyedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnAllyEnemyUnitDestroyed
             || !timed.HasResolvedEffects())
         {
             return false;
