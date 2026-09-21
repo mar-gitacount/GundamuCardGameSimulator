@@ -368,7 +368,13 @@ public enum EffectType
     /// スタートフェイズの通常アクティブ化のみ阻害。効果による Activate は有効。
     /// Permanent。ApplyEffect では何もしない（マーカー）。
     /// </summary>
-    PreventOpponentStartPhaseActiveLowestRestUnits
+    PreventOpponentStartPhaseActiveLowestRestUnits,
+    /// <summary>
+    /// このバトル中、味方シールドエリアのカード（実シールド／配備ベース／EXベース）が
+    /// Lv.value 以下の相手ユニットからダメージを受けない（ST02-013 穏やかな音色等）。
+    /// duration=UntilEndOfBattle。シールド攻撃・効果ダメージ双方。
+    /// </summary>
+    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

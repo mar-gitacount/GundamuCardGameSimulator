@@ -7,33 +7,16 @@ using UnityEngine;
 public partial class BattleGameMain
 {
     /// <summary>
-    /// Operation Meteor パイロット搭乗時、搭乗ターン限定でホスト MS に先制攻撃を付与する。
+    /// 〔オペレーション・メテオ〕は特徴名のみ。搭乗だけで《先制攻撃》は付与しない。
+    /// （デスサイズ等の「セット時に先制を得る」は各カードの timedEffects で実装する）
+    /// 旧実装はヒイロ等のメテオ・パイロット搭乗でも先制が付き、撃破時に反撃が乗らない不具合の原因だった。
     /// </summary>
     private void TryGrantOperationMeteorFirstStrikeOnPilotMount(
         CardController hostUnit,
         CardController pilot,
         PlayerType ownerType)
     {
-        if (hostUnit == null || hostUnit.Data == null || pilot?.Data == null)
-        {
-            return;
-        }
-
-        // 搭乗者のターンでのみ付与（オンライン相手搭乗の受信同期時は _applyingRemoteBattleAction でミラー）
-        if (ownerType != currentPlayerType && !_applyingRemoteBattleAction)
-        {
-            return;
-        }
-
-        if (!pilot.Data.HasOperationMeteorFeature())
-        {
-            return;
-        }
-
-        hostUnit.AddFirstStrikeUntilEndOfTurnGrant();
-        Debug.Log(
-            $"[OperationMeteor] 先制攻撃付与: {hostUnit.Data.cardName}(id:{hostUnit.Data.id}) "
-            + $"pilot:{pilot.Data.cardName}(id:{pilot.Data.id}) turn:{ownerType}");
+        // no-op: 特徴〔オペレーション・メテオ〕≠自動先制付与
     }
 
     private void ClearFirstStrikeGrants(EffectDuration duration)

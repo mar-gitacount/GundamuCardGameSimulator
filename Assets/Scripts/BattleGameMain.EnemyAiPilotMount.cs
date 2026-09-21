@@ -253,10 +253,6 @@ public partial class BattleGameMain
 
         snap.Ap += Mathf.Max(0, pilot.Data.power);
         snap.Hp += Mathf.Max(0, pilot.Data.hp);
-        if (pilot.Data.HasOperationMeteorFeature())
-        {
-            snap.FirstStrike = true;
-        }
     }
 
     private void ApplyVirtualPilotOnMountedEffects(

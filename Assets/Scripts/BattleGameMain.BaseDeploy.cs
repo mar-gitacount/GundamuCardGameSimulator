@@ -930,7 +930,8 @@ public partial class BattleGameMain
         Gundam2024RuleScript.PlayerSide targetSide,
         int baseMagnitude,
         out string logMessage,
-        out bool destroyed)
+        out bool destroyed,
+        CardController sourceUnit = null)
     {
         logMessage = null;
         destroyed = false;
@@ -943,6 +944,15 @@ public partial class BattleGameMain
         if (defenderBase == null || defenderBase.Data == null || defenderBase.CurrentHp <= 0)
         {
             return false;
+        }
+
+        // ST02-013 等：配備ベースも相手ユニット Lv 以下ダメージ無効
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit))
+        {
+            logMessage =
+                $"[EffectDamage] Deployed Base immune to unit damage "
+                + $"({sourceUnit?.Data?.cardName} vs {defenderBase.Data.cardName}).";
+            return true;
         }
 
         // 先頭の配備ベースが効果ダメージ無効なら、ここでダメージ全体を消費する（EX/シールドへ抜けない）。
@@ -998,6 +1008,15 @@ public partial class BattleGameMain
             return false;
         }
 
+        // ST02-013 等：シールドエリア（配備ベース／EXベース）も Lv 以下ユニットダメージ無効
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit))
+        {
+            Debug.Log(
+                $"[EffectDamage] Base/EX immune to unit damage (side:{targetSide}, source:"
+                + $"{(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")}).");
+            return true;
+        }
+
         baseMagnitude = ApplyShieldAreaEnemyEffectDamageReductionIfNeeded(
             targetSide,
             baseMagnitude,
@@ -1016,11 +1035,21 @@ public partial class BattleGameMain
         int shieldBefore = target != null ? target.shield : 0;
         int exBaseBefore = target != null ? target.exBase : 0;
 
-        if (TryApplyEffectDamageToDeployedBase(targetSide, baseMagnitude, out string baseLog, out _))
+        if (TryApplyEffectDamageToDeployedBase(
+                targetSide, baseMagnitude, out string baseLog, out _, sourceUnit))
         {
             Debug.Log(baseLog);
             SyncResourceViewsFromRule(targetSide);
             TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
+            return true;
+        }
+
+        // 配備ベース無し → EX。無効化を再確認（先頭チェックの取りこぼし防止）
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit))
+        {
+            Debug.Log(
+                $"[EffectDamage] EX Base immune to unit damage (side:{targetSide}, source:"
+                + $"{(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")}).");
             return true;
         }
 
@@ -1113,6 +1142,15 @@ public partial class BattleGameMain
             return;
         }
 
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit))
+        {
+            Debug.Log(
+                $"[EffectDamage] Shield-area immune to unit damage (side:{targetSide}, source:"
+                + $"{(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")}"
+                + $" Lv:{(ResolveUnitSourceForShieldAreaDamage(sourceUnit)?.CurrentLevel ?? -1)}).");
+            return;
+        }
+
         baseMagnitude = ApplyShieldAreaEnemyEffectDamageReductionIfNeeded(targetSide, baseMagnitude, sourceUnit);
         if (baseMagnitude <= 0)
         {
@@ -1129,13 +1167,23 @@ public partial class BattleGameMain
         int exBaseBefore = target != null ? target.exBase : 0;
         bool destroyedShieldAreaCard = false;
 
-        if (TryApplyEffectDamageToDeployedBase(targetSide, baseMagnitude, out string baseLog, out bool baseDestroyed))
+        if (TryApplyEffectDamageToDeployedBase(
+                targetSide, baseMagnitude, out string baseLog, out bool baseDestroyed, sourceUnit))
         {
             Debug.Log(baseLog);
             destroyedShieldAreaCard = baseDestroyed;
             SyncResourceViewsFromRule(targetSide);
             TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBaseBefore);
             TryNotifyOpponentShieldAreaCardDestroyedFromEffectDamage(sourceUnit, destroyedShieldAreaCard);
+            return;
+        }
+
+        // 配備ベース無し → EX／シールド。無効化を再確認
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit))
+        {
+            Debug.Log(
+                $"[EffectDamage] EX/Shield immune to unit damage (side:{targetSide}, source:"
+                + $"{(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")}).");
             return;
         }
 
@@ -1247,7 +1295,8 @@ public partial class BattleGameMain
         Gundam2024RuleScript.PlayerSide targetSide,
         int strikeAp,
         out string logMessage,
-        out bool destroyedDeployedBase)
+        out bool destroyedDeployedBase,
+        PlayerType? attackerOwnerHint = null)
     {
         logMessage = null;
         destroyedDeployedBase = false;
@@ -1255,6 +1304,15 @@ public partial class BattleGameMain
         if (defenderBase == null || defenderBase.Data == null || defenderBase.CurrentHp <= 0)
         {
             return false;
+        }
+
+        // ST02-013 等：シールドエリアの配備ベースも相手ユニット Lv 以下ダメージを受けない
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, attacker, attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] Deployed Base immune to unit damage "
+                + $"({attacker?.Data?.cardName} vs {defenderBase.Data.cardName}).";
+            return true;
         }
 
         int power = Mathf.Max(0, strikeAp);
