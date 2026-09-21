@@ -350,6 +350,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.ForceEnemyAttackTarget
                 || eff.type == EffectType.CannotBeChosenAsAttackTarget
                 || eff.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction
+                || eff.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess
                 || eff.type == EffectType.AllyEnemyEffectDamageImmunity
                 || eff.type == EffectType.PreventOpponentStartPhaseActiveLowestRestUnits
                 || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.AddSelfToHand

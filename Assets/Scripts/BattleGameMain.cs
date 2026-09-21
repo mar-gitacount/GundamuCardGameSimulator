@@ -7810,6 +7810,36 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess)
+        {
+            int maxLevel = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (maxLevel <= 0)
+            {
+                maxLevel = effect.value > 0 ? effect.value : 4;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(ownerType, maxLevel);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction)
+        {
+            int reduction = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (reduction <= 0)
+            {
+                reduction = effect.value > 0 ? effect.value : 5;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.CopyKeywordsFromTrashUnit)
         {
             Debug.LogWarning(
@@ -7999,6 +8029,11 @@ public partial class BattleGameMain : MonoBehaviour
                     GrantShieldAreaEnemyEffectDamageReduction(
                         ownerType,
                         magnitude > 0 ? magnitude : 5);
+                    break;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
+                    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(
+                        ownerType,
+                        magnitude > 0 ? magnitude : 4);
                     break;
                 case EffectType.AllyEnemyEffectDamageImmunity:
                     break;
@@ -8928,6 +8963,19 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        // 攻撃フロー所有者を優先（階層 ResolveCardOwner の誤判定で無効化が外れるのを防ぐ）
+        PlayerType? attackerOwnerHint = attackFlowStrikeKind != AttackFlowStrikeKind.None
+            ? attackFlowAttackerOwner
+            : (PlayerType?)null;
+
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, attacker, attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] Shield-area (Base/EX/Shield) immune to unit damage "
+                + $"({attacker.Data?.cardName} Lv:{attacker.CurrentLevel}).";
+            return true;
+        }
+
         int suppressBreaks = GetMaxSuppressBreakCountFromUnit(attacker);
         bool shieldOnly = defender.exBase <= 0
             && !HasActiveDeployedBaseForRuleSide(targetSide)
@@ -8938,7 +8986,8 @@ public partial class BattleGameMain : MonoBehaviour
                 targetSide,
                 strikeAp,
                 out logMessage,
-                out destroyedDeployedBase))
+                out destroyedDeployedBase,
+                attackerOwnerHint))
         {
             return true;
         }
@@ -8946,6 +8995,15 @@ public partial class BattleGameMain : MonoBehaviour
         // 配備ベースがいるのにダメージ未適用 → EX層空振り扱いにせずシールド破壊へ（Master Gundam バースト後など）
         bool overflowGuardAsExLayer = hadExBaseLayerAtShieldAttackStart
             && !HasActiveDeployedBaseForRuleSide(targetSide);
+
+        // 無効化は EX／制圧／実シールドすべてに再確認（配備ベース無し経路の取りこぼし防止）
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, attacker, attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] EX/Shield immune to unit damage "
+                + $"({attacker.Data?.cardName} Lv:{attacker.CurrentLevel}).";
+            return true;
+        }
 
         if (suppressBreaks > 0 && shieldOnly)
         {
@@ -9913,6 +9971,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         ClearBreachUntilEndOfBattleGrantsForAllInPlayUnits();
         ClearSuppressUntilEndOfBattleGrantsForAllInPlayUnits();
+        ClearShieldAreaImmunityFromEnemyUnitLevelOrLess();
         ClearObservedUnitWatchesAtEndOfBattle();
         // ゾーンリスト漏れ対策: 配備パネル直下も走査
         ClearTimedStatModifiersOnDeployPanels(EffectDuration.UntilEndOfBattle);
@@ -14257,6 +14316,37 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // SelfPlayer 対象のため targets 空でも付与する（穏やかな音色等）
+        if (effect.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess)
+        {
+            int maxLevel = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (maxLevel <= 0)
+            {
+                maxLevel = effect.value > 0 ? effect.value : 4;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(ownerType, maxLevel);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction)
+        {
+            int reduction = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (reduction <= 0)
+            {
+                reduction = effect.value > 0 ? effect.value : 5;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.GrantTurnEndRepair)
         {
             List<CardController> repairTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
@@ -14535,6 +14625,24 @@ public partial class BattleGameMain : MonoBehaviour
                         $"[Effect] GrantShieldAreaEnemyEffectDamageReduction は UntilEndOfTurn 想定 "
                         + $"(cardId:{sourceCard?.Data?.id} duration:{effect.duration})");
                     GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+                }
+
+                break;
+            }
+
+            case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
+            {
+                int maxLevel = magnitude > 0 ? magnitude : 4;
+                if (effect.duration == EffectDuration.UntilEndOfBattle)
+                {
+                    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(ownerType, maxLevel);
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[Effect] GrantShieldAreaImmunityFromEnemyUnitLevelOrLess は UntilEndOfBattle 想定 "
+                        + $"(cardId:{sourceCard?.Data?.id} duration:{effect.duration})");
+                    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(ownerType, maxLevel);
                 }
 
                 break;
@@ -16634,6 +16742,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
                     notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
                     continue;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
+                    notes.Append("[ShieldAreaUnitDmgImmunity Lv≤").Append(magnitude).Append("] ");
+                    continue;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     notes.Append("[PreventStartPhaseActiveLowestRest] ");
                     continue;
@@ -16800,6 +16911,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
                     notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
+                    notes.Append("[ShieldAreaUnitDmgImmunity Lv≤").Append(magnitude).Append("] ");
                     continue;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     notes.Append("[PreventStartPhaseActiveLowestRest] ");

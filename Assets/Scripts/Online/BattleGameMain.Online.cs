@@ -735,6 +735,59 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>ST02-013 等のシールドエリア・ユニットダメージ無効を相手クライアントへ同期する。</summary>
+    private void QueueOnlineShieldAreaUnitDamageImmunity(PlayerType grantedSide, int maxEnemyUnitLevel)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] ShieldAreaUnitDamageImmunity queue skipped (batch inactive) "
+                + $"side:{grantedSide} maxLv:{maxEnemyUnitLevel}");
+            return;
+        }
+
+        if (_pendingOnlineEffectChanges == null)
+        {
+            _pendingOnlineEffectChanges = new List<OnlineBattleUnitEffectChange>();
+        }
+
+        for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
+        {
+            OnlineBattleUnitEffectChange existing = _pendingOnlineEffectChanges[i];
+            if (existing != null
+                && existing.changeKind == OnlineBattleEffectSyncPayload.ChangeKindShieldAreaUnitDamageImmunity
+                && existing.targetZoneOwnerSide == (int)grantedSide)
+            {
+                // より広い閾値を残す
+                if (maxEnemyUnitLevel > existing.signedStatValue)
+                {
+                    existing.signedStatValue = maxEnemyUnitLevel;
+                }
+
+                return;
+            }
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindShieldAreaUnitDamageImmunity,
+            targetZoneOwnerSide = (int)grantedSide,
+            // max Lv 閾値を signedStatValue に載せる
+            signedStatValue = maxEnemyUnitLevel,
+            duration = (int)EffectDuration.UntilEndOfBattle
+        });
+    }
+
     /// <summary>CannotBeChosenAsAttackTarget（UntilEndOfTurn）付与を相手クライアントへ同期する。</summary>
     private void QueueOnlineCannotBeChosenAsAttackTargetGrant(CardController target)
     {
@@ -2125,6 +2178,27 @@ public partial class BattleGameMain
             return;
         }
 
+        // ST02-013 等：ローカルにシールドエリア無効がある場合、相手の打撃結果を適用しない
+        // （EffectSync 遅延で攻撃側が無効化を知らぬままダメージ同期してきた場合の保険）
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(
+                Gundam2024RuleScript.PlayerSide.Player,
+                attacker,
+                PlayerType.Enemy))
+        {
+            Debug.Log(
+                "[OnlineBattle] Remote shield attack ignored — local ShieldAreaUnitDmgImmunity "
+                + $"(attacker:{(attacker?.Data != null ? attacker.Data.cardName : "-")}).");
+            if (action.requestId > 0)
+            {
+                SendOnlineShieldBreakComplete(action.requestId, Gundam2024RuleScript.PlayerSide.Player);
+            }
+
+            SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
+            SyncBaseZoneHeaderDisplay(Gundam2024RuleScript.PlayerSide.Player);
+            ClearEndOfBattleCombatModifiers("remote shield attack ignored (immunity)");
+            return;
+        }
+
         ApplyRemoteDeployedBaseHpUpdate(
             Gundam2024RuleScript.PlayerSide.Player,
             action.defenderDeployedBaseHpAfter);
@@ -2436,6 +2510,16 @@ public partial class BattleGameMain
                         ? PlayerType.Enemy
                         : PlayerType.Player;
                 ApplyRemotePreventAllyDestroyByEnemyEffect(senderSide);
+                continue;
+            }
+
+            if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindShieldAreaUnitDamageImmunity)
+            {
+                PlayerType senderSide =
+                    change.targetZoneOwnerSide == (int)PlayerType.Enemy
+                        ? PlayerType.Enemy
+                        : PlayerType.Player;
+                ApplyRemoteShieldAreaUnitDamageImmunity(senderSide, change.signedStatValue);
                 continue;
             }
 

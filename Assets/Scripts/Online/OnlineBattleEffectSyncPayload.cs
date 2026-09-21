@@ -103,6 +103,8 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindPreventAllyDestroyByEnemyEffect = "PreventAllyDestroyByEnemyEffect";
     /// <summary>ST11-014 等：このターン敵ユニットのアタック先に選べない付与。</summary>
     public const string ChangeKindCannotBeChosenAsAttackTarget = "CannotBeChosenAsAttackTarget";
+    /// <summary>ST02-013 等：このバトル中、シールドエリアが相手 Lv≤N ユニットからダメージを受けない。</summary>
+    public const string ChangeKindShieldAreaUnitDamageImmunity = "ShieldAreaUnitDamageImmunity";
 
     public static string ToJson(OnlineBattleUnitEffectChange[] changes)
     {
