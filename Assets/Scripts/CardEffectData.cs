@@ -74,6 +74,12 @@ public enum EffectTiming
     /// MountHostUnit にリンクしたユニット、MountedPilot に搭乗パイロットを載せる。
     /// </summary>
     OnAllyUnitLinked = 28,
+    /// <summary>
+    /// ユニットが実際に HP を回復したとき（搭乗パイロット含む）。
+    /// 例: GD02-085 フォウ・ムラサメ「このユニットが回復したとき…ドロー」。
+    /// MountHostUnit に回復したユニット、SourceCard に効果源（ユニットまたはパイロット）を載せる。
+    /// </summary>
+    OnUnitRepaired = 29,
 }
 
 public enum EffectType
@@ -895,7 +901,12 @@ public enum EffectActivationCheckKind
     /// このターン中、オーナーが効果（ActivateResource）で自分のリソースをアクティブにしていない。
     /// ターン開始のリフレッシュやコスト支払いは含まない。ST14-015 等。
     /// </summary>
-    OwnerHasNotActivatedResourceByEffectThisTurn
+    OwnerHasNotActivatedResourceByEffectThisTurn,
+    /// <summary>
+    /// オーナーの手札枚数を unitCountThreshold と unitCountCompareOp で比較。
+    /// 例: 手札4枚以下 → threshold 4 + LessOrEqual（フォウ・ムラサメ等）。
+    /// </summary>
+    OwnerHandCount
 }
 
 public enum EffectTurnCheckKind
@@ -3058,6 +3069,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnAllyUnitLinked
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>ユニットが HP 回復したとき（OnUnitRepaired）に解決するブロック。</summary>
+    public static bool IsOnUnitRepairedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnUnitRepaired
             || !timed.HasResolvedEffects())
         {
             return false;
