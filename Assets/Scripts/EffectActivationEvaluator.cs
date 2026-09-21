@@ -390,6 +390,11 @@ public static class EffectActivationEvaluator
             return EvaluateOpponentHandCountAtLeast(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.OwnerHandCount)
+        {
+            return EvaluateOwnerHandCount(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.OwnerHasLinkedUnit)
         {
             return EvaluateOwnerHasLinkedUnit(c, ctx);
@@ -1297,6 +1302,29 @@ public static class EffectActivationEvaluator
         }
 
         IReadOnlyList<CardController> hand = ResolveZone(ctx, EffectBoardSide.OpponentHand);
+        int count = 0;
+        if (hand != null)
+        {
+            for (int i = 0; i < hand.Count; i++)
+            {
+                if (hand[i] != null)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return CompareInts(count, c.unitCountThreshold, c.unitCountCompareOp);
+    }
+
+    private static bool EvaluateOwnerHandCount(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardController> hand = ResolveZone(ctx, EffectBoardSide.OwnerHand);
         int count = 0;
         if (hand != null)
         {

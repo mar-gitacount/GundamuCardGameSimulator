@@ -5,7 +5,7 @@ using UnityEngine;
 
 /// <summary>
 /// 相手シールドエリアのカードをダメージ破壊したとき（OnOpponentShieldAreaCardDestroyed）。
-/// ユニット本体と搭乗パイロット双方の timedEffects を解決する。
+/// 破壊したユニット／搭乗パイロットに加え、場の味方監視ユニット（例: GD02-001 サイコ・ガンダム）も解決する。
 /// </summary>
 public partial class BattleGameMain
 {
@@ -39,16 +39,52 @@ public partial class BattleGameMain
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceUnit);
         List<OpponentShieldAreaDestroyedBlock> blocks = new List<OpponentShieldAreaDestroyedBlock>();
-        CollectOpponentShieldAreaDestroyedBlocks(sourceUnit, ownerType, activationContext, blocks);
+
+        // 破壊者自身（＋搭乗パイロット）の効果
+        EffectActivationContext destroyerContext = BuildOpponentShieldAreaDestroyedContext(
+            ownerType,
+            sourceUnit,
+            sourceUnit);
+        CollectOpponentShieldAreaDestroyedBlocks(sourceUnit, ownerType, destroyerContext, blocks);
         if (sourceUnit.MountedPilot != null)
         {
             CollectOpponentShieldAreaDestroyedBlocks(
                 sourceUnit.MountedPilot,
                 ownerType,
-                activationContext,
+                destroyerContext,
                 blocks);
+        }
+
+        // 場の味方監視ユニット（破壊者以外）。DestroyingCard に破壊者を載せる。
+        List<CardController> zone = ownerType == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        if (zone != null)
+        {
+            for (int i = 0; i < zone.Count; i++)
+            {
+                CardController watcher = zone[i];
+                if (watcher == null
+                    || watcher == sourceUnit
+                    || watcher.Data == null
+                    || !watcher.Data.IsUnitLike()
+                    || watcher.CurrentHp <= 0)
+                {
+                    continue;
+                }
+
+                if (!CardHasOpponentShieldAreaDestroyedWatch(watcher))
+                {
+                    continue;
+                }
+
+                EffectActivationContext watcherContext = BuildOpponentShieldAreaDestroyedContext(
+                    ownerType,
+                    watcher,
+                    sourceUnit);
+                CollectOpponentShieldAreaDestroyedBlocks(watcher, ownerType, watcherContext, blocks);
+            }
         }
 
         if (blocks.Count == 0)
@@ -58,10 +94,61 @@ public partial class BattleGameMain
         }
 
         Debug.Log(
-            $"[OnOpponentShieldAreaCardDestroyed] {sourceUnit.Data.cardName}(id:{sourceUnit.Data.id}) "
+            $"[OnOpponentShieldAreaCardDestroyed] destroyer:{sourceUnit.Data.cardName}(id:{sourceUnit.Data.id}) "
             + $"blocks:{blocks.Count}");
 
         RunOnOpponentShieldAreaCardDestroyedTimedBlocks(ownerType, blocks, 0, onComplete);
+    }
+
+    private EffectActivationContext BuildOpponentShieldAreaDestroyedContext(
+        PlayerType ownerType,
+        CardController effectSource,
+        CardController destroyerUnit)
+    {
+        return new EffectActivationContext(
+            ownerType,
+            effectSource,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: effectSource != null && effectSource.Data != null && effectSource.Data.IsUnitLike()
+                ? effectSource
+                : destroyerUnit,
+            mountedPilot: effectSource != null && effectSource.Data != null && effectSource.Data.IsUnitLike()
+                ? effectSource.MountedPilot
+                : destroyerUnit != null ? destroyerUnit.MountedPilot : null,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            destroyingCard: destroyerUnit,
+            hasDestroyingCardOwner: true,
+            destroyingCardOwner: ownerType,
+            destroyedByBattleDamage: false,
+            destroyedByEffectDamage: true,
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
+    }
+
+    private static bool CardHasOpponentShieldAreaDestroyedWatch(CardController card)
+    {
+        if (card?.Data?.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int t = 0; t < card.Data.timedEffects.Count; t++)
+        {
+            if (card.Data.timedEffects[t].IsOnOpponentShieldAreaCardDestroyedResolutionBlock())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void CollectOpponentShieldAreaDestroyedBlocks(

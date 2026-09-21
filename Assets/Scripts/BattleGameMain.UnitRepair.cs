@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -16,6 +17,7 @@ public partial class BattleGameMain
             return;
         }
 
+        List<CardController> healedUnits = new List<CardController>();
         for (int i = 0; i < targets.Count; i++)
         {
             CardController unit = targets[i];
@@ -32,10 +34,23 @@ public partial class BattleGameMain
             }
 
             QueueOnlineUnitRepair(unit);
+            healedUnits.Add(unit);
             Debug.Log(
                 $"[RecoverHp] {unit.Data?.cardName}(id:{unit.Data?.id}) +{healed} HP "
                 + $"({before}->{unit.CurrentHp}/{unit.GetRepairHpCap()})");
         }
+
+        if (healedUnits.Count > 0)
+        {
+            StartCoroutine(CoNotifyUnitRepairedAfterHeal(healedUnits));
+        }
+    }
+
+    private IEnumerator CoNotifyUnitRepairedAfterHeal(List<CardController> healedUnits)
+    {
+        bool done = false;
+        NotifyUnitRepairedUnits(healedUnits, () => done = true);
+        yield return new WaitUntil(() => done);
     }
 
     /// <summary>
@@ -64,6 +79,7 @@ public partial class BattleGameMain
             BeginOnlineEffectSyncBatch(PlayerType.Player);
         }
 
+        List<CardController> healedUnits = new List<CardController>();
         for (int i = 0; i < targets.Count; i++)
         {
             CardController unit = targets[i];
@@ -90,6 +106,7 @@ public partial class BattleGameMain
                 QueueOnlineUnitRepair(unit);
             }
 
+            healedUnits.Add(unit);
             Debug.Log(
                 $"[Repair] {unit.Data?.cardName}(id:{unit.Data?.id}) +{healed} HP → {unit.CurrentHp}/{unit.GetRepairHpCap()} owner:{owner}");
         }
@@ -97,6 +114,11 @@ public partial class BattleGameMain
         if (syncOnline)
         {
             FlushOnlineEffectSyncBatch();
+        }
+
+        if (healedUnits.Count > 0)
+        {
+            StartCoroutine(CoNotifyUnitRepairedAfterHeal(healedUnits));
         }
     }
 
