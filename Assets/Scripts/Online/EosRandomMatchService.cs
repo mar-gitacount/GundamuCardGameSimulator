@@ -27,6 +27,8 @@ public sealed class EosRandomMatchService : MonoBehaviour
     private const string DefaultBucket = "gcg-room";
     private const float SearchRetrySeconds = 8f;
     private const float LobbyPollSeconds = 1f;
+    /// <summary>マッチ成立ダイアログ中にループ再生する決定ボタンSE（Resources パス・拡張子なし）。</summary>
+    private const string MatchFoundSeResourcePath = "Data/Sounds/決定ボタンを押す26";
 
     public static EosRandomMatchService Instance { get; private set; }
 
@@ -57,6 +59,8 @@ public sealed class EosRandomMatchService : MonoBehaviour
     private TMP_Text _searchingLabel;
     private TMP_Text _matchFoundLabel;
     private static TMP_FontAsset _font;
+    private AudioSource _matchFoundAudioSource;
+    private AudioClip _matchFoundSeClip;
 
     public static EosRandomMatchService EnsureExists()
     {
@@ -109,6 +113,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
 
     private void OnDisable()
     {
+        StopMatchFoundSeLoop();
         if (_lobbyManager != null)
         {
             _lobbyManager.RemoveNotifyLobbyUpdate(OnLobbyUpdated);
@@ -216,6 +221,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
         _loginService.LoginStateChanged -= OnLoginStateChangedForMatchmaking;
         NotifyPeerCancel();
         LeaveCurrentLobby();
+        StopMatchFoundSeLoop();
         HideMatchFoundDialog();
         DestroySearchingHud();
         LocalAccepted = false;
@@ -234,6 +240,8 @@ public sealed class EosRandomMatchService : MonoBehaviour
             return;
         }
 
+        // OK 押下時点でSEを止める（相手受け入れ待ちでもダイアログは残る）
+        StopMatchFoundSeLoop();
         LocalAccepted = true;
         if (!string.IsNullOrWhiteSpace(RemotePeerId))
         {
@@ -252,6 +260,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
             return;
         }
 
+        StopMatchFoundSeLoop();
         NotifyPeerCancel();
         LeaveCurrentLobby();
         HideMatchFoundDialog();
@@ -566,6 +575,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
                 }
                 break;
             case EosOnlineBattleMessage.MatchCancel:
+                StopMatchFoundSeLoop();
                 HideMatchFoundDialog();
                 LeaveCurrentLobby();
                 DestroySearchingHud();
@@ -749,6 +759,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
     {
         if (_matchFoundRoot != null)
         {
+            StartMatchFoundSeLoop();
             RefreshHud();
             return;
         }
@@ -760,6 +771,7 @@ public sealed class EosRandomMatchService : MonoBehaviour
         }
 
         EnsureFont();
+        StartMatchFoundSeLoop();
         _matchFoundRoot = CreateRect("RandomMatchFoundDialog", canvas.transform);
         RectTransform rootRect = _matchFoundRoot.GetComponent<RectTransform>();
         Stretch(rootRect);
@@ -816,12 +828,65 @@ public sealed class EosRandomMatchService : MonoBehaviour
 
     private void HideMatchFoundDialog()
     {
+        StopMatchFoundSeLoop();
         if (_matchFoundRoot != null)
         {
             Destroy(_matchFoundRoot);
             _matchFoundRoot = null;
             _matchFoundLabel = null;
         }
+    }
+
+    /// <summary>マッチ成立SEをループ再生する（OK / Cancel まで）。</summary>
+    private void StartMatchFoundSeLoop()
+    {
+        if (_matchFoundAudioSource != null && _matchFoundAudioSource.isPlaying)
+        {
+            return;
+        }
+
+        if (_matchFoundSeClip == null)
+        {
+            _matchFoundSeClip = Resources.Load<AudioClip>(MatchFoundSeResourcePath);
+            if (_matchFoundSeClip == null)
+            {
+                Debug.LogWarning($"[EosRandomMatch] MatchFound SE not found: Resources/{MatchFoundSeResourcePath}");
+                return;
+            }
+        }
+
+        if (_matchFoundAudioSource == null)
+        {
+            _matchFoundAudioSource = gameObject.GetComponent<AudioSource>();
+            if (_matchFoundAudioSource == null)
+            {
+                _matchFoundAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+
+            _matchFoundAudioSource.playOnAwake = false;
+            _matchFoundAudioSource.spatialBlend = 0f;
+        }
+
+        _matchFoundAudioSource.clip = _matchFoundSeClip;
+        _matchFoundAudioSource.loop = true;
+        _matchFoundAudioSource.volume = 1f;
+        _matchFoundAudioSource.Play();
+    }
+
+    private void StopMatchFoundSeLoop()
+    {
+        if (_matchFoundAudioSource == null)
+        {
+            return;
+        }
+
+        if (_matchFoundAudioSource.isPlaying)
+        {
+            _matchFoundAudioSource.Stop();
+        }
+
+        _matchFoundAudioSource.loop = false;
+        _matchFoundAudioSource.clip = null;
     }
 
     private void RefreshHud()
