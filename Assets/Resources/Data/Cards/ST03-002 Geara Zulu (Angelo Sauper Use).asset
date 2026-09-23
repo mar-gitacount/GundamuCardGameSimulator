@@ -10,18 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 46Shinanju
+  m_Name: ST03-002 Geara Zulu (Angelo Sauper Use)
   m_EditorClassIdentifier: 
-  id: 46
-  gcgOfficialId: ST03-001
-  cardName: Shinanju
-  cost: 5
-  level: 6
-  power: 5
-  hp: 4
+  id: 1000704
+  gcgOfficialId: ST03-002
+  cardName: "Geara Zulu (Angelo Sauper Use)"
+  cost: 3
+  level: 4
+  power: 3
+  hp: 3
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/46_Shinanju
+  imageAddress: "Data/Images/47_Angelos GeraZulu"
   version: 3
   sourceType: 2
   productLine: 2
@@ -32,53 +32,24 @@ MonoBehaviour:
   filterType: 0
   color: 0
   type: 0
-  battleZones: -1
+  battleZones: 3
   attackFlg: 0
   timedEffects:
-  - timing: 3
-    activationConditions:
-    - boardSide: -1
-      checkKind: 4
-      turnCheck: -1
-      feature: {fileID: 0}
-      featureId: 0
-      features: []
-      featureIds: 
-      minimumCount: 1
-      levelAggregate: 0
-      compareOp: 0
-      compareValue: 0
-      unitCountCompareOp: 0
-      unitCountThreshold: 0
-      pilotCardId: 0
-      trashCardId: 0
-      pilotLevelThreshold: 0
-      activationStatTarget: 0
-      observedCardType: 0
-      destroyedByOwnerRelation: 0
-      cardNameContains: 
-    requireChainObservationContext: 0
-    effectsName: HighMobility
-    effects: []
-    activationCost: 0
-    oncePerTurn: 0
-    forcedAction: 0
-    observedUnitTriggerKind: 0
-  - timing: 21
+  - timing: 12
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: DamageEnemy2_SelectSingle
+    effectsName: Support2_RestSelf_BuffAllyOtherAp2_OnMain
     effects: []
     activationCost: 0
     oncePerTurn: 0
-    forcedAction: 0
-    observedUnitTriggerKind: 0
+    observedUnitTriggerKind: -1
   features:
-  - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  - {fileID: 11400000, guid: aa2431a17f68b1240a0396adc328a405, type: 2}
   pilotIds: []
   link:
   - pilotCardId: 0
-    linkPilotIds: []
+    linkPilotIds:
+    - {fileID: 11400000, guid: 7c3edb7d96344aac936648acf32e35ec, type: 2}
     linkPilotIdIds: 
     pilotFeatures: []
     pilotFeatureIds: 
@@ -91,9 +62,8 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
-  hideFromCardList: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 1
     setNumber: 3
-    cardNumber: 1
+    cardNumber: 2

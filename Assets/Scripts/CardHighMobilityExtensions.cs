@@ -5,8 +5,38 @@ using System.Collections.Generic;
 /// </summary>
 public static class CardHighMobilityExtensions
 {
-    /// <summary>カード定義に高機動マーカー効果があるか（いずれかのタイミングの effects / effectsName プリセット）。</summary>
+    /// <summary>
+    /// カード定義の常時《高機動》（条件なし Permanent）。
+    /// 搭乗条件付き（シナジュ等）は CardController 側で評価する。
+    /// </summary>
     public static bool HasHighMobilityAbility(this CardData card)
+    {
+        return HasPermanentHighMobility(card, runtimeUnit: null);
+    }
+
+    /// <summary>フィールド上のユニットが高機動を持つか（印刷効果・条件付きマーカー・ターン限定付与）。</summary>
+    public static bool HasHighMobilityAbility(this CardController unit)
+    {
+        if (unit == null)
+        {
+            return false;
+        }
+
+        if (unit.HasHighMobilityUntilEndOfTurnGrant)
+        {
+            return true;
+        }
+
+        if (HasPermanentHighMobility(unit.Data, unit))
+        {
+            return true;
+        }
+
+        CardController pilot = unit.MountedPilot;
+        return pilot?.Data != null && HasPermanentHighMobility(pilot.Data, unit);
+    }
+
+    private static bool HasPermanentHighMobility(CardData card, CardController runtimeUnit)
     {
         if (card == null || card.timedEffects == null)
         {
@@ -21,33 +51,66 @@ public static class CardHighMobilityExtensions
                 continue;
             }
 
-            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
-            for (int j = 0; j < resolved.Count; j++)
+            if (!TimedBlockHasPermanentHighMobility(timed))
             {
-                EffectData effect = resolved[j];
-                if (effect != null && effect.type == EffectType.HighMobility)
-                {
-                    return true;
-                }
+                continue;
+            }
+
+            if (timed.HasActivationConditions()
+                && !MeetsHighMobilityActivationConditions(timed, runtimeUnit))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TimedBlockHasPermanentHighMobility(TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int j = 0; j < resolved.Count; j++)
+        {
+            EffectData effect = resolved[j];
+            if (effect != null
+                && effect.type == EffectType.HighMobility
+                && effect.duration == EffectDuration.Permanent)
+            {
+                return true;
             }
         }
 
         return false;
     }
 
-    /// <summary>フィールド上のユニットが高機動を持つか（印刷効果またはターン限定付与）。</summary>
-    public static bool HasHighMobilityAbility(this CardController unit)
+    /// <summary>
+    /// 条件付き《高機動》（例: パイロット搭乗中）。
+    /// ランタイムユニットが無いときは条件付きブロックを無視する。
+    /// </summary>
+    private static bool MeetsHighMobilityActivationConditions(TimedEffectData timed, CardController runtimeUnit)
     {
-        if (unit == null)
-        {
-            return false;
-        }
-
-        if (unit.HasHighMobilityUntilEndOfTurnGrant)
+        if (timed == null || !timed.HasActivationConditions())
         {
             return true;
         }
 
-        return unit.Data != null && unit.Data.HasHighMobilityAbility();
+        if (runtimeUnit == null)
+        {
+            return false;
+        }
+
+        EffectActivationContext ctx = new EffectActivationContext(
+            BattleGameMain.PlayerType.Player,
+            runtimeUnit,
+            null,
+            null,
+            null,
+            null,
+            isOwnerTurn: true,
+            mountHostUnit: runtimeUnit,
+            mountedPilot: runtimeUnit.MountedPilot);
+        return EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx);
     }
 }

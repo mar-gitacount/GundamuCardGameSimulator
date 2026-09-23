@@ -8154,7 +8154,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         SyncAllResourceViewsFromRule();
     }
-
+    // ブロックリダイレクトを無視するかどうかを判定する
     private static bool AttackerIgnoresBlockRedirect(CardController attacker)
     {
         return attacker != null && attacker.HasHighMobilityAbility();
@@ -10062,6 +10062,12 @@ public partial class BattleGameMain : MonoBehaviour
                 if (effect == null
                     || (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
                     || effect.target != TargetType.Self)
+                {
+                    continue;
+                }
+
+                // UntilEndOfTurn Self はプレコンバットで盤面付与済み（二重加算しない）
+                if (effect.duration == EffectDuration.UntilEndOfTurn)
                 {
                     continue;
                 }
@@ -14300,6 +14306,12 @@ public partial class BattleGameMain : MonoBehaviour
                 SyncAllResourceViewsFromRule();
                 return;
             }
+
+            // Permanent マーカーのみ（付与不要）ならここで終了。value=0 の UntilEOT 失敗時も後続の magnitude==0 return で落とさない。
+            if (effect.duration == EffectDuration.Permanent)
+            {
+                return;
+            }
         }
 
         if (effect.type == EffectType.GrantBreach)
@@ -14372,7 +14384,8 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.type != EffectType.MarkObservedUnit
             && effect.type != EffectType.PreventAllyDestroyByEnemyEffect
             && effect.type != EffectType.CopyKeywordsFromTrashUnit
-            && effect.type != EffectType.DeployExBase)
+            && effect.type != EffectType.DeployExBase
+            && effect.type != EffectType.HighMobility)
         {
             return;
         }
@@ -15020,9 +15033,13 @@ public partial class BattleGameMain : MonoBehaviour
         switch (effect.target)
         {
             case TargetType.Self:
-                if (sourceCard != null)
+                // パイロット効果の「自身」は搭乗ユニット（公式：パイロット効果はユニット側として解決）
                 {
-                    result.Add(sourceCard);
+                    CardController selfTarget = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+                    if (selfTarget != null)
+                    {
+                        result.Add(selfTarget);
+                    }
                 }
                 break;
             case TargetType.AllyUnit:
@@ -20102,14 +20119,18 @@ public partial class BattleGameMain : MonoBehaviour
         switch (effect.target)
         {
             case TargetType.Self:
-                if (sourceCard != null
-                    && sourceCard.Data != null
-                    && sourceCard.Data.IsUnitLike()
-                    && sourceCard.CurrentHp > 0
-                    && IsCardOnBattleZone(sourceCard)
-                    && MatchesRequiredFeatures(sourceCard.Data, requiredFeatures))
                 {
-                    result.Add(sourceCard);
+                    CardController selfUnit = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+                    if (selfUnit != null
+                        && selfUnit.Data != null
+                        && selfUnit.Data.IsUnitLike()
+                        && selfUnit.CurrentHp > 0
+                        && (IsCardOnBattleZone(selfUnit)
+                            || ReferenceEquals(selfUnit, _pilotMountEffectHostUnit))
+                        && MatchesRequiredFeatures(selfUnit.Data, requiredFeatures))
+                    {
+                        result.Add(selfUnit);
+                    }
                 }
                 break;
             case TargetType.AllyUnit:
