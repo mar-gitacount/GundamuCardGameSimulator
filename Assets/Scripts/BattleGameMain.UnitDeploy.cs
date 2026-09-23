@@ -1718,10 +1718,17 @@ public partial class BattleGameMain
             return false;
         }
 
-        // 戦闘中の AP/HP 修飾は「このバトル中」扱いでユニット戦に載せる（プレコンバットでは付与しない）。
-        // Self AP の UntilEndOfBattle は ComputeOnAttackSelfApBonus（ストライク加算）で反映する。
+        // 戦闘中の AP/HP 修飾:
+        // - UntilEndOfBattle Self → ストライク加算のみ（ComputeOnAttackSelfApBonus）
+        // - UntilEndOfTurn Self → 盤面付与（プレコンバット）。このターン中の AP+1 等。
         if (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
         {
+            if (effect.duration == EffectDuration.UntilEndOfTurn
+                && effect.target == TargetType.Self)
+            {
+                return true;
+            }
+
             return false;
         }
 

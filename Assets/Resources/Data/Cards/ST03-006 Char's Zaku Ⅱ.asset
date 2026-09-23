@@ -50,7 +50,7 @@ MonoBehaviour:
   - pilotCardId: 0
     linkPilotIds:
     - {fileID: 11400000, guid: fcc0e90faa27b4e4d96af882ee871765, type: 2}
-    linkPilotIdIds: 
+    linkPilotIdIds: 02000000
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0

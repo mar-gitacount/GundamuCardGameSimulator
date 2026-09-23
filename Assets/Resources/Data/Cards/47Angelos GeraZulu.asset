@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: 47Angelos GeraZulu
   m_EditorClassIdentifier: 
   id: 47
-  gcgOfficialId: ST03-002
-  cardName: Angelos GeraZulu
+  gcgOfficialId: 
+  cardName: Angelos GeraZulu (legacy)
   cost: 3
-  level: 3
+  level: 4
   power: 3
   hp: 3
   imageName: {fileID: 0}
@@ -32,11 +32,11 @@ MonoBehaviour:
   filterType: 0
   color: 0
   type: 0
-  battleZones: 0
+  battleZones: 3
   attackFlg: 0
   timedEffects: []
   features:
-  - {fileID: 11400000, guid: 3221c6f1861f4de4cb937278765c94e1, type: 2}
+  - {fileID: 11400000, guid: aa2431a17f68b1240a0396adc328a405, type: 2}
   pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0

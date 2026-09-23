@@ -190,7 +190,13 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   pilotIds: []
-  link: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: fcc0e90faa27b4e4d96af882ee871765, type: 2}
+    linkPilotIdIds: 02000000
+    pilotFeatures: []
+    pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
   isBlocker: 0

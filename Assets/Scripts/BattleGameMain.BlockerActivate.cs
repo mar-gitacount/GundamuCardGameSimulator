@@ -276,6 +276,12 @@ public partial class BattleGameMain
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
             CardController unit = targets[i];
+            // パイロット効果の Self は搭乗ユニットへ付与する（ST03-011 シャア等）
+            if (unit != null && unit.Data != null && unit.Data.IsPilot())
+            {
+                unit = ResolveEffectSourceBattleHost(unit) ?? unit;
+            }
+
             if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
             {
                 continue;

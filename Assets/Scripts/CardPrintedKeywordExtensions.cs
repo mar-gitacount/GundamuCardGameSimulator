@@ -118,7 +118,9 @@ public static class CardPrintedKeywordExtensions
                     result.HasFirstStrike = true;
                 }
 
-                if (effect.type == EffectType.HighMobility)
+                if (effect.type == EffectType.HighMobility
+                    && effect.duration == EffectDuration.Permanent
+                    && !timed.HasActivationConditions())
                 {
                     result.HasHighMobility = true;
                 }
