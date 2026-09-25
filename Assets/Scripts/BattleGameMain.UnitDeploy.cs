@@ -621,6 +621,47 @@ public partial class BattleGameMain
         return TryDeployTokenUnitImmediate(effect, resolvedMagnitude, sourceOwner, sourceCard, recipient);
     }
 
+    /// <summary>
+    /// トークン配備先。内部 id のほか、Inspector で T-006 を 6 と入れた場合も公式 ID で解決する。
+    /// </summary>
+    private static CardData ResolveDeployTokenCardData(int cardId)
+    {
+        if (cardId <= 0 || DeckSettinObject.Instance == null)
+        {
+            return null;
+        }
+
+        CardData byId = DeckSettinObject.Instance.GetCardDataById(cardId);
+        if (byId != null && byId.IsUnitLike())
+        {
+            return byId;
+        }
+
+        string officialTokenId = "T-" + cardId.ToString("000");
+        CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
+        if (all == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < all.Length; i++)
+        {
+            CardData card = all[i];
+            if (card == null || !card.IsUnitLike())
+            {
+                continue;
+            }
+
+            if (string.Equals(card.gcgOfficialId, officialTokenId, StringComparison.OrdinalIgnoreCase))
+            {
+                card.EnsureFeaturesResolved();
+                return card;
+            }
+        }
+
+        return null;
+    }
+
     private bool TryDeployTokenUnitImmediate(
         EffectData effect,
         int resolvedMagnitude,
@@ -639,13 +680,7 @@ public partial class BattleGameMain
             cardId = sourceCard.Data.id;
         }
 
-        if (cardId <= 0)
-        {
-            Debug.LogWarning($"[DeployUnit] Token deploy skipped: deployCardId unset (source:{sourceCard?.Data?.id})");
-            return false;
-        }
-
-        CardData tokenData = DeckSettinObject.Instance.GetCardDataById(cardId);
+        CardData tokenData = ResolveDeployTokenCardData(cardId);
         if (tokenData == null || !tokenData.IsUnitLike())
         {
             Debug.LogWarning($"[DeployUnit] Unknown or non-unit token id:{cardId}");
@@ -723,14 +758,7 @@ public partial class BattleGameMain
             cardId = sourceCard.Data.id;
         }
 
-        if (cardId <= 0)
-        {
-            Debug.LogWarning($"[DeployUnit] Token deploy skipped: deployCardId unset (source:{sourceCard?.Data?.id})");
-            onComplete?.Invoke();
-            yield break;
-        }
-
-        CardData tokenData = DeckSettinObject.Instance.GetCardDataById(cardId);
+        CardData tokenData = ResolveDeployTokenCardData(cardId);
         if (tokenData == null || !tokenData.IsUnitLike())
         {
             Debug.LogWarning($"[DeployUnit] Unknown or non-unit token id:{cardId}");
@@ -800,6 +828,10 @@ public partial class BattleGameMain
 
                 // ローカル側も Destroy 解放を1フレーム待ち、次の枠確保を安定させる
                 yield return null;
+                if (effect.deployUnitAsRested)
+                {
+                    ApplyDeployedUnitRestedState(spawned);
+                }
             }
             else
             {

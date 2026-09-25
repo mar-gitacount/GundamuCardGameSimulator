@@ -1725,6 +1725,7 @@ public partial class BattleGameMain
             ClearCannotBeChosenAsAttackGrants(EffectDuration.UntilEndOfTurn);
             ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
             ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearBattleDamageImmunityUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearCopiedKeywordsUntilEndOfTurnForAllInPlayUnits();

@@ -365,6 +365,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.NotDirectAttack
                 || eff.type == EffectType.FirstStrike
                 || eff.type == EffectType.GrantBreach
+                || eff.type == EffectType.BattleDamageImmunityFromLowApEnemy
                 || eff.type == EffectType.Suppress
                 || eff.type == EffectType.Breach
                 || eff.type == EffectType.RecoverHp
@@ -1442,6 +1443,25 @@ public partial class BattleGameMain
         if (effect == null)
         {
             ExecuteEnemyOnActionEffectsChain(command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow);
+            return;
+        }
+
+        if (IsTheBlueGiantCard(command.Data))
+        {
+            EffectData pickEffect = CreateTheBlueGiantPickEffect();
+            List<CardController> candidates = ResolveSelectableEffectTargets(command, side, pickEffect);
+            CardController picked = PickEnemyAiEffectTarget(pickEffect, ctx, candidates);
+            if (picked == null && candidates != null && candidates.Count > 0)
+            {
+                picked = candidates[0];
+            }
+
+            if (picked != null)
+            {
+                GrantTheBlueGiantImmunityToTargets(new List<CardController> { picked });
+            }
+
+            onAllDone?.Invoke();
             return;
         }
 

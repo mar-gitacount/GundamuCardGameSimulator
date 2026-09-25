@@ -296,6 +296,93 @@ public partial class BattleGameMain
         return applied > 0;
     }
 
+    private bool TryApplyBattleDamageImmunityFromLowApEnemyMarker(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null
+            || effect.type != EffectType.BattleDamageImmunityFromLowApEnemy
+            || targets == null
+            || targets.Count == 0)
+        {
+            return false;
+        }
+
+        // Permanent はカード印刷のパッシブ（ShouldIgnoreBattleDamageFromAttacker）に任せる
+        if (effect.duration != EffectDuration.UntilEndOfTurn
+            && effect.duration != EffectDuration.UntilEndOfBattle)
+        {
+            return false;
+        }
+
+        int applied = 0;
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController unit = targets[i];
+            if (unit != null && unit.Data != null && unit.Data.IsPilot())
+            {
+                unit = ResolveEffectSourceBattleHost(unit) ?? unit;
+            }
+
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (effect.duration == EffectDuration.UntilEndOfTurn)
+            {
+                unit.AddBattleDamageImmunityUntilEndOfTurnGrant(effect);
+            }
+            else
+            {
+                unit.AddBattleDamageImmunityUntilEndOfBattleGrant(effect);
+            }
+
+            applied++;
+            Debug.Log(
+                $"[BattleDamageImmunity] {effect.duration} 付与: {unit.Data.cardName}(id:{unit.Data.id}) "
+                + $"value:{effect.value} stat:{effect.statTarget}");
+        }
+
+        return applied > 0;
+    }
+
+    private void ClearBattleDamageImmunityUntilEndOfTurnGrantsForAllInPlayUnits()
+    {
+        ClearBattleDamageImmunityUntilEndOfTurnGrantsOnZone(playerBattleZoneCards);
+        ClearBattleDamageImmunityUntilEndOfTurnGrantsOnZone(enemyBattleZoneCards);
+    }
+
+    private void ClearBattleDamageImmunityUntilEndOfBattleGrantsForAllInPlayUnits()
+    {
+        ClearBattleDamageImmunityUntilEndOfBattleGrantsOnZone(playerBattleZoneCards);
+        ClearBattleDamageImmunityUntilEndOfBattleGrantsOnZone(enemyBattleZoneCards);
+    }
+
+    private static void ClearBattleDamageImmunityUntilEndOfTurnGrantsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearBattleDamageImmunityUntilEndOfTurnGrants();
+        }
+    }
+
+    private static void ClearBattleDamageImmunityUntilEndOfBattleGrantsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearBattleDamageImmunityUntilEndOfBattleGrants();
+        }
+    }
+
     private void ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits()
     {
         ClearHighMobilityUntilEndOfTurnGrantsOnZone(playerBattleZoneCards);
