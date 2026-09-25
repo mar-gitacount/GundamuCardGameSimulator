@@ -229,6 +229,14 @@ public partial class BattleGameMain
             return;
         }
 
+        if (ShouldIgnoreTheBlueGiantBattleDamage(
+                damageTarget,
+                damageSource,
+                damage))
+        {
+            return;
+        }
+
         bool isTargetOwnerTurn = damageTargetOwner == currentPlayerType;
         if (CardPilotBattleDamageImmunityExtensions.ShouldIgnoreBattleDamageFromAttacker(
                 damageTarget,

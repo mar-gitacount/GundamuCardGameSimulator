@@ -287,11 +287,12 @@ public enum EffectType
     DeployUnitFromLooked,
     /// <summary>
     /// ユニット本体／搭乗パイロットの常時パッシブ（戦闘ダメージ判定）。
+    /// または UntilEndOfTurn / UntilEndOfBattle で対象ユニットへ解決時付与（ST03-014 等）。
     /// statTarget=AP（既定）: AP が value 以下の敵からの戦闘ダメージを無効。
     /// statTarget=Level: Lv が value 以下の敵からの戦闘ダメージを無効。
     /// compareTargetStatToSource=true のとき閾値は効果源ユニットの実効 AP（「これの AP 以下」）。
     /// timed.activationConditions に MountedPilot（セット中）等を指定する。
-    /// timed.oncePerTurn でターン1回に制限できる。
+    /// timed.oncePerTurn でターン1回に制限できる（印刷パッシブのみ）。
     /// </summary>
     BattleDamageImmunityFromLowApEnemy,
     /// <summary>
@@ -515,6 +516,7 @@ public static class EffectTypeExtensions
             || type == EffectType.FirstStrike
             || type == EffectType.GrantBreach
             || type == EffectType.GrantTurnEndRepair
+            || type == EffectType.BattleDamageImmunityFromLowApEnemy
             || type == EffectType.Debuff
             || type == EffectType.Buff
             || type == EffectType.Damage
@@ -2343,6 +2345,15 @@ public static class EffectDataExtensions
         return GameLocale.T(
             $"{effect.type} / {effect.target} / 値:{effect.value}{statNote} / 条件:{filter}",
             $"{effect.type} / {effect.target} / Value:{effect.value}{statNote} / Filter:{filter}");
+    }
+    // 味方ユニットが敵ユニットからダメージを受ける効果を適用する
+    public static bool WillmyunittakedamagefromtheopponentFilter(this EffectData effect, CardController unit)
+    {
+        if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return false;
+        }
+        return effect.MatchesTargetUnitFilter(unit);
     }
 
     /// <summary>Look 直後に見た山札カードが effect の Feature／カード種類／ステータスフィルタに合うか。</summary>

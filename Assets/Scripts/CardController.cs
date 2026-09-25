@@ -550,6 +550,120 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _highMobilityUntilEndOfTurnDepth = 0;
     }
 
+    /// <summary>ST03-014 青い巨星。このバトル中、AP2以下の相手ユニットからのバトルダメージ無効。</summary>
+    private bool _theBlueGiantBattleDamageImmunityThisBattle;
+
+    public bool HasTheBlueGiantBattleDamageImmunityThisBattle => _theBlueGiantBattleDamageImmunityThisBattle;
+
+    public void GrantTheBlueGiantBattleDamageImmunityThisBattle()
+    {
+        _theBlueGiantBattleDamageImmunityThisBattle = true;
+    }
+
+    public void ClearTheBlueGiantBattleDamageImmunityThisBattle()
+    {
+        _theBlueGiantBattleDamageImmunityThisBattle = false;
+    }
+
+    /// <summary>相手ユニット（低AP／低Lv）からの戦闘ダメージ無効（UntilEndOfTurn）付与。</summary>
+    private readonly List<EffectData> _battleDamageImmunityUntilEndOfTurnGrants = new List<EffectData>();
+
+    /// <summary>相手ユニット（低AP／低Lv）からの戦闘ダメージ無効（UntilEndOfBattle）付与。</summary>
+    private readonly List<EffectData> _battleDamageImmunityUntilEndOfBattleGrants = new List<EffectData>();
+
+    /// <summary>ST03-014 等。未付与は -1。相手ユニット実効 AP がこの値以下ならバトルダメージ無効。</summary>
+    private int _battleDamageImmunityMaxEnemyApUntilEndOfTurn = -1;
+
+    /// <summary>ST03-014 等。未付与は -1。</summary>
+    private int _battleDamageImmunityMaxEnemyApUntilEndOfBattle = -1;
+
+    public IReadOnlyList<EffectData> BattleDamageImmunityUntilEndOfTurnGrants =>
+        _battleDamageImmunityUntilEndOfTurnGrants;
+
+    public IReadOnlyList<EffectData> BattleDamageImmunityUntilEndOfBattleGrants =>
+        _battleDamageImmunityUntilEndOfBattleGrants;
+
+    public int BattleDamageImmunityMaxEnemyApUntilEndOfTurn =>
+        _battleDamageImmunityMaxEnemyApUntilEndOfTurn;
+
+    public int BattleDamageImmunityMaxEnemyApUntilEndOfBattle =>
+        _battleDamageImmunityMaxEnemyApUntilEndOfBattle;
+
+    public void AddBattleDamageImmunityUntilEndOfTurnGrant(EffectData effect)
+    {
+        if (effect != null)
+        {
+            _battleDamageImmunityUntilEndOfTurnGrants.Add(effect);
+        }
+
+        RaiseGrantedMaxEnemyApImmunity(effect, untilEndOfBattle: false);
+    }
+
+    public void AddBattleDamageImmunityUntilEndOfBattleGrant(EffectData effect)
+    {
+        if (effect != null)
+        {
+            _battleDamageImmunityUntilEndOfBattleGrants.Add(effect);
+        }
+
+        RaiseGrantedMaxEnemyApImmunity(effect, untilEndOfBattle: true);
+    }
+
+    /// <summary>選択対象へ AP 閾値を直接載せる（named JSON の duration 欠落対策）。</summary>
+    public void GrantBattleDamageImmunityFromEnemyAp(int maxEnemyAp, bool untilEndOfBattle)
+    {
+        if (maxEnemyAp < 0)
+        {
+            return;
+        }
+
+        if (untilEndOfBattle)
+        {
+            _battleDamageImmunityMaxEnemyApUntilEndOfBattle =
+                Mathf.Max(_battleDamageImmunityMaxEnemyApUntilEndOfBattle, maxEnemyAp);
+        }
+        else
+        {
+            _battleDamageImmunityMaxEnemyApUntilEndOfTurn =
+                Mathf.Max(_battleDamageImmunityMaxEnemyApUntilEndOfTurn, maxEnemyAp);
+        }
+    }
+
+    public bool HasGrantedBattleDamageImmunityFromEnemyAp(int attackerAp)
+    {
+        if (_battleDamageImmunityMaxEnemyApUntilEndOfBattle >= 0
+            && attackerAp <= _battleDamageImmunityMaxEnemyApUntilEndOfBattle)
+        {
+            return true;
+        }
+
+        return _battleDamageImmunityMaxEnemyApUntilEndOfTurn >= 0
+            && attackerAp <= _battleDamageImmunityMaxEnemyApUntilEndOfTurn;
+    }
+
+    private void RaiseGrantedMaxEnemyApImmunity(EffectData effect, bool untilEndOfBattle)
+    {
+        if (effect != null && effect.statTarget == EffectStatTarget.Level)
+        {
+            return;
+        }
+
+        int threshold = effect != null && effect.value > 0 ? effect.value : 2;
+        GrantBattleDamageImmunityFromEnemyAp(threshold, untilEndOfBattle);
+    }
+
+    public void ClearBattleDamageImmunityUntilEndOfTurnGrants()
+    {
+        _battleDamageImmunityUntilEndOfTurnGrants.Clear();
+        _battleDamageImmunityMaxEnemyApUntilEndOfTurn = -1;
+    }
+
+    public void ClearBattleDamageImmunityUntilEndOfBattleGrants()
+    {
+        _battleDamageImmunityUntilEndOfBattleGrants.Clear();
+        _battleDamageImmunityMaxEnemyApUntilEndOfBattle = -1;
+    }
+
     /// <summary>《突破》のターン終了まで付与量。0 は未付与。</summary>
     private int _breachUntilEndOfTurnAmount;
 
@@ -898,6 +1012,11 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _cannotBeChosenAsAttackUntilEndOfTurnDepth = 0;
         _firstStrikeUntilEndOfTurnDepth = 0;
         _highMobilityUntilEndOfTurnDepth = 0;
+        _theBlueGiantBattleDamageImmunityThisBattle = false;
+        _battleDamageImmunityUntilEndOfTurnGrants.Clear();
+        _battleDamageImmunityUntilEndOfBattleGrants.Clear();
+        _battleDamageImmunityMaxEnemyApUntilEndOfTurn = -1;
+        _battleDamageImmunityMaxEnemyApUntilEndOfBattle = -1;
         _breachUntilEndOfTurnAmount = 0;
         _breachUntilEndOfBattleAmount = 0;
         _turnEndRepairBonus = 0;

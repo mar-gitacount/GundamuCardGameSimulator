@@ -965,13 +965,21 @@ public class CardGameRule
 
         unitRt.SetParent(slotAnchor, false);
         unitRt.localScale = Vector3.one;
-        unitRt.localRotation = Quaternion.identity;
         unitRt.anchorMin = Vector2.zero;
         unitRt.anchorMax = Vector2.one;
         unitRt.pivot = new Vector2(0.5f, 0.5f);
         unitRt.offsetMin = Vector2.zero;
         unitRt.offsetMax = Vector2.zero;
         unitRt.anchoredPosition = Vector2.zero;
+        // REST 配備後の再フィットで正立に戻さない
+        if (unit.IsRestState)
+        {
+            unit.SetUnitRestVisual(true);
+        }
+        else
+        {
+            unitRt.localRotation = Quaternion.identity;
+        }
 
         LayoutElement le = unit.GetComponent<LayoutElement>();
         if (le == null)

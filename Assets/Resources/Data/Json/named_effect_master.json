@@ -4916,6 +4916,27 @@
             ]
         },
         {
+            "effectSetName": "OnAction_GrantAllyBattleDmgImmunityFromEnemyAp2_UntilEndOfBattle",
+            "displayName": "【アクション】味方1体：このバトル中、AP2以下の相手ユニットからのバトルダメージを受けない",
+            "effects": [
+                {
+                    "type": 52,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "compareTargetStatToSource": false
+                }
+            ]
+        },
+        {
             "effectSetName": "BuffSelfAp1_UntilEndOfTurn_OnAttack",
             "displayName": "【アタック時】このターン中、このユニットをAP+1",
             "effects": [

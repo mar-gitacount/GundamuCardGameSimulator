@@ -4050,6 +4050,7 @@ public partial class BattleGameMain : MonoBehaviour
             ClearCannotBeChosenAsAttackGrants(EffectDuration.UntilEndOfTurn);
             ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
             ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
+            ClearBattleDamageImmunityUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearSuppressUntilEndOfTurnGrantsForAllInPlayUnits();
             ClearCopiedKeywordsUntilEndOfTurnForAllInPlayUnits();
@@ -7710,6 +7711,20 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (IsTheBlueGiantCard(sourceCard?.Data))
+        {
+            GrantTheBlueGiantImmunityToTargets(targets);
+            if (targets != null && targets.Count > 0)
+            {
+                SetEffectChainLastPickedTargets(targets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.AttackActiveEnemyUnit)
         {
             if (effect.IsAttackActiveEnemyAllyGrant())
@@ -7764,6 +7779,15 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (TryApplyHighMobilityMarker(effect, targets))
+        {
+            SetEffectChainLastPickedTargets(targets);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, targets))
         {
             SetEffectChainLastPickedTargets(targets);
             BeginOnlineEffectSyncBatch(ownerType);
@@ -8015,6 +8039,9 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 case EffectType.HighMobility:
                     // HighMobility は攻撃フロー分岐で解釈するため、ここでは何もしない。
+                    break;
+                case EffectType.BattleDamageImmunityFromLowApEnemy:
+                    TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, targets);
                     break;
                 case EffectType.AttackActiveEnemyUnit:
                     // AttackActiveEnemyUnit は攻撃対象判定で解釈するため、ここでは何もしない。
@@ -9970,6 +9997,8 @@ public partial class BattleGameMain : MonoBehaviour
         ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
         ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
         ClearBreachUntilEndOfBattleGrantsForAllInPlayUnits();
+        ClearTheBlueGiantBattleDamageImmunityForAllInPlayUnits();
+        ClearBattleDamageImmunityUntilEndOfBattleGrantsForAllInPlayUnits();
         ClearSuppressUntilEndOfBattleGrantsForAllInPlayUnits();
         ClearShieldAreaImmunityFromEnemyUnitLevelOrLess();
         ClearObservedUnitWatchesAtEndOfBattle();
@@ -14081,7 +14110,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
     }
-
+    // 効果を適用する
     private void ApplyEffect(CardController sourceCard, PlayerType ownerType, EffectData effect)
     {
         if (effect != null && effect.type == EffectType.AttackActiveEnemyUnit)
@@ -14308,6 +14337,24 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             // Permanent マーカーのみ（付与不要）ならここで終了。value=0 の UntilEOT 失敗時も後続の magnitude==0 return で落とさない。
+            if (effect.duration == EffectDuration.Permanent)
+            {
+                return;
+            }
+        }
+
+        if (effect.type == EffectType.BattleDamageImmunityFromLowApEnemy)
+        {
+            List<CardController> immunityTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, immunityTargets))
+            {
+                SetEffectChainLastPickedTargets(immunityTargets);
+                BeginOnlineEffectSyncBatch(ownerType);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                return;
+            }
+
             if (effect.duration == EffectDuration.Permanent)
             {
                 return;
@@ -14603,6 +14650,20 @@ public partial class BattleGameMain : MonoBehaviour
 
                 break;
 
+            case EffectType.BattleDamageImmunityFromLowApEnemy:
+                if (TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, targets))
+                {
+                    Debug.Log(
+                        $"[Effect] BattleDamageImmunity {effect.duration} granted by cardId:{sourceCard.Data.id} "
+                        + $"targets:{targets?.Count ?? 0}");
+                }
+                else
+                {
+                    Debug.Log($"[Effect] BattleDamageImmunity marker by cardId:{sourceCard.Data.id}");
+                }
+
+                break;
+
             case EffectType.AttackActiveEnemyUnit:
                 // 付与処理は TryApplyAttackActiveEnemyUnitMarker で行う。
                 Debug.Log($"[Effect] AttackActiveEnemyUnit marker by cardId:{sourceCard.Data.id}");
@@ -14767,7 +14828,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         SyncAllResourceViewsFromRule();
     }
-
+    // ステータス変更の効果を適用する
     private static void ApplyStatEffect(CardController target, int signedValue, EffectStatTarget statTarget, EffectDuration duration, string statModifierSourceKey = null)
     {
         int powerDelta = 0;
@@ -14778,6 +14839,7 @@ public partial class BattleGameMain : MonoBehaviour
         int effectDamageImmunityDelta = 0;
         int incomingDamageReductionDelta = 0;
         int battleDamageFromEnemyUnitReductionDelta = 0;
+        Debug.Log($"{signedValue}はなんの値？");
         switch (statTarget)
         {
             case EffectStatTarget.AP:
@@ -16037,6 +16099,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
             || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
+            || effect.type == EffectType.BattleDamageImmunityFromLowApEnemy
             || effect.type == EffectType.AttackActiveEnemyUnit
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand
             || effect.type == EffectType.DeploySelfToShield || effect.type == EffectType.DeployShieldFromHand
@@ -16750,6 +16813,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.HighMobility:
                     notes.Append("[HighMobility] ");
                     continue;
+                case EffectType.BattleDamageImmunityFromLowApEnemy:
+                    notes.Append("[BattleDamageImmunity] ");
+                    continue;
                 case EffectType.AttackActiveEnemyUnit:
                     notes.Append("[AttackActiveEnemyUnit] ");
                     continue;
@@ -16919,6 +16985,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.HighMobility:
                     notes.Append("[HighMobility] ");
+                    continue;
+                case EffectType.BattleDamageImmunityFromLowApEnemy:
+                    notes.Append("[BattleDamageImmunity] ");
                     continue;
                 case EffectType.AttackActiveEnemyUnit:
                     notes.Append("[AttackActiveEnemyUnit] ");
@@ -18326,6 +18395,19 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        if (IsTheBlueGiantCard(command.Data))
+        {
+            OpenOnActionUnitTargetSelection(
+                side,
+                command,
+                CreateTheBlueGiantPickEffect(),
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
+            return;
+        }
+
         if (onActionEffects.Count == 0)
         {
             LogCommandUseResultWithBoard(
@@ -19110,7 +19192,77 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TryApplyOnActionRestSelfCostIfPresent(command, side);
-        if (effect.type == EffectType.CannotBeChosenAsAttackTarget)
+        if (IsTheBlueGiantCard(command.Data))
+        {
+            System.Action applyBlueGiant = () =>
+            {
+                GrantTheBlueGiantImmunityToTargets(pickedTargets);
+                SetEffectChainLastPickedTargets(pickedTargets);
+                BeginOnlineEffectSyncBatch(side);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyBlueGiant);
+            }
+            else
+            {
+                applyBlueGiant();
+            }
+        }
+        else if (effect.type == EffectType.BattleDamageImmunityFromLowApEnemy)
+        {
+            System.Action applyImmunity = () =>
+            {
+                BeginOnlineEffectSyncBatch(side);
+                bool applied = TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, pickedTargets);
+                if (!applied)
+                {
+                    int maxAp = effect.value > 0 ? effect.value : 2;
+                    bool untilBattle = effect.duration != EffectDuration.UntilEndOfTurn;
+                    for (int pi = 0; pi < pickedTargets.Count; pi++)
+                    {
+                        CardController unit = pickedTargets[pi];
+                        if (unit != null && unit.Data != null && unit.Data.IsPilot())
+                        {
+                            unit = ResolveEffectSourceBattleHost(unit) ?? unit;
+                        }
+
+                        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+                        {
+                            continue;
+                        }
+
+                        unit.GrantBattleDamageImmunityFromEnemyAp(maxAp, untilBattle);
+                        applied = true;
+                    }
+                }
+
+                if (applied)
+                {
+                    SetEffectChainLastPickedTargets(pickedTargets);
+                }
+
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                Debug.Log(
+                    $"[OnAction] BattleDamageImmunity applied:{applied} "
+                    + $"picked:{FormatOnActionPickedTargetsSummary(pickedTargets)} "
+                    + $"value:{effect.value} duration:{effect.duration}");
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyImmunity);
+            }
+            else
+            {
+                applyImmunity();
+            }
+        }
+        else if (effect.type == EffectType.CannotBeChosenAsAttackTarget)
         {
             // 手動選択結果を直接付与（ApplyEffectToSpecificTargets のブロック経路を避ける）
             System.Action applyProtect = () =>
@@ -20333,6 +20485,16 @@ public partial class BattleGameMain : MonoBehaviour
             return GameLocale.T(
                 $"《突破{amount}》付与 — 味方ユニットを選択{lackHint}",
                 $"Grant <Breach {amount}> — Choose an ally Unit{lackHint}");
+        }
+
+        if (effect.type == EffectType.BattleDamageImmunityFromLowApEnemy)
+        {
+            int threshold = effect.value > 0 ? effect.value : 3;
+            string statJa = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+            string statEn = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+            return GameLocale.T(
+                $"このバトル中、{statJa}{threshold}以下の相手ユニットからのバトルダメージを受けない — 味方ユニットを選択",
+                $"This battle, no battle damage from enemy Units with {statEn} {threshold} or less — Choose an ally Unit");
         }
 
         if (effect.type == EffectType.GrantTurnEndRepair)
