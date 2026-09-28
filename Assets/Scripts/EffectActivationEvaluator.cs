@@ -397,7 +397,12 @@ public static class EffectActivationEvaluator
 
         if (c.checkKind == EffectActivationCheckKind.OwnerHasLinkedUnit)
         {
-            return EvaluateOwnerHasLinkedUnit(c, ctx);
+            return EvaluateOwnerHasLinkedUnit(c, ctx, excludeSource: false);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerHasOtherLinkedUnit)
+        {
+            return EvaluateOwnerHasLinkedUnit(c, ctx, excludeSource: true);
         }
 
         if (c.checkKind == EffectActivationCheckKind.OwnerTotalLevel)
@@ -1229,14 +1234,12 @@ public static class EffectActivationEvaluator
         return false;
     }
 
-    private static bool EvaluateOwnerHasLinkedUnit(EffectActivationCondition c, EffectActivationContext ctx)
+    private static bool EvaluateOwnerHasLinkedUnit(
+        EffectActivationCondition c,
+        EffectActivationContext ctx,
+        bool excludeSource)
     {
         if (c == null || ctx == null)
-        {
-            return false;
-        }
-
-        if (!OwnerHasAnyLinkedUnit(ctx))
         {
             return false;
         }
@@ -1259,6 +1262,11 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
+            if (excludeSource && IsOwnerHasLinkedUnitSourceOrHost(unit, ctx))
+            {
+                continue;
+            }
+
             if (!UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
             {
                 continue;
@@ -1272,6 +1280,22 @@ public static class EffectActivationEvaluator
         }
 
         return false;
+    }
+
+    /// <summary>発動元ユニット／搭乗ホストは「このユニット以外」から除外する。</summary>
+    private static bool IsOwnerHasLinkedUnitSourceOrHost(CardController unit, EffectActivationContext ctx)
+    {
+        if (unit == null || ctx == null)
+        {
+            return false;
+        }
+
+        if (ctx.SourceCard != null && ReferenceEquals(unit, ctx.SourceCard))
+        {
+            return true;
+        }
+
+        return ctx.MountHostUnit != null && ReferenceEquals(unit, ctx.MountHostUnit);
     }
 
     private static bool EvaluateOwnerTotalLevel(EffectActivationCondition c, EffectActivationContext ctx)

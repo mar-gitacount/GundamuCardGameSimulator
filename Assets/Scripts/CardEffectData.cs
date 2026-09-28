@@ -926,7 +926,12 @@ public enum EffectActivationCheckKind
     /// オーナーの手札枚数を unitCountThreshold と unitCountCompareOp で比較。
     /// 例: 手札4枚以下 → threshold 4 + LessOrEqual（フォウ・ムラサメ等）。
     /// </summary>
-    OwnerHandCount
+    OwnerHandCount,
+    /// <summary>
+    /// オーナーのバトルゾーンに、発動元以外のリンク中生存ユニットが minimumCount 体以上いる。
+    /// ST04-009 等「このユニット以外の、自分のリンクユニット」。
+    /// </summary>
+    OwnerHasOtherLinkedUnit
 }
 
 public enum EffectTurnCheckKind

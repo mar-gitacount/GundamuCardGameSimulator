@@ -7711,6 +7711,20 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (IsMagicBulletOfDuskCard(sourceCard?.Data))
+        {
+            GrantMagicBulletOfDuskFirstStrikeToTargets(targets);
+            if (targets != null && targets.Count > 0)
+            {
+                SetEffectChainLastPickedTargets(targets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (IsTheBlueGiantCard(sourceCard?.Data))
         {
             GrantTheBlueGiantImmunityToTargets(targets);
@@ -18395,6 +18409,19 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        if (IsMagicBulletOfDuskCard(command.Data))
+        {
+            OpenOnActionUnitTargetSelection(
+                side,
+                command,
+                CreateMagicBulletOfDuskPickEffect(),
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
+            return;
+        }
+
         if (IsTheBlueGiantCard(command.Data))
         {
             OpenOnActionUnitTargetSelection(
@@ -18997,7 +19024,9 @@ public partial class BattleGameMain : MonoBehaviour
         int commandQueueIndex = -1,
         int commandQueueCount = -1)
     {
-        List<CardController> candidates = ResolveSelectableEffectTargets(command, side, effect);
+        List<CardController> candidates = IsMagicBulletOfDuskCard(command != null ? command.Data : null)
+            ? CollectMagicBulletOfDuskTargets(side)
+            : ResolveSelectableEffectTargets(command, side, effect);
         if (candidates.Count == 0)
         {
             Debug.Log($"OnAction: 選択可能な対象ユニットがいません ({effect?.FormatEffectSelectionSummary()}).");
@@ -19192,7 +19221,27 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TryApplyOnActionRestSelfCostIfPresent(command, side);
-        if (IsTheBlueGiantCard(command.Data))
+        if (IsMagicBulletOfDuskCard(command.Data))
+        {
+            System.Action applyMagicBullet = () =>
+            {
+                GrantMagicBulletOfDuskFirstStrikeToTargets(pickedTargets);
+                SetEffectChainLastPickedTargets(pickedTargets);
+                BeginOnlineEffectSyncBatch(side);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyMagicBullet);
+            }
+            else
+            {
+                applyMagicBullet();
+            }
+        }
+        else if (IsTheBlueGiantCard(command.Data))
         {
             System.Action applyBlueGiant = () =>
             {
@@ -20081,7 +20130,9 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (EffectRequiresManualUnitSelection(effect))
         {
-            List<CardController> candidates = ResolveSelectableEffectTargets(source, side, effect);
+            List<CardController> candidates = IsMagicBulletOfDuskCard(source != null ? source.Data : null)
+                ? CollectMagicBulletOfDuskTargets(side)
+                : ResolveSelectableEffectTargets(source, side, effect);
             int selectMin = effect.GetSelectMinCount();
             if (candidates.Count < selectMin)
             {

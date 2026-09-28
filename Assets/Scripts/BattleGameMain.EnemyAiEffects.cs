@@ -1446,6 +1446,25 @@ public partial class BattleGameMain
             return;
         }
 
+        if (IsMagicBulletOfDuskCard(command.Data))
+        {
+            EffectData pickEffect = CreateMagicBulletOfDuskPickEffect();
+            List<CardController> candidates = CollectMagicBulletOfDuskTargets(side);
+            CardController picked = PickEnemyAiEffectTarget(pickEffect, ctx, candidates);
+            if (picked == null && candidates != null && candidates.Count > 0)
+            {
+                picked = candidates[0];
+            }
+
+            if (picked != null)
+            {
+                GrantMagicBulletOfDuskFirstStrikeToTargets(new List<CardController> { picked });
+            }
+
+            onAllDone?.Invoke();
+            return;
+        }
+
         if (IsTheBlueGiantCard(command.Data))
         {
             EffectData pickEffect = CreateTheBlueGiantPickEffect();

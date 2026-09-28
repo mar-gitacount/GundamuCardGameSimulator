@@ -28,6 +28,7 @@ public partial class BattleGameMain
 
         ClearFirstStrikeGrantsOnZone(playerBattleZoneCards);
         ClearFirstStrikeGrantsOnZone(enemyBattleZoneCards);
+        ClearMagicBulletOfDuskFirstStrikeGrants();
     }
 
     private static void ClearFirstStrikeGrantsOnZone(System.Collections.Generic.List<CardController> zone)
@@ -53,7 +54,7 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (unit.HasFirstStrike())
+        if (unit.HasFirstStrike() || UnitHasMagicBulletOfDuskFirstStrike(unit))
         {
             return true;
         }

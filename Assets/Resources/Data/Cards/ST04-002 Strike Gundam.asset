@@ -144,7 +144,7 @@ MonoBehaviour:
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
-      forbidSkipHandDiscard: 0
+      forbidSkipHandDiscard: 1
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0

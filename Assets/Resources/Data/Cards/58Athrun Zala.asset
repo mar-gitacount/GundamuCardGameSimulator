@@ -115,7 +115,8 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: b10c11d12e13f1415161718191a1b1c2, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0
