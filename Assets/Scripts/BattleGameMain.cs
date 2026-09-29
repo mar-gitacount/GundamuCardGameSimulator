@@ -12666,6 +12666,22 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.AddFromTrashToHand)
+        {
+            if (CollectAddFromTrashToHandCandidates(beneficiary, effect).Count == 0)
+            {
+                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                return;
+            }
+
+            ApplyAddFromTrashToHandEffect(
+                sourceCard,
+                beneficiary,
+                effect,
+                () => TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone));
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, beneficiary, effect);
@@ -13468,7 +13484,8 @@ public partial class BattleGameMain : MonoBehaviour
             (source?.Data?.id == 1000666 && effect?.type == EffectType.EffectBattle)
             || source?.Data?.id == 1000668
             || source?.Data?.id == 1000669
-            || source?.Data?.id == 1000670;
+            || source?.Data?.id == 1000670
+            || (effect != null && effect.forbidSkipUnitPick && selectable.Count > 0);
         if (!mandatoryUnitPick)
         {
             Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
@@ -13609,6 +13626,35 @@ public partial class BattleGameMain : MonoBehaviour
         bool resolved = false;
         int selectMin = effect != null ? effect.GetSelectMinCount() : 1;
         int selectMax = effect != null ? effect.GetSelectMaxCount(candidates.Count) : candidates.Count;
+        bool forbidSkip = effect != null
+            && effect.forbidSkipUnitPick
+            && candidates != null
+            && candidates.Count >= selectMin;
+        Button okBtn = null;
+        TextMeshProUGUI okLabel = null;
+
+        void RefreshOkButton()
+        {
+            if (okBtn == null)
+            {
+                return;
+            }
+
+            bool ready = selected.Count >= selectMin;
+            if (!forbidSkip)
+            {
+                okBtn.interactable = true;
+                return;
+            }
+
+            okBtn.interactable = ready;
+            if (okLabel != null)
+            {
+                okLabel.color = ready
+                    ? Color.white
+                    : new Color(0.55f, 0.55f, 0.55f, 1f);
+            }
+        }
 
         void CloseWithSelection(List<CardController> picks)
         {
@@ -13687,17 +13733,19 @@ public partial class BattleGameMain : MonoBehaviour
                         baseImage.color = ManualMultiSelectHighlightColor;
                     }
                 }
+
+                RefreshOkButton();
             });
         }
 
-        Button okBtn = root.CreateChildButton("OK");
+        okBtn = root.CreateChildButton("OK");
         RectTransform okRt = okBtn.GetComponent<RectTransform>();
         okRt.sizeDelta = new Vector2(160f, 44f);
         okRt.anchorMin = new Vector2(0.5f, 0f);
         okRt.anchorMax = new Vector2(0.5f, 0f);
         okRt.pivot = new Vector2(0.5f, 0f);
-        okRt.anchoredPosition = new Vector2(-90f, 36f);
-        TextMeshProUGUI okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+        okRt.anchoredPosition = forbidSkip ? new Vector2(0f, 36f) : new Vector2(-90f, 36f);
+        okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
         if (okLabel != null)
         {
             okLabel.text = "OK";
@@ -13713,6 +13761,12 @@ public partial class BattleGameMain : MonoBehaviour
 
             CloseWithSelection(new List<CardController>(selected));
         });
+        RefreshOkButton();
+
+        if (forbidSkip)
+        {
+            return;
+        }
 
         Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
         RectTransform cancelRt = cancel.GetComponent<RectTransform>();
@@ -13737,6 +13791,37 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect != null && effect.type == EffectType.Damage)
         {
+            if (effect.selectionMode.IsMultipleUnitPickMode()
+                && (effect.forbidSkipUnitPick || effect.selectMaxCount > 0))
+            {
+                int min = effect.GetSelectMinCount();
+                int max = effect.GetSelectMaxCount(candidates.Count);
+                List<CardController> ranked = new List<CardController>();
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    CardController candidate = candidates[i];
+                    if (candidate != null && candidate.CurrentHp > 0)
+                    {
+                        ranked.Add(candidate);
+                    }
+                }
+
+                ranked.Sort((a, b) => ComputeEnemyAiUnitThreatScore(b.CurrentPower, b.CurrentHp)
+                    .CompareTo(ComputeEnemyAiUnitThreatScore(a.CurrentPower, a.CurrentHp)));
+                if (ranked.Count < min)
+                {
+                    return picks;
+                }
+
+                int pickCount = Mathf.Clamp(ranked.Count, min, max);
+                for (int i = 0; i < pickCount; i++)
+                {
+                    picks.Add(ranked[i]);
+                }
+
+                return picks;
+            }
+
             for (int i = 0; i < candidates.Count; i++)
             {
                 CardController candidate = candidates[i];
@@ -13799,6 +13884,12 @@ public partial class BattleGameMain : MonoBehaviour
     private static bool EffectRequiresManualUnitSelection(EffectData effect)
     {
         if (effect == null)
+        {
+            return false;
+        }
+
+        // 直前に選んだユニットへ自動適用（ST05-013 自傷後バフ等）。選択 UI は出さない。
+        if (effect.selectionMode.IsUsePriorChainPickedTargetMode())
         {
             return false;
         }
@@ -19476,6 +19567,12 @@ public partial class BattleGameMain : MonoBehaviour
             EffectData next = onActionEffects[i];
             if (next == null)
             {
+                continue;
+            }
+
+            if (next.selectionMode.IsUsePriorChainPickedTargetMode())
+            {
+                TryExecutePriorChainPickedTargetEffect(command, side, next, () => { });
                 continue;
             }
 

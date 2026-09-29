@@ -1563,6 +1563,16 @@ public partial class BattleGameMain
             return;
         }
 
+        if (TryExecutePriorChainPickedTargetEffect(
+            command,
+            side,
+            effect,
+            () => ExecuteEnemyOnActionEffectsChain(
+                command, side, effects, index + 1, ctx, onAllDone, attackingUnitInAttackFlow)))
+        {
+            return;
+        }
+
         List<CardController> resolvedBefore = ResolveEffectTargets(command, side, effect);
         List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBefore);
         ApplyEffect(command, side, effect);
