@@ -1405,6 +1405,11 @@ public class EffectData
     public bool forbidSkipHandDiscard;
 
     [Tooltip(
+        "ユニット選択 UI: true のとき Cancel を出さず、最低体数を選ぶまで OK を無効化する。"
+        + "候補がいる限りスキップ不可（ST05-010 搭乗時ダメージ等）。JsonUtility 既定 false。")]
+    public bool forbidSkipUnitPick;
+
+    [Tooltip(
         "true のとき、この効果だけ1ターンに1回（例: 《援護》後の自身アクティブ化）。"
         + "TimedEffectData.oncePerTurn（ブロック全体）とは独立。")]
     public bool oncePerTurn;

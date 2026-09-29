@@ -90,10 +90,11 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
+      forbidSkipUnitPick: 1
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
-      selectMinCount: 0
-      selectMaxCount: 0
+      selectMinCount: 1
+      selectMaxCount: 1
       observedUnitTriggerKind: -1
       autoSelectLowestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
@@ -172,10 +173,11 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
+      forbidSkipUnitPick: 1
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
-      selectMinCount: 0
-      selectMaxCount: 0
+      selectMinCount: 1
+      selectMaxCount: 1
       observedUnitTriggerKind: -1
       autoSelectLowestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
