@@ -931,7 +931,12 @@ public enum EffectActivationCheckKind
     /// オーナーのバトルゾーンに、発動元以外のリンク中生存ユニットが minimumCount 体以上いる。
     /// ST04-009 等「このユニット以外の、自分のリンクユニット」。
     /// </summary>
-    OwnerHasOtherLinkedUnit
+    OwnerHasOtherLinkedUnit,
+    /// <summary>
+    /// オーナーのバトルゾーンに、発動元以外の、指定 Feature を持つ生存ユニットが minimumCount 体以上いる。
+    /// ST06-001 等「このユニット以外の、〔クラン〕の味方ユニットがいるなら」。
+    /// </summary>
+    OwnerHasOtherUnitWithFeature
 }
 
 public enum EffectTurnCheckKind

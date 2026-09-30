@@ -203,6 +203,8 @@ public partial class BattleGameMain
         RunAllyUnitLinkWatchTimedBlocks(
             watcher,
             ownerType,
+            linkedUnit,
+            linkedPilot,
             blocks,
             blockIndices,
             0,
@@ -222,6 +224,8 @@ public partial class BattleGameMain
     private void RunAllyUnitLinkWatchTimedBlocks(
         CardController sourceCard,
         PlayerType ownerType,
+        CardController linkedUnit,
+        CardController linkedPilot,
         List<TimedEffectData> blocks,
         List<int> blockIndices,
         int blockIndex,
@@ -245,11 +249,15 @@ public partial class BattleGameMain
         RunAllyUnitLinkEffectChain(
             sourceCard,
             ownerType,
+            linkedUnit,
+            linkedPilot,
             block != null ? block.GetResolvedEffects() : null,
             0,
             () => RunAllyUnitLinkWatchTimedBlocks(
                 sourceCard,
                 ownerType,
+                linkedUnit,
+                linkedPilot,
                 blocks,
                 blockIndices,
                 blockIndex + 1,
@@ -259,6 +267,8 @@ public partial class BattleGameMain
     private void RunAllyUnitLinkEffectChain(
         CardController sourceCard,
         PlayerType ownerType,
+        CardController linkedUnit,
+        CardController linkedPilot,
         IReadOnlyList<EffectData> effects,
         int effectIndex,
         Action onComplete)
@@ -270,16 +280,51 @@ public partial class BattleGameMain
         }
 
         EffectData effect = effects[effectIndex];
+        void ContinueChain()
+        {
+            RunAllyUnitLinkEffectChain(
+                sourceCard,
+                ownerType,
+                linkedUnit,
+                linkedPilot,
+                effects,
+                effectIndex + 1,
+                onComplete);
+        }
+
         if (effect == null)
         {
-            RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete);
+            ContinueChain();
             return;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        EffectActivationContext activationContext = BuildAllyUnitLinkActivationContext(
+            ownerType,
+            sourceCard,
+            linkedUnit,
+            linkedPilot);
         if (!ShouldApplyChainedEffect(effect, activationContext, "AllyUnitLink"))
         {
-            RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete);
+            ContinueChain();
+            return;
+        }
+
+        // ST06-015 等：「リンクしたそのユニット」へ突破を自動付与（選択 UI にしない）
+        if (effect.type == EffectType.GrantBreach && linkedUnit != null)
+        {
+            if (linkedUnit.Data != null
+                && linkedUnit.Data.IsUnitLike()
+                && linkedUnit.CurrentHp > 0
+                && (!effect.HasTargetFeatureFilter() || effect.MatchesTargetFeatureOnCard(linkedUnit.Data)))
+            {
+                ApplyEffectToSpecificTargets(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    new List<CardController> { linkedUnit });
+            }
+
+            ContinueChain();
             return;
         }
 
@@ -288,7 +333,7 @@ public partial class BattleGameMain
             List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
             if (candidates.Count == 0)
             {
-                RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete);
+                ContinueChain();
                 return;
             }
 
@@ -299,8 +344,8 @@ public partial class BattleGameMain
                     ownerType,
                     effect,
                     candidates,
-                    () => RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete),
-                    () => RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete)));
+                    ContinueChain,
+                    ContinueChain));
                 return;
             }
 
@@ -309,8 +354,8 @@ public partial class BattleGameMain
                 ownerType,
                 effect,
                 null,
-                () => RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete),
-                () => RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete));
+                ContinueChain,
+                ContinueChain);
             return;
         }
 
@@ -318,7 +363,7 @@ public partial class BattleGameMain
             sourceCard,
             ownerType,
             effect,
-            () => RunAllyUnitLinkEffectChain(sourceCard, ownerType, effects, effectIndex + 1, onComplete));
+            ContinueChain);
     }
 
     private IEnumerator CoRunAllyUnitLinkPlayerManualSelection(

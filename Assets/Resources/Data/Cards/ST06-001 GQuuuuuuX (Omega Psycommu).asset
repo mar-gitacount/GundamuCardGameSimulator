@@ -38,13 +38,13 @@ MonoBehaviour:
   - timing: 18
     activationConditions:
     - boardSide: 0
-      checkKind: 0
+      checkKind: 54
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 7
       features: []
       featureIds: 
-      minimumCount: 2
+      minimumCount: 1
       levelAggregate: 0
       compareOp: 0
       compareValue: 0

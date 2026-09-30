@@ -113,7 +113,9 @@ public static class CardPrintedKeywordExtensions
                     continue;
                 }
 
-                if (effect.type == EffectType.FirstStrike)
+                if (effect.type == EffectType.FirstStrike
+                    && effect.duration == EffectDuration.Permanent
+                    && !timed.HasActivationConditions())
                 {
                     result.HasFirstStrike = true;
                 }
