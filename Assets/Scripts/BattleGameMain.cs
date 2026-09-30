@@ -20640,9 +20640,15 @@ public partial class BattleGameMain : MonoBehaviour
             int threshold = effect.value > 0 ? effect.value : 3;
             string statJa = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
             string statEn = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+            string whenJa = effect.duration == EffectDuration.UntilEndOfTurn
+                ? "このターン中"
+                : "このバトル中";
+            string whenEn = effect.duration == EffectDuration.UntilEndOfTurn
+                ? "This turn"
+                : "This battle";
             return GameLocale.T(
-                $"このバトル中、{statJa}{threshold}以下の相手ユニットからのバトルダメージを受けない — 味方ユニットを選択",
-                $"This battle, no battle damage from enemy Units with {statEn} {threshold} or less — Choose an ally Unit");
+                $"{whenJa}、{statJa}{threshold}以下の相手ユニットからのバトルダメージを受けない — 味方ユニットを選択",
+                $"{whenEn}, no battle damage from enemy Units with {statEn} {threshold} or less — Choose an ally Unit");
         }
 
         if (effect.type == EffectType.GrantTurnEndRepair)

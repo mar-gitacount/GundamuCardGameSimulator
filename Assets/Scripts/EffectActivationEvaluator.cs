@@ -405,6 +405,11 @@ public static class EffectActivationEvaluator
             return EvaluateOwnerHasLinkedUnit(c, ctx, excludeSource: true);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.OwnerHasOtherUnitWithFeature)
+        {
+            return EvaluateOwnerHasOtherUnitWithFeature(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.OwnerTotalLevel)
         {
             return EvaluateOwnerTotalLevel(c, ctx);
@@ -1296,6 +1301,55 @@ public static class EffectActivationEvaluator
         }
 
         return ctx.MountHostUnit != null && ReferenceEquals(unit, ctx.MountHostUnit);
+    }
+
+    /// <summary>発動元以外の、指定 Feature を持つ生存味方ユニットが minimumCount 体以上か。</summary>
+    private static bool EvaluateOwnerHasOtherUnitWithFeature(
+        EffectActivationCondition c,
+        EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null || !c.HasActivationFeatureFilter())
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        IReadOnlyList<CardController> zone = ctx.OwnerType == BattleGameMain.PlayerType.Player
+            ? ctx.PlayerBattleZone
+            : ctx.EnemyBattleZone;
+        if (zone == null || zone.Count == 0)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+        int matched = 0;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (IsOwnerHasLinkedUnitSourceOrHost(unit, ctx))
+            {
+                continue;
+            }
+
+            if (!unit.HasAnyFeature(required))
+            {
+                continue;
+            }
+
+            matched++;
+            if (matched >= need)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool EvaluateOwnerTotalLevel(EffectActivationCondition c, EffectActivationContext ctx)

@@ -42,8 +42,8 @@ MonoBehaviour:
     effects:
     - type: 12
       value: 1
-      target: 0
-      selectionMode: -1
+      target: 8
+      selectionMode: 1
       statTarget: 0
       duration: 1
       valueMode: 0
@@ -56,12 +56,12 @@ MonoBehaviour:
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
-      targetFeatureId: 0
+      targetFeatureId: 7
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: -1
+      targetUnitFilterStat: 0
       targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 0
+      targetUnitStatCompareValue: 3
       compareTargetStatToSource: 0
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
@@ -82,6 +82,7 @@ MonoBehaviour:
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
       forbidSkipHandDiscard: 0
+      forbidSkipUnitPick: 1
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
       selectMinCount: 0

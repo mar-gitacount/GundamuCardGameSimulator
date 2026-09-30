@@ -61,6 +61,75 @@ public static class CardPilotBattleDamageImmunityExtensions
             return true;
         }
 
+        // UntilEOT / UntilEndOfBattle で付与した効果（ST06-013 等）。印刷パッシブとは別リスト。
+        if (TryIgnoreFromGrantedImmunities(damageTarget, damageSource))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryIgnoreFromGrantedImmunities(
+        CardController damageTarget,
+        CardController damageSource)
+    {
+        if (damageTarget == null || damageSource == null)
+        {
+            return false;
+        }
+
+        if (TryIgnoreFromGrantList(
+                damageTarget.BattleDamageImmunityUntilEndOfTurnGrants,
+                damageTarget,
+                damageSource))
+        {
+            return true;
+        }
+
+        if (TryIgnoreFromGrantList(
+                damageTarget.BattleDamageImmunityUntilEndOfBattleGrants,
+                damageTarget,
+                damageSource))
+        {
+            return true;
+        }
+
+        return damageTarget.HasGrantedBattleDamageImmunityFromEnemyAp(damageSource.CurrentPower);
+    }
+
+    private static bool TryIgnoreFromGrantList(
+        IReadOnlyList<EffectData> grants,
+        CardController damageTarget,
+        CardController damageSource)
+    {
+        if (grants == null || grants.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < grants.Count; i++)
+        {
+            EffectData effect = grants[i];
+            if (effect == null || effect.type != EffectType.BattleDamageImmunityFromLowApEnemy)
+            {
+                continue;
+            }
+
+            int threshold = ResolveImmunityThreshold(effect, damageTarget);
+            int attackerStat = ResolveAttackerStatForImmunity(damageSource, effect);
+            if (attackerStat > threshold)
+            {
+                continue;
+            }
+
+            string statLabel = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+            Debug.Log(
+                $"[BattleDamageImmunity] grant {damageTarget.Data?.cardName} ignores {attackerStat} dmg "
+                + $"from {damageSource.Data?.cardName} (max{statLabel}:{threshold})");
+            return true;
+        }
+
         return false;
     }
 

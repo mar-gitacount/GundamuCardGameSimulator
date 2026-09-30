@@ -628,6 +628,17 @@ public partial class BattleGameMain
             context.Entries,
             effect,
             context.MountHostUnit);
+        if (context.TakenCardIds != null && context.TakenCardIds.Count > 0)
+        {
+            for (int i = selectable.Count - 1; i >= 0; i--)
+            {
+                LookedDeckEntry entry = selectable[i];
+                if (entry != null && context.TakenCardIds.Contains(entry.CardId))
+                {
+                    selectable.RemoveAt(i);
+                }
+            }
+        }
         string featureLabel = effect.FormatTargetFeaturesLabel();
         string typeLabel = effect.FormatTargetCardTypeFilterLabel();
         string filterLabel;
