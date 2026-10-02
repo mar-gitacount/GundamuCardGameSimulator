@@ -19,7 +19,9 @@ public static class CardPilotBattleDamageImmunityExtensions
         BattleGameMain.PlayerType damageTargetOwner,
         BattleGameMain.PlayerType damageSourceOwner,
         bool isDamageTargetOwnerTurn,
-        Func<TimedEffectData, int, bool> canConsumeOncePerTurnBlock = null)
+        Func<TimedEffectData, int, bool> canConsumeOncePerTurnBlock = null,
+        IReadOnlyList<CardController> playerBattleZone = null,
+        IReadOnlyList<CardController> enemyBattleZone = null)
     {
         if (damageTarget == null
             || damageSource == null
@@ -34,7 +36,9 @@ public static class CardPilotBattleDamageImmunityExtensions
             damageTarget,
             damageTarget.MountedPilot,
             damageTargetOwner,
-            isDamageTargetOwnerTurn);
+            isDamageTargetOwnerTurn,
+            playerBattleZone,
+            enemyBattleZone);
 
         if (damageTarget.Data?.timedEffects != null
             && TryIgnoreFromTimedEffects(
@@ -214,13 +218,15 @@ public static class CardPilotBattleDamageImmunityExtensions
         CardController hostUnit,
         CardController pilot,
         BattleGameMain.PlayerType ownerType,
-        bool isOwnerTurn)
+        bool isOwnerTurn,
+        IReadOnlyList<CardController> playerBattleZone,
+        IReadOnlyList<CardController> enemyBattleZone)
     {
         return new EffectActivationContext(
             ownerType,
             hostUnit,
-            playerBattleZone: null,
-            enemyBattleZone: null,
+            playerBattleZone,
+            enemyBattleZone,
             playerHand: null,
             enemyHand: null,
             isOwnerTurn: isOwnerTurn,

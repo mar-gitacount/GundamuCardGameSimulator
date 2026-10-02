@@ -51,6 +51,14 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 6
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ThisBaseImmune_EnemyNonTokenLv3OrLess_WhileRestedCbAlly
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 374064caad5947b0bb2b44e5adee549a, type: 2}
   - {fileID: 11400000, guid: 5a47f8b7e2c445e4b40e8767fd088d44, type: 2}

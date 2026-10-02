@@ -2172,6 +2172,20 @@ public partial class BattleGameMain
             CommitUnitAttackDeclaration(attacker, PlayerType.Enemy);
         }
 
+        if (_armedInterventionIgnoreRemoteShieldAttack
+            || _armedInterventionCancelOriginalStrike
+            || _armedInterventionCombatResolvedThisAttack)
+        {
+            _armedInterventionIgnoreRemoteShieldAttack = false;
+            Debug.Log("[ArmedIntervention] Remote shield attack ignored — attack was redirected to unit battle.");
+            if (action.requestId > 0)
+            {
+                SendOnlineShieldBreakComplete(action.requestId, Gundam2024RuleScript.PlayerSide.Player);
+            }
+
+            return;
+        }
+
         if (action.directAttackWin)
         {
             Debug.Log("[OnlineBattle] Remote direct attack win received.");

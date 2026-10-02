@@ -120,6 +120,20 @@ public partial class BattleGameMain
             commandData,
             targetUnit);
 
+        if (IsArmedInterventionCard(commandData))
+        {
+            bool prevApplyingRemote = _applyingRemoteBattleAction;
+            _applyingRemoteBattleAction = true;
+            try
+            {
+                TryApplyArmedInterventionFromRemote(targetUnit);
+            }
+            finally
+            {
+                _applyingRemoteBattleAction = prevApplyingRemote;
+            }
+        }
+
         StartCoroutine(HandleRemoteCommandPlayRevealCoroutine(action, commandData, commandName, targetUnit));
     }
 

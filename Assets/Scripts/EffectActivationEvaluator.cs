@@ -770,8 +770,18 @@ public static class EffectActivationEvaluator
         }
 
         IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
+        int count = TrashCardQuery.CountByAnyFeature(trashIds, required);
+
+        // Less / LessOrEqual は「N枚未満／以下」（刹那の「かわりに」用）。既存カードは AtLeast + minimumCount。
+        if (c.unitCountCompareOp == EffectCompareOperator.Less
+            || c.unitCountCompareOp == EffectCompareOperator.LessOrEqual)
+        {
+            int threshold = c.unitCountThreshold > 0 ? c.unitCountThreshold : Mathf.Max(0, c.minimumCount);
+            return EffectCompareHelper.Compare(count, threshold, c.unitCountCompareOp);
+        }
+
         int need = Mathf.Max(1, c.minimumCount);
-        return TrashCardQuery.HasAnyFeatureAtLeast(trashIds, required, need);
+        return count >= need;
     }
 
     private static bool EvaluateDestroyedByHasFeature(EffectActivationCondition c, EffectActivationContext ctx)

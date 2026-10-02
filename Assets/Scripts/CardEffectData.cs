@@ -380,7 +380,14 @@ public enum EffectType
     /// OnLook 専用。見たカードから value 枚を選び山札の上に戻す（選んだ順・先頭が一番上）。
     /// 選ばなかった見た枚は山札の下へ戻す（ST02-015 聖ガブリエル学園等）。
     /// </summary>
-    ChooseLookedToDeckTopThenBottomRemainder
+    ChooseLookedToDeckTopThenBottomRemainder,
+    /// <summary>
+    /// 配備ベース常時パッシブ（ダメージ判定のみ。ApplyEffect では何もしない）。
+    /// レストかつ targetFeature（例: 〔CB〕）の味方ユニットがいる間、
+    /// このベースはユニットトークン以外の Lv.value 以下の相手ユニットからダメージを受けない
+    /// （ST07-015 プトレマイオス等）。実シールド／EXベースは対象外。
+    /// </summary>
+    ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -1390,8 +1397,8 @@ public class EffectData
     public bool grantAttackFlagOnlyIfOff = true;
 
     [Tooltip(
-        "DiscardFromHand / AddToHandFromLooked: true のとき対象カードを相手に公開"
-        + "（オンラインは OK まで進行停止）。")]
+        "DiscardFromHand / AddToHandFromLooked / MillTopToTrash: true のとき対象カードを相手に公開"
+        + "（オンラインは OK まで進行停止）。Mill は自分側にもトラッシュ公開 UI を出す。")]
     public bool revealDiscardedToOpponent;
 
     [Tooltip(
@@ -1501,6 +1508,9 @@ public class EffectData
 
     [Tooltip("true のときリンク中（Link 条件を満たすパイロット搭乗中）のユニットのみ対象。")]
     public bool requireTargetIsLinked;
+
+    [Tooltip("true のとき REST 状態のユニットのみ対象（武力介入等）。ACTIVE は候補にしない。")]
+    public bool requireTargetIsRest;
 
     [Tooltip(
         "true のとき OnAttack の攻撃対象限定効果を戦闘前ではなく、"
@@ -1855,7 +1865,8 @@ public static class EffectDataExtensions
                 || effect.requireTargetLacksBreach
                 || effect.requireTargetHasNoPilot
                 || effect.requireTargetDamaged
-                || effect.requireTargetIsLinked);
+                || effect.requireTargetIsLinked
+                || effect.requireTargetIsRest);
     }
 
     /// <summary>
@@ -2072,7 +2083,7 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.HasTargetFeatureFilter() && !effect.MatchesTargetFeatureOnCard(unit.Data))
+        if (effect.HasTargetFeatureFilter() && !unit.HasAnyFeature(effect.GetTargetFeatures()))
         {
             return false;
         }
@@ -2108,6 +2119,11 @@ public static class EffectDataExtensions
 
         if (effect.requireTargetIsLinked
             && !UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+        {
+            return false;
+        }
+
+        if (effect.requireTargetIsRest && !unit.IsRestState)
         {
             return false;
         }
@@ -2280,6 +2296,16 @@ public static class EffectDataExtensions
             }
 
             sb.Append(GameLocale.T("リンク中", "Linked"));
+        }
+
+        if (effect.requireTargetIsRest)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("REST", "REST"));
         }
 
         return sb.ToString();
@@ -2554,6 +2580,11 @@ public static class EffectDataExtensions
 
         if (effect.requireTargetIsLinked
             && !UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+        {
+            return false;
+        }
+
+        if (effect.requireTargetIsRest && !unit.IsRestState)
         {
             return false;
         }
@@ -2875,6 +2906,43 @@ public static class TimedEffectDataExtensions
             }
 
             return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 盤面ユニット自身の自ターン Self Buff/Debuff（キュリオス等）。
+    /// MountedPilot 条件を含むものだけ。Trigger では解決せず RefreshConditionalFieldSelfStatPassives で維持する。
+    /// </summary>
+    public static bool IsFieldOwnerTurnSelfStatPassiveBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || !timed.HasOwnerTurnActivationRequirement()
+            || !timed.HasMountedPilotActivationRequirement()
+            || !timed.ContainsOnlySelfStatBuffDebuffEffects()
+            || timed.IsHandConditionalPassiveBlock())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static bool HasMountedPilotActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.MountedPilot)
+            {
+                return true;
+            }
         }
 
         return false;

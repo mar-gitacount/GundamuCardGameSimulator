@@ -107,7 +107,27 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   - timing: 15
-    activationConditions: []
+    activationConditions:
+    - boardSide: -1
+      checkKind: 23
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 25
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
     effectsName: 
     effects:
@@ -130,10 +150,10 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: -1
+      targetUnitFilterStat: 3
       targetUnitStatCompareOp: 3
       targetUnitStatCompareValue: 0
-      compareTargetStatToSource: 0
+      compareTargetStatToSource: 1
       compareTargetStatToPriorChainPicked: 0
       abortRemainingChainOnSkip: 0
       requireChainObservationContext: 0
@@ -180,6 +200,7 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: 374064caad5947b0bb2b44e5adee549a, type: 2}
   pilotIds:
+  - {fileID: 11400000, guid: 5fccf449e3d64339b61efe7ea5ed8e15, type: 2}
   - {fileID: 11400000, guid: 260607c74d5641aca24795768bdb3585, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0

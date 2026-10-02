@@ -190,6 +190,9 @@ public partial class BattleGameMain
         burstEffectResolutionDepth = 0;
         _burstRetainedControllers.Clear();
         ClearAttackFlowContext();
+        _armedInterventionCancelOriginalStrike = false;
+        _armedInterventionCombatResolvedThisAttack = false;
+        _armedInterventionIgnoreRemoteShieldAttack = false;
         currentPhase = BattlePhase.StartTurn;
     }
 

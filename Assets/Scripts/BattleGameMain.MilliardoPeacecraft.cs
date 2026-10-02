@@ -44,6 +44,19 @@ public partial class BattleGameMain
             {
                 attackFlowDeclaredDefenderUnit = _actionStepSession.DefendingUnit;
             }
+
+            // シールド／ベース攻撃のアクションステップで strike が落ちていても、
+            // 「相手ユニットがバトル中」として武力介入等を判定できるように戻す
+            if (attackFlowStrikeKind == AttackFlowStrikeKind.None
+                && attackFlowAttackerUnit != null
+                && attackFlowAttackerUnit.CurrentHp > 0)
+            {
+                attackFlowStrikeKind = attackFlowDeclaredDefenderUnit != null
+                    || attackFlowBlockRedirectUnit != null
+                    ? AttackFlowStrikeKind.UnitVsUnit
+                    : AttackFlowStrikeKind.Shield;
+                attackFlowAttackerOwner = ResolveCardOwner(attackFlowAttackerUnit.transform);
+            }
         }
     }
 

@@ -154,6 +154,12 @@ public partial class BattleGameMain
             && TimedHasSourceMountHostHasRepairCondition(timed);
     }
 
+    /// <summary>ユニット自身の自ターン条件付き Self stat（キュリオス等）。</summary>
+    private static bool IsFieldUnitOwnerTurnSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource && timed != null && timed.IsFieldOwnerTurnSelfStatPassiveBlock();
+    }
+
     /// <summary>ユニット自身の OnEnemyAttack 条件付き Self stat（Michaelis 等）。</summary>
     private static bool IsFieldUnitOnEnemyAttackSelfStatPassive(TimedEffectData timed, bool isPilotSource)
     {
@@ -181,7 +187,8 @@ public partial class BattleGameMain
         {
             TimedEffectData timed = blocks[bi];
             if (!IsMountedPilotWhileHostHasRepairSelfStatPassive(timed, isPilotSource)
-                && !IsFieldUnitOnEnemyAttackSelfStatPassive(timed, isPilotSource))
+                && !IsFieldUnitOnEnemyAttackSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitOwnerTurnSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }

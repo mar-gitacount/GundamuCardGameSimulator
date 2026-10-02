@@ -353,6 +353,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction
                 || eff.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess
                 || eff.type == EffectType.AllyEnemyEffectDamageImmunity
+                || eff.type == EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess
                 || eff.type == EffectType.PreventOpponentStartPhaseActiveLowestRestUnits
                 || eff.type == EffectType.AddShieldToHand || eff.type == EffectType.AddSelfToHand
                 || eff.type == EffectType.DeploySelfToShield || eff.type == EffectType.DeployShieldFromHand
@@ -1383,6 +1384,25 @@ public partial class BattleGameMain
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
 
         MarkActionStepCardUsed(side, command);
+
+        if (IsArmedInterventionCard(command.Data))
+        {
+            List<CardController> candidates = CollectRestedCbAllyUnitsForAttackRedirect(side);
+            CardController picked = null;
+            if (candidates != null && candidates.Count > 0)
+            {
+                picked = candidates[0];
+            }
+
+            if (picked != null)
+            {
+                TryApplyOnActionAttackTargetRedirect(side, new List<CardController> { picked });
+            }
+
+            EndOnDestroyedLatencyHold();
+            StartCoroutine(CoFinishEnemyOnActionAfterTrashUi(command, side, onDone));
+            yield break;
+        }
 
         List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
         if (onActionEffects.Count == 0)

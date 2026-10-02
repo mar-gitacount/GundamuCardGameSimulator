@@ -259,7 +259,9 @@ public partial class BattleGameMain
 
                     MarkPaidActivationUsedThisTurn(damageTargetOwner, damageTarget, blockIndex);
                     return true;
-                }))
+                },
+                playerBattleZone: playerBattleZoneCards,
+                enemyBattleZone: enemyBattleZoneCards))
         {
             return;
         }

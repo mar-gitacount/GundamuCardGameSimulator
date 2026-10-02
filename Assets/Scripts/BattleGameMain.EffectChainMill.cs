@@ -517,6 +517,19 @@ public partial class BattleGameMain
 
         SetObservedMilledTrashCandidates(deckOwner, observedTrashCandidates);
 
+        if (milledCards.Count > 0
+            && effect != null
+            && effect.revealDiscardedToOpponent)
+        {
+            StartCoroutine(RevealMilledCardsToSelfAndOpponentCoroutine(
+                ownerType,
+                deckOwner,
+                deckLabel,
+                milledCards,
+                onComplete));
+            return;
+        }
+
         if (ownerType == PlayerType.Player && milledCards.Count > 0)
         {
             StartCoroutine(ShowMillToTrashAcknowledgementCoroutine(deckLabel, milledCards, onComplete));
@@ -540,6 +553,52 @@ public partial class BattleGameMain
         {
             state.deckCount = Mathf.Max(0, deckRemain);
         }
+    }
+
+    /// <summary>
+    /// MillTopToTrash の公開指定時：自分にトラッシュ送り UI を出し、相手にも同じカードを公開する。
+    /// revealDiscardedToOpponent が無い既存ミルは従来どおり Player のみ。
+    /// </summary>
+    private IEnumerator RevealMilledCardsToSelfAndOpponentCoroutine(
+        PlayerType effectOwner,
+        PlayerType deckOwner,
+        string deckLabel,
+        List<CardData> milledCards,
+        Action onComplete)
+    {
+        yield return ShowMillToTrashAcknowledgementCoroutine(deckLabel, milledCards, null);
+
+        if (milledCards != null)
+        {
+            bool initiator = effectOwner == PlayerType.Player && !_applyingRemoteBattleAction;
+            string revealTitle = effectOwner == PlayerType.Enemy
+                ? GameLocale.T(
+                    "相手が山札からトラッシュへ置いたカード（公開）",
+                    "Opponent sent a card from deck to trash (revealed)")
+                : GameLocale.T(
+                    "山札からトラッシュへ置いたカードを公開",
+                    "Reveal card sent from deck to trash");
+
+            for (int i = 0; i < milledCards.Count; i++)
+            {
+                CardData data = milledCards[i];
+                if (data == null)
+                {
+                    continue;
+                }
+
+                yield return WaitForHandDiscardRevealAcknowledgedCoroutine(
+                    data.id,
+                    data.cardName,
+                    deckOwner,
+                    effectOwner,
+                    isInitiator: initiator,
+                    revealTitle: revealTitle,
+                    showLocalPanel: false);
+            }
+        }
+
+        onComplete?.Invoke();
     }
 
     private IEnumerator ShowMillToTrashAcknowledgementCoroutine(

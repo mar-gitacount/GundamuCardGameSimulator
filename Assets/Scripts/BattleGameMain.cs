@@ -187,6 +187,17 @@ public partial class BattleGameMain : MonoBehaviour
     private bool attackFlowPostBlockPassOnActionDone;
     /// <summary>ブロックパス後の OnAction→戦闘継続処理が実行中（二重起動防止）。</summary>
     private bool attackFlowPostBlockPassInProgress;
+    /// <summary>武力介入でアタック先を REST〔CB〕へ変えた。OnAction 完了後にユニット戦へ進む。</summary>
+    private bool _armedInterventionRedirectPending;
+    /// <summary>武力介入のエフェクトバトルを選択直後に解決済み。元のシールド／ユニット打撃は行わない。</summary>
+    private bool _armedInterventionCombatResolvedThisAttack;
+    /// <summary>
+    /// 武力介入後の元アタック（シールド含む）禁止。
+    /// ClearAttackFlowContext では消さない（OnAction 完了後のシールド再開を防ぐ）。
+    /// </summary>
+    private bool _armedInterventionCancelOriginalStrike;
+    /// <summary>武力介入後に遅れて届く相手の ShieldAttack を捨てる。</summary>
+    private bool _armedInterventionIgnoreRemoteShieldAttack;
 
     private enum AttackFlowPipelinePhase
     {
@@ -430,6 +441,9 @@ public partial class BattleGameMain : MonoBehaviour
         isAttackedSidePanelOpen = false;
         _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
         ClearShieldAttackDeclarationLayerCache();
+        _armedInterventionRedirectPending = false;
+        _armedInterventionCombatResolvedThisAttack = false;
+        // _armedInterventionCancelOriginalStrike は次の新規攻撃宣言まで残す
     }
 
     private void MarkAttackFlowBlockSelectionResolved()
@@ -440,6 +454,9 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>新しい攻撃宣言の直前に、前回攻撃のブロック／OnAction 再開フラグを消す。</summary>
     private void ResetAttackFlowBlockPassFlagsForNewDeclaration()
     {
+        _armedInterventionCancelOriginalStrike = false;
+        _armedInterventionCombatResolvedThisAttack = false;
+        _armedInterventionIgnoreRemoteShieldAttack = false;
         attackFlowBlockSelectionResolved = false;
         attackFlowPostBlockPassOnActionDone = false;
         attackFlowPostBlockPassInProgress = false;
@@ -634,6 +651,17 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType defenderSideForOnAction,
         AttackFlowStrikeKind strikeKind)
     {
+        // 武力介入：選択直後にバトル済みなら元の打撃は行わない
+        if (TryFinishArmedInterventionAlreadyResolvedCombat())
+        {
+            return;
+        }
+
+        if (TryResumeArmedInterventionUnitCombatAfterOnAction(attacker))
+        {
+            return;
+        }
+
         if (strikeKind == AttackFlowStrikeKind.Shield)
         {
             TryUnitShieldAttackFromUnit(attacker, true, true, true, skipOnlineBlockPhase: true);
@@ -4466,7 +4494,12 @@ public partial class BattleGameMain : MonoBehaviour
             ownerType,
             destroyedBy,
             detachedPilot);
-        List<TimedEffectData> pilotBlocks = CollectOnDestroyedTimedBlocks(detachedPilot, ownerType, destroyedBy);
+        List<TimedEffectData> pilotBlocks = CollectOnDestroyedTimedBlocks(
+            detachedPilot,
+            ownerType,
+            destroyedBy,
+            detachedMountedPilot: null,
+            destroyedHostUnit: unit);
 
         if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
         {
@@ -5680,6 +5713,11 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>OnAction 全段完了後、攻撃フローが続行不能なら片付ける。true = 中断して終了済み。</summary>
     private bool TrySettleAttackFlowAfterOnActionPhases()
     {
+        if (TryAbortRemainingAttackAfterArmedIntervention())
+        {
+            return true;
+        }
+
         if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
         {
             return false;
@@ -6039,6 +6077,11 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType attackerOwner,
         PlayerType defenderOwner)
     {
+        if (TryAbortRemainingAttackAfterArmedIntervention())
+        {
+            return;
+        }
+
         if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(defender))
         {
             CancelPendingUnitAttackFlow();
@@ -8078,6 +8121,8 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 case EffectType.AllyEnemyEffectDamageImmunity:
                     break;
+                case EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess:
+                    break;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     break;
                 case EffectType.Bounce:
@@ -8226,6 +8271,15 @@ public partial class BattleGameMain : MonoBehaviour
                 $"[TryUnitShieldAttackFromUnit] called attacker:{attackerName} skipOnActionPause:{skipOnActionPause} skipOnAttackSelection:{skipOnAttackSelection} skipAttackedSidePanelPause:{skipAttackedSidePanelPause}");
         }
 
+        if (skipOnAttackSelection || skipOnActionPause)
+        {
+            if (TryAbortRemainingAttackAfterArmedIntervention())
+            {
+                Debug.Log("[ArmedIntervention] Shield strike aborted — original attack already replaced by unit battle.");
+                return;
+            }
+        }
+
         // OnAttack 再開時はパネル残留フラグで黙って return しない（Master Gundam 等が止まる原因）
         if (!skipOnAttackSelection)
         {
@@ -8313,6 +8367,9 @@ public partial class BattleGameMain : MonoBehaviour
             deferredShieldBlockRedirectWait = false;
             blockExchangeCancelledForCurrentAttack = false;
             shieldStrikeAbortedAfterBlockInterrupt = false;
+            _armedInterventionCancelOriginalStrike = false;
+            _armedInterventionCombatResolvedThisAttack = false;
+            _armedInterventionIgnoreRemoteShieldAttack = false;
 
             hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
                 || HasActiveDeployedBaseForRuleSide(targetSide);
@@ -8577,10 +8634,16 @@ public partial class BattleGameMain : MonoBehaviour
                 attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
             }
 
-            if (shieldStrikeAbortedAfterBlockInterrupt || deferredShieldBlockRedirectWait || blockExchangeCancelledForCurrentAttack)
+            if (shieldStrikeAbortedAfterBlockInterrupt || deferredShieldBlockRedirectWait || blockExchangeCancelledForCurrentAttack
+                || _armedInterventionCancelOriginalStrike)
             {
                 Debug.Log("[ShieldAttack] Shield strike skipped — block redirect flow interrupted or pending.");
-                FinalizeBlockInterruptWithoutExchange();
+                TryAbortRemainingAttackAfterArmedIntervention();
+                if (attackFlowStrikeKind != AttackFlowStrikeKind.None)
+                {
+                    FinalizeBlockInterruptWithoutExchange();
+                }
+
                 return;
             }
 
@@ -8598,6 +8661,16 @@ public partial class BattleGameMain : MonoBehaviour
                     () =>
                     {
                         if (TrySettleAttackFlowAfterOnActionPhases())
+                        {
+                            return;
+                        }
+
+                        if (TryFinishArmedInterventionAlreadyResolvedCombat())
+                        {
+                            return;
+                        }
+
+                        if (TryResumeArmedInterventionUnitCombatAfterOnAction(attacker))
                         {
                             return;
                         }
@@ -11656,6 +11729,11 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            if (timed.IsFieldOwnerTurnSelfStatPassiveBlock())
+            {
+                continue;
+            }
+
             if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
                 continue;
@@ -11985,6 +12063,12 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            // 【リンク中】Self ステータスは搭乗時ワンショットにせず RefreshDuringLinkSelfStatPassives で維持する。
+            if (timed.IsDuringLinkSelfStatPassiveBlock())
+            {
+                continue;
+            }
+
             if (!timed.ShouldDeferActivationToRunTime()
                 && !EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
@@ -12162,7 +12246,8 @@ public partial class BattleGameMain : MonoBehaviour
         CardController sourceCard,
         PlayerType ownerType,
         CardController destroyedBy = null,
-        CardController detachedMountedPilot = null)
+        CardController detachedMountedPilot = null,
+        CardController destroyedHostUnit = null)
     {
         List<TimedEffectData> blocks = new List<TimedEffectData>();
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
@@ -12188,7 +12273,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerType,
             sourceCard,
             destroyedBy,
-            detachedMountedPilot);
+            detachedMountedPilot,
+            destroyedHostUnit);
         for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
@@ -12214,7 +12300,8 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         CardController sourceCard,
         CardController destroyedBy,
-        CardController detachedMountedPilot = null)
+        CardController detachedMountedPilot = null,
+        CardController destroyedHostUnit = null)
     {
         bool hasDestroyerOwner = false;
         PlayerType destroyerOwner = default;
@@ -12232,6 +12319,22 @@ public partial class BattleGameMain : MonoBehaviour
             if (mountedPilot == null)
             {
                 mountedPilot = sourceCard.MountedPilot;
+            }
+        }
+        else if (sourceCard != null && sourceCard.Data != null && sourceCard.Data.IsPilot())
+        {
+            mountedPilot = sourceCard;
+            if (sourceCard.MountedUnit != null
+                && sourceCard.MountedUnit.Data != null
+                && sourceCard.MountedUnit.Data.IsUnitLike())
+            {
+                mountHost = sourceCard.MountedUnit;
+            }
+            else if (destroyedHostUnit != null
+                && destroyedHostUnit.Data != null
+                && destroyedHostUnit.Data.IsUnitLike())
+            {
+                mountHost = destroyedHostUnit;
             }
         }
 
@@ -13918,6 +14021,12 @@ public partial class BattleGameMain : MonoBehaviour
             return true;
         }
 
+        // 武力介入等：味方1体を選んでアタック先を変える（selectionMode 未設定でも UI 必須）
+        if (IsOnActionAttackTargetRedirectEffect(effect))
+        {
+            return true;
+        }
+
         return IsEffectTargetRequiringUnitSelection(effect.target)
             && effect.selectionMode.RequiresManualUnitPick();
     }
@@ -14845,6 +14954,12 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log($"[Effect] AllyEnemyEffectDamageImmunity marker by cardId:{sourceCard.Data.id}");
                 break;
 
+            case EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess:
+                Debug.Log(
+                    $"[Effect] ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess marker "
+                    + $"by cardId:{sourceCard?.Data?.id}");
+                break;
+
             case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                 // 場ユニット常時パッシブ。スタートフェイズのアクティブステップでのみ参照する。
                 Debug.Log(
@@ -15273,6 +15388,11 @@ public partial class BattleGameMain : MonoBehaviour
             FilterOutNonRestedUnits(result);
         }
 
+        if (effect.requireTargetIsRest)
+        {
+            FilterOutNonRestedUnits(result);
+        }
+
         FilterToLowestStatTiedUnitsIfNeeded(result, effect);
         FilterToHighestStatTiedUnitsIfNeeded(result, effect);
 
@@ -15605,7 +15725,7 @@ public partial class BattleGameMain : MonoBehaviour
         return effect.FormatAttackActiveEnemyTargetStatDescription();
     }
 
-    private static CardController ResolveAttackActiveEnemyGrantHost(CardController sourceCard)
+    private CardController ResolveAttackActiveEnemyGrantHost(CardController sourceCard)
     {
         if (sourceCard == null || sourceCard.Data == null)
         {
@@ -15617,9 +15737,20 @@ public partial class BattleGameMain : MonoBehaviour
             return sourceCard;
         }
 
-        if (sourceCard.Data.IsPilot() && sourceCard.MountedUnit != null)
+        if (sourceCard.Data.IsPilot())
         {
-            return sourceCard.MountedUnit;
+            if (sourceCard.MountedUnit != null)
+            {
+                return sourceCard.MountedUnit;
+            }
+
+            if (_pilotMountEffectHostUnit != null
+                && _pilotMountEffectHostUnit.Data != null
+                && _pilotMountEffectHostUnit.Data.IsUnitLike()
+                && _pilotMountEffectHostUnit.MountedPilot == sourceCard)
+            {
+                return _pilotMountEffectHostUnit;
+            }
         }
 
         return sourceCard;
@@ -15645,12 +15776,12 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < hand.childCount; i++)
         {
             CardController cc = hand.GetChild(i).GetComponent<CardController>();
-            if (cc == null || cc.Data == null || cc.Data.timedEffects == null)
+            if (cc == null || cc.Data == null)
             {
                 continue;
             }
 
-            if (HasEffectTiming(cc.Data, EffectTiming.OnAction) && CanExecuteOnActionCardNow(ownerType, cc))
+            if (IsOnActionCommandSelectable(ownerType, cc))
             {
                 candidates.Add($"{cc.Data.id}:{cc.Data.cardName}");
                 cards.Add(cc.Data);
@@ -15693,7 +15824,7 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc))
+                if (!IsOnActionCommandSelectable(PlayerType.Enemy, cc))
                 {
                     continue;
                 }
@@ -15726,7 +15857,7 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(PlayerType.Enemy, cc))
+                if (!IsOnActionCommandSelectable(PlayerType.Enemy, cc))
                 {
                     continue;
                 }
@@ -18051,12 +18182,12 @@ public partial class BattleGameMain : MonoBehaviour
             for (int i = 0; i < hand.childCount; i++)
             {
                 CardController cc = hand.GetChild(i).GetComponent<CardController>();
-                if (cc == null || cc.Data == null || !cc.Data.IsCommand())
+                if (cc == null || cc.Data == null)
                 {
                     continue;
                 }
 
-                if (!HasEffectTiming(cc.Data, EffectTiming.OnAction) || !CanExecuteOnActionCardNow(side, cc))
+                if (!IsOnActionCommandSelectable(side, cc))
                 {
                     continue;
                 }
@@ -18064,6 +18195,8 @@ public partial class BattleGameMain : MonoBehaviour
                 sources.Add(cc);
             }
         }
+
+        AppendArmedInterventionFromAnyHand(side, sources);
 
         return sources;
     }
@@ -18519,6 +18652,19 @@ public partial class BattleGameMain : MonoBehaviour
                 side,
                 command,
                 CreateTheBlueGiantPickEffect(),
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
+            return;
+        }
+
+        if (IsArmedInterventionCard(command.Data))
+        {
+            OpenOnActionUnitTargetSelection(
+                side,
+                command,
+                CreateArmedInterventionPickEffect(),
                 onDone,
                 attackingUnitInAttackFlow,
                 commandQueueIndex,
@@ -19117,7 +19263,9 @@ public partial class BattleGameMain : MonoBehaviour
     {
         List<CardController> candidates = IsMagicBulletOfDuskCard(command != null ? command.Data : null)
             ? CollectMagicBulletOfDuskTargets(side)
-            : ResolveSelectableEffectTargets(command, side, effect);
+            : (IsOnActionAttackTargetRedirectEffect(effect)
+                ? CollectRestedCbAllyUnitsForAttackRedirect(side)
+                : ResolveSelectableEffectTargets(command, side, effect));
         if (candidates.Count == 0)
         {
             Debug.Log($"OnAction: 選択可能な対象ユニットがいません ({effect?.FormatEffectSelectionSummary()}).");
@@ -19400,6 +19548,34 @@ public partial class BattleGameMain : MonoBehaviour
             else
             {
                 applyImmunity();
+            }
+        }
+        else if (IsOnActionAttackTargetRedirectEffect(effect))
+        {
+            System.Action applyRedirect = () =>
+            {
+                bool applied = TryApplyOnActionAttackTargetRedirect(side, pickedTargets);
+                if (applied)
+                {
+                    SetEffectChainLastPickedTargets(pickedTargets);
+                }
+
+                BeginOnlineEffectSyncBatch(side);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                Debug.Log(
+                    $"[OnAction] AttackTargetRedirect applied:{applied} "
+                    + $"picked:{FormatOnActionPickedTargetsSummary(pickedTargets)} "
+                    + $"attacker:{attackFlowAttackerUnit?.Data?.cardName}");
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyRedirect);
+            }
+            else
+            {
+                applyRedirect();
             }
         }
         else if (effect.type == EffectType.CannotBeChosenAsAttackTarget)
@@ -20416,6 +20592,11 @@ public partial class BattleGameMain : MonoBehaviour
             return result;
         }
 
+        if (IsOnActionAttackTargetRedirectEffect(effect))
+        {
+            return CollectRestedCbAllyUnitsForAttackRedirect(ownerType);
+        }
+
         switch (effect.target)
         {
             case TargetType.Self:
@@ -20483,6 +20664,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         // Self の ACTIVE 化は既に ACTIVE でも後続効果を解決するため、REST 絞り込みしない
         if (effect.type == EffectType.Activate && effect.target != TargetType.Self)
+        {
+            FilterOutNonRestedUnits(result);
+        }
+
+        if (effect.requireTargetIsRest)
         {
             FilterOutNonRestedUnits(result);
         }
@@ -20603,6 +20789,17 @@ public partial class BattleGameMain : MonoBehaviour
             return isAttackContext
                 ? $"Effect Battle — Choose an enemy Unit ({attackName})"
                 : "Effect Battle — Choose an enemy Unit (No Rest)";
+        }
+
+        if (effect.type == EffectType.BlockRedirect)
+        {
+            return isAttackContext
+                ? GameLocale.T(
+                    $"アタック先変更 — RESTの〔CB〕味方ユニットを選択（{attackName} 攻撃中）",
+                    $"Change attack target — Choose a rested (CB) ally Unit ({attackName} attacking)")
+                : GameLocale.T(
+                    "アタック先変更 — RESTの〔CB〕味方ユニットを選択",
+                    "Change attack target — Choose a rested (CB) ally Unit");
         }
 
         if (effect.type == EffectType.FirstStrike)
@@ -21181,6 +21378,75 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log(
                 $"[OnAction] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
         }
+    }
+
+    /// <summary>
+    /// 【アクション】で「バトルしている相手ユニットのアタック先」を味方1体へ変える効果か。
+    /// ブロッカー確定（ACTIVE＋Blocker）とは別経路。
+    /// </summary>
+    private static bool IsOnActionAttackTargetRedirectEffect(EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.BlockRedirect
+            && effect.target.IsAllyUnitPickTarget();
+    }
+
+    private CardController ResolveBattlingOpponentAttackerForRedirect(PlayerType side)
+    {
+        if (!IsArmedInterventionAttackActionWindow())
+        {
+            return null;
+        }
+
+        return ResolveCurrentAttackFlowAttackerUnit();
+    }
+
+    private bool IsShieldOrBaseAttackRedirectContext()
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+            || isShieldAttackResolving
+            || blockShieldFlowDuringShieldAttack)
+        {
+            return true;
+        }
+
+        return _actionStepSession != null
+            && _actionStepSession.IsAttackContext
+            && _actionStepSession.DefendingUnit == null
+            && attackFlowDeclaredDefenderUnit == null
+            && !attackFlowBlockRedirectEngaged;
+    }
+
+    /// <summary>
+    /// 選んだ REST 味方を、バトル中の相手ユニットのアタック先にする。
+    /// CommitBlockRedirectSelection（ACTIVE ブロッカー）は使わない。
+    /// </summary>
+    private bool TryApplyOnActionAttackTargetRedirect(PlayerType side, List<CardController> pickedTargets)
+    {
+        if (pickedTargets == null || pickedTargets.Count == 0
+            || !IsArmedInterventionAttackActionWindow())
+        {
+            return false;
+        }
+
+        CardController picked = pickedTargets[0];
+        if (picked == null
+            || picked.Data == null
+            || !picked.Data.IsUnitLike()
+            || picked.CurrentHp <= 0
+            || !UnitLooksRested(picked)
+            || !UnitHasCbFeature(picked)
+            || (!IsOnDeployPanel(picked, side) && !IsUnitInSideBattleZoneList(picked, side)))
+        {
+            return false;
+        }
+
+        if (!IsUnitAvailableForAttackExchange(picked))
+        {
+            return false;
+        }
+
+        return TryResolveArmedInterventionChosenUnitBattle(picked, requireAttackWindow: true);
     }
 
     private bool CanExecuteOnActionCardNow(PlayerType ownerType, CardController card)

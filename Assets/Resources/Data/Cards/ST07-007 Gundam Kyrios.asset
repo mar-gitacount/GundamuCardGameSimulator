@@ -35,13 +35,33 @@ MonoBehaviour:
   battleZones: 3
   attackFlg: 0
   timedEffects:
-  - timing: 0
+  - timing: 1
     activationConditions:
     - boardSide: -1
       checkKind: -1
       turnCheck: 0
       feature: {fileID: 0}
       featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    - boardSide: 0
+      checkKind: 4
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 25
       features: []
       featureIds: 
       minimumCount: 1
@@ -76,7 +96,7 @@ MonoBehaviour:
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
       targetFeature: {fileID: 0}
-      targetFeatureId: 25
+      targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
       targetUnitFilterStat: -1
