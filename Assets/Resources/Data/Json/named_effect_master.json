@@ -1815,6 +1815,25 @@
             ]
         },
         {
+            "effectSetName": "OnLook_AddCbUnitOrPilot1_Reveal_Optional",
+            "displayName": "OnLook：〔CB〕のユニット/パイロット1枚を公開して手札へ加えてもよい",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetFeatureId": 25,
+                    "filterTargetAsUnitOrPilot": true,
+                    "revealDiscardedToOpponent": true,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
             "effectSetName": "OnLook_AddPilot1_Reveal_Optional",
             "displayName": "OnLook：パイロット1枚を公開して手札へ加えてもよい",
             "effects": [
