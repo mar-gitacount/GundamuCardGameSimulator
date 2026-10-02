@@ -128,7 +128,7 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   - timing: 15
     activationConditions: []
-    requireChainObservationContext: 1
+    requireChainObservationContext: 0
     effectsName: 
     effects:
     - type: 19
@@ -171,7 +171,7 @@ MonoBehaviour:
       deployUnitOverrideAp: 0
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
-      revealDiscardedToOpponent: 0
+      revealDiscardedToOpponent: 1
       forbidSkipHandDiscard: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0

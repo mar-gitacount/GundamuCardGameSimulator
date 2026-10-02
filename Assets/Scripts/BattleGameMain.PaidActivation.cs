@@ -531,6 +531,12 @@ public partial class BattleGameMain
             return false;
         }
 
+        // ST07-013 武力介入：相手の攻撃アクション中かつ REST〔CB〕がいるときのみ
+        if (IsArmedInterventionCard(source?.Data) && !CanPlayArmedInterventionCommandNow(side, source))
+        {
+            return false;
+        }
+
         if (source?.Data?.id == 1000659)
         {
             CardGameRule ownerRule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;

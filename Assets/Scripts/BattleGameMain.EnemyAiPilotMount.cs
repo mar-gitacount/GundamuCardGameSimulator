@@ -349,6 +349,11 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (timed.IsDuringLinkSelfStatPassiveBlock())
+            {
+                continue;
+            }
+
             if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
             {
                 continue;

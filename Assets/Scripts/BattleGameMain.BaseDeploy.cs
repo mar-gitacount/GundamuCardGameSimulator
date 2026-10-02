@@ -955,6 +955,17 @@ public partial class BattleGameMain
             return true;
         }
 
+        if (ShouldIgnoreThisDeployedBaseDamageFromEnemyNonTokenUnitLevelOrLess(
+                defenderBase,
+                sourceUnit,
+                targetSide))
+        {
+            logMessage =
+                $"[EffectDamage] Deployed Base ignores non-token Lv-or-less unit damage "
+                + $"({sourceUnit?.Data?.cardName} vs {defenderBase.Data.cardName}).";
+            return true;
+        }
+
         // 先頭の配備ベースが効果ダメージ無効なら、ここでダメージ全体を消費する（EX/シールドへ抜けない）。
         // 戦闘ダメージ（シールド攻撃）は TryApplyShieldAttackDamageToDeployedBase 側で別途受ける。
         if (DoesCardIgnoreEffectDamage(defenderBase))
@@ -1311,6 +1322,18 @@ public partial class BattleGameMain
         {
             logMessage =
                 $"[Attack] Deployed Base immune to unit damage "
+                + $"({attacker?.Data?.cardName} vs {defenderBase.Data.cardName}).";
+            return true;
+        }
+
+        if (ShouldIgnoreThisDeployedBaseDamageFromEnemyNonTokenUnitLevelOrLess(
+                defenderBase,
+                attacker,
+                targetSide,
+                attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] Deployed Base ignores non-token Lv-or-less unit damage "
                 + $"({attacker?.Data?.cardName} vs {defenderBase.Data.cardName}).";
             return true;
         }

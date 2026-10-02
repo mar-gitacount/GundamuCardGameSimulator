@@ -192,7 +192,8 @@ public partial class BattleGameMain
         PlayerType handOwner,
         PlayerType effectOwner,
         bool isInitiator,
-        string revealTitle = null)
+        string revealTitle = null,
+        bool showLocalPanel = true)
     {
         int requestId = 0;
         if (IsOnlineBattle() && isInitiator && !_applyingRemoteBattleAction)
@@ -205,8 +206,11 @@ public partial class BattleGameMain
             Debug.Log($"[OnlineBattle] HandDiscardReveal sent. cardId={cardId} requestId={requestId}");
         }
 
-        bool isOpponentView = handOwner == PlayerType.Enemy;
-        yield return ShowHandDiscardRevealPanelCoroutine(cardId, cardName, isOpponentView, revealTitle);
+        if (showLocalPanel)
+        {
+            bool isOpponentView = handOwner == PlayerType.Enemy;
+            yield return ShowHandDiscardRevealPanelCoroutine(cardId, cardName, isOpponentView, revealTitle);
+        }
 
         if (IsOnlineBattle() && isInitiator && !_applyingRemoteBattleAction && requestId > 0)
         {
