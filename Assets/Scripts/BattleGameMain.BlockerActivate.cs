@@ -220,6 +220,49 @@ public partial class BattleGameMain
         QueueOnlineCannotBeChosenAsAttackTargetGrant(unit);
     }
 
+    /// <summary>ST08-009 等。次のオーナースタートフェイズで通常アクティブ化しない付与。</summary>
+    private bool TryApplyPreventNextStartPhaseActiveMarker(EffectData effect, List<CardController> targets)
+    {
+        if (effect == null
+            || effect.type != EffectType.PreventNextStartPhaseActive
+            || targets == null
+            || targets.Count == 0)
+        {
+            return false;
+        }
+
+        int limit = effect.value > 0 ? effect.value : targets.Count;
+        int applied = 0;
+        for (int i = 0; i < targets.Count && applied < limit; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            GrantSkipNextStartPhaseActive(unit);
+            applied++;
+            Debug.Log(
+                $"[PreventNextStartPhaseActive] 付与: {unit.Data.cardName}(id:{unit.Data.id}) "
+                + $"instance:{unit.BattleInstanceId}");
+        }
+
+        return applied > 0;
+    }
+
+    private void GrantSkipNextStartPhaseActive(CardController unit)
+    {
+        if (unit == null)
+        {
+            return;
+        }
+
+        unit.AddSkipNextStartPhaseActiveGrant();
+        AssignBattleInstanceIdIfNeeded(unit);
+        QueueOnlineSkipNextStartPhaseActiveGrant(unit);
+    }
+
     private bool TryApplyFirstStrikeMarker(EffectData effect, List<CardController> targets)
     {
         if (effect == null || effect.type != EffectType.FirstStrike || targets == null || targets.Count == 0)

@@ -39,6 +39,15 @@ public class OnlineBattleUnitEffectChange
     /// 既定値が効果破壊なので、この項目を持たない旧ビルドからの同期でも発動する。
     /// </summary>
     public int nonEffectDestroy;
+    /// <summary>AttackActiveEnemy 付与：ダメージ中の ACTIVE のみ攻撃可なら 1。</summary>
+    public int requireTargetDamaged;
+    /// <summary>AttackActiveEnemy 付与：ステータス絞り込みがあるなら 1（0 のとき AP=0 デフォルトで誤解釈しない）。</summary>
+    public int attackFilterHasStat;
+    /// <summary>AttackActiveEnemy 付与：EffectTargetUnitFilterStat。</summary>
+    public int attackFilterStat = -1;
+    public int attackFilterCompareOp;
+    public int attackFilterCompareValue;
+    public int attackFilterCompareToSource;
 }
 
 /// <summary>
@@ -103,6 +112,10 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindPreventAllyDestroyByEnemyEffect = "PreventAllyDestroyByEnemyEffect";
     /// <summary>ST11-014 等：このターン敵ユニットのアタック先に選べない付与。</summary>
     public const string ChangeKindCannotBeChosenAsAttackTarget = "CannotBeChosenAsAttackTarget";
+    /// <summary>ハサウェイ等：UntilEOT/UntilEndOfBattle のアクティブ敵攻撃付与。</summary>
+    public const string ChangeKindAttackActiveEnemy = "AttackActiveEnemy";
+    /// <summary>ST08-009 等：次のスタートフェイズで通常アクティブ化しない。</summary>
+    public const string ChangeKindSkipNextStartPhaseActive = "SkipNextStartPhaseActive";
     /// <summary>ST02-013 等：このバトル中、シールドエリアが相手 Lv≤N ユニットからダメージを受けない。</summary>
     public const string ChangeKindShieldAreaUnitDamageImmunity = "ShieldAreaUnitDamageImmunity";
 

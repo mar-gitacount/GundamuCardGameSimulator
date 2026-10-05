@@ -1558,6 +1558,10 @@ public partial class BattleGameMain : MonoBehaviour
         Gundam2024RuleScript.PlayerSide ownerSide = ToRuleSide(ownerType);
         bool isInHand = ownerRule.HandScrollContent != null
             && cardController.transform.IsChildOf(ownerRule.HandScrollContent);
+        if (isInHand)
+        {
+            RefreshAllHandsConditionalOnHandAuto();
+        }
         bool isInBaseSlot = IsCardInBaseSlot(cardController);
         bool isInShield = ownerRule.ShieldCardsContent != null
             && cardController.transform.IsChildOf(ownerRule.ShieldCardsContent);
@@ -1622,6 +1626,22 @@ public partial class BattleGameMain : MonoBehaviour
         copyLayout.minHeight = 120f;
         FilterPanel.SetActive(true);
 
+        if (isInHand && cardController.Data != null)
+        {
+            TextMeshProUGUI handStatText = filterContent.CreateChildTextCustom(
+                "HandStatText",
+                UIAnchor.TopCenter,
+                320,
+                44);
+            handStatText.text =
+                $"Lv:{cardController.CurrentLevel}  COST:{cardController.CurrentCost}";
+            handStatText.fontSize = 28;
+            handStatText.color = Color.black;
+            RectTransform handStatRt = handStatText.GetComponent<RectTransform>();
+            handStatRt.anchoredPosition = new Vector2(0f, -30f);
+            handStatText.transform.SetAsLastSibling();
+        }
+
         if (isOnAnyDeployField && cardController.Data != null)
         {
             TextMeshProUGUI battleStatText = filterContent.CreateChildTextCustom("BattleStatText", UIAnchor.TopCenter, 320, 44);
@@ -1654,8 +1674,7 @@ public partial class BattleGameMain : MonoBehaviour
         // 場のカードはトラッシュ送り操作を可能にする。
         if (isOnField)
         {
-            bool canShowUnitAttackMenu = !IsTestPlayBattle()
-                && currentPhase == BattlePhase.MainPhase
+            bool canShowUnitAttackMenu = currentPhase == BattlePhase.MainPhase
                 && IsActingSideForUi(ownerType)
                 && cardController.Data.IsUnitLike()
                 && cardController.Data.id != 1000703
@@ -5267,6 +5286,7 @@ public partial class BattleGameMain : MonoBehaviour
         yield return FlushPendingExResourceRemovedWatchesCoroutine();
 
         RefreshAllFieldOwnerTurnPassives();
+        RefreshAllHandsConditionalOnHandAuto();
     }
 
     private List<CardController> GetMountableUnits(PlayerType ownerType)
@@ -5453,6 +5473,12 @@ public partial class BattleGameMain : MonoBehaviour
     {
         yield return null;
 
+        // オンライン：搭乗確認待ちオーバーレイの裏で【セット時】選択 UI が押せないのを防ぐ
+        if (IsOnlineBattle() && ownerType == PlayerType.Player && !_applyingRemoteBattleAction)
+        {
+            yield return CoWaitPendingOnlineOpponentCardConfirmIfNeeded();
+        }
+
         bool pilotMountEffectsDone = false;
         TriggerOnPilotMountedEffects(hostUnit, pilotCard, ownerType, () => pilotMountEffectsDone = true);
         yield return new WaitUntil(() => pilotMountEffectsDone);
@@ -5527,6 +5553,13 @@ public partial class BattleGameMain : MonoBehaviour
             CardController c = battleZone[i];
             if (c == null || c.Data == null || !c.Data.IsUnitLike())
             {
+                continue;
+            }
+
+            if (c.TryConsumeSkipNextStartPhaseActiveGrant() && c.IsRestState)
+            {
+                Debug.Log(
+                    $"[TurnStart] Skip next-start active: {c.Data.cardName}(id:{c.Data.id}) Lv:{c.CurrentLevel}");
                 continue;
             }
 
@@ -7826,6 +7859,19 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect != null && effect.type == EffectType.PreventNextStartPhaseActive)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            if (TryApplyPreventNextStartPhaseActiveMarker(effect, targets))
+            {
+                SetEffectChainLastPickedTargets(targets);
+            }
+
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (TryApplyFirstStrikeMarker(effect, targets))
         {
             SetEffectChainLastPickedTargets(targets);
@@ -8109,6 +8155,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.CannotBeChosenAsAttackTarget:
                     TryApplyCannotBeChosenAsAttackTargetMarker(effect, targets);
                     break;
+                case EffectType.PreventNextStartPhaseActive:
+                    TryApplyPreventNextStartPhaseActiveMarker(effect, targets);
+                    break;
                 case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
                     GrantShieldAreaEnemyEffectDamageReduction(
                         ownerType,
@@ -8122,6 +8171,8 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.AllyEnemyEffectDamageImmunity:
                     break;
                 case EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess:
+                    break;
+                case EffectType.ReturnFromHandToDeckBottom:
                     break;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     break;
@@ -11217,6 +11268,8 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (ShouldSkipAutomaticEffectsInTestPlay())
         {
+            // TestPlay でも手札の条件付きコスト／Lv パッシブは盤面に追従させる
+            RefreshAllHandsConditionalOnHandAuto();
             return;
         }
 
@@ -11808,12 +11861,6 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         System.Action onComplete)
     {
-        if (ShouldSkipAutomaticEffectsInTestPlay())
-        {
-            onComplete?.Invoke();
-            return;
-        }
-
         if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
         {
             onComplete?.Invoke();
@@ -11956,12 +12003,6 @@ public partial class BattleGameMain : MonoBehaviour
         PlayerType ownerType,
         System.Action onComplete)
     {
-        if (ShouldSkipAutomaticEffectsInTestPlay())
-        {
-            onComplete?.Invoke();
-            return;
-        }
-
         if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
         {
             onComplete?.Invoke();
@@ -13250,6 +13291,7 @@ public partial class BattleGameMain : MonoBehaviour
         bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag
             || effect.type == EffectType.EffectBattle
             || effect.IsAttackActiveEnemyAllyGrant()
+            || effect.type == EffectType.PreventNextStartPhaseActive
             || effect.type == EffectType.Debuff
             || effect.type == EffectType.Damage
             || effect.type == EffectType.Bounce
@@ -14960,11 +15002,20 @@ public partial class BattleGameMain : MonoBehaviour
                     + $"by cardId:{sourceCard?.Data?.id}");
                 break;
 
+            case EffectType.ReturnFromHandToDeckBottom:
+                Debug.LogWarning(
+                    $"[Effect] ReturnFromHandToDeckBottom は手札選択経路専用です (cardId:{sourceCard?.Data?.id})");
+                break;
+
             case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                 // 場ユニット常時パッシブ。スタートフェイズのアクティブステップでのみ参照する。
                 Debug.Log(
                     $"[Effect] PreventOpponentStartPhaseActiveLowestRestUnits marker "
                     + $"by cardId:{sourceCard?.Data?.id}");
+                break;
+
+            case EffectType.PreventNextStartPhaseActive:
+                TryApplyPreventNextStartPhaseActiveMarker(effect, targets);
                 break;
 
             case EffectType.Bounce:
@@ -15672,7 +15723,8 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
-            if (!IsCardOnBattleZone(target))
+            if (!IsCardOnBattleZone(target)
+                && !ReferenceEquals(target, _pilotMountEffectHostUnit))
             {
                 continue;
             }
@@ -15686,7 +15738,7 @@ public partial class BattleGameMain : MonoBehaviour
             + $"duration:{effect.duration} filter:{effect.FormatTargetUnitFilterDescription()} owner:{ownerType}");
     }
 
-    private static void GrantAttackActiveEnemyToUnit(
+    private void GrantAttackActiveEnemyToUnit(
         CardController grantHost,
         EffectData effect,
         PlayerType ownerType,
@@ -15697,22 +15749,64 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (effect.duration == EffectDuration.UntilEndOfTurn)
+        EffectData runtimeGrant = CloneAttackActiveEnemyRuntimeGrant(effect);
+        EffectDuration duration = runtimeGrant.duration;
+        if (duration == EffectDuration.UntilEndOfTurn)
         {
-            grantHost.AddAttackActiveEnemyUntilEndOfTurnGrant(effect);
+            grantHost.AddAttackActiveEnemyUntilEndOfTurnGrant(runtimeGrant);
             Debug.Log(
                 $"[AttackActiveEnemyUnit] UntilEndOfTurn 付与: {grantHost.Data.cardName} "
-                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(effect)} "
+                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(runtimeGrant)} "
                 + $"(source:{sourceCard?.Data?.cardName} owner:{ownerType})");
         }
-        else if (effect.duration == EffectDuration.UntilEndOfBattle)
+        else if (duration == EffectDuration.UntilEndOfBattle)
         {
-            grantHost.AddAttackActiveEnemyUntilEndOfBattleGrant(effect);
+            grantHost.AddAttackActiveEnemyUntilEndOfBattleGrant(runtimeGrant);
             Debug.Log(
                 $"[AttackActiveEnemyUnit] UntilEndOfBattle 付与: {grantHost.Data.cardName} "
-                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(effect)} "
+                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(runtimeGrant)} "
                 + $"(source:{sourceCard?.Data?.cardName} owner:{ownerType})");
         }
+        else
+        {
+            return;
+        }
+
+        QueueOnlineAttackActiveEnemyGrant(grantHost, runtimeGrant);
+    }
+
+    /// <summary>
+    /// 味方付与用の AttackActiveEnemyUnit を、攻撃判定用のランタイム定義にコピーする。
+    /// 付与先 Feature は落とす。Unset の stat に残った AP≤0 などは攻撃条件にしない。
+    /// </summary>
+    private static EffectData CloneAttackActiveEnemyRuntimeGrant(EffectData source)
+    {
+        EffectData clone = new EffectData
+        {
+            type = EffectType.AttackActiveEnemyUnit,
+            duration = source.duration == EffectDuration.Permanent
+                ? EffectDuration.UntilEndOfTurn
+                : source.duration,
+            target = TargetType.Self,
+            selectionMode = EffectSelectionMode.Unset,
+            requireTargetDamaged = source.requireTargetDamaged,
+            compareTargetStatToSource = source.compareTargetStatToSource
+        };
+
+        bool keepStatFilter = source.HasTargetUnitStatFilter()
+            && (source.compareTargetStatToSource || source.targetUnitStatCompareValue != 0);
+        if (keepStatFilter)
+        {
+            clone.targetUnitFilterStat = source.GetTargetUnitFilterStat();
+            clone.targetUnitStatCompareOp = source.targetUnitStatCompareOp;
+            clone.targetUnitStatCompareValue = source.targetUnitStatCompareValue;
+        }
+        else
+        {
+            clone.targetUnitFilterStat = EffectTargetUnitFilterStat.Unset;
+        }
+
+        return clone;
     }
 
     private static string FormatAttackActiveEnemyAttackFilter(EffectData effect)
@@ -16337,6 +16431,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
             || effect.type == EffectType.BattleDamageImmunityFromLowApEnemy
             || effect.type == EffectType.AttackActiveEnemyUnit
+            || effect.type == EffectType.PreventNextStartPhaseActive
             || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand
             || effect.type == EffectType.DeploySelfToShield || effect.type == EffectType.DeployShieldFromHand
             || effect.type == EffectType.DeployBase
@@ -17070,6 +17165,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     notes.Append("[PreventStartPhaseActiveLowestRest] ");
                     continue;
+                case EffectType.PreventNextStartPhaseActive:
+                    notes.Append("[PreventNextStartPhaseActive] ");
+                    continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
                     continue;
@@ -17242,6 +17340,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     notes.Append("[PreventStartPhaseActiveLowestRest] ");
+                    continue;
+                case EffectType.PreventNextStartPhaseActive:
+                    notes.Append("[PreventNextStartPhaseActive] ");
                     continue;
                 case EffectType.Draw:
                     notes.Append("[Draw ").Append(magnitude).Append("] ");
@@ -20308,6 +20409,7 @@ public partial class BattleGameMain : MonoBehaviour
             List<CardController> handCandidates = CollectSelectableHandCards(
                 ResolveHandDiscardOwner(side, effect),
                 excludeSource: source);
+            FilterHandCandidatesByEffect(handCandidates, effect);
             if (handCandidates.Count == 0)
             {
                 Debug.Log("OnMain: 捨てる手札がありません (DiscardFromHand)。");
@@ -20706,6 +20808,9 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
+        FilterToLowestStatTiedUnitsIfNeeded(result, effect);
+        FilterToHighestStatTiedUnitsIfNeeded(result, effect);
+
         return result;
     }
 
@@ -20748,6 +20853,19 @@ public partial class BattleGameMain : MonoBehaviour
                     $"REST — 対象ユニットを選択（{attackName} 攻撃中）",
                     $"REST — Choose a Unit ({attackName} attacking)")
                 : GameLocale.T("REST — 対象ユニットを選択", "REST — Choose a Unit");
+        }
+
+        if (effect.type == EffectType.PreventNextStartPhaseActive)
+        {
+            string lvHintJa = effect.HasTargetUnitStatFilter()
+                ? effect.FormatTargetUnitFilterDescription()
+                : string.Empty;
+            string lvHintEn = effect.HasTargetUnitStatFilter()
+                ? effect.FormatTargetUnitFilterDescription()
+                : string.Empty;
+            return GameLocale.T(
+                $"次のスタートフェイズでアクティブにしない — レストの相手ユニットを選択{lvHintJa}",
+                $"Does not become Active next Start Phase — Choose a rested enemy Unit{lvHintEn}");
         }
 
         if (effect.type == EffectType.Activate)
@@ -21349,7 +21467,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (TryApplyRestToUnit(source))
         {
+            bool ownedBatch = !_onlineEffectSyncActive;
             QueueOnlineUnitRest(source);
+            if (ownedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
             if (source.Data?.id == 1000669)
             {
                 ArmLibraAfterRest(source, side);
@@ -21374,7 +21498,13 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (TryApplyRestToUnit(source))
         {
+            bool ownedBatch = !_onlineEffectSyncActive;
             QueueOnlineUnitRest(source);
+            if (ownedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
             Debug.Log(
                 $"[OnAction] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
         }

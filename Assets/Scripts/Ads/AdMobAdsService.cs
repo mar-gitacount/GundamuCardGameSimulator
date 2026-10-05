@@ -18,7 +18,7 @@ public sealed class AdMobAdsService : MonoBehaviour
 
     [SerializeField]
     [Tooltip("ONの間はテスト広告。本番公開前にOFFへ。")]
-    private bool useTestAds = true;
+    private bool useTestAds = false;
 
     [SerializeField]
     private bool enableAds = true;

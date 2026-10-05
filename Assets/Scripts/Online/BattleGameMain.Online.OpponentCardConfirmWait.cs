@@ -95,6 +95,44 @@ public partial class BattleGameMain
         CloseOnlineOpponentCardConfirmWaitOverlay();
     }
 
+    /// <summary>
+    /// 搭乗直後の【セット時】選択など、確認待ちが終わるまで効果 UI を出さない。
+    /// </summary>
+    private IEnumerator CoWaitPendingOnlineOpponentCardConfirmIfNeeded()
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            yield break;
+        }
+
+        if (!isOnlineOpponentCardConfirmWaitOpen && _pendingCommandPlayRevealRequestId <= 0)
+        {
+            yield break;
+        }
+
+        int requestId = _pendingCommandPlayRevealRequestId;
+        const float timeoutSeconds = 45f;
+        float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            bool stillWaiting = isOnlineOpponentCardConfirmWaitOpen
+                || (requestId > 0
+                    && _pendingCommandPlayRevealRequestId == requestId
+                    && !_commandPlayRevealRemoteCompleteReceived);
+            if (!stillWaiting)
+            {
+                yield break;
+            }
+
+            yield return null;
+        }
+
+        Debug.LogWarning(
+            $"[OpponentCardConfirm] timeout ({timeoutSeconds}s) — continue local effects. requestId:{requestId}");
+        CloseOnlineOpponentCardConfirmWaitOverlay();
+        ClearPendingOpponentCardConfirmRequest();
+    }
+
     private void SendOpponentCardConfirmComplete(int requestId)
     {
         if (!IsOnlineBattle() || requestId <= 0)

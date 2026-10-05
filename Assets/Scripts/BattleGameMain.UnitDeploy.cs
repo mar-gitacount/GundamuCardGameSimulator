@@ -555,7 +555,7 @@ public partial class BattleGameMain
         }
         else
         {
-            NotifyAllyUnitDeployed(recipient, unit, null);
+            NotifyAllyUnitDeployed(recipient, unit, RefreshAllHandsConditionalOnHandAuto);
         }
 
         if (IsOnlineBattle() && !_applyingRemoteBattleAction)
@@ -2320,10 +2320,17 @@ public partial class BattleGameMain
             List<CardController> handCandidates = CollectSelectableHandCards(
                 handOwner,
                 excludeSource: sourceCard);
+            FilterHandCandidatesByEffect(handCandidates, effect);
             if (handCandidates.Count == 0)
             {
-                Debug.Log("[OnAttackPreCombat] 捨てる手札がありません (DiscardFromHand)。山札下送りを抑止。");
-                _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = true;
+                Debug.Log("[OnAttackPreCombat] 対象の手札がありません。");
+                if (effect.abortRemainingChainOnSkip)
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
+                _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = effect.type == EffectType.DiscardFromHand;
                 TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
                 return;
             }
@@ -2336,10 +2343,22 @@ public partial class BattleGameMain
                 {
                     if (!success)
                     {
-                        _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = true;
-                        Debug.Log(
-                            "[OnAttackPreCombat] DiscardFromHand 未完了（Skip または枚数不足）。"
-                            + " ReturnUnitToDeckBottom を抑止。");
+                        if (effect.abortRemainingChainOnSkip)
+                        {
+                            Debug.Log(
+                                "[OnAttackPreCombat] 手札選択未完了 — abortRemainingChainOnSkip のため後続を打ち切り "
+                                + $"(cardId:{sourceCard?.Data?.id})");
+                            onDone?.Invoke();
+                            return;
+                        }
+
+                        if (effect.type == EffectType.DiscardFromHand)
+                        {
+                            _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = true;
+                            Debug.Log(
+                                "[OnAttackPreCombat] DiscardFromHand 未完了（Skip または枚数不足）。"
+                                + " ReturnUnitToDeckBottom を抑止。");
+                        }
                     }
 
                     TryExecuteOnAttackPreCombatEffectChain(
