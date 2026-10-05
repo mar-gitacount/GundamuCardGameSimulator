@@ -732,6 +732,33 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _cannotBeChosenAsAttackUntilEndOfTurnDepth = 0;
     }
 
+    /// <summary>次のオーナースタートフェイズで通常アクティブ化しない（ST08-009 等）。</summary>
+    private int _skipNextStartPhaseActiveCount;
+
+    public bool HasSkipNextStartPhaseActiveGrant => _skipNextStartPhaseActiveCount > 0;
+
+    public void AddSkipNextStartPhaseActiveGrant()
+    {
+        _skipNextStartPhaseActiveCount = 1;
+    }
+
+    /// <summary>スタートフェイズ判定で消費する。付与がなければ false。</summary>
+    public bool TryConsumeSkipNextStartPhaseActiveGrant()
+    {
+        if (_skipNextStartPhaseActiveCount <= 0)
+        {
+            return false;
+        }
+
+        _skipNextStartPhaseActiveCount = 0;
+        return true;
+    }
+
+    public void ClearSkipNextStartPhaseActiveGrant()
+    {
+        _skipNextStartPhaseActiveCount = 0;
+    }
+
     /// <summary>カード定義またはターン限定付与により、相手プレイヤー／シールドへ直接攻撃不可。</summary>
     public bool CannotDirectAttackPlayerOrShield()
     {
@@ -1010,6 +1037,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         MountedUnit = null;
         _notDirectAttackUntilEndOfTurnDepth = 0;
         _cannotBeChosenAsAttackUntilEndOfTurnDepth = 0;
+        _skipNextStartPhaseActiveCount = 0;
         _firstStrikeUntilEndOfTurnDepth = 0;
         _highMobilityUntilEndOfTurnDepth = 0;
         _theBlueGiantBattleDamageImmunityThisBattle = false;

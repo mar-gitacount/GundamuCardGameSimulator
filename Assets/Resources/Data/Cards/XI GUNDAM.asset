@@ -30,7 +30,7 @@ MonoBehaviour:
   eternalBoosterSet: 0
   sourceTitle: 0
   filterType: 0
-  color: 5
+  color: 0
   type: 0
   battleZones: -1
   attackFlg: 0
@@ -123,7 +123,10 @@ MonoBehaviour:
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      allowAnyLookedCard: 0
+      allowAlreadyRestedTargets: 0
       forbidSkipHandDiscard: 0
+      forbidSkipUnitPick: 0
       oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
@@ -137,6 +140,7 @@ MonoBehaviour:
       autoSelectLowestUnitStat: 0
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      relaxTargetUnitStatFilterWhenTrashHasCommands: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
@@ -145,6 +149,8 @@ MonoBehaviour:
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       requireTargetDamaged: 0
+      requireTargetIsLinked: 0
+      requireTargetIsRest: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -194,7 +200,10 @@ MonoBehaviour:
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      allowAnyLookedCard: 0
+      allowAlreadyRestedTargets: 0
       forbidSkipHandDiscard: 0
+      forbidSkipUnitPick: 0
       oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
@@ -208,6 +217,7 @@ MonoBehaviour:
       autoSelectLowestUnitStat: 0
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      relaxTargetUnitStatFilterWhenTrashHasCommands: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
@@ -216,6 +226,8 @@ MonoBehaviour:
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       requireTargetDamaged: 0
+      requireTargetIsLinked: 0
+      requireTargetIsRest: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -224,6 +236,7 @@ MonoBehaviour:
       choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
+    forcedAction: 0
     observedUnitTriggerKind: -1
   - timing: 0
     activationConditions:
@@ -313,7 +326,10 @@ MonoBehaviour:
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      allowAnyLookedCard: 0
+      allowAlreadyRestedTargets: 0
       forbidSkipHandDiscard: 0
+      forbidSkipUnitPick: 0
       oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
@@ -327,6 +343,7 @@ MonoBehaviour:
       autoSelectLowestUnitStat: 0
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      relaxTargetUnitStatFilterWhenTrashHasCommands: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
@@ -335,6 +352,8 @@ MonoBehaviour:
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       requireTargetDamaged: 0
+      requireTargetIsLinked: 0
+      requireTargetIsRest: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -343,6 +362,7 @@ MonoBehaviour:
       choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
+    forcedAction: 0
     observedUnitTriggerKind: -1
   - timing: 0
     activationConditions:
@@ -432,7 +452,10 @@ MonoBehaviour:
       deployUnitOverrideHp: 0
       grantAttackFlagOnlyIfOff: 1
       revealDiscardedToOpponent: 0
+      allowAnyLookedCard: 0
+      allowAlreadyRestedTargets: 0
       forbidSkipHandDiscard: 0
+      forbidSkipUnitPick: 0
       oncePerTurn: 0
       revealDrawnToPlayer: 0
       filterTargetIsBlocker: 0
@@ -446,6 +469,7 @@ MonoBehaviour:
       autoSelectLowestUnitStat: 0
       autoSelectHighestUnitStat: 0
       relaxTargetUnitStatFilterWhenTrashHasSourceCopies: 0
+      relaxTargetUnitStatFilterWhenTrashHasCommands: 0
       trashRelaxFilterMinCopies: 2
       requireExactExileCount: 0
       targetCardNameContains: 
@@ -454,6 +478,8 @@ MonoBehaviour:
       requireTargetLacksBreach: 0
       requireTargetHasNoPilot: 0
       requireTargetDamaged: 0
+      requireTargetIsLinked: 0
+      requireTargetIsRest: 0
       resolveAfterDealtBattleDamage: 0
       optionalPlayerConfirm: 0
       opponentChoosesTarget: 0
@@ -462,6 +488,7 @@ MonoBehaviour:
       choicePromptEn: 
     activationCost: 0
     oncePerTurn: 0
+    forcedAction: 0
     observedUnitTriggerKind: -1
   features: []
   pilotIds: []

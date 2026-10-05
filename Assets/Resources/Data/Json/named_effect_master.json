@@ -35,6 +35,28 @@
             ]
         },
         {
+            "effectSetName": "OnPilotMounted_Damage3_HighestLvEnemy_SelectTied",
+            "displayName": "【セット時】最もLv.が高い相手ユニット1つに3ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": -1,
+                    "autoSelectHighestUnitStat": true
+                }
+            ]
+        },
+        {
             "effectSetName": "Burst_Draw1",
             "displayName": "バースト：1枚ドロー",
             "effects": [
@@ -238,6 +260,36 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAttack_Linked_PlayerAttack_ReturnEfUnitHandToDeckBottom_ThenDraw2",
+            "displayName": "アタック時（セット中・相手プレイヤー）：〔地球連邦〕ユニット1枚を公開して山札下。そうしたなら2枚ドロー",
+            "effects": [
+                {
+                    "type": 68,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetFeatureId": 2,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "revealDiscardedToOpponent": true,
+                    "abortRemainingChainOnSkip": true,
+                    "optionalPlayerConfirm": true
+                },
+                {
+                    "type": 1,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
                 }
             ]
         },
@@ -4835,6 +4887,28 @@
             ]
         },
         {
+            "effectSetName": "OnPilotMounted_GrantAttackActiveDamagedEnemy_AllyMafty_UntilEOT",
+            "displayName": "セット時：〔マフティー〕味方1体に、ダメージ中ACTIVE敵への攻撃許可（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 35,
+                    "requireTargetDamaged": true
+                }
+            ]
+        },
+        {
             "effectSetName": "DebuffEnemyAp3_UntilEOT_SelectSingle",
             "displayName": "敵ユニット1体にAP-3（ターン終了まで・選択）",
             "effects": [
@@ -5133,6 +5207,49 @@
                     "selectionMode": -1,
                     "statTarget": 0,
                     "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "PreventNextStartPhaseActive_RestEnemyLv2OrLess_SelectSingle",
+            "displayName": "レストのLv.2以下の相手ユニット1つは、次の相手スタートフェイズでアクティブにならない",
+            "effects": [
+                {
+                    "type": 69,
+                    "value": 1,
+                    "target": 7,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "RecoverHp2_AllyUnit_SelectSingle",
+            "displayName": "自分のユニット1つを選び、2回復する",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
                     "valueMode": 0,
                     "valueCountBoardSide": 0,
                     "valueCountKind": 0,

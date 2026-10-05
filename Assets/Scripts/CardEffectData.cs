@@ -387,7 +387,19 @@ public enum EffectType
     /// このベースはユニットトークン以外の Lv.value 以下の相手ユニットからダメージを受けない
     /// （ST07-015 プトレマイオス等）。実シールド／EXベースは対象外。
     /// </summary>
-    ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess
+    ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess,
+    /// <summary>
+    /// 手札から value 枚を選び相手に公開して山札の一番下へ戻す（ST08-006 ペーネロペー等）。
+    /// targetFeature / filterByTargetCardType で候補を絞る。
+    /// abortRemainingChainOnSkip で「そうしたなら」後続（ドロー等）を打ち切る。
+    /// </summary>
+    ReturnFromHandToDeckBottom,
+    /// <summary>
+    /// 選んだユニットは、次のそのユニットのオーナースタートフェイズでアクティブにならない（ST08-009 等）。
+    /// 【配備時】等で RestEnemyUnit + Lv 条件と組み合わせる。スタートフェイズの通常アクティブ化のみ阻害。
+    /// 効果による Activate は有効。UntilEndOfTurn では消さない（次の相手スタートまで残す）。
+    /// </summary>
+    PreventNextStartPhaseActive
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -528,13 +540,15 @@ public static class EffectTypeExtensions
             || type == EffectType.Buff
             || type == EffectType.Damage
             || type == EffectType.RecoverHp
-            || type == EffectType.CannotBeChosenAsAttackTarget;
+            || type == EffectType.CannotBeChosenAsAttackTarget
+            || type == EffectType.PreventNextStartPhaseActive;
     }
 
     /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>
     public static bool RequiresManualHandSelection(this EffectType type)
     {
-        return type == EffectType.DiscardFromHand;
+        return type == EffectType.DiscardFromHand
+            || type == EffectType.ReturnFromHandToDeckBottom;
     }
 }
 
@@ -1876,7 +1890,9 @@ public static class EffectDataExtensions
     public static bool HasAttackActiveEnemyTargetStatFilter(this EffectData effect)
     {
         return effect != null
-            && (effect.HasTargetUnitStatFilter() || effect.compareTargetStatToSource);
+            && (effect.HasTargetUnitStatFilter()
+                || effect.compareTargetStatToSource
+                || effect.requireTargetDamaged);
     }
 
     /// <summary>
@@ -1894,6 +1910,16 @@ public static class EffectDataExtensions
         }
 
         if (!effect.HasAttackActiveEnemyTargetStatFilter())
+        {
+            return true;
+        }
+
+        if (effect.requireTargetDamaged && !targetUnit.IsDamagedForWhileDamagedEffects())
+        {
+            return false;
+        }
+
+        if (!effect.HasTargetUnitStatFilter() && !effect.compareTargetStatToSource)
         {
             return true;
         }
@@ -2112,7 +2138,10 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.requireTargetDamaged && !unit.IsDamagedForWhileDamagedEffects())
+        // AttackActiveEnemy の味方付与では、ダメージ中は「攻撃できる敵」の条件。付与先には使わない。
+        if (effect.requireTargetDamaged
+            && !effect.IsAttackActiveEnemyAllyGrant()
+            && !unit.IsDamagedForWhileDamagedEffects())
         {
             return false;
         }
@@ -2317,29 +2346,37 @@ public static class EffectDataExtensions
             return string.Empty;
         }
 
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        if (effect.requireTargetDamaged)
+        {
+            sb.Append(GameLocale.T("ダメージ中", "damaged"));
+        }
+
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
         if (statFilter == EffectTargetUnitFilterStat.Unset && effect.compareTargetStatToSource)
         {
             statFilter = EffectTargetUnitFilterStat.AP;
         }
 
-        if (statFilter == EffectTargetUnitFilterStat.Unset)
+        if (statFilter != EffectTargetUnitFilterStat.Unset)
         {
-            return string.Empty;
-        }
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
 
-        System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        sb.Append(FormatTargetUnitFilterStatLabel(statFilter));
-        if (effect.compareTargetStatToSource)
-        {
-            sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
-                .Append(GameLocale.T("自", "self"))
-                .Append(FormatTargetUnitFilterStatLabel(statFilter));
-        }
-        else
-        {
-            sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
-                .Append(effect.targetUnitStatCompareValue);
+            sb.Append(FormatTargetUnitFilterStatLabel(statFilter));
+            if (effect.compareTargetStatToSource)
+            {
+                sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                    .Append(GameLocale.T("自", "self"))
+                    .Append(FormatTargetUnitFilterStatLabel(statFilter));
+            }
+            else
+            {
+                sb.Append(FormatCompareOpSymbol(effect.targetUnitStatCompareOp))
+                    .Append(effect.targetUnitStatCompareValue);
+            }
         }
 
         return sb.ToString();
@@ -2573,7 +2610,10 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.requireTargetDamaged && !unit.IsDamagedForWhileDamagedEffects())
+        // AttackActiveEnemy の味方付与では、ダメージ中は「攻撃できる敵」の条件。付与先には使わない。
+        if (effect.requireTargetDamaged
+            && !effect.IsAttackActiveEnemyAllyGrant()
+            && !unit.IsDamagedForWhileDamagedEffects())
         {
             return false;
         }

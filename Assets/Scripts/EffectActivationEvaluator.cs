@@ -1768,6 +1768,27 @@ public static class EffectActivationEvaluator
     private static bool EvaluateUnitLevel(IReadOnlyList<CardController> zone, EffectActivationCondition c)
     {
         List<int> levels = CollectAliveUnitLevels(zone);
+        // 場が空でも「Lv.N以上が0体」を正しく数える（空ゾーンを compareValue と比較しない）
+        if (c != null && c.levelAggregate == EffectLevelAggregate.CountUnitsWithLevelAtLeast)
+        {
+            int thr = c.compareValue;
+            int cnt = 0;
+            for (int i = 0; i < levels.Count; i++)
+            {
+                if (levels[i] >= thr)
+                {
+                    cnt++;
+                }
+            }
+
+            if (c.minimumCount <= 0)
+            {
+                return CompareInts(cnt, c.unitCountThreshold, c.unitCountCompareOp);
+            }
+
+            return cnt >= Mathf.Max(1, c.minimumCount);
+        }
+
         if (levels.Count == 0)
         {
             return CompareInts(0, c.compareValue, c.compareOp);
@@ -1788,27 +1809,6 @@ public static class EffectActivationEvaluator
                 }
 
                 return CompareInts(sum, c.compareValue, c.compareOp);
-            }
-            case EffectLevelAggregate.CountUnitsWithLevelAtLeast:
-            {
-                int thr = c.compareValue;
-                int cnt = 0;
-                for (int i = 0; i < levels.Count; i++)
-                {
-                    if (levels[i] >= thr)
-                    {
-                        cnt++;
-                    }
-                }
-
-                // minimumCount <= 0 のときは unitCountCompareOp / unitCountThreshold で比較
-                // （例: 自場に Lv.6 以上が 0 体 → Equal + threshold 0）
-                if (c.minimumCount <= 0)
-                {
-                    return CompareInts(cnt, c.unitCountThreshold, c.unitCountCompareOp);
-                }
-
-                return cnt >= Mathf.Max(1, c.minimumCount);
             }
             case EffectLevelAggregate.AnyUnitLevelCompare:
             {

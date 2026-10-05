@@ -2314,6 +2314,23 @@ public partial class BattleGameMain
 
         float y = startY;
 
+        Button attackBtn = filterPanel.CreateChildButton(
+            card.HasAttackActiveEnemyAbility()
+                ? GameLocale.T("ユニットにアタック（REST/ACTIVE）", "Attack Unit (REST/ACTIVE)")
+                : GameLocale.T("ユニットにアタック（REST）", "Attack Unit (REST)"));
+        RectTransform attackRt = attackBtn.GetComponent<RectTransform>();
+        attackRt.sizeDelta = new Vector2(280f, 50f);
+        attackRt.anchoredPosition = new Vector2(0f, y);
+        attackBtn.onClick.AddListener(() =>
+        {
+            pendingUnitAttackAttacker = card;
+            pendingOnAttackEffectResolvedAttacker = null;
+            ClearOnAttackPreCombatCompletedForNewAttack();
+            OpenEnemyUnitAttackTargetSelectionUI(card, ownerType);
+            DestroyCardFilterOverlay(filterPanel);
+        });
+        y -= 60f;
+
         if (!card.Data.IsUnitToken())
         {
             Button returnHandBtn = filterPanel.CreateChildButton(

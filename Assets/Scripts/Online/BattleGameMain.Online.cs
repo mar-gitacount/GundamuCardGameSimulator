@@ -689,6 +689,25 @@ public partial class BattleGameMain
 
     private void QueueOnlineUnitRest(CardController target)
     {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || target == null)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] Rest queue skipped (batch inactive) "
+                + $"unit={FormatOnlineEffectSyncUnit(target)}");
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(target);
         TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindRest
@@ -788,6 +807,48 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>AttackActiveEnemyUnit のランタイム付与を相手クライアントへ同期する。</summary>
+    private void QueueOnlineAttackActiveEnemyGrant(CardController target, EffectData runtimeGrant)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || target == null || runtimeGrant == null)
+        {
+            return;
+        }
+
+        if (runtimeGrant.type != EffectType.AttackActiveEnemyUnit)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] AttackActiveEnemy queue skipped (batch inactive) "
+                + $"unit={FormatOnlineEffectSyncUnit(target)}");
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(target);
+        bool keepStat = runtimeGrant.HasTargetUnitStatFilter()
+            && (runtimeGrant.compareTargetStatToSource || runtimeGrant.targetUnitStatCompareValue != 0);
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindAttackActiveEnemy,
+            duration = (int)runtimeGrant.duration,
+            requireTargetDamaged = runtimeGrant.requireTargetDamaged ? 1 : 0,
+            attackFilterHasStat = keepStat ? 1 : 0,
+            attackFilterStat = keepStat ? (int)runtimeGrant.GetTargetUnitFilterStat() : -1,
+            attackFilterCompareOp = keepStat ? (int)runtimeGrant.targetUnitStatCompareOp : 0,
+            attackFilterCompareValue = keepStat ? runtimeGrant.targetUnitStatCompareValue : 0,
+            attackFilterCompareToSource = keepStat && runtimeGrant.compareTargetStatToSource ? 1 : 0
+        });
+    }
+
     /// <summary>CannotBeChosenAsAttackTarget（UntilEndOfTurn）付与を相手クライアントへ同期する。</summary>
     private void QueueOnlineCannotBeChosenAsAttackTargetGrant(CardController target)
     {
@@ -815,6 +876,34 @@ public partial class BattleGameMain
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindCannotBeChosenAsAttackTarget,
             duration = (int)EffectDuration.UntilEndOfTurn
+        });
+    }
+
+    /// <summary>PreventNextStartPhaseActive 付与を相手クライアントへ同期する。</summary>
+    private void QueueOnlineSkipNextStartPhaseActiveGrant(CardController target)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || target == null)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] SkipNextStartPhaseActive queue skipped (batch inactive) "
+                + $"unit={FormatOnlineEffectSyncUnit(target)}");
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(target);
+        TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindSkipNextStartPhaseActive
         });
     }
 
@@ -2306,6 +2395,41 @@ public partial class BattleGameMain
         }
     }
 
+    /// <summary>受信側：AttackActiveEnemy ランタイム付与をユニットへ載せる（Queue はしない）。</summary>
+    private void ApplyRemoteAttackActiveEnemyGrant(CardController unit, OnlineBattleUnitEffectChange change)
+    {
+        if (unit == null || change == null)
+        {
+            return;
+        }
+
+        EffectDuration duration = (EffectDuration)change.duration;
+        if (duration != EffectDuration.UntilEndOfTurn && duration != EffectDuration.UntilEndOfBattle)
+        {
+            duration = EffectDuration.UntilEndOfTurn;
+        }
+
+        EffectData grant = new EffectData
+        {
+            type = EffectType.AttackActiveEnemyUnit,
+            duration = duration,
+            target = TargetType.Self,
+            selectionMode = EffectSelectionMode.Unset,
+            requireTargetDamaged = change.requireTargetDamaged != 0,
+            compareTargetStatToSource = change.attackFilterHasStat != 0 && change.attackFilterCompareToSource != 0,
+            targetUnitFilterStat = change.attackFilterHasStat != 0
+                ? (EffectTargetUnitFilterStat)change.attackFilterStat
+                : EffectTargetUnitFilterStat.Unset,
+            targetUnitStatCompareOp = change.attackFilterHasStat != 0
+                ? (EffectCompareOperator)change.attackFilterCompareOp
+                : EffectCompareOperator.Equal,
+            targetUnitStatCompareValue = change.attackFilterHasStat != 0
+                ? change.attackFilterCompareValue
+                : 0
+        };
+        GrantAttackActiveEnemyToUnit(unit, grant, PlayerType.Enemy, sourceCard: null);
+    }
+
     private void ApplyRemoteUnitAttack(OnlineBattleActionPayload action)
     {
         CardController attacker = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
@@ -2631,6 +2755,22 @@ public partial class BattleGameMain
                     GrantCannotBeChosenAsAttackUntilEndOfTurn(unit);
                     Debug.Log(
                         $"[EffectSync][ApplyCannotBeChosenAsAttackTarget] #{i} "
+                        + $"unit={FormatOnlineEffectSyncUnit(unit)}");
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindAttackActiveEnemy:
+                    ApplyRemoteAttackActiveEnemyGrant(unit, change);
+                    Debug.Log(
+                        $"[EffectSync][ApplyAttackActiveEnemy] #{i} "
+                        + $"unit={FormatOnlineEffectSyncUnit(unit)} "
+                        + $"duration:{change.duration} damaged:{change.requireTargetDamaged} "
+                        + $"hasStat:{change.attackFilterHasStat}");
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindSkipNextStartPhaseActive:
+                    GrantSkipNextStartPhaseActive(unit);
+                    Debug.Log(
+                        $"[EffectSync][ApplySkipNextStartPhaseActive] #{i} "
                         + $"unit={FormatOnlineEffectSyncUnit(unit)}");
                     break;
 

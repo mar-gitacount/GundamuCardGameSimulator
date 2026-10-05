@@ -68,6 +68,23 @@ public partial class BattleGameMain
         return result;
     }
 
+    private static void FilterHandCandidatesByEffect(List<CardController> candidates, EffectData effect)
+    {
+        if (candidates == null || effect == null)
+        {
+            return;
+        }
+
+        for (int ci = candidates.Count - 1; ci >= 0; ci--)
+        {
+            CardController candidate = candidates[ci];
+            if (candidate?.Data == null || !effect.MatchesHandDiscardCandidate(candidate.Data))
+            {
+                candidates.RemoveAt(ci);
+            }
+        }
+    }
+
     /// <summary>手札 UI 表示用（発動元インスタンスも含む）。</summary>
     private List<CardController> CollectHandCardsForDiscardDisplay(PlayerType handOwner)
     {
@@ -83,7 +100,9 @@ public partial class BattleGameMain
         EffectData effect,
         Action<bool> onDone)
     {
-        if (effect == null || effect.type != EffectType.DiscardFromHand)
+        if (effect == null
+            || (effect.type != EffectType.DiscardFromHand
+                && effect.type != EffectType.ReturnFromHandToDeckBottom))
         {
             onDone?.Invoke(false);
             return;
@@ -159,7 +178,7 @@ public partial class BattleGameMain
             int nextDiscarded = discardedCount;
             if (picked != null)
             {
-                yield return DiscardHandCardWithRevealCoroutine(picked, handOwner, effect, ownerType);
+                yield return ApplySelectedHandCardWithRevealCoroutine(picked, handOwner, effect, ownerType);
                 nextDiscarded++;
             }
 
@@ -209,7 +228,7 @@ public partial class BattleGameMain
             yield break;
         }
 
-        yield return DiscardHandCardWithRevealCoroutine(selected, handOwner, effect, ownerType);
+        yield return ApplySelectedHandCardWithRevealCoroutine(selected, handOwner, effect, ownerType);
         yield return ExecuteDiscardFromHandSelectionCoroutine(
             sourceCard,
             ownerType,
@@ -221,7 +240,7 @@ public partial class BattleGameMain
             onDone);
     }
 
-    private IEnumerator DiscardHandCardWithRevealCoroutine(
+    private IEnumerator ApplySelectedHandCardWithRevealCoroutine(
         CardController handCard,
         PlayerType handOwner,
         EffectData effect,
@@ -235,8 +254,16 @@ public partial class BattleGameMain
         int cardId = handCard.Data.id;
         string cardName = handCard.Data.cardName;
         bool reveal = effect != null && effect.revealDiscardedToOpponent;
+        bool toDeckBottom = effect != null && effect.type == EffectType.ReturnFromHandToDeckBottom;
 
-        DiscardHandCardInstance(handCard, handOwner);
+        if (toDeckBottom)
+        {
+            ReturnHandCardInstanceToDeckBottom(handCard, handOwner);
+        }
+        else
+        {
+            DiscardHandCardInstance(handCard, handOwner);
+        }
 
         if (!reveal)
         {
@@ -245,7 +272,7 @@ public partial class BattleGameMain
 
         if (handOwner == PlayerType.Player)
         {
-            RecordEnemyAiMemorizedPlayerTrashCard(cardId, "DiscardFromHand");
+            RecordEnemyAiMemorizedPlayerTrashCard(cardId, toDeckBottom ? "ReturnFromHandToDeckBottom" : "DiscardFromHand");
         }
 
         yield return WaitForHandDiscardRevealAcknowledgedCoroutine(
@@ -254,6 +281,15 @@ public partial class BattleGameMain
             handOwner,
             effectOwner,
             isInitiator: handOwner == PlayerType.Player && effectOwner == PlayerType.Player);
+    }
+
+    private IEnumerator DiscardHandCardWithRevealCoroutine(
+        CardController handCard,
+        PlayerType handOwner,
+        EffectData effect,
+        PlayerType effectOwner)
+    {
+        yield return ApplySelectedHandCardWithRevealCoroutine(handCard, handOwner, effect, effectOwner);
     }
 
     private void DiscardHandCardInstance(CardController handCard, PlayerType handOwner)
@@ -270,6 +306,28 @@ public partial class BattleGameMain
         Destroy(handCard.gameObject);
         Debug.Log(
             $"[DiscardFromHand] {handCard.Data.cardName}(id:{handCard.Data.id}) → trash side:{handOwner}");
+    }
+
+    private void ReturnHandCardInstanceToDeckBottom(CardController handCard, PlayerType handOwner)
+    {
+        if (handCard == null || handCard.Data == null)
+        {
+            return;
+        }
+
+        int cardId = handCard.Data.id;
+        string cardName = handCard.Data.cardName;
+        CardGameRule rule = ResolveHandRule(handOwner);
+        ObserveCardInEffectChain(handCard.Data);
+        RemoveCardFromHandLists(handCard, handOwner);
+        Destroy(handCard.gameObject);
+        rule?.AppendCardsToBottom(new[] { cardId });
+        if (handOwner == PlayerType.Player)
+        {
+            NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
+        }
+
+        Debug.Log($"[ReturnFromHandToDeckBottom] {cardName}(id:{cardId}) → deck bottom side:{handOwner}");
     }
 
     private CardController PickEnemyAiHandDiscardTarget(List<CardController> candidates)
@@ -581,6 +639,17 @@ public partial class BattleGameMain
             ? " (reveal to opponent)"
             : string.Empty;
         string sourceName = source != null && source.Data != null ? source.Data.cardName : string.Empty;
+        if (effect != null && effect.type == EffectType.ReturnFromHandToDeckBottom)
+        {
+            return string.IsNullOrEmpty(sourceName)
+                ? GameLocale.T(
+                    $"手札から{count}枚を公開して山札の下に戻す{revealHintJa}",
+                    $"Reveal {count} card(s) from hand and put on deck bottom{revealHintEn}")
+                : GameLocale.T(
+                    $"手札から{count}枚を公開して山札の下に戻す{revealHintJa} — {sourceName}",
+                    $"Reveal {count} card(s) from hand and put on deck bottom{revealHintEn} — {sourceName}");
+        }
+
         return string.IsNullOrEmpty(sourceName)
             ? GameLocale.T(
                 $"手札から{count}枚をトラッシュに捨てる{revealHintJa}",
