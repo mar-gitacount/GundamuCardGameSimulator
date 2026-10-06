@@ -791,6 +791,12 @@
             "pilotKey": "Ramba_Ral",
             "displayName": "Ramba Ral",
             "description": ""
+        },
+        {
+            "id": 133,
+            "pilotKey": "Gauman_Nobile",
+            "displayName": "ガウマン・ノビル",
+            "description": ""
         }
     ]
 }

@@ -280,6 +280,7 @@ public partial class BattleGameMain
         if (unit.Data.IsUnitLike() && unit.MountedPilot != null)
         {
             detachedPilot = unit.DetachMountedPilotWithoutDestroy();
+            _onDestroyedPendingDetachedPilot = detachedPilot;
         }
 
         bool hasAny =
@@ -297,16 +298,12 @@ public partial class BattleGameMain
                 ownerType,
                 () =>
                 {
-                    if (detachedPilot != null
-                        && unitsPendingSendToTrash.Contains(detachedPilot))
-                    {
-                        FinishSendCardToTrash(detachedPilot, ownerType);
-                    }
-                    else if (detachedPilot != null && IsCardOnBattleZone(detachedPilot))
+                    if (detachedPilot != null && !IsCardInOwnerHand(detachedPilot, ownerType))
                     {
                         FinishSendCardToTrash(detachedPilot, ownerType);
                     }
 
+                    _onDestroyedPendingDetachedPilot = null;
                     Complete();
                 },
                 entry.DestroyedBy);
@@ -318,6 +315,7 @@ public partial class BattleGameMain
             FinishSendCardToTrash(detachedPilot, ownerType);
         }
 
+        _onDestroyedPendingDetachedPilot = null;
         Complete();
     }
 
