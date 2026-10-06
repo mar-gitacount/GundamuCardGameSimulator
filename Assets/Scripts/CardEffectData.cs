@@ -87,6 +87,12 @@ public enum EffectTiming
     /// 例: GD02-002 ガンダムエピオン「自分のユニットがバトルダメージで相手を破壊したとき…アクティブにする」。
     /// </summary>
     OnAllyEnemyUnitDestroyed = 30,
+    /// <summary>
+    /// このユニットの AP が相手の効果で減少したとき。
+    /// OnAction ではなく、デバフ適用直後に割り込んで解決する（GD02-009 等）。
+    /// ターン1回は timed.oncePerTurn。
+    /// </summary>
+    OnApReducedByOpponentEffect = 31,
 }
 
 public enum EffectType
@@ -3227,6 +3233,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnAllyUnitLinked
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>このユニットの AP が相手の効果で減少したとき（OnApReducedByOpponentEffect）。</summary>
+    public static bool IsOnApReducedByOpponentEffectResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnApReducedByOpponentEffect
             || !timed.HasResolvedEffects())
         {
             return false;

@@ -39,6 +39,11 @@ public class OnlineBattleUnitEffectChange
     /// 既定値が効果破壊なので、この項目を持たない旧ビルドからの同期でも発動する。
     /// </summary>
     public int nonEffectDestroy;
+    public int apReducedWatchRequestId;
+    /// <summary>
+    /// 相手の効果で AP が減少したときの割り込み監視を受信側で解決するなら 1（GD02-009 等）。
+    /// </summary>
+    public int notifyApReducedByOpponent;
     /// <summary>AttackActiveEnemy 付与：ダメージ中の ACTIVE のみ攻撃可なら 1。</summary>
     public int requireTargetDamaged;
     /// <summary>AttackActiveEnemy 付与：ステータス絞り込みがあるなら 1（0 のとき AP=0 デフォルトで誤解釈しない）。</summary>

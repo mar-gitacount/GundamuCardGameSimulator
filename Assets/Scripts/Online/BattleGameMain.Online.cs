@@ -627,7 +627,9 @@ public partial class BattleGameMain
         int signedValue,
         EffectStatTarget statTarget,
         EffectDuration duration,
-        string statModifierSourceKey = null)
+        string statModifierSourceKey = null,
+        int notifyApReducedByOpponent = 0,
+        int apReducedWatchRequestId = 0)
     {
         TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
@@ -635,7 +637,9 @@ public partial class BattleGameMain
             signedStatValue = signedValue,
             statTarget = (int)statTarget,
             duration = (int)duration,
-            statModifierSourceKey = statModifierSourceKey ?? string.Empty
+            statModifierSourceKey = statModifierSourceKey ?? string.Empty,
+            notifyApReducedByOpponent = notifyApReducedByOpponent,
+            apReducedWatchRequestId = apReducedWatchRequestId
         });
     }
 
@@ -2250,6 +2254,7 @@ public partial class BattleGameMain
         {
             _applyingRemoteBattleAction = false;
             ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            ResumeDeferredApReducedWatchIfNeeded();
         }
     }
 
@@ -2574,6 +2579,7 @@ public partial class BattleGameMain
         {
             _applyingRemoteBattleAction = false;
             ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            ResumeDeferredApReducedWatchIfNeeded();
         }
     }
     // リモート効果同期でのユニット変更を適用
@@ -2737,6 +2743,11 @@ public partial class BattleGameMain
                         statTarget,
                         (EffectDuration)change.duration,
                         string.IsNullOrEmpty(statKey) ? null : statKey);
+                    if (change.notifyApReducedByOpponent != 0)
+                    {
+                        EnqueueRemoteApReducedWatchFromStatSync(unit, change.apReducedWatchRequestId);
+                    }
+
                     break;
                 }
 
@@ -2872,6 +2883,7 @@ public partial class BattleGameMain
         {
             _applyingRemoteBattleAction = false;
             ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            ResumeDeferredApReducedWatchIfNeeded();
         }
 
         // 搭乗後の OnPilotMounted 破壊（クシャトリア→リペア等）で Look UI が Ack を潰しても、

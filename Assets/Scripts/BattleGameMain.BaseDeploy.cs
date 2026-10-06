@@ -485,7 +485,7 @@ public partial class BattleGameMain
         }
 
         NotifyLocalDeployBaseSynced(cardController, ownerType);
-        StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
+        StartCoroutine(FlushPendingExResourceRemovedAndApReducedWatchesCoroutine());
     }
 
     private List<TrashExileCandidate> CollectTrashDeployBaseCandidates(CardGameRule trashRule, EffectData effect)
