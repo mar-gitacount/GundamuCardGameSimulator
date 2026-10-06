@@ -4651,6 +4651,7 @@ public partial class BattleGameMain : MonoBehaviour
                 else
                 {
                     FinishSendCardToTrash(detachedPilot, ownerType);
+                    _onDestroyedPendingDetachedPilot = null;
                 }
 
                 detachedPilot = null;
@@ -9446,6 +9447,14 @@ public partial class BattleGameMain : MonoBehaviour
         if (!resumeAfterPreCombatOnAttack && !HasOnAttackPreCombatEffectsBeenApplied(attacker))
         {
             ResetOnAttackTrashReturnSession();
+
+            // SourceAttackingEnemyUnit 等は攻撃コンテキスト必須（AI 直呼びでも登録する）
+            RegisterAttackFlowContextForOnAction(
+                attacker,
+                attackerOwner,
+                AttackFlowStrikeKind.UnitVsUnit,
+                defender,
+                AttackerIgnoresBlockRedirect(attacker) ? null : attackFlowBlockRedirectUnit);
 
             void ContinueAfterOnAttack()
             {
@@ -20945,9 +20954,12 @@ public partial class BattleGameMain : MonoBehaviour
             string lackHint = effect.requireTargetLacksBreach
                 ? GameLocale.T("（《突破》持ち不可）", " (cannot already have Breach)")
                 : string.Empty;
+            string linkedHint = effect.requireTargetIsLinked
+                ? GameLocale.T("（リンクユニット）", " (Linked Unit)")
+                : string.Empty;
             return GameLocale.T(
-                $"《突破{amount}》付与 — 味方ユニットを選択{lackHint}",
-                $"Grant <Breach {amount}> — Choose an ally Unit{lackHint}");
+                $"《突破{amount}》付与 — 味方ユニットを選択{linkedHint}{lackHint}",
+                $"Grant <Breach {amount}> — Choose an ally Unit{linkedHint}{lackHint}");
         }
 
         if (effect.type == EffectType.BattleDamageImmunityFromLowApEnemy)

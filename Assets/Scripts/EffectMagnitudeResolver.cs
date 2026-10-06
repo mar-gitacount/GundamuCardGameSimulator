@@ -26,6 +26,12 @@ public static class EffectMagnitudeResolver
             return 0;
         }
 
+        if (effect.valueMode == EffectValueMode.FixedOrIfOwnerHasLinkedFeature)
+        {
+            int boosted = effect.valueScaleMaximum > 0 ? effect.valueScaleMaximum : perUnitOrFixed + 1;
+            return OwnerHasLinkedUnitWithValueCountFeature(effect, ctx) ? boosted : perUnitOrFixed;
+        }
+
         if (effect.valueMode != EffectValueMode.MultiplyByBoardCount)
         {
             return perUnitOrFixed;
@@ -159,6 +165,52 @@ public static class EffectMagnitudeResolver
         }
 
         return n;
+    }
+
+    /// <summary>
+    /// オーナーの生存ユニットのうち、valueCountFeature を持ちリンク中のものが1体以上いるか。
+    /// </summary>
+    private static bool OwnerHasLinkedUnitWithValueCountFeature(EffectData effect, EffectActivationContext ctx)
+    {
+        if (effect == null || ctx == null)
+        {
+            return false;
+        }
+
+        CardFeatureData feature = ResolveValueCountFeature(effect);
+        if (feature == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardController> zone = ctx.OwnerType == BattleGameMain.PlayerType.Player
+            ? ctx.PlayerBattleZone
+            : ctx.EnemyBattleZone;
+        if (zone == null || zone.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!unit.Data.HasFeature(feature) && !unit.Data.HasFeatureId(feature.id))
+            {
+                continue;
+            }
+
+            if (UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static CardFeatureData ResolveValueCountFeature(EffectData effect)

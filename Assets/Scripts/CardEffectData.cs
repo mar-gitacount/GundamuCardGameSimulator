@@ -1015,7 +1015,13 @@ public enum EffectValueMode
     /// 相手プレイヤー人数（1v1 では常に 1）。
     /// value は無視。ST14-006 等の「相手プレイヤーの人数と同じ数」用。
     /// </summary>
-    OpponentPlayerCount
+    OpponentPlayerCount,
+    /// <summary>
+    /// 基本量は value。オーナーに指定 Feature のリンク中ユニットがいれば valueScaleMaximum
+    /// （未設定時は value+1）。valueCountFeature / valueCountFeatureId で Feature 指定。
+    /// 例: ST08-013 幸運の女神（1 → 〔マフティー〕リンクがいれば 2）。
+    /// </summary>
+    FixedOrIfOwnerHasLinkedFeature
 }
 
 /// <summary>MultiplyByBoardCount 時に何を数えるか。</summary>
@@ -1288,7 +1294,7 @@ public class EffectData
     public EffectStatTarget statTarget = EffectStatTarget.Both;
     public EffectDuration duration = EffectDuration.Permanent;
 
-    [Tooltip("Fixed=従来どおり。MultiplyByBoardCount=盤面の数に応じて value を倍率。")]
+    [Tooltip("Fixed=従来どおり。MultiplyByBoardCount=盤面の数に応じて value を倍率。FixedOrIfOwnerHasLinkedFeature=リンク特徴で value / valueScaleMaximum を切替。")]
     public EffectValueMode valueMode = EffectValueMode.Fixed;
 
     [Tooltip("MultiplyByBoardCount: 数えるゾーン（例: 相手バトルゾーン）。")]

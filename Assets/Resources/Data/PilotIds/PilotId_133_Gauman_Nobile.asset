@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7c4e91f2b8d4e0a9f3c5d6e7a1b2c3d, type: 3}
+  m_Name: PilotId_133_Gauman_Nobile
+  m_EditorClassIdentifier: 
+  id: 133
+  pilotKey: Gauman_Nobile
+  displayName: "\u30AC\u30A6\u30DE\u30F3\u30FB\u30CE\u30D3\u30EB"
+  description: 
