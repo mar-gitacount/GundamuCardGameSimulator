@@ -1440,7 +1440,7 @@ public partial class BattleGameMain
         System.Action onDone)
     {
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
-        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
         FinalizeOnActionSourceCard(command, side);
         SyncAllResourceViewsFromRule();
         onDone?.Invoke();

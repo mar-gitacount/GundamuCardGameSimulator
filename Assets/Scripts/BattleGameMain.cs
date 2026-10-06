@@ -4255,7 +4255,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (amount < 0)
         {
             EnqueueExResourceRemoved(target, -amount);
-            StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
+            StartCoroutine(FlushPendingExResourceRemovedAndApReducedWatchesCoroutine());
         }
     }
 
@@ -4384,7 +4384,8 @@ public partial class BattleGameMain : MonoBehaviour
             || _activeLookDeckPopupRoot != null
             || _activeHandDiscardRevealRoot != null
             || _activeOnActionCommandRevealRoot != null
-            || IsShieldBreakBurstUiPending();
+            || IsShieldBreakBurstUiPending()
+            || _apReducedWatchResolving;
     }
 
     private IEnumerator WaitUntilBlockingChoiceOrTrashUiCleared(float timeoutSeconds = -1f)
@@ -5284,7 +5285,7 @@ public partial class BattleGameMain : MonoBehaviour
         yield return new WaitUntil(() => watchFinished);
 
         // 配備コストで EX を使っていた場合、カード解決後にキャリバーン等の監視を解決
-        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
 
         RefreshAllFieldOwnerTurnPassives();
         RefreshAllHandsConditionalOnHandAuto();
@@ -5490,7 +5491,7 @@ public partial class BattleGameMain : MonoBehaviour
             TriggerOnPlayedEffects(pilotCard, ownerType, () =>
             {
                 RefreshAllHandsConditionalOnHandAuto();
-                StartCoroutine(FlushPendingExResourceRemovedWatchesCoroutine());
+                StartCoroutine(FlushPendingExResourceRemovedAndApReducedWatchesCoroutine());
                 RefreshAllFieldOwnerTurnPassives();
                 postMountChainDone = true;
             });
@@ -7263,9 +7264,12 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect,
         System.Action onResolved)
     {
-        if (effect != null && effect.type == EffectType.Destroy)
+        bool waitApReduced = HasPendingLocalApReducedWatch
+            || _apReducedWatchFlushRunning
+            || HasPendingRemoteOnDestroyedResolution;
+        if ((effect != null && effect.type == EffectType.Destroy) || waitApReduced)
         {
-            StartCoroutine(CoContinueOnAttackAfterDestroyPipeline(attackUnit, onResolved));
+            StartCoroutine(CoContinueOnAttackAfterDestroyPipeline(attackUnit, onResolved, waitApReduced));
             return;
         }
 
@@ -7275,10 +7279,16 @@ public partial class BattleGameMain : MonoBehaviour
 
     private IEnumerator CoContinueOnAttackAfterDestroyPipeline(
         CardController attackUnit,
-        System.Action onResolved)
+        System.Action onResolved,
+        bool waitApReduced = false)
     {
-        // 破壊時 Look／回収が終わるまで待つ。
+        // 破壊時 Look／回収、および相手効果による AP 減少割り込みが終わるまで待つ。
         // effectthink は「待たされている側」だけに出す（PrepareOnlineOnDestroyedWait / OpponentUnitPick / EffectThinkWait）。
+        if (waitApReduced)
+        {
+            yield return FlushPendingApReducedByOpponentWatchCoroutine();
+        }
+
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
 
         if (attackUnit == null
@@ -8134,8 +8144,22 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Debuff:
                 {
                     string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
-                    ApplyStatEffect(t, -magnitude, effect.statTarget, effect.duration, modifierSourceKey);
-                    QueueOnlineUnitStat(t, -magnitude, effect.statTarget, effect.duration, modifierSourceKey);
+                    int signedValue = -magnitude;
+                    ApplyStatEffect(t, signedValue, effect.statTarget, effect.duration, modifierSourceKey);
+                    int apReducedRequestId = NotifyApReducedByOpponentIfNeeded(
+                        sourceCard,
+                        ownerType,
+                        t,
+                        effect,
+                        signedValue);
+                    QueueOnlineUnitStat(
+                        t,
+                        signedValue,
+                        effect.statTarget,
+                        effect.duration,
+                        modifierSourceKey,
+                        apReducedRequestId > 0 ? 1 : 0,
+                        apReducedRequestId);
                     break;
                 }
                 case EffectType.BlockRedirect:
@@ -14878,7 +14902,25 @@ public partial class BattleGameMain : MonoBehaviour
                 for (int i = 0; i < targets.Count; i++)
                 {
                     ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
-                    QueueOnlineUnitStat(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
+                    int apReducedRequestId = 0;
+                    if (effect.type == EffectType.Debuff)
+                    {
+                        apReducedRequestId = NotifyApReducedByOpponentIfNeeded(
+                            sourceCard,
+                            ownerType,
+                            targets[i],
+                            effect,
+                            signedValue);
+                    }
+
+                    QueueOnlineUnitStat(
+                        targets[i],
+                        signedValue,
+                        effect.statTarget,
+                        effect.duration,
+                        modifierSourceKey,
+                        apReducedRequestId > 0 ? 1 : 0,
+                        apReducedRequestId);
                 }
 
                 TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);
@@ -19101,7 +19143,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
-        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
         // 除外〜後続が成立してから使用済み／ターン1回を消費
         MarkActionStepCardUsed(side, command);
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
@@ -19249,7 +19291,7 @@ public partial class BattleGameMain : MonoBehaviour
             actionChainResolved = true;
             EndOnDestroyedLatencyHold();
             yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
-            yield return FlushPendingExResourceRemovedWatchesCoroutine();
+            yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
             LogOnActionCommandAppliedToUnitsBattleOutcome(
                 command,
                 side,
@@ -19294,7 +19336,7 @@ public partial class BattleGameMain : MonoBehaviour
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
         // EX 支払い後のキャリバーン等は、コマンド効果解決後に出す
-        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
         FinalizeOnActionSourceCard(command, side);
         List<CardController> unitTargetsForEvalLog = BuildOnActionUnitTargetListAfterApply(resolvedBeforeApply);
@@ -19762,7 +19804,7 @@ public partial class BattleGameMain : MonoBehaviour
         EndOnDestroyedLatencyHold();
         // Action ステップ完了を無限待ちで止めない（Look 等が残っても攻撃／Action 進行を優先）
         yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
-        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
 
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
         FinalizeOnActionSourceCard(command, side);
@@ -20013,7 +20055,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
-        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
 
         LogOnActionCommandAppliedToUnitsBattleOutcome(
             command, side, effect, "OnAction_AfterApplyFollowUpUnitTarget", beforeSnapsPick);
@@ -20270,7 +20312,7 @@ public partial class BattleGameMain : MonoBehaviour
         TimedEffectData timed,
         System.Action onDone)
     {
-        yield return FlushPendingExResourceRemovedWatchesCoroutine();
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
 
         if (trashHandCardAfter)
         {

@@ -2137,6 +2137,13 @@ public partial class BattleGameMain
             return;
         }
 
+        if (HasPendingLocalApReducedWatch && !_apReducedWatchFlushRunning)
+        {
+            ContinueAfterApReducedByOpponentWatch(
+                () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index, onDone));
+            return;
+        }
+
         EffectData effect = effects[index];
         if (effect == null)
         {
