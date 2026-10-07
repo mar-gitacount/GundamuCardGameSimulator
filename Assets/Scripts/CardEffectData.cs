@@ -93,6 +93,11 @@ public enum EffectTiming
     /// ターン1回は timed.oncePerTurn。
     /// </summary>
     OnApReducedByOpponentEffect = 31,
+    /// <summary>
+    /// このユニットが相手の効果ダメージを受けたとき（実 HP 減少時）。
+    /// 戦闘ダメージ・自軍効果・無効化された 0 ダメージでは発火しない。ターン1回は timed.oncePerTurn。
+    /// </summary>
+    OnEffectDamageTakenFromOpponent = 32,
 }
 
 public enum EffectType
@@ -963,7 +968,13 @@ public enum EffectActivationCheckKind
     /// オーナーのバトルゾーンに、発動元以外の、指定 Feature を持つ生存ユニットが minimumCount 体以上いる。
     /// ST06-001 等「このユニット以外の、〔クラン〕の味方ユニットがいるなら」。
     /// </summary>
-    OwnerHasOtherUnitWithFeature
+    OwnerHasOtherUnitWithFeature,
+    /// <summary>
+    /// ソースユニットが相手プレイヤー領域（ベース／シールド）とバトル中。
+    /// シールド攻撃宣言かつ、ブロックで敵ユニットと交戦していないときのみ真。
+    /// GD02-011 等「このユニットとバトルしている相手のベース／シールド」。
+    /// </summary>
+    SourceBattlingEnemyPlayerArea
 }
 
 public enum EffectTurnCheckKind
@@ -3246,6 +3257,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnApReducedByOpponentEffect
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>このユニットが相手の効果ダメージを受けたとき（OnEffectDamageTakenFromOpponent）。</summary>
+    public static bool IsOnEffectDamageTakenFromOpponentResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnEffectDamageTakenFromOpponent
             || !timed.HasResolvedEffects())
         {
             return false;

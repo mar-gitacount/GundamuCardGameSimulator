@@ -53,7 +53,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 1
   repairAmount: 2
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

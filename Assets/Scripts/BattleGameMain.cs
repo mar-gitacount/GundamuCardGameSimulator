@@ -4385,7 +4385,8 @@ public partial class BattleGameMain : MonoBehaviour
             || _activeHandDiscardRevealRoot != null
             || _activeOnActionCommandRevealRoot != null
             || IsShieldBreakBurstUiPending()
-            || _apReducedWatchResolving;
+            || _apReducedWatchResolving
+            || _effectDamageTakenWatchResolving;
     }
 
     private IEnumerator WaitUntilBlockingChoiceOrTrashUiCleared(float timeoutSeconds = -1f)
@@ -7264,12 +7265,14 @@ public partial class BattleGameMain : MonoBehaviour
         EffectData effect,
         System.Action onResolved)
     {
-        bool waitApReduced = HasPendingLocalApReducedWatch
+        bool waitTriggeredWatch = HasPendingLocalApReducedWatch
+            || HasPendingLocalEffectDamageTakenWatch
             || _apReducedWatchFlushRunning
+            || _effectDamageTakenWatchFlushRunning
             || HasPendingRemoteOnDestroyedResolution;
-        if ((effect != null && effect.type == EffectType.Destroy) || waitApReduced)
+        if ((effect != null && effect.type == EffectType.Destroy) || waitTriggeredWatch)
         {
-            StartCoroutine(CoContinueOnAttackAfterDestroyPipeline(attackUnit, onResolved, waitApReduced));
+            StartCoroutine(CoContinueOnAttackAfterDestroyPipeline(attackUnit, onResolved, waitTriggeredWatch));
             return;
         }
 
@@ -7287,6 +7290,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (waitApReduced)
         {
             yield return FlushPendingApReducedByOpponentWatchCoroutine();
+            yield return FlushPendingEffectDamageTakenFromOpponentWatchCoroutine();
         }
 
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
@@ -8114,7 +8118,16 @@ public partial class BattleGameMain : MonoBehaviour
                         + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
                         + $"target:{FormatEffectDamageUnitDebugSnap(t)} "
                         + $"HP:{hpBefore}->{t.CurrentHp} willTrash:{t.CurrentHp <= 0}");
-                    QueueOnlineUnitDamage(t, ResolveUnitKillSourceForTrash(sourceCard, t));
+                    int effectDmgTakenRequestId = NotifyOpponentEffectDamageTakenIfNeeded(
+                        sourceCard,
+                        ownerType,
+                        t,
+                        hpBefore);
+                    QueueOnlineUnitDamage(
+                        t,
+                        ResolveUnitKillSourceForTrash(sourceCard, t),
+                        effectDmgTakenRequestId > 0 ? 1 : 0,
+                        effectDmgTakenRequestId);
                     if (t.CurrentHp <= 0)
                     {
                         Debug.Log(
@@ -11453,6 +11466,29 @@ public partial class BattleGameMain : MonoBehaviour
             ownerTotalLevel: ownerState.TotalLevel,
             ownerExResource: ownerState.exResource,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
+    }
+
+    /// <summary>
+    /// 【起動・アクション】判定用。攻撃フロー中のソースならシールド／ユニット交戦フラグを載せる。
+    /// </summary>
+    private EffectActivationContext BuildOnActionActivationContext(PlayerType ownerType, CardController sourceCard)
+    {
+        CardController host = ResolveEffectSourceBattleHost(sourceCard);
+        if (host == null)
+        {
+            host = sourceCard;
+        }
+
+        if (host != null
+            && host.Data != null
+            && host.Data.IsUnitLike()
+            && attackFlowAttackerUnit != null
+            && IsSameBattleUnit(host, attackFlowAttackerUnit))
+        {
+            return BuildOnAttackActivationContext(ownerType, host);
+        }
+
+        return BuildActivationContext(ownerType, sourceCard);
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -14844,7 +14880,16 @@ public partial class BattleGameMain : MonoBehaviour
                         + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
                         + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)} "
                         + $"HP:{hpBefore}->{targetUnit.CurrentHp} willTrash:{targetUnit.CurrentHp <= 0}");
-                    QueueOnlineUnitDamage(targetUnit, ResolveUnitKillSourceForTrash(sourceCard, targetUnit));
+                    int effectDmgTakenRequestId = NotifyOpponentEffectDamageTakenIfNeeded(
+                        sourceCard,
+                        ownerType,
+                        targetUnit,
+                        hpBefore);
+                    QueueOnlineUnitDamage(
+                        targetUnit,
+                        ResolveUnitKillSourceForTrash(sourceCard, targetUnit),
+                        effectDmgTakenRequestId > 0 ? 1 : 0,
+                        effectDmgTakenRequestId);
                     if (targetUnit.CurrentHp <= 0)
                     {
                         pendingEffectDamageTrash ??= new List<CardController>();
@@ -14886,7 +14931,7 @@ public partial class BattleGameMain : MonoBehaviour
                         ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
                         : ToRuleSide(ownerType);
                     CardController areaDamageSource = ResolveUnitSourceForShieldAreaDamage(sourceCard);
-                    ApplyEffectDamageToPlayerArea(targetSide, magnitude, areaDamageSource);
+                    ApplyEffectDamageToPlayerAreaAllowBattlingShield(targetSide, magnitude, areaDamageSource);
                 }
 
                 Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");

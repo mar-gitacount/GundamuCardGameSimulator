@@ -27,11 +27,14 @@ public partial class BattleGameMain
     {
         yield return FlushPendingExResourceRemovedWatchesCoroutine();
         yield return FlushPendingApReducedByOpponentWatchCoroutine();
+        yield return FlushPendingEffectDamageTakenFromOpponentWatchCoroutine();
     }
 
     private void ContinueAfterApReducedByOpponentWatch(Action continuation)
     {
-        if (!HasPendingLocalApReducedWatch && !_apReducedWatchFlushRunning)
+        if ((!HasPendingLocalApReducedWatch && !HasPendingLocalEffectDamageTakenWatch)
+            && !_apReducedWatchFlushRunning
+            && !_effectDamageTakenWatchFlushRunning)
         {
             continuation?.Invoke();
             return;
@@ -43,6 +46,7 @@ public partial class BattleGameMain
     private IEnumerator CoContinueAfterApReducedByOpponentWatch(Action continuation)
     {
         yield return FlushPendingApReducedByOpponentWatchCoroutine();
+        yield return FlushPendingEffectDamageTakenFromOpponentWatchCoroutine();
         continuation?.Invoke();
     }
 

@@ -44,6 +44,10 @@ public class OnlineBattleUnitEffectChange
     /// 相手の効果で AP が減少したときの割り込み監視を受信側で解決するなら 1（GD02-009 等）。
     /// </summary>
     public int notifyApReducedByOpponent;
+    /// <summary>相手の効果ダメージを受けたときの割り込み監視を受信側で解決するなら 1（GD02-010 等）。</summary>
+    public int notifyEffectDamageTakenFromOpponent;
+    /// <summary>notifyEffectDamageTakenFromOpponent 用の完了待ち ID。</summary>
+    public int effectDamageTakenWatchRequestId;
     /// <summary>AttackActiveEnemy 付与：ダメージ中の ACTIVE のみ攻撃可なら 1。</summary>
     public int requireTargetDamaged;
     /// <summary>AttackActiveEnemy 付与：ステータス絞り込みがあるなら 1（0 のとき AP=0 デフォルトで誤解釈しない）。</summary>

@@ -481,7 +481,7 @@ public partial class BattleGameMain
             return null;
         }
 
-        EffectActivationContext activationContext = BuildActivationContext(side, source);
+        EffectActivationContext activationContext = BuildOnActionActivationContext(side, source);
         for (int i = 0; i < source.Data.timedEffects.Count; i++)
         {
             TimedEffectData timed = source.Data.timedEffects[i];

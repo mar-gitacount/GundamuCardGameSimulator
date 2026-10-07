@@ -1137,6 +1137,42 @@ public partial class BattleGameMain
     }
 
     /// <summary>
+    /// このユニットが相手プレイヤー領域とバトル中なら、シールド攻撃中のシールド破壊抑止を一時解除する。
+    /// GD02-011 等「バトルしている相手のベース／シールドへ効果ダメージ」。
+    /// </summary>
+    private bool ShouldAllowEffectDamageToBattlingPlayerArea(CardController sourceUnit)
+    {
+        CardController host = ResolveEffectSourceBattleHost(sourceUnit);
+        if (host == null)
+        {
+            host = sourceUnit;
+        }
+
+        return IsSourceAttackingEnemyPlayer(host) && ResolveBattlingEnemyUnitFor(host) == null;
+    }
+
+    private void ApplyEffectDamageToPlayerAreaAllowBattlingShield(
+        Gundam2024RuleScript.PlayerSide targetSide,
+        int baseMagnitude,
+        CardController sourceUnit = null)
+    {
+        bool prevAllow = _allowOnAttackEffectShieldAreaDamage;
+        if (ShouldAllowEffectDamageToBattlingPlayerArea(sourceUnit))
+        {
+            _allowOnAttackEffectShieldAreaDamage = true;
+        }
+
+        try
+        {
+            ApplyEffectDamageToPlayerArea(targetSide, baseMagnitude, sourceUnit);
+        }
+        finally
+        {
+            _allowOnAttackEffectShieldAreaDamage = prevAllow;
+        }
+    }
+
+    /// <summary>
     /// 効果ダメージによるプレイヤー領域へのダメージ。
     /// 配備ベース → EXベース（いずれも value 分）→ シールド1枚のみの順。戦闘交換ダメージとは別経路。
     /// 先頭の配備ベースが効果ダメージ無効ならダメージをそこで消費し、後ろへは抜けない。
