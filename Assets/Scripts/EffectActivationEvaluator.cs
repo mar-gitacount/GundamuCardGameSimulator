@@ -490,6 +490,13 @@ public static class EffectActivationEvaluator
             return ctx != null && ctx.SourceAttackingEnemyPlayer;
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceBattlingEnemyPlayerArea)
+        {
+            return ctx != null
+                && ctx.SourceAttackingEnemyPlayer
+                && ctx.BattlingEnemyUnit == null;
+        }
+
         if (c.checkKind == EffectActivationCheckKind.SourceIsAttacking)
         {
             return ctx != null

@@ -2137,7 +2137,9 @@ public partial class BattleGameMain
             return;
         }
 
-        if (HasPendingLocalApReducedWatch && !_apReducedWatchFlushRunning)
+        if ((HasPendingLocalApReducedWatch || HasPendingLocalEffectDamageTakenWatch)
+            && !_apReducedWatchFlushRunning
+            && !_effectDamageTakenWatchFlushRunning)
         {
             ContinueAfterApReducedByOpponentWatch(
                 () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index, onDone));

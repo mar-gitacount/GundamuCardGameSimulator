@@ -271,8 +271,18 @@ public partial class BattleGameMain
         }
 
         List<EffectDestroyWatcher> destroyWatchers = CollectEffectDestroyWatchers();
+        int hpBefore = target.CurrentHp;
         ApplyUnitDamageAndTrackChain(target, damageAmount);
-        QueueOnlineUnitDamage(target, ResolveUnitKillSourceForTrash(milliardoSource, target));
+        int effectDmgTakenRequestId = NotifyOpponentEffectDamageTakenIfNeeded(
+            milliardoSource,
+            side,
+            target,
+            hpBefore);
+        QueueOnlineUnitDamage(
+            target,
+            ResolveUnitKillSourceForTrash(milliardoSource, target),
+            effectDmgTakenRequestId > 0 ? 1 : 0,
+            effectDmgTakenRequestId);
 
         if (target.CurrentHp <= 0)
         {

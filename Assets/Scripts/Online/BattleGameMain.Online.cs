@@ -564,7 +564,11 @@ public partial class BattleGameMain
         FlushOnlineEffectSyncBatch();
     }
 
-    private void QueueOnlineUnitDamage(CardController target, CardController destroyer = null)
+    private void QueueOnlineUnitDamage(
+        CardController target,
+        CardController destroyer = null,
+        int notifyEffectDamageTakenFromOpponent = 0,
+        int effectDamageTakenWatchRequestId = 0)
     {
         if (!_onlineEffectSyncActive || target == null)
         {
@@ -589,7 +593,9 @@ public partial class BattleGameMain
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindDamage,
             hpAfter = target.CurrentHp,
-            destroyerInstanceId = destroyer != null ? destroyer.BattleInstanceId : 0
+            destroyerInstanceId = destroyer != null ? destroyer.BattleInstanceId : 0,
+            notifyEffectDamageTakenFromOpponent = notifyEffectDamageTakenFromOpponent,
+            effectDamageTakenWatchRequestId = effectDamageTakenWatchRequestId
         };
         bool queued = TryQueueOnlineUnitTargetChange(target, change);
         if (!queued)
@@ -2253,8 +2259,9 @@ public partial class BattleGameMain
         finally
         {
             _applyingRemoteBattleAction = false;
-            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            ResumeDeferredEffectDamageTakenWatchIfNeeded();
             ResumeDeferredApReducedWatchIfNeeded();
+            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
         }
     }
 
@@ -2578,8 +2585,9 @@ public partial class BattleGameMain
         finally
         {
             _applyingRemoteBattleAction = false;
-            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            ResumeDeferredEffectDamageTakenWatchIfNeeded();
             ResumeDeferredApReducedWatchIfNeeded();
+            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
         }
     }
     // リモート効果同期でのユニット変更を適用
@@ -2688,6 +2696,13 @@ public partial class BattleGameMain
                     Debug.Log(
                         $"[EffectSync][ApplyDamage] #{i} {FormatOnlineEffectSyncUnit(unit)} "
                         + $"HP:{beforeHp}->{unit.CurrentHp} hpAfterPayload={change.hpAfter}");
+                    if (change.notifyEffectDamageTakenFromOpponent != 0 && unit.CurrentHp < beforeHp)
+                    {
+                        EnqueueRemoteEffectDamageTakenWatchFromDamageSync(
+                            unit,
+                            change.effectDamageTakenWatchRequestId);
+                    }
+
                     if (change.hpAfter <= 0)
                     {
                         Debug.Log($"[EffectSync][DamageToTrash] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
@@ -2882,8 +2897,9 @@ public partial class BattleGameMain
         finally
         {
             _applyingRemoteBattleAction = false;
-            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            ResumeDeferredEffectDamageTakenWatchIfNeeded();
             ResumeDeferredApReducedWatchIfNeeded();
+            ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
         }
 
         // 搭乗後の OnPilotMounted 破壊（クシャトリア→リペア等）で Look UI が Ack を潰しても、
