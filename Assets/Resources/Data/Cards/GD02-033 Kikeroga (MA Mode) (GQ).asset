@@ -38,7 +38,7 @@ MonoBehaviour:
   - timing: 0
     activationConditions:
     - boardSide: -1
-      checkKind: 27
+      checkKind: 53
       turnCheck: -1
       feature: {fileID: 0}
       featureId: 5
@@ -60,7 +60,7 @@ MonoBehaviour:
     requireChainObservationContext: 0
     effectsName: 
     effects:
-    - type: 48
+    - type: 31
       value: 5
       target: 0
       selectionMode: -1
@@ -152,7 +152,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

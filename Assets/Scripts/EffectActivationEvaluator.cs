@@ -497,6 +497,11 @@ public static class EffectActivationEvaluator
                 && ctx.BattlingEnemyUnit == null;
         }
 
+        if (c.checkKind == EffectActivationCheckKind.MountedPilotIsColor)
+        {
+            return EvaluateMountedPilotIsColor(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.SourceIsAttacking)
         {
             return ctx != null
@@ -1294,6 +1299,12 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
+            if (c.HasActivationFeatureFilter()
+                && !CardMatchesAnyActivationFeature(unit.Data, c.GetActivationFeatures()))
+            {
+                continue;
+            }
+
             matched++;
             if (matched >= need)
             {
@@ -1661,6 +1672,33 @@ public static class EffectActivationEvaluator
 
         CardController pilot = ctx.MountedPilot ?? host.MountedPilot;
         return PilotMeetsMountedPilotCondition(pilot, c);
+    }
+
+    private static bool EvaluateMountedPilotIsColor(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        CardController host = ctx.MountHostUnit;
+        if (host == null && ctx.SourceCard != null && ctx.SourceCard.Data != null && ctx.SourceCard.Data.IsUnitLike())
+        {
+            host = ctx.SourceCard;
+        }
+
+        if (host == null)
+        {
+            return false;
+        }
+
+        CardController pilot = ctx.MountedPilot ?? host.MountedPilot;
+        if (pilot == null || pilot.Data == null || !pilot.Data.IsPilot())
+        {
+            return false;
+        }
+
+        return (int)pilot.Data.color == c.compareValue;
     }
 
     private static int CountUnitsWithMatchingMountedPilot(IReadOnlyList<CardController> zone, EffectActivationCondition c)

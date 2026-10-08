@@ -171,6 +171,29 @@ public partial class BattleGameMain
             && timed.ContainsOnlySelfStatBuffDebuffEffects();
     }
 
+    /// <summary>セット中パイロット条件の Self AP（GQuuuuuuX 等）。自ターン限定ではない。</summary>
+    private static bool IsFieldUnitMountedPilotSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasMountedPilotActivationRequirement()
+            && !timed.HasOwnerTurnActivationRequirement();
+    }
+
+    /// <summary>プレイヤー Lv 条件の Self AP（AGE-1 タイタス C 等）。</summary>
+    private static bool IsFieldUnitOwnerLevelSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasOwnerTotalLevelActivationRequirement();
+    }
+
     private void ApplyConditionalFieldSelfStatFromTimedBlocks(
         CardController effectSource,
         CardController statTarget,
@@ -188,7 +211,9 @@ public partial class BattleGameMain
             TimedEffectData timed = blocks[bi];
             if (!IsMountedPilotWhileHostHasRepairSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOnEnemyAttackSelfStatPassive(timed, isPilotSource)
-                && !IsFieldUnitOwnerTurnSelfStatPassive(timed, isPilotSource))
+                && !IsFieldUnitOwnerTurnSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitMountedPilotSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitOwnerLevelSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }

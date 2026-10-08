@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 /// <summary>突破（Breach）のデータ判定。複数ある場合は value を合算する。</summary>
 public static class CardBreachExtensions
@@ -79,7 +80,7 @@ public static class CardBreachExtensions
     }
 
     /// <summary>
-    /// 条件付き突破（例: AP5以上の間 Breach3）。
+    /// 条件付き突破（AP 条件、他のリンクユニットがいる間、など）。
     /// ランタイムユニットが無いときは条件付きブロックを無視する。
     /// </summary>
     private static bool MeetsBreachActivationConditions(TimedEffectData timed, CardController runtimeUnit)
@@ -94,30 +95,45 @@ public static class CardBreachExtensions
             return false;
         }
 
-        IReadOnlyList<EffectActivationCondition> conditions = timed.activationConditions;
-        for (int i = 0; i < conditions.Count; i++)
+        List<CardController> zone = CollectAliveSiblingUnits(runtimeUnit);
+        EffectActivationContext ctx = new EffectActivationContext(
+            BattleGameMain.PlayerType.Player,
+            runtimeUnit,
+            zone,
+            System.Array.Empty<CardController>(),
+            System.Array.Empty<CardController>(),
+            System.Array.Empty<CardController>(),
+            isOwnerTurn: true,
+            mountHostUnit: runtimeUnit,
+            mountedPilot: runtimeUnit.MountedPilot);
+        return EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx);
+    }
+
+    private static List<CardController> CollectAliveSiblingUnits(CardController unit)
+    {
+        List<CardController> zone = new List<CardController>();
+        Transform parent = unit != null ? unit.transform.parent : null;
+        if (parent == null)
         {
-            EffectActivationCondition c = conditions[i];
-            if (c == null || c.checkKind == EffectActivationCheckKind.Unset)
+            if (unit != null)
+            {
+                zone.Add(unit);
+            }
+
+            return zone;
+        }
+
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            CardController sibling = parent.GetChild(i).GetComponent<CardController>();
+            if (sibling == null || sibling.Data == null || !sibling.Data.IsUnitLike() || sibling.CurrentHp <= 0)
             {
                 continue;
             }
 
-            if (c.checkKind != EffectActivationCheckKind.SourceUnitStat)
-            {
-                return false;
-            }
-
-            EffectTargetUnitFilterStat stat = c.activationStatTarget == EffectTargetUnitFilterStat.Unset
-                ? EffectTargetUnitFilterStat.AP
-                : c.activationStatTarget;
-            int statValue = EffectDataExtensions.GetTargetUnitFilterStatValue(runtimeUnit, stat);
-            if (!EffectCompareHelper.Compare(statValue, c.compareValue, c.compareOp))
-            {
-                return false;
-            }
+            zone.Add(sibling);
         }
 
-        return true;
+        return zone;
     }
 }
