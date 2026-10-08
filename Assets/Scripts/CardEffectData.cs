@@ -98,6 +98,11 @@ public enum EffectTiming
     /// 戦闘ダメージ・自軍効果・無効化された 0 ダメージでは発火しない。ターン1回は timed.oncePerTurn。
     /// </summary>
     OnEffectDamageTakenFromOpponent = 32,
+    /// <summary>
+    /// 自分の EX リソースが置かれたとき（効果で追加したとき等。場のユニットが監視）。
+    /// 返金による戻しは含まない。ターン1回は timed.oncePerTurn。
+    /// </summary>
+    OnExResourcePlaced = 33,
 }
 
 public enum EffectType
@@ -974,7 +979,12 @@ public enum EffectActivationCheckKind
     /// シールド攻撃宣言かつ、ブロックで敵ユニットと交戦していないときのみ真。
     /// GD02-011 等「このユニットとバトルしている相手のベース／シールド」。
     /// </summary>
-    SourceBattlingEnemyPlayerArea
+    SourceBattlingEnemyPlayerArea,
+    /// <summary>
+    /// 搭乗パイロットの色が compareValue の CardColor と一致する。
+    /// 例: 【セット中・赤のパイロット】→ compareValue 0（Red）。
+    /// </summary>
+    MountedPilotIsColor
 }
 
 public enum EffectTurnCheckKind
@@ -2490,6 +2500,11 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.filterTargetUnitColor && card.color != (CardColor)effect.filterTargetUnitColorValue)
+        {
+            return false;
+        }
+
         return effect.MatchesCardDataStatFilter(card, mountHostUnit);
     }
 
@@ -2992,6 +3007,25 @@ public static class TimedEffectDataExtensions
         return true;
     }
 
+    public static bool HasOwnerTotalLevelActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.OwnerTotalLevel)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool HasMountedPilotActivationRequirement(this TimedEffectData timed)
     {
         if (timed?.activationConditions == null)
@@ -3002,7 +3036,9 @@ public static class TimedEffectDataExtensions
         for (int i = 0; i < timed.activationConditions.Count; i++)
         {
             EffectActivationCondition c = timed.activationConditions[i];
-            if (c != null && c.checkKind == EffectActivationCheckKind.MountedPilot)
+            if (c != null
+                && (c.checkKind == EffectActivationCheckKind.MountedPilot
+                    || c.checkKind == EffectActivationCheckKind.MountedPilotIsColor))
             {
                 return true;
             }
@@ -3019,6 +3055,13 @@ public static class TimedEffectDataExtensions
             return false;
         }
 
+        if (timed.HasSourceUnitIsLinkedActivationRequirement()
+            || timed.HasOwnerTotalLevelActivationRequirement()
+            || timed.HasMountedPilotActivationRequirement())
+        {
+            return false;
+        }
+
         return timed.timing == EffectTiming.OnHandAuto || timed.timing == EffectTiming.OnPlayed;
     }
 
@@ -3030,7 +3073,63 @@ public static class TimedEffectDataExtensions
             return false;
         }
 
-        return !timed.IsHandConditionalPassiveBlock();
+        if (timed.IsHandConditionalPassiveBlock())
+        {
+            return false;
+        }
+
+        // 【リンク中】／Lv 条件／セット中の Self パッシブは Refresh で維持し、配備時ワンショットにしない
+        if (timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasActivationConditions()
+            && (timed.HasSourceUnitIsLinkedActivationRequirement()
+                || timed.HasOwnerTotalLevelActivationRequirement()
+                || timed.HasMountedPilotActivationRequirement()))
+        {
+            return false;
+        }
+
+        if (timed.IsPrintedKeywordMarkerBlock())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>印刷キーワード（突破／高機動／先制）の常時マーカー。配備時ワンショットにはしない。</summary>
+    public static bool IsPrintedKeywordMarkerBlock(this TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        bool any = false;
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.duration != EffectDuration.Permanent)
+            {
+                return false;
+            }
+
+            if (effect.type != EffectType.Breach
+                && effect.type != EffectType.HighMobility
+                && effect.type != EffectType.FirstStrike)
+            {
+                return false;
+            }
+
+            any = true;
+        }
+
+        return any;
     }
 
     /// <summary>パイロット搭乗時（OnPilotMounted）に解決するブロック。</summary>
@@ -3205,6 +3304,19 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnExResourceRemoved
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>EXリソース配置時（OnExResourcePlaced）に解決するブロック。</summary>
+    public static bool IsOnExResourcePlacedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnExResourcePlaced
             || !timed.HasResolvedEffects())
         {
             return false;

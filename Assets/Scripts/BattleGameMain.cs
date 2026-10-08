@@ -4289,6 +4289,13 @@ public partial class BattleGameMain : MonoBehaviour
             ? gundamRule.Player
             : gundamRule.Enemy;
         int afterEx = afterState != null ? afterState.exResource : 0;
+        int placed = afterEx - beforeEx;
+        if (placed > 0)
+        {
+            EnqueueExResourcePlaced(targetPlayer, placed);
+            StartCoroutine(FlushPendingExResourcePlacedWatchesCoroutine());
+        }
+
         Debug.Log(
             $"[Effect] AddExResource requested:{amount} actual:+{afterEx - beforeEx} "
             + $"(before:{beforeEx} after:{afterEx} max:{gundamRule.MaxExResource}) "
@@ -11502,6 +11509,9 @@ public partial class BattleGameMain : MonoBehaviour
         CardController battlingEnemy = battlingEnemyOverride != null
             ? battlingEnemyOverride
             : ResolveBattlingEnemyUnitFor(attacker);
+        Gundam2024RuleScript.PlayerState ownerState = ownerType == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
         return new EffectActivationContext(
             ownerType,
             attacker,
@@ -11521,6 +11531,8 @@ public partial class BattleGameMain : MonoBehaviour
             sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(attacker),
             sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(attacker),
             battlingEnemyUnit: battlingEnemy,
+            ownerTotalLevel: ownerState != null ? ownerState.TotalLevel : -1,
+            ownerExResource: ownerState != null ? ownerState.exResource : -1,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
     }
 

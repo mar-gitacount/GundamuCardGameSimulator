@@ -5457,6 +5457,44 @@
             ]
         },
         {
+            "effectSetName": "OnLook_AddGreenZeonPilot1_Reveal_Optional",
+            "displayName": "OnLook：緑の〔ジオン〕パイロット1枚を公開して手札へ加えてもよい",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetFeatureId": 5,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 1,
+                    "filterTargetUnitColor": true,
+                    "filterTargetUnitColorValue": 1,
+                    "revealDiscardedToOpponent": true,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnExPlaced_GrantBreach2_AllyAgeSystem_SelectSingle_UntilEOT",
+            "displayName": "EX配置時：〔AGEシステム〕の味方ユニット1つに《突破2》（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 48,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "targetFeatureId": 44
+                }
+            ]
+        },
+        {
             "effectSetName": "OnAction_DestroySelf_Damage6_BattlingEnemyPlayerArea",
             "displayName": "起動・アクション：自身を破壊し、バトル中の相手ベース／シールドに6ダメージ",
             "effects": [
