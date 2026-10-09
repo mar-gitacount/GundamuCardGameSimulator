@@ -1,0 +1,113 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD06-125 Argama
+  m_EditorClassIdentifier: 
+  id: 1000807
+  gcgOfficialId: GD06-125
+  cardName: Argama
+  cost: 1
+  level: 5
+  power: 0
+  hp: 6
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: Data/Images/GD06-125_Argama
+  version: 6
+  sourceType: 1
+  productLine: 1
+  boosterSet: 6
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 2
+  filterType: 0
+  color: 0
+  type: 3
+  battleZones: 3
+  attackFlg: 0
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployBase1_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    forcedAction: 0
+    observedUnitTriggerKind: -1
+  - timing: 6
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddShield1_OnBaseDeployed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    forcedAction: 0
+    observedUnitTriggerKind: -1
+  - timing: 34
+    activationConditions:
+    - boardSide: 0
+      checkKind: 46
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
+      featureId: 41
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: DamageEnemyUnit1_SelectSingle
+    effects:
+    - type: 0
+      value: 1
+      target: 2
+      selectionMode: 1
+      statTarget: 0
+      duration: 0
+    activationCost: 0
+    oncePerTurn: 1
+    forcedAction: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
+  - {fileID: 11400000, guid: 5a47f8b7e2c445e4b40e8767fd088d44, type: 2}
+  pilotIds: []
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  hideFromCardList: 0
+  cannotMountPilot: 0
+  pairFromHandCostReduction: 0
+  pairFromHandHostMinLevel: 0
+  pairFromHandHostFeature: {fileID: 0}
+  gcgId:
+    setKind: 2
+    setNumber: 6
+    cardNumber: 125

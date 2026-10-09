@@ -4807,6 +4807,41 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0176d06000000000000000000000001
+    m_Address: Data/Images/GD06-017_GQuuuuuux
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0706d06000000000000000000000002
+    m_Address: Data/Images/GD06-070_Eagail
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0976d06000000000000000000000003
+    m_Address: Data/Images/GD06-097_Harry Ord
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1006d06000000000000000000000004
+    m_Address: Data/Images/GD06-100_Corin Nander
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1016d06000000000000000000000005
+    m_Address: Data/Images/GD06-101_The Gundam Says
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1106d06000000000000000000000006
+    m_Address: Data/Images/GD06-110_Familial Love
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1256d06000000000000000000000007
+    m_Address: Data/Images/GD06-125_Argama
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

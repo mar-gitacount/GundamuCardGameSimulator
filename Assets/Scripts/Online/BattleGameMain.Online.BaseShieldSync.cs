@@ -356,7 +356,20 @@ public partial class BattleGameMain
         {
             if (baseCard != null)
             {
-                SendDeployedBaseToTrash(baseCard, ownerType, rule);
+                int hpBeforeDestroy = baseCard.CurrentHp;
+                baseCard.SetCurrentHpForSync(0);
+                NotifyThisBaseReceivedBattleDamageIfNeeded(baseCard, hpBeforeDestroy);
+                if (_argamaAfterDamageStep.HasValue)
+                {
+                    ArgamaAfterDamageStep queued = _argamaAfterDamageStep.Value;
+                    queued.DestroyAfterPick = true;
+                    _argamaAfterDamageStep = queued;
+                }
+                else
+                {
+                    SendDeployedBaseToTrash(baseCard, ownerType, rule);
+                }
+
                 SyncResourceViewsFromRule(defenderSide);
             }
 
@@ -372,7 +385,10 @@ public partial class BattleGameMain
             return;
         }
 
+        int hpBefore = baseCard.CurrentHp;
         baseCard.SetCurrentHpForSync(defenderDeployedBaseHpAfter);
+        NotifyThisBaseReceivedBattleDamageIfNeeded(baseCard, hpBefore);
+
         RefreshDeployedBaseHpOverlay(baseCard);
         SyncBaseZoneHeaderDisplay(defenderSide);
         Debug.Log(

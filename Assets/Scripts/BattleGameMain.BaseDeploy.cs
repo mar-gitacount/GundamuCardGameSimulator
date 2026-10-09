@@ -1382,6 +1382,7 @@ public partial class BattleGameMain
 
         int hpBefore = defenderBase.CurrentHp;
         defenderBase.ApplyDamage(power);
+        NotifyThisBaseReceivedBattleDamageIfNeeded(defenderBase, hpBefore);
         MarkPendingDefenderDeployedBaseHpForOnlineSync(defenderBase.CurrentHp);
         PlayerType defenderOwner = targetSide == Gundam2024RuleScript.PlayerSide.Player
             ? PlayerType.Player
@@ -1396,10 +1397,19 @@ public partial class BattleGameMain
         if (defenderBase.CurrentHp <= 0)
         {
             MarkPendingDefenderDeployedBaseHpForOnlineSync(0);
-            SendDeployedBaseToTrash(defenderBase, defenderOwner, defenderRule);
-            SyncResourceViewsFromRule(targetSide);
-            logMessage += " (destroyed)";
             destroyedDeployedBase = true;
+            logMessage += " (destroyed)";
+            if (_argamaAfterDamageStep.HasValue)
+            {
+                ArgamaAfterDamageStep queued = _argamaAfterDamageStep.Value;
+                queued.DestroyAfterPick = true;
+                _argamaAfterDamageStep = queued;
+            }
+            else
+            {
+                SendDeployedBaseToTrash(defenderBase, defenderOwner, defenderRule);
+                SyncResourceViewsFromRule(targetSide);
+            }
         }
 
         return true;

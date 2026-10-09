@@ -5527,6 +5527,185 @@
                     "valueCountExcludeSource": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "BuffAllyAp2_UntilEndOfBattle_SelectSingle",
+            "displayName": "味方ユニット1体を選び、このバトル中 AP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "Draw1_IfOwnerHandCount3OrLess",
+            "displayName": "手札が3枚以下なら1枚ドロー",
+            "effects": [
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 52,
+                            "unitCountCompareOp": 3,
+                            "unitCountThreshold": 3
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyUnitHp5OrLess_SelectSingle",
+            "displayName": "敵ユニット(HP5以下)1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "Draw1_IfOwnerHasAlphacideLinkedUnit",
+            "displayName": "〔アルファサイド〕のリンクユニットがいれば1枚ドロー",
+            "effects": [
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 27,
+                            "featureId": 78,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "FamilialLove_OnAction",
+            "displayName": "味方1体 AP+2（このバトル中）。その後手札3枚以下ならドロー1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 52,
+                            "unitCountCompareOp": 3,
+                            "unitCountThreshold": 3
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "TheGundamSays_MainOrAction",
+            "displayName": "HP5以下の敵1体をバウンス。〔アルファサイド〕リンクがいればドロー1",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 27,
+                            "featureId": 78,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployGozzoToken1_OnPlayed",
+            "displayName": "配備時：[Gozzo]トークン1体をバトルゾーンへ",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000808,
+                    "filterByDeployCardId": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp5_UntilEndOfBattle_SelectSingle",
+            "displayName": "敵ユニット1体を選び、このバトル中 AP-5",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 5,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "DamageEnemyUnit1_SelectSingle",
+            "displayName": "敵ユニット1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "ActivateSelf",
+            "displayName": "このユニットをアクティブにする",
+            "effects": [
+                {
+                    "type": 25,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                }
+            ]
         }
     ]
 }

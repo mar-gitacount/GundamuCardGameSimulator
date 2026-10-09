@@ -1833,6 +1833,7 @@ public partial class BattleGameMain
             DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
             currentPlayerType = PlayerType.Player;
+            ExpireUntilEndOfBattleModifiersAtTurnStart();
             RefreshAllFieldOwnerTurnPassives();
             AdvanceRuleToNextTurnStart();
             UpdateEndTurnButtonVisibility();
@@ -2326,22 +2327,11 @@ public partial class BattleGameMain
         defender.exBase = Mathf.Max(0, action.defenderExBaseAfter);
 
         int brokenCount = Mathf.Max(0, oldShield - defender.shield);
-        if (brokenCount > 0)
-        {
-            StartCoroutine(ApplyRemoteDefenderShieldBreakCoroutine(
-                Gundam2024RuleScript.PlayerSide.Player,
-                brokenCount,
-                action.shieldBreakSimultaneousReveal,
-                action.brokenShieldCardIds,
-                action.requestId));
-        }
-        else if (action.requestId > 0)
-        {
-            // 破壊枚数0でも handshake requestId があるなら完了を返さないと攻撃側が UI 待ちで固まる
-            Debug.LogWarning(
-                $"[OnlineBattle] ShieldAttack requestId={action.requestId} but brokenCount=0 — send Complete immediately.");
-            SendOnlineShieldBreakComplete(action.requestId, Gundam2024RuleScript.PlayerSide.Player);
-        }
+        StartCoroutine(CoRemoteShieldAttackJudgmentThenArgama(
+            brokenCount,
+            action.shieldBreakSimultaneousReveal,
+            action.brokenShieldCardIds,
+            action.requestId));
 
         SyncResourceViewsFromRule(Gundam2024RuleScript.PlayerSide.Player);
         SyncBaseZoneHeaderDisplay(Gundam2024RuleScript.PlayerSide.Player);
@@ -2477,6 +2467,8 @@ public partial class BattleGameMain
             if (action.blockCombat && defender.CurrentHp > 0)
             {
                 SetUnitRestAndTriggerEffects(defender, PlayerType.Player);
+                // 攻撃側画面では Harry Ord 等が ACTIVE になるが、防御側はここまで REST のみだった
+                NotifyBlockerActivatedAfterRest(defender, syncOnlineAfter: false);
             }
 
             if (defender.CurrentHp <= 0)
@@ -2520,6 +2512,11 @@ public partial class BattleGameMain
         SyncAllResourceViewsFromRule();
         // リモート側でも「このバトル中」修飾を落とす（EffectSync で付いたキラデバフ／ザクAP+2 など）
         ClearEndOfBattleCombatModifiers("remote unit attack");
+        if (HasPendingOrRunningBaseBattleDamageWatch)
+        {
+            StartCoroutine(CoResolveArgamaAfterCombatJudgment());
+        }
+
         Debug.Log(
             $"[OnlineBattle] Remote unit attack applied. attackerHp={action.attackerHp} defenderHp={action.defenderHp} "
             + $"areaSnap:{action.includeDefenderAreaSnapshot} baseHp:{action.defenderDeployedBaseHpAfter}");

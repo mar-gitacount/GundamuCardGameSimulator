@@ -103,6 +103,16 @@ public enum EffectTiming
     /// 返金による戻しは含まない。ターン1回は timed.oncePerTurn。
     /// </summary>
     OnExResourcePlaced = 33,
+    /// <summary>
+    /// この配備ベースが戦闘ダメージを受けたとき（実 HP 減少時）。
+    /// 効果ダメージでは発火しない。ターン1回は timed.oncePerTurn。
+    /// </summary>
+    OnThisBaseReceivedBattleDamage = 34,
+    /// <summary>
+    /// このユニットが《ブロッカー》を起動してレストしたとき（搭乗パイロット含む）。
+    /// ターン1回は timed.oncePerTurn。
+    /// </summary>
+    OnBlockerActivated = 35,
 }
 
 public enum EffectType
@@ -984,7 +994,13 @@ public enum EffectActivationCheckKind
     /// 搭乗パイロットの色が compareValue の CardColor と一致する。
     /// 例: 【セット中・赤のパイロット】→ compareValue 0（Red）。
     /// </summary>
-    MountedPilotIsColor
+    MountedPilotIsColor,
+    /// <summary>
+    /// このターン中、オーナーがユニット（トークン含む）／搭乗パイロットの効果に支払った
+    /// コスト合計を compareOp + compareValue と比較。
+    /// 例: ユニット効果に合計3以上支払っている → GreaterOrEqual + 3。
+    /// </summary>
+    OwnerPaidUnitEffectCostThisTurn
 }
 
 public enum EffectTurnCheckKind
@@ -3317,6 +3333,32 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnExResourcePlaced
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>この配備ベースが戦闘ダメージを受けたときに解決するブロック。</summary>
+    public static bool IsOnThisBaseReceivedBattleDamageResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnThisBaseReceivedBattleDamage
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>ブロッカー起動（レスト確定）時に解決するブロック。</summary>
+    public static bool IsOnBlockerActivatedResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnBlockerActivated
             || !timed.HasResolvedEffects())
         {
             return false;

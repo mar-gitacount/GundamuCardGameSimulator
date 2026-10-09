@@ -35,7 +35,8 @@ MonoBehaviour:
   battleZones: -1
   attackFlg: 0
   timedEffects: []
-  features: []
+  features:
+  - {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
   pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0

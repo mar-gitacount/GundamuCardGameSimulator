@@ -92,6 +92,16 @@ public class CardData : ScriptableObject
     [Tooltip("true のときパイロットをセットできない（有線式アーム等）。")]
     public bool cannotMountPilot;
 
+    [Header("手札からのペアリングコスト")]
+    [Tooltip("手札からパイロットをセットするとき、条件を満たすユニットへペアリングすると減らすコスト。0 なら無効。")]
+    public int pairFromHandCostReduction;
+
+    [Tooltip("pairFromHandCostReduction 用。搭乗先ユニットの実効レベル下限（例: Lv.5 以上なら 5）。")]
+    public int pairFromHandHostMinLevel;
+
+    [Tooltip("pairFromHandCostReduction 用。搭乗先が持つ必要がある Feature（例: Dianna Counter）。")]
+    public CardFeatureData pairFromHandHostFeature;
+
     [Header("公式カード番号（GCG）")]
     [Tooltip("種別・セット番号・カード番号。1 と 1 なら ST01-001。入力した数値がそのまま使われる。")]
     public GcgIdParts gcgId = new GcgIdParts();
