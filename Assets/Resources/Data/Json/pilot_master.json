@@ -797,6 +797,18 @@
             "pilotKey": "Gauman_Nobile",
             "displayName": "ガウマン・ノビル",
             "description": ""
+        },
+        {
+            "id": 134,
+            "pilotKey": "Corin_Nander",
+            "displayName": "コリン・ナンダー",
+            "description": ""
+        },
+        {
+            "id": 135,
+            "pilotKey": "Harry_Ord",
+            "displayName": "ハリー・オード",
+            "description": ""
         }
     ]
 }

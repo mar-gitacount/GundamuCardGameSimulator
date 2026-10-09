@@ -463,6 +463,18 @@
             "description": ""
         },
         {
+            "id": 78,
+            "featureKey": "Alphacide",
+            "displayName": "アルファサイド",
+            "description": ""
+        },
+        {
+            "id": 79,
+            "featureKey": "Dianna_Counter",
+            "displayName": "ディアナ・カウンター",
+            "description": ""
+        },
+        {
             "id": 10000,
             "featureKey": "test",
             "displayName": "test",

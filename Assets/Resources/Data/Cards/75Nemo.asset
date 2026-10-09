@@ -36,7 +36,7 @@ MonoBehaviour:
   attackFlg: 0
   timedEffects: []
   features:
-  - {fileID: 11400000, guid: cfb2ab1ed8fc3c24a90b31adfb7c53e9, type: 2}
+  - {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
   pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0

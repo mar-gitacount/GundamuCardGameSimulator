@@ -547,14 +547,15 @@ public partial class BattleGameMain
         Gundam2024RuleScript.PlayerState state,
         Gundam2024RuleScript.PlayerSide side,
         CardController card,
-        EnemyAiDeployResourceBudget reserve)
+        EnemyAiDeployResourceBudget reserve,
+        int? costOverride = null)
     {
         if (card == null || card.Data == null || state == null || gundamRule == null)
         {
             return false;
         }
 
-        int cost = card.CurrentCost;
+        int cost = costOverride ?? card.CurrentCost;
         int keep = Mathf.Max(0, reserve.ResourceToKeep);
         if (!gundamRule.CanPlayCardWithAnyEx(side, card.CurrentLevel, cost))
         {

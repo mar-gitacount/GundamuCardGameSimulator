@@ -70,6 +70,11 @@ public sealed class EffectActivationContext
     /// <summary>効果オーナーの EX リソース枚数。-1 なら未設定。</summary>
     public int OwnerExResource { get; }
 
+    /// <summary>
+    /// このターン中、オーナーがユニット効果に支払ったコスト合計。-1 なら未設定。
+    /// </summary>
+    public int OwnerPaidUnitEffectCostThisTurn { get; }
+
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
@@ -114,7 +119,8 @@ public sealed class EffectActivationContext
         CardController battlingEnemyUnit = null,
         int ownerTotalLevel = -1,
         int ownerExResource = -1,
-        bool ownerActivatedResourceByEffectThisTurn = false)
+        bool ownerActivatedResourceByEffectThisTurn = false,
+        int ownerPaidUnitEffectCostThisTurn = -1)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -145,6 +151,7 @@ public sealed class EffectActivationContext
         OwnerTotalLevel = ownerTotalLevel;
         OwnerExResource = ownerExResource;
         OwnerActivatedResourceByEffectThisTurn = ownerActivatedResourceByEffectThisTurn;
+        OwnerPaidUnitEffectCostThisTurn = ownerPaidUnitEffectCostThisTurn;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -214,7 +221,8 @@ public sealed class EffectActivationContext
             BattlingEnemyUnit,
             OwnerTotalLevel,
             OwnerExResource,
-            OwnerActivatedResourceByEffectThisTurn);
+            OwnerActivatedResourceByEffectThisTurn,
+            OwnerPaidUnitEffectCostThisTurn);
     }
 }
 
@@ -502,6 +510,11 @@ public static class EffectActivationEvaluator
             return EvaluateMountedPilotIsColor(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.OwnerPaidUnitEffectCostThisTurn)
+        {
+            return EvaluateOwnerPaidUnitEffectCostThisTurn(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.SourceIsAttacking)
         {
             return ctx != null
@@ -611,7 +624,7 @@ public static class EffectActivationEvaluator
             case EffectActivationCheckKind.UnitCountAtLeast:
                 return CountAliveUnits(zone) >= Mathf.Max(0, c.minimumCount);
             case EffectActivationCheckKind.RestedUnitCountAtLeast:
-                return CountRestedAliveUnits(zone) >= Mathf.Max(1, c.minimumCount);
+                return CountRestedAliveUnits(zone, c) >= Mathf.Max(1, c.minimumCount);
             case EffectActivationCheckKind.UnitLevelOnField:
                 return EvaluateUnitLevel(zone, c);
             case EffectActivationCheckKind.CountUnitsAtExactLevel:
@@ -894,22 +907,35 @@ public static class EffectActivationEvaluator
             return false;
         }
 
-        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
-        if (required == null || required.Count == 0)
-        {
-            return false;
-        }
-
         int need = Mathf.Max(1, c.minimumCount);
-        IReadOnlyList<CardController> zone = ctx.OwnerType == BattleGameMain.PlayerType.Player
-            ? ctx.PlayerBattleZone
-            : ctx.EnemyBattleZone;
-        if (zone == null || zone.Count == 0)
+        int matched = 0;
+        matched += CountOwnerLinkedUnitsMatchingFeature(c, ctx.PlayerBattleZone, ctx, BattleGameMain.PlayerType.Player);
+        if (matched >= need)
         {
-            return false;
+            return true;
         }
 
-        int matched = 0;
+        matched += CountOwnerLinkedUnitsMatchingFeature(c, ctx.EnemyBattleZone, ctx, BattleGameMain.PlayerType.Enemy);
+        return matched >= need;
+    }
+
+    private static int CountOwnerLinkedUnitsMatchingFeature(
+        EffectActivationCondition c,
+        IReadOnlyList<CardController> zone,
+        EffectActivationContext ctx,
+        BattleGameMain.PlayerType zoneOwner)
+    {
+        if (c == null || ctx == null || zone == null || zone.Count == 0)
+        {
+            return 0;
+        }
+
+        if (zoneOwner != ctx.OwnerType)
+        {
+            return 0;
+        }
+
+        int n = 0;
         for (int i = 0; i < zone.Count; i++)
         {
             CardController unit = zone[i];
@@ -918,7 +944,7 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
-            if (!unit.Data.HasAnyFeature(required))
+            if (!UnitMatchesActivationFeature(unit, c))
             {
                 continue;
             }
@@ -928,8 +954,82 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
-            matched++;
-            if (matched >= need)
+            n++;
+        }
+
+        return n;
+    }
+
+    /// <summary>feature SO / featureId / featureKey / 既知カード ID のいずれかで Feature 一致。</summary>
+    private static bool UnitMatchesActivationFeature(CardController unit, EffectActivationCondition c)
+    {
+        if (unit == null || unit.Data == null || c == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+        if (required != null && required.Count > 0 && unit.HasAnyFeature(required))
+        {
+            return true;
+        }
+
+        if (c.featureId > 0 && unit.HasFeatureId(c.featureId))
+        {
+            return true;
+        }
+
+        if (c.featureIds != null)
+        {
+            for (int i = 0; i < c.featureIds.Length; i++)
+            {
+                if (c.featureIds[i] > 0 && unit.HasFeatureId(c.featureIds[i]))
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (required != null)
+        {
+            for (int i = 0; i < required.Count; i++)
+            {
+                CardFeatureData feature = required[i];
+                if (feature == null)
+                {
+                    continue;
+                }
+
+                if (unit.HasFeatureId(feature.id)
+                    || (unit.Data != null && unit.Data.HasFeatureKey(feature.featureKey)))
+                {
+                    return true;
+                }
+            }
+        }
+
+        // GD06-017 GQuuuuuux：Addressables で Feature SO が欠ける場合の〔アルファサイド〕補完
+        if (c.featureId == 78 || FeatureListContainsId(required, 78))
+        {
+            if (unit.Data.HasFeatureKey("Alphacide") || unit.Data.id == 1000801)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FeatureListContainsId(IReadOnlyList<CardFeatureData> features, int featureId)
+    {
+        if (features == null || featureId <= 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < features.Count; i++)
+        {
+            if (features[i] != null && features[i].id == featureId)
             {
                 return true;
             }
@@ -1350,7 +1450,6 @@ public static class EffectActivationEvaluator
             return false;
         }
 
-        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
         int matched = 0;
         for (int i = 0; i < zone.Count; i++)
         {
@@ -1365,7 +1464,7 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
-            if (!unit.HasAnyFeature(required))
+            if (!UnitMatchesActivationFeature(unit, c))
             {
                 continue;
             }
@@ -1945,19 +2044,43 @@ public static class EffectActivationEvaluator
         return n;
     }
 
-    private static int CountRestedAliveUnits(IReadOnlyList<CardController> cards)
+    private static int CountRestedAliveUnits(
+        IReadOnlyList<CardController> cards,
+        EffectActivationCondition featureFilter = null)
     {
         int n = 0;
+        IReadOnlyList<CardFeatureData> required = featureFilter != null && featureFilter.HasActivationFeatureFilter()
+            ? featureFilter.GetActivationFeatures()
+            : null;
         for (int i = 0; i < cards.Count; i++)
         {
             CardController c = cards[i];
-            if (IsAliveUnit(c) && c.IsRestState)
+            if (!IsAliveUnit(c) || !c.IsRestState)
             {
-                n++;
+                continue;
             }
+
+            if (required != null && required.Count > 0 && !c.HasAnyFeature(required))
+            {
+                continue;
+            }
+
+            n++;
         }
 
         return n;
+    }
+
+    private static bool EvaluateOwnerPaidUnitEffectCostThisTurn(
+        EffectActivationCondition c,
+        EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null || ctx.OwnerPaidUnitEffectCostThisTurn < 0)
+        {
+            return false;
+        }
+
+        return CompareInts(ctx.OwnerPaidUnitEffectCostThisTurn, c.compareValue, c.compareOp);
     }
 
     private static List<int> CollectAliveUnitLevels(IReadOnlyList<CardController> cards)

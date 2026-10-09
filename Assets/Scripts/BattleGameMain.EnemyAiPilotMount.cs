@@ -125,7 +125,8 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (!CanEnemyAffordHandDeployWithReserve(state, side, cc, reserve))
+            int mountCost = CardPairFromHandCost.GetPlayCost(cc, GetMountableUnits(PlayerType.Enemy));
+            if (!CanEnemyAffordHandDeployWithReserve(state, side, cc, reserve, costOverride: mountCost))
             {
                 continue;
             }
@@ -148,9 +149,10 @@ public partial class BattleGameMain
 
         Gundam2024RuleScript.PlayerSide side = Gundam2024RuleScript.PlayerSide.Enemy;
         Gundam2024RuleScript.PlayerState state = GetRuleState(side);
-        int exToUse = Gundam2024RuleScript.GetExNeededForCost(state, pilot.CurrentCost);
-        if (!CanEnemyAffordHandDeployWithReserve(state, side, pilot, reserve)
-            || !TryPayHandDeployCost(side, pilot, exToUse))
+        int mountCost = CardPairFromHandCost.GetPlayCost(pilot, unit);
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(state, mountCost);
+        if (!CanEnemyAffordHandDeployWithReserve(state, side, pilot, reserve, costOverride: mountCost)
+            || !TryPayHandDeployCost(side, pilot, exToUse, costOverride: mountCost))
         {
             return false;
         }

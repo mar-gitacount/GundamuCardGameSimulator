@@ -700,14 +700,7 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        PlayerType blockerOwner = ResolveCardOwner(blocker.transform);
-        if (!TryApplyRestToUnit(blocker))
-        {
-            return;
-        }
-
-        // 交換戦闘なしのブロックレストは Attack 通知に載らないため、攻撃フロー権限側から同期する。
-        SyncOnlineRestFromAttackAuthority(blocker);
+        RestBlockerThenNotifyActivated(blocker, syncOnlineRest: true);
 
         Debug.Log($"[BlockCombat] Blocker rested without exchange: {blocker.Data?.cardName}");
     }
@@ -2024,7 +2017,8 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            if (!gundamRule.CanPlayCardWithAnyEx(ownerSide, cardController.CurrentLevel, cost))
+            int mountCost = CardPairFromHandCost.GetPlayCost(cardController, mountTargets);
+            if (!gundamRule.CanPlayCardWithAnyEx(ownerSide, cardController.CurrentLevel, mountCost))
             {
                 if (!isCommandPilot)
                 {
@@ -2045,22 +2039,22 @@ public partial class BattleGameMain : MonoBehaviour
 
                 mountBtn.onClick.AddListener(() =>
                 {
-                    ShowPilotMountResourcePaymentThenTargets(
+                    BeginPilotMountPaymentOrTargets(
                         filterContent,
                         cardController,
                         ownerType,
                         ownerSide,
-                        cost);
+                        mountCost);
                 });
                 return;
             }
 
-            ShowPilotMountResourcePaymentThenTargets(
+            BeginPilotMountPaymentOrTargets(
                 filterContent,
                 cardController,
                 ownerType,
                 ownerSide,
-                cost);
+                mountCost);
             return;
         }
 
@@ -2577,6 +2571,7 @@ public partial class BattleGameMain : MonoBehaviour
             PlayerresourcePointText.text = gundamRule.Player.resource.ToString();
             ApplyTurnStartAttackFlgForCurrentPlayer();
             ClearPaidActivationUsesForSide(PlayerType.Player);
+            ClearPaidUnitEffectCostThisTurn(PlayerType.Player);
             ClearOwnerEffectDestroyWatchUsesThisTurn();
             TriggerAllTimedEffectsForSide(PlayerType.Player, EffectTiming.OnTurnStart);
             // 相手ターン開始時効果（シャンブロ等）は非ターン側の場ユニットを評価する
@@ -2600,6 +2595,7 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log($"[ドロー] エネミーのターン開始ドロー1枚。LV:{gundamRule.Enemy.level} Resource:{gundamRule.Enemy.resource}");
             ApplyTurnStartAttackFlgForCurrentPlayer();
             ClearPaidActivationUsesForSide(PlayerType.Enemy);
+            ClearPaidUnitEffectCostThisTurn(PlayerType.Enemy);
             ClearOwnerEffectDestroyWatchUsesThisTurn();
             TriggerAllTimedEffectsForSide(PlayerType.Enemy, EffectTiming.OnTurnStart);
             TriggerAllTimedEffectsForSide(PlayerType.Player, EffectTiming.OnOpponentTurnStart);
@@ -4121,6 +4117,7 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyTestPlayBoardPerspective(currentPlayerType);
             }
 
+            ExpireUntilEndOfBattleModifiersAtTurnStart();
             RefreshAllFieldOwnerTurnPassives();
             AdvanceRuleToNextTurnStart();
             UpdateEndTurnButtonVisibility();
@@ -4393,7 +4390,8 @@ public partial class BattleGameMain : MonoBehaviour
             || _activeOnActionCommandRevealRoot != null
             || IsShieldBreakBurstUiPending()
             || _apReducedWatchResolving
-            || _effectDamageTakenWatchResolving;
+            || _effectDamageTakenWatchResolving
+            || _argamaAfterDamageStepResolving;
     }
 
     private IEnumerator WaitUntilBlockingChoiceOrTrashUiCleared(float timeoutSeconds = -1f)
@@ -5318,6 +5316,23 @@ public partial class BattleGameMain : MonoBehaviour
         return result;
     }
 
+    /// <summary>コスト0（Corin Nander の Lv5〔ディアナ・カウンター〕減免等）は支払い UI を出さず搭乗先選択へ進む。</summary>
+    private void BeginPilotMountPaymentOrTargets(
+        GameObject filterPanel,
+        CardController pilotCard,
+        PlayerType ownerType,
+        Gundam2024RuleScript.PlayerSide ownerSide,
+        int cost)
+    {
+        if (cost <= 0)
+        {
+            ShowPilotMountTargetButtons(filterPanel, pilotCard, ownerType, ownerSide, 0, exToUse: 0);
+            return;
+        }
+
+        ShowPilotMountResourcePaymentThenTargets(filterPanel, pilotCard, ownerType, ownerSide, cost);
+    }
+
     private void ShowPilotMountResourcePaymentThenTargets(
         GameObject filterPanel,
         CardController pilotCard,
@@ -5398,7 +5413,10 @@ public partial class BattleGameMain : MonoBehaviour
             }
         }
 
-        List<CardController> targets = GetMountableUnits(ownerType);
+        List<CardController> targets = CardPairFromHandCost.FilterMountTargets(
+            pilotCard,
+            GetMountableUnits(ownerType),
+            cost);
         if (targets.Count == 0)
         {
             Debug.Log("搭乗可能なユニットがありません。");
@@ -5422,7 +5440,7 @@ public partial class BattleGameMain : MonoBehaviour
             tr.anchoredPosition = new Vector2(0f, -210f - (i * 52f));
             targetBtn.onClick.AddListener(() =>
             {
-                if (!TryPayHandDeployCost(ownerSide, pilotCard, exToUse))
+                if (!TryPayHandDeployCost(ownerSide, pilotCard, exToUse, costOverride: cost))
                 {
                     Debug.Log("リソース不足でパイロットを搭乗できません。");
                     return;
@@ -5623,16 +5641,20 @@ public partial class BattleGameMain : MonoBehaviour
             return currentPlayerType;
         }
 
-        if (cardTransform.IsChildOf(cardGameRule.PlayerDeployPanel)
-            || cardTransform.IsChildOf(cardGameRule.HandScrollContent)
-            || (cardGameRule.ShieldCardsContent != null && cardTransform.IsChildOf(cardGameRule.ShieldCardsContent)))
+        if (cardGameRule != null
+            && ((cardGameRule.PlayerDeployPanel != null && cardTransform.IsChildOf(cardGameRule.PlayerDeployPanel))
+                || (cardGameRule.HandScrollContent != null && cardTransform.IsChildOf(cardGameRule.HandScrollContent))
+                || (cardGameRule.ShieldCardsContent != null && cardTransform.IsChildOf(cardGameRule.ShieldCardsContent))
+                || (cardGameRule.BaseSlotContent != null && cardTransform.IsChildOf(cardGameRule.BaseSlotContent))))
         {
             return PlayerType.Player;
         }
 
-        if (cardTransform.IsChildOf(enemyCardGameRule.PlayerDeployPanel)
-            || cardTransform.IsChildOf(enemyCardGameRule.HandScrollContent)
-            || (enemyCardGameRule.ShieldCardsContent != null && cardTransform.IsChildOf(enemyCardGameRule.ShieldCardsContent)))
+        if (enemyCardGameRule != null
+            && ((enemyCardGameRule.PlayerDeployPanel != null && cardTransform.IsChildOf(enemyCardGameRule.PlayerDeployPanel))
+                || (enemyCardGameRule.HandScrollContent != null && cardTransform.IsChildOf(enemyCardGameRule.HandScrollContent))
+                || (enemyCardGameRule.ShieldCardsContent != null && cardTransform.IsChildOf(enemyCardGameRule.ShieldCardsContent))
+                || (enemyCardGameRule.BaseSlotContent != null && cardTransform.IsChildOf(enemyCardGameRule.BaseSlotContent))))
         {
             return PlayerType.Enemy;
         }
@@ -7738,7 +7760,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (IsOnlineBattle())
         {
-            return effectOwnerType == PlayerType.Player && currentPlayerType == PlayerType.Player;
+            // 相手ターンの防御側誘発（Argama 等）もローカル Player が選ぶ。
+            return effectOwnerType == PlayerType.Player;
         }
 
         return effectOwnerType == PlayerType.Player;
@@ -8577,6 +8600,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
         isShieldAttackResolving = true;
         bool deferredShieldBreakWait = false;
+        bool deferredBaseBattleDamageWait = false;
 
         try
         {
@@ -8843,11 +8867,22 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
+            if (HasPendingOrRunningBaseBattleDamageWatch)
+            {
+                deferredBaseBattleDamageWait = true;
+                StartCoroutine(CoFinishShieldAttackAfterBaseBattleDamageWatch(
+                    attacker,
+                    attackerOwner,
+                    shieldStrikeLog,
+                    hadExBaseLayerAtShieldAttackStart));
+                return;
+            }
+
             CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
         }
         finally
         {
-            if (!deferredShieldBreakWait && !deferredShieldBlockRedirectWait)
+            if (!deferredShieldBreakWait && !deferredShieldBlockRedirectWait && !deferredBaseBattleDamageWait)
             {
                 isShieldAttackResolving = false;
                 if (hadExBaseLayerAtShieldAttackStart)
@@ -8901,6 +8936,29 @@ public partial class BattleGameMain : MonoBehaviour
         FinishUnitAttackSessionAndClearFlowContext();
     }
 
+    private IEnumerator CoFinishShieldAttackAfterBaseBattleDamageWatch(
+        CardController attacker,
+        PlayerType attackerOwner,
+        string shieldStrikeLog,
+        bool hadExBaseLayerAtShieldAttackStart)
+    {
+        // ダメージ→判定のあと（シールド破壊なし）にアーガマの相手ユニット選択。
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return CoResolveArgamaAfterBaseDamageStep();
+        try
+        {
+            CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
+        }
+        finally
+        {
+            isShieldAttackResolving = false;
+            if (hadExBaseLayerAtShieldAttackStart)
+            {
+                blockShieldFlowDuringShieldAttack = false;
+            }
+        }
+    }
+
     private IEnumerator FinishUnitShieldAttackAfterBreakCoroutine(
         CardController attacker,
         PlayerType attackerOwner,
@@ -8949,6 +9007,10 @@ public partial class BattleGameMain : MonoBehaviour
         {
             yield return WaitOnOpponentShieldAreaCardDestroyedCoroutine(attacker, attackerOwner);
         }
+
+        // アタック→アクション→ダメージ→判定のあとでアーガマの相手ユニット選択 UI。
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return CoResolveArgamaAfterBaseDamageStep();
 
         try
         {
@@ -10059,10 +10121,7 @@ public partial class BattleGameMain : MonoBehaviour
             blockerHpAfterExchange,
             blockCombat: true);
 
-        if (TryApplyRestToUnit(blocker))
-        {
-            SyncOnlineRestFromAttackAuthority(blocker);
-        }
+        RestBlockerThenNotifyActivated(blocker, syncOnlineRest: true);
 
         if (blocker.CurrentHp <= 0)
         {
@@ -10199,6 +10258,16 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log($"[UntilEndOfBattle] Cleared combat modifiers ({reason})");
         }
+    }
+
+    /// <summary>
+    /// エンド時アクションなど戦闘外で付与された「この戦闘中」は、戦闘終了イベントが来ない。
+    /// 次ターン開始と同時に解除する（戦闘中に付与された分は既に戦闘終了で落ちている）。
+    /// Familial Love 等の AP バフが相手ターン以降も残らないようにする。
+    /// </summary>
+    private void ExpireUntilEndOfBattleModifiersAtTurnStart()
+    {
+        ClearEndOfBattleCombatModifiers("turn start (end-action この戦闘中)");
     }
 
     private void ClearTimedStatModifiersOnDeployPanels(EffectDuration duration)
@@ -11472,7 +11541,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
             ownerTotalLevel: ownerState.TotalLevel,
             ownerExResource: ownerState.exResource,
-            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
     }
 
     /// <summary>
@@ -11533,7 +11603,8 @@ public partial class BattleGameMain : MonoBehaviour
             battlingEnemyUnit: battlingEnemy,
             ownerTotalLevel: ownerState != null ? ownerState.TotalLevel : -1,
             ownerExResource: ownerState != null ? ownerState.exResource : -1,
-            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
     }
 
     /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
@@ -11633,7 +11704,57 @@ public partial class BattleGameMain : MonoBehaviour
             return fromPlayer;
         }
 
-        return FindHostUnitMountingPilotInZone(enemyBattleZoneCards, pilot);
+        CardController fromEnemy = FindHostUnitMountingPilotInZone(enemyBattleZoneCards, pilot);
+        if (fromEnemy != null)
+        {
+            return fromEnemy;
+        }
+
+        CardController fromPlayerPanel = FindHostUnitMountingPilotOnDeployPanel(cardGameRule, pilot);
+        if (fromPlayerPanel != null)
+        {
+            return fromPlayerPanel;
+        }
+
+        return FindHostUnitMountingPilotOnDeployPanel(enemyCardGameRule, pilot);
+    }
+
+    private static CardController FindHostUnitMountingPilotOnDeployPanel(CardGameRule rule, CardController pilot)
+    {
+        Transform panel = rule != null ? rule.PlayerDeployPanel : null;
+        if (panel == null || pilot == null)
+        {
+            return null;
+        }
+
+        CardController[] nested = panel.GetComponentsInChildren<CardController>(true);
+        if (nested == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < nested.Length; i++)
+        {
+            CardController unit = nested[i];
+            if (unit == null || unit.CurrentHp <= 0 || unit.Data == null || !unit.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            if (unit.MountedPilot == null)
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(unit.MountedPilot, pilot)
+                || (pilot.BattleInstanceId > 0
+                    && unit.MountedPilot.BattleInstanceId == pilot.BattleInstanceId))
+            {
+                return unit;
+            }
+        }
+
+        return null;
     }
 
     private static CardController FindHostUnitMountingPilotInZone(
@@ -13205,8 +13326,9 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // オンライン相手搭乗ミラー等：AI 自動選択で EffectSync 誤送信しない
-        if (_applyingRemoteBattleAction)
+        // オンライン相手ミラー等：AI 自動選択で EffectSync 誤送信しない。
+        // ローカル Player の防御誘発（Argama 等）は相手ターンでも選択 UI を出す。
+        if (_applyingRemoteBattleAction && ownerType != PlayerType.Player)
         {
             onSkipped?.Invoke();
             return;
@@ -13574,6 +13696,19 @@ public partial class BattleGameMain : MonoBehaviour
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
+        Canvas overlayCanvas = root.GetComponent<Canvas>();
+        if (overlayCanvas == null)
+        {
+            overlayCanvas = root.AddComponent<Canvas>();
+        }
+
+        overlayCanvas.overrideSorting = true;
+        overlayCanvas.sortingOrder = 520;
+        if (root.GetComponent<GraphicRaycaster>() == null)
+        {
+            root.AddComponent<GraphicRaycaster>();
+        }
+
         Image dim = root.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.55f);
         dim.raycastTarget = true;

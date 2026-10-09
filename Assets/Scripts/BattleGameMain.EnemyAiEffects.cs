@@ -1381,6 +1381,7 @@ public partial class BattleGameMain
         if (onActionCost > 0)
         {
             AfterLocalResourceConsumed(ruleSide, exToUse, command.Data);
+            RecordPaidUnitEffectCostIfApplicable(side, command, onActionCost);
         }
 
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);

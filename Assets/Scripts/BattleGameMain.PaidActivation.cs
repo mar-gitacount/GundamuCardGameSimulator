@@ -736,6 +736,7 @@ public partial class BattleGameMain
         }
 
         AfterLocalResourceConsumed(ruleSide, exToUse, source.Data);
+        RecordPaidUnitEffectCostIfApplicable(side, source, cost);
         return true;
     }
 

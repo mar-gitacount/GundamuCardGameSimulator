@@ -48,6 +48,8 @@ public enum BoosterProductSet
     PhantomAria = 4,
     [InspectorName("5. Freedom Ascension")]
     FreedomAscension = 5,
+    [InspectorName("6. Stardust Trails")]
+    StardustTrails = 6,
 }
 
 /// <summary>スターター作品（プルダウン用）。</summary>
@@ -111,6 +113,8 @@ public static class CardProductSetNames
                 return japanese ? "Phantom Aria" : "Phantom Aria";
             case BoosterProductSet.FreedomAscension:
                 return japanese ? "Freedom Ascension" : "Freedom Ascension";
+            case BoosterProductSet.StardustTrails:
+                return japanese ? "Stardust Trails" : "Stardust Trails";
             default:
                 return "-";
         }
