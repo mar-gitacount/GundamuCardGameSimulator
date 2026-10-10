@@ -1495,6 +1495,12 @@ public class EffectData
     [Tooltip("Activate 等: true のとき isBlocker の味方ユニットのみ候補。")]
     public bool filterTargetIsBlocker;
 
+    [Tooltip("Activate: true のとき REST→ACTIVE にしても AttackFlg を True にしない（このターン攻撃不可）。")]
+    public bool activateWithoutGrantingAttack;
+
+    [Tooltip("Activate: true のとき対象ユニット（既に ACTIVE 含む）の AttackFlg を False にする。")]
+    public bool denyAttackThisTurn;
+
     [Tooltip("true のとき CardData.color が filterTargetUnitColorValue（CardColor 整数）と一致するユニットのみ候補。")]
     public bool filterTargetUnitColor;
 

@@ -93,6 +93,12 @@ public static class TrashCardQuery
         return count;
     }
 
+    /// <summary>カード ID から CardData を解決（Resources キャッシュ → CardDatabase → DeckSettin）。</summary>
+    public static CardData GetCardData(int cardId)
+    {
+        return ResolveCardData(cardId);
+    }
+
     /// <summary>トラッシュ ID から CardData を解決（Resources キャッシュ → CardDatabase → DeckSettin）。</summary>
     private static Dictionary<int, CardData> _cardDataByIdCache;
 
@@ -198,8 +204,7 @@ public static class TrashCardQuery
     public static int CountByAnyFeature(IReadOnlyList<int> trashCardIds, IReadOnlyList<CardFeatureData> features)
     {
         if (trashCardIds == null || trashCardIds.Count == 0
-            || features == null || features.Count == 0
-            || DeckSettinObject.Instance == null)
+            || features == null || features.Count == 0)
         {
             return 0;
         }
@@ -207,7 +212,7 @@ public static class TrashCardQuery
         int count = 0;
         for (int i = 0; i < trashCardIds.Count; i++)
         {
-            CardData data = DeckSettinObject.Instance.GetCardDataById(trashCardIds[i]);
+            CardData data = ResolveCardData(trashCardIds[i]);
             if (data != null && data.HasAnyFeature(features))
             {
                 count++;

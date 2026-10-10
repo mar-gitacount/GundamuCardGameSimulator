@@ -47,6 +47,21 @@ public static class TimedEffectResolver
         return false;
     }
 
+    /// <summary>解決後効果に Look が含まれるか（TestPlay でも山札確認を出す判定用）。</summary>
+    public static bool ContainsLookEffect(this TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> list = timed.GetResolvedEffects();
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i] != null && list[i].type == EffectType.Look)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static List<EffectData> CollectEffectsByTiming(CardData data, EffectTiming timing)
     {
         List<EffectData> result = new List<EffectData>();

@@ -70,7 +70,7 @@ public partial class BattleGameMain
         return true;
     }
 
-    private static bool TryApplyActivateToUnit(CardController unit)
+    private static bool TryApplyActivateToUnit(CardController unit, bool grantAttack = true)
     {
         if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
         {
@@ -83,7 +83,7 @@ public partial class BattleGameMain
         }
 
         unit.SetUnitRestVisual(false);
-        unit.SetAttackFlg(AttackFlg.True);
+        unit.SetAttackFlg(grantAttack ? AttackFlg.True : AttackFlg.False);
         return true;
     }
 
@@ -108,11 +108,25 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (TryApplyActivateToUnit(target))
+            if (TryApplyActivateToUnit(target, grantAttack: !effect.activateWithoutGrantingAttack))
             {
                 QueueOnlineUnitActivate(target);
                 activated.Add(target);
                 applied++;
+            }
+        }
+
+        if (effect.denyAttackThisTurn)
+        {
+            for (int i = 0; i < targets.Count; i++)
+            {
+                CardController denyTarget = targets[i];
+                if (denyTarget == null || denyTarget.Data == null || !denyTarget.Data.IsUnitLike())
+                {
+                    continue;
+                }
+
+                denyTarget.SetAttackFlg(AttackFlg.False);
             }
         }
 

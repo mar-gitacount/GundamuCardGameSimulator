@@ -121,7 +121,7 @@ public partial class BattleGameMain
 
         for (int i = 0; i < cardIds.Count; i++)
         {
-            CardData data = DeckSettinObject.Instance.GetCardDataById(cardIds[i]);
+            CardData data = TrashCardQuery.GetCardData(cardIds[i]);
             if (data != null)
             {
                 cards.Add(data);
@@ -141,7 +141,7 @@ public partial class BattleGameMain
 
         for (int i = 0; i < peekedIds.Count; i++)
         {
-            CardData data = DeckSettinObject.Instance.GetCardDataById(peekedIds[i]);
+            CardData data = TrashCardQuery.GetCardData(peekedIds[i]);
             if (data == null)
             {
                 continue;

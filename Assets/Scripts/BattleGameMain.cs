@@ -12396,16 +12396,18 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>場に出した時（OnPlayed）。条件付きブロック内の効果を順に解決し、敵ユニット選択が必要なら UI を出す。</summary>
     private void TriggerOnPlayedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
     {
-        if (ShouldSkipAutomaticEffectsInTestPlay())
-        {
-            onComplete?.Invoke();
-            return;
-        }
+        bool skipNonLookAutosInTestPlay = ShouldSkipAutomaticEffectsInTestPlay();
 
         // ST12-001【配備時】はカードデータの汎用対象解決を介さず、ベース領域へ直接解決する。
         // 配備ベース／EXベースがなければ不発。ユニットとシールドには波及しない。
         if (sourceCard?.Data?.id == 1000654)
         {
+            if (skipNonLookAutosInTestPlay)
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
             Gundam2024RuleScript.PlayerSide targetSide =
                 ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player);
             if (!ApplyEffectDamageToBaseAreaOnly(targetSide, 5, sourceCard))
@@ -12429,6 +12431,12 @@ public partial class BattleGameMain : MonoBehaviour
         {
             TimedEffectData timed = sourceCard.Data.timedEffects[i];
             if (timed == null || !timed.IsOnFieldPlayedResolutionBlock())
+            {
+                continue;
+            }
+
+            // TestPlay は自動効果を抑止するが、山札 Look は確認のため解決する。
+            if (skipNonLookAutosInTestPlay && !timed.ContainsLookEffect())
             {
                 continue;
             }
@@ -12598,13 +12606,43 @@ public partial class BattleGameMain : MonoBehaviour
             mountHostUnit: mountHost,
             mountedPilot: mountedPilot,
             observedCards: GetActiveObservedCardsForActivation(),
-            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
-            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            ownerTrashCardIds: CopyTrashIdsIncludingPendingDestroyed(
+                cardGameRule != null ? cardGameRule.GetTrashCardIds() : null,
+                sourceCard,
+                ownerType == PlayerType.Player),
+            opponentTrashCardIds: CopyTrashIdsIncludingPendingDestroyed(
+                enemyCardGameRule != null ? enemyCardGameRule.GetTrashCardIds() : null,
+                sourceCard,
+                ownerType == PlayerType.Enemy),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             destroyingCard: destroyedBy,
             hasDestroyingCardOwner: hasDestroyerOwner,
             destroyingCardOwner: destroyerOwner,
             destroyedUnitWasLinked: destroyedUnitWasLinked);
+    }
+
+    /// <summary>
+    /// 【破壊時】解決時点ではまだ FinishSendCardToTrash 前のため、破壊中のカードをトラッシュ枚数に含める。
+    /// バエル等「トラッシュに〔特徴〕がN枚以上」は、破壊された自身も数える。
+    /// </summary>
+    private static List<int> CopyTrashIdsIncludingPendingDestroyed(
+        IReadOnlyList<int> trashIds,
+        CardController pendingDestroyed,
+        bool includePending)
+    {
+        List<int> result = trashIds != null ? new List<int>(trashIds) : new List<int>();
+        if (!includePending || pendingDestroyed == null || pendingDestroyed.Data == null)
+        {
+            return result;
+        }
+
+        int cardId = pendingDestroyed.Data.id;
+        if (cardId > 0)
+        {
+            result.Add(cardId);
+        }
+
+        return result;
     }
 
     private void RunOnDestroyedTimedBlocks(
@@ -21007,8 +21045,11 @@ public partial class BattleGameMain : MonoBehaviour
             FilterOutAlreadyRestedUnits(result);
         }
 
-        // Self の ACTIVE 化は既に ACTIVE でも後続効果を解決するため、REST 絞り込みしない
-        if (effect.type == EffectType.Activate && effect.target != TargetType.Self)
+        // Self の ACTIVE 化は既に ACTIVE でも後続効果を解決するため、REST 絞り込みしない。
+        // denyAttackThisTurn は既に ACTIVE の対象にも AttackFlg False を付けるため REST 限定しない。
+        if (effect.type == EffectType.Activate
+            && effect.target != TargetType.Self
+            && !effect.denyAttackThisTurn)
         {
             FilterOutNonRestedUnits(result);
         }

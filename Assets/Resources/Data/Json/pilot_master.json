@@ -809,6 +809,12 @@
             "pilotKey": "Harry_Ord",
             "displayName": "ハリー・オード",
             "description": ""
+        },
+        {
+            "id": 136,
+            "pilotKey": "Mashymre_Cello",
+            "displayName": "マシュマー・セロ",
+            "description": ""
         }
     ]
 }
