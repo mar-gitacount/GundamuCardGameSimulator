@@ -102,6 +102,9 @@ public class CardData : ScriptableObject
     [Tooltip("pairFromHandCostReduction 用。搭乗先が持つ必要がある Feature（例: Dianna Counter）。")]
     public CardFeatureData pairFromHandHostFeature;
 
+    [Tooltip("true のとき、搭乗先ユニットの Link 条件がこのパイロットと一致する場合のみコスト減（GD06-086 Mashymre Cello）。")]
+    public bool pairFromHandRequireLinkMatch;
+
     [Header("公式カード番号（GCG）")]
     [Tooltip("種別・セット番号・カード番号。1 と 1 なら ST01-001。入力した数値がそのまま使われる。")]
     public GcgIdParts gcgId = new GcgIdParts();

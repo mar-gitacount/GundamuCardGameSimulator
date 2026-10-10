@@ -5706,6 +5706,77 @@
                     "selectionMode": -1
                 }
             ]
+        },
+        {
+            "effectSetName": "RecoverHp1_Self",
+            "displayName": "自身を1回復",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                }
+            ]
+        },
+        {
+            "effectSetName": "ActivateAllyBlockers_DiannaOrMilitia_NoAttackThisTurn",
+            "displayName": "〔Dianna Counter〕／〔Militia〕のブロッカーをすべてアクティブにし、このターン攻撃不可",
+            "effects": [
+                {
+                    "type": 25,
+                    "value": 0,
+                    "target": 3,
+                    "selectionMode": -1,
+                    "targetFeatureIds": [79, 24],
+                    "filterTargetIsBlocker": true,
+                    "activateWithoutGrantingAttack": true,
+                    "denyAttackThisTurn": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAttackActiveEnemy_AllyGjallarhorn_EnemyLv5OrLess_UntilEOT",
+            "displayName": "〔Gjallarhorn〕味方1体に、Lv.5以下のACTIVE敵ユニットへの攻撃許可（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "targetFeatureId": 43,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLook_OptionalDeployGjallarhornOrTekkadan_Lv6OrLess_ThenShuffleRemainderBottom",
+            "displayName": "OnLook：〔Gjallarhorn〕／〔Tekkadan〕のLv.6以下ユニット1枚を配備してもよい→残りを山札下へランダム",
+            "effects": [
+                {
+                    "type": 51,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "filterDeployCandidateByFeature": true,
+                    "targetFeatureIds": [43, 28],
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 6,
+                    "optionalPlayerConfirm": true
+                },
+                {
+                    "type": 16,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1
+                }
+            ]
         }
     ]
 }

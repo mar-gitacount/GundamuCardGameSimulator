@@ -4842,6 +4842,31 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0206d06000000000000000000000009
+    m_Address: Data/Images/GD06-020_Hamma-Hamma
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0656d0600000000000000000000000a
+    m_Address: Data/Images/GD06-065_SUMO Gold Type
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0866d0600000000000000000000000b
+    m_Address: Data/Images/GD06-086_Mashymre Cello
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0896d0600000000000000000000000c
+    m_Address: Data/Images/GD06-089_McGillis Fareed
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0346d0600000000000000000000000d
+    m_Address: Data/Images/GD06-034_Gundam Bael
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

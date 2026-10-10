@@ -34,6 +34,11 @@ public static class CardPairFromHandCost
             return false;
         }
 
+        if (pilot.pairFromHandRequireLinkMatch && !UnitLinkExtensions.MatchesLinkPilot(host.Data, pilot))
+        {
+            return false;
+        }
+
         return true;
     }
 

@@ -1,0 +1,123 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD06-034 Gundam Bael
+  m_EditorClassIdentifier: 
+  id: 1000813
+  gcgOfficialId: GD06-034
+  cardName: "Gundam Bael"
+  cost: 6
+  level: 7
+  power: 5
+  hp: 5
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD06-034_Gundam Bael"
+  version: 6
+  sourceType: 1
+  productLine: 1
+  boosterSet: 6
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 16
+  filterType: 0
+  color: 0
+  type: 0
+  battleZones: 3
+  attackFlg: 0
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: HighMobility
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 0
+    activationConditions:
+    - boardSide: 4
+      checkKind: 15
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: 12cd7876f4ab43c3b9b0ba524711392d, type: 2}
+      featureId: 43
+      features: []
+      featureIds: 
+      minimumCount: 4
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: LookTop4_SelfDeck
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnLook_OptionalDeployGjallarhornOrTekkadan_Lv6OrLess_ThenShuffleRemainderBottom
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: 12cd7876f4ab43c3b9b0ba524711392d, type: 2}
+  - {fileID: 11400000, guid: bd413e1e04b1425b9fe43d31098a94f3, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds:
+    - {fileID: 11400000, guid: 1bd599d606ec4820aa49a1f2fd886858, type: 2}
+    linkPilotIdIds: 
+    pilotFeatures: []
+    pilotFeatureIds: 
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
+    pilotFeatures:
+    - {fileID: 11400000, guid: 12cd7876f4ab43c3b9b0ba524711392d, type: 2}
+    pilotFeatureIds: 
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
+    pilotFeatures:
+    - {fileID: 11400000, guid: bd413e1e04b1425b9fe43d31098a94f3, type: 2}
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  hideFromCardList: 0
+  cannotMountPilot: 0
+  pairFromHandCostReduction: 0
+  pairFromHandHostMinLevel: 0
+  pairFromHandHostFeature: {fileID: 0}
+  pairFromHandRequireLinkMatch: 0
+  gcgId:
+    setKind: 2
+    setNumber: 6
+    cardNumber: 34
