@@ -192,9 +192,20 @@ public partial class BattleGameMain
         statBgImg.color = new Color(0f, 0f, 0f, 0.6f);
         statBgImg.raycastTarget = false;
 
-        string statLine = liveCard.Data.IsCommand()
-            ? $"COST {liveCard.CurrentCost}"
-            : $"AP {liveCard.CurrentPower}  HP {liveCard.CurrentHp}" + (liveCard.IsRestState ? "  REST" : "");
+        string statLine;
+        if (liveCard.Data.IsCommand())
+        {
+            statLine = $"COST {liveCard.CurrentCost}";
+        }
+        else if (liveCard.Data.type == Type.Base)
+        {
+            statLine = $"BASE  HP {liveCard.CurrentHp}";
+        }
+        else
+        {
+            statLine = $"AP {liveCard.CurrentPower}  HP {liveCard.CurrentHp}"
+                + (liveCard.IsRestState ? "  REST" : "");
+        }
 
         TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 116, 34);
         statText.text = statLine;
@@ -614,8 +625,16 @@ public partial class BattleGameMain
         arrow.color = Color.white;
         arrow.GetComponent<RectTransform>().anchoredPosition = new Vector2(commandCardX + 95f, -150f);
 
-        TextMeshProUGUI targetLabel = root.CreateChildTextCustom("TargetLabel", UIAnchor.TopCenter, 320, 24);
-        targetLabel.SetLocalizedText("対象を選択", "Select a target");
+        TextMeshProUGUI targetLabel = root.CreateChildTextCustom("TargetLabel", UIAnchor.TopCenter, 520, 24);
+        if (!string.IsNullOrEmpty(titleText)
+            && (titleText.Contains("代わりにダメージ") || titleText.Contains("take the damage")))
+        {
+            targetLabel.text = titleText;
+        }
+        else
+        {
+            targetLabel.SetLocalizedText("対象を選択", "Select a target");
+        }
         targetLabel.fontSize = 17;
         targetLabel.color = Color.white;
         targetLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -268f);
@@ -635,13 +654,16 @@ public partial class BattleGameMain
                 bool highlight = showAttackContext && candidate == attackingUnitInAttackFlow;
                 string roleLabel = blockRedirectUnitInAttackFlow != null && candidate == blockRedirectUnitInAttackFlow
                     ? "Blocked"
-                    : null;
+                    : (candidate != null && candidate.Data != null && candidate.Data.type == Type.Base
+                        ? GameLocale.T("ベース", "Base")
+                        : null);
                 AppendSelectableTargetCardToGrid(
                     content,
                     candidate,
                     highlight,
                     picked =>
                     {
+                        BindIncomingBattleDamageRedirectOnActionTargetClick(sourceCard, picked);
                         Destroy(root);
                         if (activeOnActionPopupRoot == root)
                         {

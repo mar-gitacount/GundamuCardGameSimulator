@@ -20,6 +20,7 @@ public class OnlineBattleZoneSyncPayload
     public const string DeckToExile = "DeckToExile";
     public const string TrashToExile = "TrashToExile";
     public const string AddTrash = "AddTrash";
+    public const string RemoveTrash = "RemoveTrash";
 
     public static string ToJson(
         string mutation,

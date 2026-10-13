@@ -475,6 +475,24 @@
             "description": ""
         },
         {
+            "id": 80,
+            "featureKey": "Albion_Squad",
+            "displayName": "アルビオン隊",
+            "description": ""
+        },
+        {
+            "id": 81,
+            "featureKey": "Delaz_Fleet",
+            "displayName": "デラーズ・フリート",
+            "description": ""
+        },
+        {
+            "id": 82,
+            "featureKey": "Gundam_Team",
+            "displayName": "ガンダムチーム",
+            "description": ""
+        },
+        {
             "id": 10000,
             "featureKey": "test",
             "displayName": "test",

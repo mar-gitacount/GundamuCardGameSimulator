@@ -49,6 +49,8 @@ public enum CardSourceTitle
     SdGGenerationEternal = 20,
     [InspectorName("Mobile Suit Gundam ZZ")]
     MobileSuitGundamZZ = 21,
+    [InspectorName("Mobile Suit Gundam 0083: Stardust Memory")]
+    Gundam0083 = 22,
 }
 
 /// <summary>作品タイトルの表示・検索用。</summary>
@@ -100,6 +102,8 @@ public static class CardSourceTitleNames
                 return "SD Gundam G Generation ETERNAL";
             case CardSourceTitle.MobileSuitGundamZZ:
                 return "Mobile Suit Gundam ZZ";
+            case CardSourceTitle.Gundam0083:
+                return "Mobile Suit Gundam 0083: Stardust Memory";
             default:
                 return "-";
         }

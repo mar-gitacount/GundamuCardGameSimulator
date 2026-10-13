@@ -4867,6 +4867,101 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0046d0600000000000000000000000e
+    m_Address: Data/Images/GD06-004_Gundam GP01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0106d0600000000000000000000000f
+    m_Address: Data/Images/GD06-010_GM Cannon II
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0526d06000000000000000000000010
+    m_Address: Data/Images/GD06-052_Val Walo
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0546d06000000000000000000000011
+    m_Address: Data/Images/GD06-054_G-fred
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0596d06000000000000000000000012
+    m_Address: Data/Images/GD06-059_Dom Tropen
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1146d06000000000000000000000013
+    m_Address: Data/Images/GD06-114_Alphaciders
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0396d06000000000000000000000014
+    m_Address: Data/Images/GD06-039_Neo Core Fighter
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0446d06000000000000000000000015
+    m_Address: Data/Images/GD06-044_Core Top
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0456d06000000000000000000000016
+    m_Address: Data/Images/GD06-045_Core Base
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0846d06000000000000000000000017
+    m_Address: Data/Images/GD06-084_Elpeo Ple
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0186d06000000000000000000000018
+    m_Address: Data/Images/GD06-018_Elpeo Ples Qubeley Mk-II
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0296d06000000000000000000000019
+    m_Address: Data/Images/GD06-029_Elpeo Ples Qubeley Mk-II
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0806d0600000000000000000000001a
+    m_Address: Data/Images/GD06-080_Kou Uraki
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0016d06000000000000000000000021
+    m_Address: Data/Images/GD06-001_Gundam GP01 Fb
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0096d06000000000000000000000022
+    m_Address: Data/Images/GD06-009_GM Custom
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0886d06000000000000000000000023
+    m_Address: Data/Images/GD06-088_Judau Ashta
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0336d06000000000000000000000024
+    m_Address: Data/Images/GD06-033_ZZ Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0776d06000000000000000000000025
+    m_Address: Data/Images/GD06-077_Cannon Illfuto
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0766d06000000000000000000000026
+    m_Address: Data/Images/GD06-076_WaDom
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

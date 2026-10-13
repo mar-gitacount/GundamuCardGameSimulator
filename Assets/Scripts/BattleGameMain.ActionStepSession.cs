@@ -267,6 +267,9 @@ public partial class BattleGameMain
         string context = _actionStepSession.ContextFor(side);
         CardController attackingUnit = _actionStepSession.AttackingUnit;
 
+        // GD06-001 被攻撃ドロー等をこのサイドのアクション開始時に解決する。
+        TryResolveWhenAttackedDrawsAtActionStep(side);
+
         if (IsOnlineBattle())
         {
             RunOnlineOnActionStepBody(side, context, null, attackingUnit);

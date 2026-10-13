@@ -55,7 +55,27 @@ public partial class BattleGameMain
             defender = _actionStepSession.DefendingUnit;
         }
 
+        if (_actionStepSession == null || !_actionStepSession.IsAttackContext)
+        {
+            return 0;
+        }
+
         return defender != null ? defender.BattleInstanceId : 0;
+    }
+
+    private static bool IsRemoteOnActionAttackContext(string context)
+    {
+        if (string.IsNullOrWhiteSpace(context))
+        {
+            return false;
+        }
+
+        if (context.IndexOf("turn end", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return false;
+        }
+
+        return context.IndexOf("attack", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     /// <summary>リモート OnActionBegin 受信時に交戦ペアをローカル攻撃フローへ復元する。</summary>
@@ -309,8 +329,11 @@ public partial class BattleGameMain
         }
         int requestId = ++_onlineOnActionRequestIdCounter;
         _pendingOnlineOnActionRequestId = requestId;
-        int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
-        int defenderInstanceId = ResolveOnActionDefenderInstanceIdForSend();
+        bool sendAttackPair = _actionStepSession != null && _actionStepSession.IsAttackContext;
+        int attackerInstanceId = sendAttackPair && attackingUnitInAttackFlow != null
+            ? attackingUnitInAttackFlow.BattleInstanceId
+            : 0;
+        int defenderInstanceId = sendAttackPair ? ResolveOnActionDefenderInstanceIdForSend() : 0;
         string beginMessage = EosOnlineBattleMessage.CreateOnActionBegin(
             OnlineBattleActionPayload.CreateOnActionBegin(
                 requestId,
@@ -367,8 +390,11 @@ public partial class BattleGameMain
         int requestId = ++_onlineOnActionRequestIdCounter;
         _pendingOnlineOnActionRequestId = requestId;
         _pendingOnlineOnActionCallback = onComplete;
-        int attackerInstanceId = attackingUnitInAttackFlow != null ? attackingUnitInAttackFlow.BattleInstanceId : 0;
-        int defenderInstanceId = ResolveOnActionDefenderInstanceIdForSend();
+        bool sendAttackPair = _actionStepSession != null && _actionStepSession.IsAttackContext;
+        int attackerInstanceId = sendAttackPair && attackingUnitInAttackFlow != null
+            ? attackingUnitInAttackFlow.BattleInstanceId
+            : 0;
+        int defenderInstanceId = sendAttackPair ? ResolveOnActionDefenderInstanceIdForSend() : 0;
         RememberTurnEndActionStepFromContext(context);
         string beginMessage = EosOnlineBattleMessage.CreateOnActionBegin(
             OnlineBattleActionPayload.CreateOnActionBegin(
@@ -473,11 +499,16 @@ public partial class BattleGameMain
             }
         }
 
-        // 被攻撃側クライアントでも交戦ペアを復元（ST12-011 等のバトル中判定用）
-        PrepareOnActionCombatContextFromIds(
-            action.attackerInstanceId,
-            action.defenderInstanceId,
-            attackingUnit);
+        bool isAttackOnAction = IsRemoteOnActionAttackContext(action.onActionContext);
+        if (isAttackOnAction)
+        {
+            // 被攻撃側クライアントでも交戦ペアを復元（ST12-011 等のバトル中判定用）
+            PrepareOnActionCombatContextFromIds(
+                action.attackerInstanceId,
+                action.defenderInstanceId,
+                attackingUnit);
+            TryResolveWhenAttackedDrawsAtActionStep(PlayerType.Player, treatAsAttackContext: true);
+        }
 
         string context = string.IsNullOrWhiteSpace(action.onActionContext)
             ? "attack:remote-enemy-action"

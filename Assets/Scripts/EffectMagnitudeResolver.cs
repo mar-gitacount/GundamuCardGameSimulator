@@ -58,11 +58,7 @@ public static class EffectMagnitudeResolver
         switch (effect.valueCountKind)
         {
             case EffectValueCountKind.CardsWithFeature:
-                return CountCardsWithFeature(
-                    zone,
-                    ResolveValueCountFeature(effect),
-                    effect,
-                    sourceCard);
+                return CountCardsWithAnyValueCountFeature(zone, effect, sourceCard);
             case EffectValueCountKind.UnitsWithLevelAtLeast:
                 return CountAliveUnitsWithLevelAtLeast(zone, effect.valueCountMinUnitLevel, effect, sourceCard);
             case EffectValueCountKind.SourceUnitApPerEvery:
@@ -71,7 +67,7 @@ public static class EffectMagnitudeResolver
                 return CountRestedAliveUnits(zone, effect, sourceCard);
             case EffectValueCountKind.AliveUnits:
             default:
-                return CountAliveUnits(zone, effect, sourceCard);
+                return CountAliveUnits(zone, effect, sourceCard, requireValueCountFeature: true);
         }
     }
 
@@ -126,13 +122,21 @@ public static class EffectMagnitudeResolver
     private static int CountAliveUnits(
         IReadOnlyList<CardController> cards,
         EffectData effect,
-        CardController sourceCard)
+        CardController sourceCard,
+        bool requireValueCountFeature = false)
     {
         int n = 0;
         for (int i = 0; i < cards.Count; i++)
         {
             CardController c = cards[i];
             if (!IsAliveUnit(c) || ShouldExcludeSource(c, effect, sourceCard))
+            {
+                continue;
+            }
+
+            if (requireValueCountFeature
+                && HasValueCountFeatureFilter(effect)
+                && !MatchesAnyValueCountFeature(c, effect))
             {
                 continue;
             }
@@ -234,13 +238,63 @@ public static class EffectMagnitudeResolver
         return null;
     }
 
-    private static int CountCardsWithFeature(
+    private static bool HasValueCountFeatureFilter(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return false;
+        }
+
+        if (effect.valueCountFeature != null || effect.valueCountFeatureId > 0)
+        {
+            return true;
+        }
+
+        return effect.valueCountFeatureIds != null && effect.valueCountFeatureIds.Length > 0;
+    }
+
+    private static bool MatchesAnyValueCountFeature(CardController unit, EffectData effect)
+    {
+        if (unit == null || unit.Data == null || effect == null)
+        {
+            return false;
+        }
+
+        if (effect.valueCountFeature != null
+            && (unit.Data.HasFeature(effect.valueCountFeature)
+                || unit.Data.HasFeatureId(effect.valueCountFeature.id)))
+        {
+            return true;
+        }
+
+        if (effect.valueCountFeatureId > 0 && unit.Data.HasFeatureId(effect.valueCountFeatureId))
+        {
+            return true;
+        }
+
+        if (effect.valueCountFeatureIds == null || effect.valueCountFeatureIds.Length == 0)
+        {
+            return effect.valueCountFeature != null || effect.valueCountFeatureId > 0;
+        }
+
+        for (int i = 0; i < effect.valueCountFeatureIds.Length; i++)
+        {
+            int featureId = effect.valueCountFeatureIds[i];
+            if (featureId > 0 && unit.Data.HasFeatureId(featureId))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountCardsWithAnyValueCountFeature(
         IReadOnlyList<CardController> cards,
-        CardFeatureData feature,
         EffectData effect,
         CardController sourceCard)
     {
-        if (feature == null)
+        if (!HasValueCountFeatureFilter(effect))
         {
             return 0;
         }
@@ -255,7 +309,7 @@ public static class EffectMagnitudeResolver
                 continue;
             }
 
-            if (c.Data.HasFeature(feature) || c.Data.HasFeatureId(feature.id))
+            if (MatchesAnyValueCountFeature(c, effect))
             {
                 n++;
             }

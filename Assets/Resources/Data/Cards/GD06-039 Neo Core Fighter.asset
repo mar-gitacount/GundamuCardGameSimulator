@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD06-039 Neo Core Fighter
+  m_EditorClassIdentifier: 
+  id: 1000820
+  gcgOfficialId: GD06-039
+  cardName: "Neo Core Fighter"
+  cost: 2
+  level: 2
+  power: 1
+  hp: 2
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD06-039_Neo Core Fighter"
+  version: 6
+  sourceType: 1
+  productLine: 1
+  boosterSet: 6
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 2
+  filterType: 0
+  color: 0
+  type: 0
+  battleZones: 3
+  attackFlg: 0
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: OnMain_Destroy2UniqueNameLv3GundamTeam_AndSelf_ThenDeployHandGundamTeamLv8Plus
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
+  - {fileID: 11400000, guid: f0826d06000000000000000000000082, type: 2}
+  pilotIds: []
+  link:
+  - pilotCardId: 0
+    linkPilotIds: []
+    linkPilotIdIds: 
+    pilotFeatures:
+    - {fileID: 11400000, guid: f0826d06000000000000000000000082, type: 2}
+    pilotFeatureIds: 
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  hideFromCardList: 0
+  cannotMountPilot: 0
+  pairFromHandCostReduction: 0
+  pairFromHandHostMinLevel: 0
+  pairFromHandHostFeature: {fileID: 0}
+  pairFromHandRequireLinkMatch: 0
+  gcgId:
+    setKind: 2
+    setNumber: 6
+    cardNumber: 39

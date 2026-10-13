@@ -993,6 +993,7 @@ public partial class BattleGameMain
 
         context.TakenCardIds.Add(entry.CardId);
         AddCardIdToHand(handRule, handOwner, entry.CardId);
+        NoteEffectDrawResolved(handOwner, 1);
         Debug.Log(
             $"[Effect] AddToHandFromLooked {entry.Data.cardName}(id:{entry.CardId}) "
             + $"feature:{effect?.FormatTargetFeaturesLabel() ?? "any"} "
@@ -1554,6 +1555,11 @@ public partial class BattleGameMain
         {
             context.TakenCardIds.Add(handIds[i]);
             AddCardIdToHand(context.DeckRule, context.OwnerType, handIds[i]);
+        }
+
+        if (handIds.Count > 0)
+        {
+            NoteEffectDrawResolved(context.OwnerType, handIds.Count);
         }
 
         int deckRemain = context.DeckRule.GetRemainingCount();

@@ -425,7 +425,17 @@ public enum EffectType
     /// 【配備時】等で RestEnemyUnit + Lv 条件と組み合わせる。スタートフェイズの通常アクティブ化のみ阻害。
     /// 効果による Activate は有効。UntilEndOfTurn では消さない（次の相手スタートまで残す）。
     /// </summary>
-    PreventNextStartPhaseActive
+    PreventNextStartPhaseActive,
+    /// <summary>
+    /// 手動選択した味方ユニット／配備ベースへ、このユニットが受ける戦闘ダメージをこのバトル中リダイレクトする
+    /// （GD06-018 等）。duration=UntilEndOfBattle。効果ダメージは対象外。
+    /// </summary>
+    RedirectIncomingBattleDamage,
+    /// <summary>
+    /// フィールド上にある限り、味方の指定特徴カードが敵ユニットへ与えるダメージを value 増加する
+    /// （GD06-033 〔エゥーゴ〕+1 等）。targetFeatureId で特徴を指定。ApplyEffect はマーカーのみ。
+    /// </summary>
+    IncreaseAllyFeatureDamageToEnemyUnits
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -567,7 +577,8 @@ public static class EffectTypeExtensions
             || type == EffectType.Damage
             || type == EffectType.RecoverHp
             || type == EffectType.CannotBeChosenAsAttackTarget
-            || type == EffectType.PreventNextStartPhaseActive;
+            || type == EffectType.PreventNextStartPhaseActive
+            || type == EffectType.RedirectIncomingBattleDamage;
     }
 
     /// <summary>手札から対象を選ぶ UI が必要なタイプ。</summary>
@@ -1000,7 +1011,12 @@ public enum EffectActivationCheckKind
     /// コスト合計を compareOp + compareValue と比較。
     /// 例: ユニット効果に合計3以上支払っている → GreaterOrEqual + 3。
     /// </summary>
-    OwnerPaidUnitEffectCostThisTurn
+    OwnerPaidUnitEffectCostThisTurn,
+    /// <summary>
+    /// このターン中、オーナーが効果（Draw）で1枚以上山札から手札へ加えている。
+    /// ターン開始の通常ドローは含まない（GD06-080 コウ・ウラキ等）。
+    /// </summary>
+    OwnerDrewWithEffectThisTurn
 }
 
 public enum EffectTurnCheckKind
@@ -1352,6 +1368,9 @@ public class EffectData
     [Tooltip("JSON 用。valueCountFeature 未設定時に ID で解決（0=未指定）。")]
     public int valueCountFeatureId;
 
+    [Tooltip("MultiplyByBoardCount で複数 Feature のいずれか（OR）を数える。JSON 用 ID 配列。")]
+    public int[] valueCountFeatureIds;
+
     [Tooltip("UnitsWithLevelAtLeast の最低 Lv。AttackActiveEnemyUnit の味方付与では付与先の最低 Lv にも流用。")]
     public int valueCountMinUnitLevel;
 
@@ -1520,6 +1539,9 @@ public class EffectData
 
     [Tooltip("SelectMultipleUnits 等: 最大選択体数（0 なら上限なし）。")]
     public int selectMaxCount;
+
+    [Tooltip("複数選択時、選んだカード名がすべて異なること（ネオ・コア・ファイター等）。")]
+    public bool requireDistinctCardNames;
 
     [Tooltip("MarkObservedUnit: 監視する行動種別。Unset なら EnemyUnitDestroyed（シールド／配備ベース／EXベース破壊でも同報酬が発動）。")]
     public ObservedUnitTriggerKind observedUnitTriggerKind = ObservedUnitTriggerKind.Unset;
@@ -2463,6 +2485,18 @@ public static class EffectDataExtensions
             return string.Empty;
         }
 
+        if (effect.type == EffectType.RedirectIncomingBattleDamage)
+        {
+            string redirectFilter = effect.FormatTargetUnitFilterDescription();
+            return string.IsNullOrEmpty(redirectFilter)
+                ? GameLocale.T(
+                    "代わりにダメージを受けるカードを選択",
+                    "Choose a card to take the damage instead")
+                : GameLocale.T(
+                    $"代わりにダメージを受けるカードを選択（〔ネオジオン〕／〔遠隔兵器〕ユニット、または〔ネオジオン〕ベース）",
+                    $"Choose a card to take the damage instead (Neo Zeon / Remote Weapon Unit, or Neo Zeon Base)");
+        }
+
         string filter = effect.FormatTargetUnitFilterDescription();
         string statNote = effect.statTarget == EffectStatTarget.IncomingDamageReduction
             || effect.statTarget == EffectStatTarget.BattleDamageFromEnemyUnitReduction
@@ -2649,7 +2683,25 @@ public static class EffectDataExtensions
     /// <summary>バトルゾーンの手動選択候補がカード種類・AttackFlg 条件を満たすか。</summary>
     public static bool MatchesSelectableBattleZoneTarget(this EffectData effect, CardController unit)
     {
-        if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        if (effect == null || unit == null || unit.Data == null)
+        {
+            return false;
+        }
+
+        // GD06-018 等: 戦闘ダメージの受け替え先は味方ユニットに加え、配備ベースも可。
+        if (effect.type == EffectType.RedirectIncomingBattleDamage
+            && unit.Data.type == Type.Base
+            && unit.CurrentHp > 0)
+        {
+            if (effect.HasTargetFeatureFilter() && !unit.HasAnyFeature(effect.GetTargetFeatures()))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!unit.Data.IsUnitLike())
         {
             return false;
         }

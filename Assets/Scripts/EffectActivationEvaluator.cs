@@ -75,6 +75,9 @@ public sealed class EffectActivationContext
     /// </summary>
     public int OwnerPaidUnitEffectCostThisTurn { get; }
 
+    /// <summary>このターン中、オーナーが効果で1枚以上ドローしたか。</summary>
+    public bool OwnerDrewWithEffectThisTurn { get; }
+
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
@@ -120,7 +123,8 @@ public sealed class EffectActivationContext
         int ownerTotalLevel = -1,
         int ownerExResource = -1,
         bool ownerActivatedResourceByEffectThisTurn = false,
-        int ownerPaidUnitEffectCostThisTurn = -1)
+        int ownerPaidUnitEffectCostThisTurn = -1,
+        bool ownerDrewWithEffectThisTurn = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -152,6 +156,7 @@ public sealed class EffectActivationContext
         OwnerExResource = ownerExResource;
         OwnerActivatedResourceByEffectThisTurn = ownerActivatedResourceByEffectThisTurn;
         OwnerPaidUnitEffectCostThisTurn = ownerPaidUnitEffectCostThisTurn;
+        OwnerDrewWithEffectThisTurn = ownerDrewWithEffectThisTurn;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -222,7 +227,8 @@ public sealed class EffectActivationContext
             OwnerTotalLevel,
             OwnerExResource,
             OwnerActivatedResourceByEffectThisTurn,
-            OwnerPaidUnitEffectCostThisTurn);
+            OwnerPaidUnitEffectCostThisTurn,
+            OwnerDrewWithEffectThisTurn);
     }
 }
 
@@ -513,6 +519,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.OwnerPaidUnitEffectCostThisTurn)
         {
             return EvaluateOwnerPaidUnitEffectCostThisTurn(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerDrewWithEffectThisTurn)
+        {
+            return ctx != null && ctx.OwnerDrewWithEffectThisTurn;
         }
 
         if (c.checkKind == EffectActivationCheckKind.SourceIsAttacking)
@@ -1255,13 +1266,26 @@ public static class EffectActivationEvaluator
 
     private static bool EvaluateSourceUnitLinked(EffectActivationContext ctx, bool expectLinked)
     {
+        // 【破壊時】は切り離し後に評価する。切り離し前にリンク成立していればそれを優先する
+        // （GD06-088 ジュドー等。ホスト参照が既に null でも落とさない）。
+        if (expectLinked && ctx != null && ctx.DestroyedUnitWasLinked)
+        {
+            return true;
+        }
+
         CardController unit = ResolveLinkConditionUnit(ctx);
         if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
         {
             return !expectLinked;
         }
 
-        bool linked = UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot);
+        CardController pilot = unit.MountedPilot != null ? unit.MountedPilot : ctx.MountedPilot;
+        bool linked = UnitLinkExtensions.HasValidLinkPilot(unit.Data, pilot);
+        if (!linked && ctx.DestroyedUnitWasLinked)
+        {
+            linked = true;
+        }
+
         return linked == expectLinked;
     }
 

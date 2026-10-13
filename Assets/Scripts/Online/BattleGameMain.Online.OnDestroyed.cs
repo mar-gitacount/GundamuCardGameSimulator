@@ -277,8 +277,10 @@ public partial class BattleGameMain
 
         PlayerType ownerType = ResolveCardOwner(unit.transform);
         CardController detachedPilot = null;
+        bool destroyedUnitWasLinked = false;
         if (unit.Data.IsUnitLike() && unit.MountedPilot != null)
         {
+            destroyedUnitWasLinked = UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot);
             detachedPilot = unit.DetachMountedPilotWithoutDestroy();
             _onDestroyedPendingDetachedPilot = detachedPilot;
         }
@@ -300,19 +302,23 @@ public partial class BattleGameMain
                 {
                     if (detachedPilot != null && !IsCardInOwnerHand(detachedPilot, ownerType))
                     {
-                        FinishSendCardToTrash(detachedPilot, ownerType);
+                        // 破壊側が既に FinishSendCardToTrash + ZoneSync AddTrash 済み。
+                        // ここでも積むと双方のトラッシュがパイロット2枚になる。
+                        ApplyRemoteUnitRemovedFromField(detachedPilot);
                     }
 
                     _onDestroyedPendingDetachedPilot = null;
                     Complete();
                 },
-                entry.DestroyedBy);
+                entry.DestroyedBy,
+                destroyedUnitWasLinked);
             return;
         }
 
         if (detachedPilot != null)
         {
-            FinishSendCardToTrash(detachedPilot, ownerType);
+            // 破壊側の ZoneSync AddTrash に任せ、所有者側では実体のみ除去する。
+            ApplyRemoteUnitRemovedFromField(detachedPilot);
         }
 
         _onDestroyedPendingDetachedPilot = null;

@@ -16,6 +16,25 @@ public partial class BattleGameMain
     /// <summary>ChooseOne を Cancel したとき true。OnMain のトラッシュ／後続ブロックを抑止する。</summary>
     private bool _chooseOneCancelled;
 
+    /// <summary>OnAction 解決リストに ChooseOne があるか（Alphaciders 等。ST12-008 専用分岐の一般化）。</summary>
+    private static bool HasOnActionChooseOneEffect(IReadOnlyList<EffectData> effects)
+    {
+        if (effects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (effects[i] != null && effects[i].type == EffectType.ChooseOne)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>ChooseOne / RestResource / AddFromTrashToHand など、選択後に枝効果を順に解決する。</summary>
     private void ApplyChooseOneEffect(
         CardController sourceCard,

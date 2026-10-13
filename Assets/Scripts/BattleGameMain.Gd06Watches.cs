@@ -948,4 +948,90 @@ public partial class BattleGameMain
 
         FlushOnlineEffectSyncBatch();
     }
+
+    /// <summary>
+    /// GD06-033 等：フィールド上の IncreaseAllyFeatureDamageToEnemyUnits を合計し、
+    /// 味方の指定特徴カードが敵ユニットへ与えるダメージを増やす。
+    /// </summary>
+    private int ResolveAllyFeatureOutgoingDamageBonus(
+        PlayerType sourceOwner,
+        CardController sourceCard,
+        CardController enemyUnitTarget)
+    {
+        if (sourceCard == null || sourceCard.Data == null || enemyUnitTarget == null || enemyUnitTarget.Data == null)
+        {
+            return 0;
+        }
+
+        if (!enemyUnitTarget.Data.IsUnitLike())
+        {
+            return 0;
+        }
+
+        PlayerType targetOwner = ResolveCardOwner(enemyUnitTarget.transform);
+        if (targetOwner == sourceOwner)
+        {
+            return 0;
+        }
+
+        int bonus = 0;
+        AccumulateAllyFeatureOutgoingDamageBonus(playerBattleZoneCards, sourceOwner, sourceCard, ref bonus);
+        AccumulateAllyFeatureOutgoingDamageBonus(enemyBattleZoneCards, sourceOwner, sourceCard, ref bonus);
+        return bonus;
+    }
+
+    private void AccumulateAllyFeatureOutgoingDamageBonus(
+        List<CardController> zone,
+        PlayerType sourceOwner,
+        CardController sourceCard,
+        ref int bonus)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController watcher = zone[i];
+            if (watcher == null
+                || watcher.Data == null
+                || watcher.CurrentHp <= 0
+                || watcher.Data.timedEffects == null)
+            {
+                continue;
+            }
+
+            if (ResolveCardOwner(watcher.transform) != sourceOwner)
+            {
+                continue;
+            }
+
+            for (int t = 0; t < watcher.Data.timedEffects.Count; t++)
+            {
+                TimedEffectData timed = watcher.Data.timedEffects[t];
+                if (timed == null || !timed.HasResolvedEffects())
+                {
+                    continue;
+                }
+
+                IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+                for (int e = 0; e < resolved.Count; e++)
+                {
+                    EffectData effect = resolved[e];
+                    if (effect == null || effect.type != EffectType.IncreaseAllyFeatureDamageToEnemyUnits)
+                    {
+                        continue;
+                    }
+
+                    if (effect.HasTargetFeatureFilter() && !sourceCard.HasAnyFeature(effect.GetTargetFeatures()))
+                    {
+                        continue;
+                    }
+
+                    bonus += Mathf.Max(0, effect.value);
+                }
+            }
+        }
+    }
 }

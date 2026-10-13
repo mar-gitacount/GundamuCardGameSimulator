@@ -101,6 +101,14 @@ public static class CardHighMobilityExtensions
             return false;
         }
 
+        BattleGameMain battle = UnityEngine.Object.FindObjectOfType<BattleGameMain>();
+        if (battle != null
+            && battle.TryBuildHighMobilityActivationContext(runtimeUnit, out EffectActivationContext filled)
+            && filled != null)
+        {
+            return EffectActivationEvaluator.AreTimedConditionsMet(timed, filled);
+        }
+
         EffectActivationContext ctx = new EffectActivationContext(
             BattleGameMain.PlayerType.Player,
             runtimeUnit,

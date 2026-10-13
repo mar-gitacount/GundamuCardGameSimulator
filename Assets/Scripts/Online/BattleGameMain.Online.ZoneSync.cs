@@ -200,6 +200,21 @@ public partial class BattleGameMain
         Debug.Log($"[OnlineBattle] Zone sync sent TrashToExile owner={zoneOwner} cardId={cardId}");
     }
 
+    private void NotifyLocalZoneRemoveTrash(PlayerType zoneOwner, int cardId)
+    {
+        if (!ShouldEmitZoneSync() || cardId < 0)
+        {
+            return;
+        }
+
+        string json = OnlineBattleZoneSyncPayload.ToJsonSingleCard(
+            OnlineBattleZoneSyncPayload.RemoveTrash,
+            (int)zoneOwner,
+            cardId);
+        SendOnlineZoneSync(json);
+        Debug.Log($"[OnlineBattle] Zone sync sent RemoveTrash owner={zoneOwner} cardId={cardId}");
+    }
+
     private void HandleRemoteZoneSync(string payload)
     {
         if (!IsOnlineBattle())
@@ -237,6 +252,9 @@ public partial class BattleGameMain
                     break;
                 case OnlineBattleZoneSyncPayload.AddTrash:
                     ApplyRemoteAddTrash(rule, sync.cardIds);
+                    break;
+                case OnlineBattleZoneSyncPayload.RemoveTrash:
+                    ApplyRemoteRemoveTrash(rule, sync.cardIds);
                     break;
                 default:
                     Debug.LogWarning($"[OnlineBattle] Unknown ZoneSync mutation: {sync.mutation}");
@@ -394,6 +412,30 @@ public partial class BattleGameMain
         }
 
         Debug.Log($"[OnlineBattle] Remote AddTrash applied. count={cardIds.Length}");
+    }
+
+    private void ApplyRemoteRemoveTrash(CardGameRule rule, int[] cardIds)
+    {
+        if (rule == null || cardIds == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cardIds.Length; i++)
+        {
+            int cardId = cardIds[i];
+            if (cardId < 0)
+            {
+                continue;
+            }
+
+            if (!rule.TryRemoveCardFromTrash(cardId, out _))
+            {
+                Debug.LogWarning($"[OnlineBattle] RemoveTrash: card not in trash id={cardId}");
+            }
+        }
+
+        Debug.Log($"[OnlineBattle] Remote RemoveTrash applied. count={cardIds.Length}");
     }
 
     private void FinalizeRemoteDeckRemain(CardGameRule rule, PlayerType zoneOwner, int deckRemain)

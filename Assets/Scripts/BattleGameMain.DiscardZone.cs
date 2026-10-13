@@ -1566,6 +1566,11 @@ public partial class BattleGameMain
             return -1;
         }
 
+        PlayerType trashOwner = ReferenceEquals(trashRule, cardGameRule)
+            ? PlayerType.Player
+            : PlayerType.Enemy;
+        NotifyLocalZoneRemoveTrash(trashOwner, removedId);
+
         CardGameRule handRule = handOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
         AddCardIdToHand(handRule, handOwner, removedId);
         Debug.Log(
