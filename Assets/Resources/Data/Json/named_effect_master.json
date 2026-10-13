@@ -5777,6 +5777,297 @@
                     "selectionMode": -1
                 }
             ]
+        },
+        {
+            "effectSetName": "OnDestroyed_ReturnPairedPilotToHand_ThenDiscard1",
+            "displayName": "破壊時：ペアパイロットを手札へ戻し、その後1枚捨てる",
+            "effects": [
+                {
+                    "type": 54,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "forbidSkipHandDiscard": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "MillTop1_ThenRestEnemyAp4OrLess_IfMilledZeon",
+            "displayName": "山札上1枚トラッシュ。〔Zeon〕ならAP4以下の敵1体をレスト",
+            "effects": [
+                {
+                    "type": 19,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4,
+                    "requireChainObservationContext": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 7,
+                            "featureId": 5,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyAlphacide_BattleDamageFromEnemyUnitReduction3_UntilEndOfBattle",
+            "displayName": "味方〔Alphacide〕1体：このバトル中、敵ユニットからのバトルダメージを3軽減",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 3,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 8,
+                    "duration": 2,
+                    "targetFeatureId": 78
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAction_Choose_AlphacideBattleDmgReduce3_Or_DestroyEnemyLv2OrLess",
+            "displayName": "アクション：〔Alphacide〕バトルダメージ-3 または Lv.2以下の敵を破壊（1つ選択）",
+            "effects": [
+                {
+                    "type": 38,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "choicePromptJa": "以下の効果から1つを選択し、OKで発動／Cancelで中止。",
+                    "choicePromptEn": "Choose 1 of the following effects, then press OK. Cancel to abort.",
+                    "choiceBranches": [
+                        {
+                            "labelJa": "■自分の〔Alphacide〕ユニット1体を選ぶ。このバトル中、それが受ける敵のバトルダメージを3減らす。",
+                            "labelEn": "■Choose 1 friendly (Alphacide) Unit. During this battle, reduce enemy battle damage it receives by 3.",
+                            "effectsName": "BuffAllyAlphacide_BattleDamageFromEnemyUnitReduction3_UntilEndOfBattle"
+                        },
+                        {
+                            "labelJa": "■Lv.2以下の敵ユニット1体を破壊する。",
+                            "labelEn": "■Destroy 1 enemy Unit that is Lv.2 or lower.",
+                            "effectsName": "DestroyEnemyUnit_Lv2OrLess_SelectSingle"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_OptionalAllyThenEnemy_OnPlayed",
+            "displayName": "配備時：自分のユニット1体と敵ユニット1体に1ダメージしてもよい",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnDestroyed_Damage1_EnemyLv5OrLess_SelectSingle",
+            "displayName": "破壊時：Lv.5以下の敵ユニット1つに1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5,
+                    "forbidSkipUnitPick": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLink_GrantBreach1_TimesOwnerNeoZeonOrLongRangeWeaponUnits_UntilEOT",
+            "displayName": "セット時：このターン、味方の〔ネオジオン〕／〔遠距離兵装〕ユニットの数だけ《突破1》を得る",
+            "effects": [
+                {
+                    "type": 48,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "duration": 1,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountFeatureIds": [6, 77]
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAction_RecoverHp2_AllyUnit_IfDrewWithEffectThisTurn",
+            "displayName": "起動・アクション：このターン効果でドローしていれば味方ユニット1つを2回復",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "forbidSkipUnitPick": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnMain_Destroy2UniqueNameLv3GundamTeam_AndSelf_ThenDeployHandGundamTeamLv8Plus",
+            "displayName": "起動・メイン：Lv.3〔ガンダムチーム〕の異なるカード名2つと自身を破壊し、手札のLv.8以上〔ガンダムチーム〕を配備",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 2,
+                    "target": 8,
+                    "selectionMode": 5,
+                    "targetFeatureId": 82,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 2,
+                    "targetUnitStatCompareValue": 3,
+                    "selectMinCount": 2,
+                    "selectMaxCount": 2,
+                    "forbidSkipUnitPick": true,
+                    "requireDistinctCardNames": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "deployUnitSource": 1,
+                    "filterDeployCandidateByFeature": true,
+                    "targetFeatureId": 82,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 8,
+                    "forbidSkipUnitPick": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAction_RedirectIncomingBattleDamage_ToPickedNeoZeonOrLrwUnitOrNeoZeonBase_UntilEOB",
+            "displayName": "起動・アクション：選んだ〔ネオジオン〕／〔遠距離兵装〕味方または〔ネオジオン〕ベースが、このバトル中このユニットの戦闘ダメージを代わりに受ける",
+            "effects": [
+                {
+                    "type": 70,
+                    "value": 1,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "duration": 2,
+                    "targetFeatureIds": [6, 77],
+                    "forbidSkipUnitPick": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyUnitHp1OrLess_SelectSingle",
+            "displayName": "敵ユニット(HP1以下)1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyAllUnits",
+            "displayName": "敵ユニット全体に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 4,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddFromTrashToHand_GundamTeamUnit_Lv2OrLess",
+            "displayName": "トラッシュのLv.2以下〔ガンダムチーム〕ユニット1枚を手札に加える",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 82,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "filterTargetUnitLevel": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "IncreaseAllyAeugDamageToEnemyUnits_Passive",
+            "displayName": "味方〔エゥーゴ〕が敵ユニットへ与えるダメージ+1",
+            "effects": [
+                {
+                    "type": 71,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetFeatureId": 41
+                }
+            ]
         }
     ]
 }

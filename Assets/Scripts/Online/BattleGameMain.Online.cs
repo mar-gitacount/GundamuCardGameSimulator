@@ -1550,6 +1550,12 @@ public partial class BattleGameMain
             declaredTarget,
             null);
 
+        // 被攻撃時（GD06-001 ドロー等）は宣言時点で所有者側が解決する。
+        if (declaredTarget != null)
+        {
+            ApplyDefenderOnAttackReactionEffects(declaredTarget, attacker, PlayerType.Player);
+        }
+
         // オフライン AI 攻撃時のブロック UI（attackerOwner==Enemy）と同じ Close / Cancel 構造。
         CardController selectedBlocker = null;
         int requestId = action.requestId;
@@ -1830,6 +1836,7 @@ public partial class BattleGameMain
             ClearCopiedKeywordsUntilEndOfTurnForAllInPlayUnits();
             ClearPreventAllyDestroyByEnemyEffectUntilEot();
             ClearShieldAreaEnemyEffectDamageReduction(OpponentSide(endingTurnSide));
+            ClearAllOwnerDrewWithEffectThisTurn();
             DumpTurnResourceUsageLogs(endingTurnSide, "end turn (remote)");
 
             currentPlayerType = PlayerType.Player;
@@ -2260,6 +2267,10 @@ public partial class BattleGameMain
         finally
         {
             _applyingRemoteBattleAction = false;
+            // リモート HP 反映後に、アクションで選んだ回復をダメージステップ後として適用する。
+            FlushPendingPostCombatRecovers();
+            // リモート適用中は HandDeckState が抑止されるため、被攻撃ドロー等をここで送る。
+            NotifyLocalPlayerHandDeckSnapshot();
             ResumeDeferredEffectDamageTakenWatchIfNeeded();
             ResumeDeferredApReducedWatchIfNeeded();
             ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
@@ -2462,6 +2473,13 @@ public partial class BattleGameMain
 
         if (defender != null)
         {
+            // 高機動などでアクション未経由のときのみ、撃破前に被攻撃ドローを拾う。
+            ApplyDefenderOnAttackReactionEffects(
+                defender,
+                attacker,
+                PlayerType.Player,
+                includeDrawEffects: true);
+
             defender.SetCurrentHpForSync(action.defenderHp);
 
             if (action.blockCombat && defender.CurrentHp > 0)

@@ -179,14 +179,25 @@ public partial class BattleGameMain
         int attackerStrike,
         int defenderStrike)
     {
-        bool attackerFirstStrike = UnitHasFirstStrikeInCombat(attacker, defender);
-        bool defenderFirstStrike = UnitHasFirstStrikeInCombat(defender, attacker);
-        int defenderHpBefore = defender != null ? defender.CurrentHp : 0;
         attackerStrike = Mathf.Max(0, attackerStrike);
         defenderStrike = Mathf.Max(0, defenderStrike);
 
-        // 軽減は ApplyDamage 側。残 HP でキャップした差分を渡すと
-        // 「AP7・軽減6・HP5」が 7-6=1 ではなく min(7,5)-6=0 になる。
+        // GD06-018 のみ: 通常の相互ダメージを1回スキップし、選択カード／相手ユニットへ差し替える。
+        if (TryApplyGd06018ReplacementDamageStep(
+            attacker,
+            defender,
+            attackerOwner,
+            defenderOwner,
+            attackerStrike,
+            defenderStrike))
+        {
+            return;
+        }
+
+        bool attackerFirstStrike = UnitHasFirstStrikeInCombat(attacker, defender);
+        bool defenderFirstStrike = UnitHasFirstStrikeInCombat(defender, attacker);
+        int defenderHpBefore = defender != null ? defender.CurrentHp : 0;
+
         if (attackerFirstStrike && !defenderFirstStrike)
         {
             ApplyCombatDamageIfNotImmune(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
@@ -229,6 +240,19 @@ public partial class BattleGameMain
         {
             return;
         }
+
+        // GD06-018: キュベレイ本体は戦闘ダメージを受けない。UI で選んだカードへ移す。
+        if (TryMoveGd06018IncomingDamageOffQubeley(damageTarget, damageSource, damage))
+        {
+            return;
+        }
+
+        if (damageTarget.Data != null && damageTarget.Data.IsUnitLike())
+        {
+            damage += ResolveAllyFeatureOutgoingDamageBonus(damageSourceOwner, damageSource, damageTarget);
+        }
+
+        CardController originalTarget = damageTarget;
 
         if (ShouldIgnoreTheBlueGiantBattleDamage(
                 damageTarget,
@@ -288,7 +312,53 @@ public partial class BattleGameMain
             return;
         }
 
-        damageTarget.ApplyDamage(damage);
+        ApplyResolvedBattleDamageToRecipient(damageTarget, originalTarget, damageSource, damage);
+    }
+
+    /// <summary>
+    /// 戦闘ダメージを受け替え先（ユニット／配備ベース）へ適用し、ベース HP 表示と破壊を処理する。
+    /// </summary>
+    private void ApplyResolvedBattleDamageToRecipient(
+        CardController recipient,
+        CardController originalTarget,
+        CardController damageSource,
+        int damage)
+    {
+        if (recipient == null || damage <= 0)
+        {
+            return;
+        }
+
+        int hpBefore = recipient.CurrentHp;
+        recipient.ApplyDamage(damage);
+
+        if (recipient.Data != null && recipient.Data.type == Type.Base)
+        {
+            PlayerType owner = ResolveCardOwner(recipient.transform);
+            Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(owner);
+            NotifyThisBaseReceivedBattleDamageIfNeeded(recipient, hpBefore);
+            MarkPendingDefenderDeployedBaseHpForOnlineSync(recipient.CurrentHp);
+            RefreshDeployedBaseHpOverlay(recipient);
+            SyncBaseZoneHeaderDisplay(ruleSide);
+            if (recipient.CurrentHp <= 0)
+            {
+                MarkPendingDefenderDeployedBaseHpForOnlineSync(0);
+                CardGameRule ownerRule = GetCardRuleForRuleSide(ruleSide);
+                SendDeployedBaseToTrash(recipient, owner, ownerRule);
+                SyncResourceViewsFromRule(ruleSide);
+            }
+
+            return;
+        }
+
+        if (recipient != originalTarget
+            && recipient.Data != null
+            && recipient.Data.IsUnitLike()
+            && recipient.CurrentHp <= 0)
+        {
+            PlayerType owner = ResolveCardOwner(recipient.transform);
+            SendCardToTrash(recipient, owner, damageSource, destroyedByBattleDamage: true);
+        }
     }
 
     private static void ApplyVirtualUnitVsUnitCombatHpExchange(

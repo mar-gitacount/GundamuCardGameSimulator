@@ -45,6 +45,7 @@ public partial class BattleGameMain
         }
 
         FlushOnlineEffectSyncBatch();
+        NoteEffectDrawResolved(ownerType, drawnCards.Count);
         Debug.Log($"[Effect] Draw x{drawnCards.Count} (reveal) by cardId:{sourceCard?.Data?.id}");
 
         if (drawnCards.Count == 0)

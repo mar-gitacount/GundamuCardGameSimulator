@@ -387,6 +387,14 @@ public partial class BattleGameMain
                 }
 
                 int resolvedDamage = ResolveEffectDamageAmount(magnitude, unit, effectSourceOwner);
+                if (resolvedDamage > 0)
+                {
+                    resolvedDamage += ResolveAllyFeatureOutgoingDamageBonus(
+                        effectSourceOwner,
+                        sourceCard,
+                        unit);
+                }
+
                 AppendFieldDamagePreviewEntry(content, unit.Data, i + 1, unit.CurrentHp, resolvedDamage);
             }
         }

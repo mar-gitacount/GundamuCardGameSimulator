@@ -706,6 +706,50 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _breachUntilEndOfBattleAmount = 0;
     }
 
+    /// <summary>このバトル中、受ける戦闘ダメージのリダイレクト先（GD06-018 等）。</summary>
+    private CardController _incomingBattleDamageRedirectTarget;
+
+    public CardController IncomingBattleDamageRedirectTarget => _incomingBattleDamageRedirectTarget;
+
+    /// <summary>参照が破棄されても戦闘中は cardId / ベース指定で受け替え先を再解決する。</summary>
+    public bool HasIncomingBattleDamageRedirectThisBattle { get; private set; }
+
+    public int IncomingBattleDamageRedirectToCardId { get; private set; }
+
+    public bool IncomingBattleDamageRedirectToBase { get; private set; }
+
+    public int IncomingBattleDamageRedirectOwnerValue { get; private set; }
+
+    public void SetIncomingBattleDamageRedirectUntilEndOfBattle(CardController target)
+    {
+        _incomingBattleDamageRedirectTarget = target;
+        if (target == null || target.Data == null)
+        {
+            return;
+        }
+
+        HasIncomingBattleDamageRedirectThisBattle = true;
+        IncomingBattleDamageRedirectToCardId = target.Data.id;
+        IncomingBattleDamageRedirectToBase = target.Data.type == Type.Base;
+    }
+
+    public void SetIncomingBattleDamageRedirectMeta(int toCardId, bool toBase, int ownerValue)
+    {
+        HasIncomingBattleDamageRedirectThisBattle = toCardId > 0 || toBase;
+        IncomingBattleDamageRedirectToCardId = toCardId;
+        IncomingBattleDamageRedirectToBase = toBase;
+        IncomingBattleDamageRedirectOwnerValue = ownerValue;
+    }
+
+    public void ClearIncomingBattleDamageRedirectUntilEndOfBattle()
+    {
+        _incomingBattleDamageRedirectTarget = null;
+        HasIncomingBattleDamageRedirectThisBattle = false;
+        IncomingBattleDamageRedirectToCardId = 0;
+        IncomingBattleDamageRedirectToBase = false;
+        IncomingBattleDamageRedirectOwnerValue = 0;
+    }
+
     public void AddNotDirectAttackUntilEndOfTurnGrant()
     {
         _notDirectAttackUntilEndOfTurnDepth++;

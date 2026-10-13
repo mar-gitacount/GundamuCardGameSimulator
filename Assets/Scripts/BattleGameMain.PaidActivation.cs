@@ -837,7 +837,10 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                if (ResolveSelectableEffectTargets(source, side, effectData).Count == 0)
+                List<CardController> selectable = ResolveSelectableEffectTargets(source, side, effectData);
+                int need = effectData.GetSelectMinCount();
+                if (selectable.Count < need
+                    || (effectData.requireDistinctCardNames && CountDistinctCardNames(selectable) < need))
                 {
                     // 条件付き手動効果は候補0でも他効果があれば発動可
                     if (!effectData.HasEffectActivationConditions())

@@ -6,11 +6,112 @@ using UnityEngine;
 /// <summary>HP 回復（ターン終了 isRepair / 効果 RecoverHp）。</summary>
 public partial class BattleGameMain
 {
+    private struct PendingPostCombatRecover
+    {
+        public CardController Unit;
+        public int Amount;
+    }
+
+    private readonly List<PendingPostCombatRecover> _pendingPostCombatRecovers =
+        new List<PendingPostCombatRecover>();
+
+    /// <summary>
+    /// 攻撃アクション中の RecoverHp はダメージステップ後まで遅延する。
+    /// （満タン時に先に回復すると 0 になり、ダメージ後に効いていないように見える）
+    /// </summary>
+    private bool ShouldDeferRecoverHpUntilAfterCombatDamage()
+    {
+        if (_actionStepSession != null && _actionStepSession.IsAttackContext)
+        {
+            return true;
+        }
+
+        return attackFlowAttackerUnit != null
+            || attackFlowStrikeKind != AttackFlowStrikeKind.None;
+    }
+
+    private void QueuePostCombatRecover(IReadOnlyList<CardController> targets, int amount)
+    {
+        if (targets == null || amount <= 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null)
+            {
+                continue;
+            }
+
+            _pendingPostCombatRecovers.Add(new PendingPostCombatRecover
+            {
+                Unit = unit,
+                Amount = amount
+            });
+            Debug.Log(
+                $"[RecoverHp] defer until after damage {unit.Data.cardName}(id:{unit.Data.id}) +{amount}");
+        }
+    }
+
+    private void FlushPendingPostCombatRecovers()
+    {
+        if (_pendingPostCombatRecovers.Count == 0)
+        {
+            return;
+        }
+
+        List<PendingPostCombatRecover> pending = new List<PendingPostCombatRecover>(_pendingPostCombatRecovers);
+        _pendingPostCombatRecovers.Clear();
+
+        List<CardController> targets = new List<CardController>();
+        int amount = 0;
+        for (int i = 0; i < pending.Count; i++)
+        {
+            CardController unit = pending[i].Unit;
+            if (!IsCardControllerInstanceValid(unit) || unit.CurrentHp <= 0 || pending[i].Amount <= 0)
+            {
+                continue;
+            }
+
+            targets.Clear();
+            targets.Add(unit);
+            amount = pending[i].Amount;
+            bool nestedBatch = _onlineEffectSyncActive;
+            if (!nestedBatch)
+            {
+                BeginOnlineEffectSyncBatch(ResolveCardOwner(unit.transform));
+            }
+
+            ApplyRecoverHpEffectImmediate(targets, amount);
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+        }
+    }
+
     /// <summary>
     /// 効果による HP 回復（<see cref="EffectType.RecoverHp"/>）。
     /// 戦闘ダメージ撃破・エフェクトバトル撃破など、敵ユニット破壊時の回復にも再利用する。
+    /// コウ・ウラキは【起動・アクション】時点で回復する（バトル終了時へ遅延しない）。
     /// </summary>
-    private void ApplyRecoverHpEffect(IReadOnlyList<CardController> targets, int amount)
+    private void ApplyRecoverHpEffect(
+        IReadOnlyList<CardController> targets,
+        int amount,
+        CardController sourceCard = null)
+    {
+        if (ShouldDeferRecoverHpUntilAfterCombatDamage() && !IsKouUrakiCard(sourceCard))
+        {
+            QueuePostCombatRecover(targets, amount);
+            return;
+        }
+
+        ApplyRecoverHpEffectImmediate(targets, amount);
+    }
+
+    private void ApplyRecoverHpEffectImmediate(IReadOnlyList<CardController> targets, int amount)
     {
         if (targets == null || amount <= 0)
         {

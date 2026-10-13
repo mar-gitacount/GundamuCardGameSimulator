@@ -35,3 +35,5 @@ Thumbs.db
 .env
 .env.*
 tools/.env
+Assets/Resources/Data/Sounds/blender-5.2.2-windows-x64.msi
+/Assets/Resources/Data/Sounds/blender-5.2.2-windows-x64.msi.meta

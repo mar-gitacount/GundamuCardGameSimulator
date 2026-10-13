@@ -23,7 +23,10 @@ public partial class BattleGameMain
         for (int i = 0; i < targets.Count; i++)
         {
             CardController unit = targets[i];
-            if (unit != null && unit.Data != null && unit.Data.IsUnitLike() && unit.CurrentHp > 0)
+            if (unit != null
+                && unit.Data != null
+                && unit.CurrentHp > 0
+                && (unit.Data.IsUnitLike() || unit.Data.type == Type.Base))
             {
                 _effectChainLastPickedTargets.Add(unit);
             }
@@ -36,8 +39,18 @@ public partial class BattleGameMain
         for (int i = 0; i < _effectChainLastPickedTargets.Count; i++)
         {
             CardController unit = _effectChainLastPickedTargets[i];
-            if (unit != null && unit.Data != null && unit.Data.IsUnitLike() && unit.CurrentHp > 0
-                && IsUnitAliveOnAnyDeployField(unit))
+            if (unit == null || unit.Data == null || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (unit.Data.type == Type.Base)
+            {
+                alive.Add(unit);
+                continue;
+            }
+
+            if (unit.Data.IsUnitLike() && IsUnitAliveOnAnyDeployField(unit))
             {
                 alive.Add(unit);
             }
@@ -459,7 +472,10 @@ public partial class BattleGameMain
         }
     }
 
-    private bool TryApplyGrantBreachMarker(EffectData effect, List<CardController> targets)
+    private bool TryApplyGrantBreachMarker(
+        EffectData effect,
+        List<CardController> targets,
+        CardController sourceCard = null)
     {
         if (effect == null || effect.type != EffectType.GrantBreach || targets == null || targets.Count == 0)
         {
@@ -473,7 +489,16 @@ public partial class BattleGameMain
             return false;
         }
 
-        int amount = effect.value > 0 ? effect.value : 0;
+        CardController magnitudeSource = sourceCard != null ? sourceCard : targets[0];
+        PlayerType ownerType = magnitudeSource != null
+            ? ResolveCardOwner(magnitudeSource.transform)
+            : PlayerType.Player;
+        int amount = ResolveEffectMagnitude(effect, ownerType, magnitudeSource);
+        if (amount <= 0)
+        {
+            amount = effect.value > 0 ? effect.value : 0;
+        }
+
         if (amount <= 0)
         {
             return false;
@@ -508,6 +533,1089 @@ public partial class BattleGameMain
         }
 
         return applied > 0;
+    }
+
+    private readonly List<IncomingBattleDamageRedirectRecord> _incomingBattleDamageRedirects =
+        new List<IncomingBattleDamageRedirectRecord>();
+
+    /// <summary>今このバトル中の受け替え（オブジェクト破棄後も owner + cardId で再解決する）。</summary>
+    private CardController _battleIncomingRedirectHost;
+    private PlayerType _battleIncomingRedirectOwner;
+    private int _battleIncomingRedirectHostCardId;
+    private int _battleIncomingRedirectHostInstanceId;
+    private bool _battleIncomingRedirectToBase;
+    private int _battleIncomingRedirectRecipientCardId;
+    private CardController _battleIncomingRedirectRecipientLive;
+
+    private struct IncomingBattleDamageRedirectRecord
+    {
+        public int HostBattleInstanceId;
+        public int HostCardId;
+        public PlayerType HostOwner;
+        public int RecipientCardId;
+        public int RecipientBattleInstanceId;
+        public bool RecipientIsBase;
+        public PlayerType RecipientOwner;
+    }
+
+    private bool TryApplyIncomingBattleDamageRedirectMarker(
+        EffectData effect,
+        CardController sourceCard,
+        List<CardController> targets,
+        PlayerType? ownerHint = null)
+    {
+        if (sourceCard == null || sourceCard.Data == null || targets == null || targets.Count == 0)
+        {
+            return false;
+        }
+
+        if (effect != null
+            && effect.type != EffectType.RedirectIncomingBattleDamage
+            && sourceCard.Data.id != Gd06018QubeleyMkIICardId
+            && !ShouldBindIncomingBattleDamageRedirect(sourceCard, effect))
+        {
+            return false;
+        }
+
+        CardController picked = null;
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController candidate = targets[i];
+            if (candidate != null && candidate.Data != null)
+            {
+                picked = candidate;
+                break;
+            }
+        }
+
+        if (picked == null || picked.Data == null)
+        {
+            return false;
+        }
+
+        PlayerType owner = ownerHint ?? ResolveCardOwner(sourceCard.transform);
+        ForceBindIncomingBattleDamageRedirect(sourceCard, picked, owner);
+        return true;
+    }
+
+    /// <summary>
+    /// Action で選んだカードを、このバトル中の「相手ユニットからの戦闘ダメージ」の行き先に固定する。
+    /// ホスト照合に失敗しても cardId は必ず残す。
+    /// </summary>
+    private void ForceBindIncomingBattleDamageRedirect(
+        CardController source,
+        CardController picked,
+        PlayerType owner)
+    {
+        CardController battleHost = ResolveEffectSourceBattleHost(source) ?? source;
+        int hostCardId = battleHost != null && battleHost.Data != null
+            ? battleHost.Data.id
+            : source.Data.id;
+
+        CardController liveHost = MatchAttackFlowUnitByCardId(hostCardId)
+            ?? FindOwnerFieldUnitByCardId(owner, hostCardId)
+            ?? (battleHost != null && battleHost.Data != null && battleHost.Data.IsUnitLike()
+                ? battleHost
+                : null);
+
+        bool toBase = picked.Data.type == Type.Base || IsCardInBaseSlot(picked);
+        int recipientId = picked.Data.id;
+        ArmGd06018ReplacementDamageStep(source, picked, owner);
+
+        if (liveHost != null)
+        {
+            AssignBattleInstanceIdIfNeeded(liveHost);
+        }
+
+        _battleIncomingRedirectHost = liveHost;
+        _battleIncomingRedirectOwner = owner;
+        _battleIncomingRedirectHostCardId = hostCardId;
+        _battleIncomingRedirectHostInstanceId = liveHost != null ? liveHost.BattleInstanceId : 0;
+        _battleIncomingRedirectToBase = toBase;
+        _battleIncomingRedirectRecipientCardId = recipientId;
+        _battleIncomingRedirectRecipientLive = toBase
+            ? (FindOwnerBaseForIncomingRedirect(owner, recipientId) ?? picked)
+            : (FindLiveBattleZoneUnitMatching(picked) ?? picked);
+
+        StampIncomingRedirectIfHostCard(liveHost, picked, owner, hostCardId);
+        StampIncomingRedirectIfHostCard(attackFlowAttackerUnit, picked, owner, hostCardId);
+        StampIncomingRedirectIfHostCard(attackFlowDeclaredDefenderUnit, picked, owner, hostCardId);
+        StampIncomingRedirectIfHostCard(attackFlowBlockRedirectUnit, picked, owner, hostCardId);
+        StampIncomingRedirectIfHostCard(pendingUnitAttackAttacker, picked, owner, hostCardId);
+        if (liveHost != null)
+        {
+            StampIncomingBattleDamageRedirectOnMatchingZoneUnits(owner, liveHost, picked);
+        }
+
+        IncomingBattleDamageRedirectRecord record = new IncomingBattleDamageRedirectRecord
+        {
+            HostBattleInstanceId = _battleIncomingRedirectHostInstanceId,
+            HostCardId = hostCardId,
+            HostOwner = owner,
+            RecipientCardId = recipientId,
+            RecipientBattleInstanceId = picked.BattleInstanceId,
+            RecipientIsBase = toBase,
+            RecipientOwner = owner
+        };
+        ReplaceIncomingBattleDamageRedirectRecord(record);
+
+        Debug.Log(
+            $"[RedirectBattleDmg] FORCE bind hostId:{hostCardId} inst:{_battleIncomingRedirectHostInstanceId} "
+            + $"{liveHost?.Data?.cardName} → {picked.Data.cardName}(id:{recipientId}) "
+            + $"owner:{owner} base:{toBase}");
+    }
+
+    private bool IsIncomingBattleDamageRedirectHost(CardController unit)
+    {
+        if (unit == null || unit.Data == null || _battleIncomingRedirectHostCardId <= 0)
+        {
+            return false;
+        }
+
+        if (_battleIncomingRedirectHostInstanceId > 0
+            && unit.BattleInstanceId == _battleIncomingRedirectHostInstanceId)
+        {
+            return true;
+        }
+
+        return unit.Data.id == _battleIncomingRedirectHostCardId;
+    }
+
+    /// <summary>相手ユニットがキュベレイへ与える戦闘ダメージを、Action で選んだカードへ適用する。</summary>
+    private void ApplyRedirectedIncomingBattleDamage(
+        CardController host,
+        CardController damageSource,
+        PlayerType hostOwner,
+        PlayerType sourceOwner,
+        int damage)
+    {
+        if (host == null || damage <= 0)
+        {
+            return;
+        }
+
+        CardController recipient = ResolveIncomingRedirectRecipientForCombat(host);
+        if (recipient == null)
+        {
+            Debug.LogWarning(
+                $"[RedirectBattleDmg] 受け替え先が見つからない host:{host.Data?.cardName} "
+                + $"recipientId:{_battleIncomingRedirectRecipientCardId} base:{_battleIncomingRedirectToBase}");
+            return;
+        }
+
+        Debug.Log(
+            $"[RedirectBattleDmg] {host.Data?.cardName} が受ける {damage} "
+            + $"from {damageSource?.Data?.cardName} → {recipient.Data?.cardName}");
+        ApplyResolvedBattleDamageToRecipient(recipient, host, damageSource, damage);
+    }
+
+    /// <summary>Action 対象クリック直後に受け替えを結ぶ（効果タイプや後段コールバックに依存しない）。</summary>
+    private void BindIncomingBattleDamageRedirectOnActionTargetClick(
+        CardController sourceCard,
+        CardController picked)
+    {
+        if (picked == null || picked.Data == null)
+        {
+            return;
+        }
+
+        ArmGd06018ReplacementDamageStep(
+            sourceCard,
+            picked,
+            sourceCard != null ? ResolveCardOwner(sourceCard.transform) : currentPlayerType);
+
+        int sourceId = sourceCard != null && sourceCard.Data != null ? sourceCard.Data.id : 0;
+        bool shouldBind = IsGd06018QubeleyMkII(sourceCard)
+            || ShouldBindIncomingBattleDamageRedirect(sourceCard, null);
+        if (!shouldBind && sourceCard != null && sourceCard.Data != null)
+        {
+            List<EffectData> onActionEffects = GetEffectsByTiming(sourceCard.Data, EffectTiming.OnAction);
+            for (int i = 0; i < onActionEffects.Count; i++)
+            {
+                if (onActionEffects[i] != null
+                    && onActionEffects[i].type == EffectType.RedirectIncomingBattleDamage)
+                {
+                    shouldBind = true;
+                    break;
+                }
+            }
+        }
+
+        if (!shouldBind)
+        {
+            return;
+        }
+
+        PlayerType owner = currentPlayerType;
+        CardController liveHost = MatchAttackFlowUnitByCardId(sourceId)
+            ?? FindOwnerFieldUnitByCardId(PlayerType.Player, sourceId)
+            ?? FindOwnerFieldUnitByCardId(PlayerType.Enemy, sourceId);
+        if (liveHost != null)
+        {
+            owner = ResolveCardOwner(liveHost.transform);
+        }
+        else if (sourceCard != null)
+        {
+            owner = ResolveCardOwner(sourceCard.transform);
+        }
+
+        CardController bindSource = liveHost != null ? liveHost : sourceCard;
+        if (bindSource != null && bindSource.Data != null)
+        {
+            ForceBindIncomingBattleDamageRedirect(bindSource, picked, owner);
+        }
+        else
+        {
+            _battleIncomingRedirectHostCardId = sourceId;
+            _battleIncomingRedirectOwner = owner;
+            _battleIncomingRedirectRecipientCardId = picked.Data.id;
+            _battleIncomingRedirectToBase = picked.Data.type == Type.Base || IsCardInBaseSlot(picked);
+            _battleIncomingRedirectRecipientLive = picked;
+            ArmGd06018ReplacementDamageStep(sourceCard, picked, owner);
+        }
+
+        Debug.Log(
+            $"[RedirectBattleDmg] click-bind sourceId:{sourceId} picked:{picked.Data.cardName} "
+            + $"(id:{picked.Data.id} base:{_battleIncomingRedirectToBase}) owner:{owner}");
+    }
+
+    private CardController ResolveIncomingRedirectRecipientForCombat(CardController host)
+    {
+        if (IsCardControllerInstanceValid(_battleIncomingRedirectRecipientLive)
+            && _battleIncomingRedirectRecipientLive.Data != null
+            && _battleIncomingRedirectRecipientLive.CurrentHp > 0
+            && _battleIncomingRedirectRecipientLive != host)
+        {
+            return _battleIncomingRedirectRecipientLive;
+        }
+
+        if (_battleIncomingRedirectToBase)
+        {
+            CardController ownerBase = FindOwnerBaseForIncomingRedirect(
+                _battleIncomingRedirectOwner,
+                _battleIncomingRedirectRecipientCardId);
+            if (IsUsableIncomingBattleDamageRedirectRecipient(ownerBase, host))
+            {
+                return ownerBase;
+            }
+        }
+        else if (_battleIncomingRedirectRecipientCardId > 0)
+        {
+            CardController ally = FindOwnerFieldUnitByCardId(
+                _battleIncomingRedirectOwner,
+                _battleIncomingRedirectRecipientCardId);
+            if (IsUsableIncomingBattleDamageRedirectRecipient(ally, host))
+            {
+                return ally;
+            }
+        }
+
+        return ResolveBoundIncomingRedirectRecipient(host)
+            ?? ResolveIncomingBattleDamageRedirectTarget(host);
+    }
+
+    private CardController MatchAttackFlowUnitByCardId(int cardId)
+    {
+        if (cardId <= 0)
+        {
+            return null;
+        }
+
+        if (attackFlowAttackerUnit != null
+            && attackFlowAttackerUnit.Data != null
+            && attackFlowAttackerUnit.Data.id == cardId
+            && attackFlowAttackerUnit.CurrentHp > 0)
+        {
+            return attackFlowAttackerUnit;
+        }
+
+        if (attackFlowDeclaredDefenderUnit != null
+            && attackFlowDeclaredDefenderUnit.Data != null
+            && attackFlowDeclaredDefenderUnit.Data.id == cardId
+            && attackFlowDeclaredDefenderUnit.CurrentHp > 0)
+        {
+            return attackFlowDeclaredDefenderUnit;
+        }
+
+        if (attackFlowBlockRedirectUnit != null
+            && attackFlowBlockRedirectUnit.Data != null
+            && attackFlowBlockRedirectUnit.Data.id == cardId
+            && attackFlowBlockRedirectUnit.CurrentHp > 0)
+        {
+            return attackFlowBlockRedirectUnit;
+        }
+
+        if (pendingUnitAttackAttacker != null
+            && pendingUnitAttackAttacker.Data != null
+            && pendingUnitAttackAttacker.Data.id == cardId
+            && pendingUnitAttackAttacker.CurrentHp > 0)
+        {
+            return pendingUnitAttackAttacker;
+        }
+
+        return null;
+    }
+
+    private CardController FindOwnerFieldUnitByCardId(PlayerType owner, int cardId)
+    {
+        List<CardController> zone = owner == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        CardController fromZone = FindAliveUnitInZoneByCardId(zone, cardId, exclude: null);
+        if (fromZone != null)
+        {
+            return fromZone;
+        }
+
+        CardGameRule rule = GetCardRuleForRuleSide(ToRuleSide(owner));
+        Transform panel = rule != null ? rule.PlayerDeployPanel : null;
+        if (panel == null || cardId <= 0)
+        {
+            return null;
+        }
+
+        CardController[] nested = panel.GetComponentsInChildren<CardController>(true);
+        if (nested == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < nested.Length; i++)
+        {
+            CardController unit = nested[i];
+            if (unit == null
+                || unit.Data == null
+                || unit.Data.id != cardId
+                || !unit.Data.IsUnitLike()
+                || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            return unit;
+        }
+
+        return null;
+    }
+
+    /// <summary>Action 発動者側の配備ベースを、選んだカード ID 優先で返す。</summary>
+    private void StampIncomingRedirectIfHostCard(
+        CardController unit,
+        CardController redirectTarget,
+        PlayerType owner,
+        int hostCardId)
+    {
+        if (unit == null || unit.Data == null || hostCardId <= 0 || unit.Data.id != hostCardId)
+        {
+            return;
+        }
+
+        StampIncomingBattleDamageRedirectOnUnit(unit, redirectTarget, owner);
+    }
+
+    private void StampIncomingBattleDamageRedirectOnHostCopies(
+        CardController unit,
+        CardController host,
+        CardController redirectTarget,
+        PlayerType owner)
+    {
+        StampIncomingBattleDamageRedirectOnUnit(unit, redirectTarget, owner, host);
+    }
+
+    private CardController FindOwnerBaseForIncomingRedirect(PlayerType owner, int preferredCardId)
+    {
+        CardGameRule rule = GetCardRuleForRuleSide(ToRuleSide(owner));
+        CardController preferred = null;
+        CardController fallback = null;
+        ConsiderIncomingRedirectBaseCandidate(
+            GetDeployedBaseForRuleSide(ToRuleSide(owner)),
+            preferredCardId,
+            ref preferred,
+            ref fallback);
+
+        if (rule?.BaseSlotContent != null)
+        {
+            CardController[] nested = rule.BaseSlotContent.GetComponentsInChildren<CardController>(true);
+            if (nested != null)
+            {
+                for (int i = 0; i < nested.Length; i++)
+                {
+                    ConsiderIncomingRedirectBaseCandidate(nested[i], preferredCardId, ref preferred, ref fallback);
+                    if (preferred != null)
+                    {
+                        return preferred;
+                    }
+                }
+            }
+        }
+
+        return preferred ?? fallback;
+    }
+
+    private static void ConsiderIncomingRedirectBaseCandidate(
+        CardController candidate,
+        int preferredCardId,
+        ref CardController preferred,
+        ref CardController fallback)
+    {
+        if (candidate == null
+            || candidate.Data == null
+            || candidate.Data.type != Type.Base
+            || candidate.CurrentHp <= 0)
+        {
+            return;
+        }
+
+        if (preferredCardId > 0 && candidate.Data.id == preferredCardId)
+        {
+            preferred = candidate;
+            return;
+        }
+
+        if (fallback == null)
+        {
+            fallback = candidate;
+        }
+    }
+
+    private const int Gd06018QubeleyMkIICardId = 1000824;
+
+    private bool ShouldBindIncomingBattleDamageRedirect(CardController source, EffectData effect)
+    {
+        if (effect != null && effect.type == EffectType.RedirectIncomingBattleDamage)
+        {
+            return true;
+        }
+
+        if (source?.Data == null)
+        {
+            return false;
+        }
+
+        List<EffectData> onActionEffects = GetEffectsByTiming(source.Data, EffectTiming.OnAction);
+        for (int i = 0; i < onActionEffects.Count; i++)
+        {
+            if (onActionEffects[i] != null && onActionEffects[i].type == EffectType.RedirectIncomingBattleDamage)
+            {
+                return effect == null || ReferenceEquals(effect, onActionEffects[i]) || effect.type == onActionEffects[i].type;
+            }
+        }
+
+        // JSON の type が enum とずれていても、018 の「このバトル中・1体選択」Action は受け替えとして結ぶ。
+        return source.Data.id == Gd06018QubeleyMkIICardId
+            && effect != null
+            && effect.duration == EffectDuration.UntilEndOfBattle
+            && effect.selectionMode == EffectSelectionMode.SelectSingle;
+    }
+
+    private void StampIncomingBattleDamageRedirectOnMatchingZoneUnits(
+        PlayerType owner,
+        CardController host,
+        CardController redirectTarget)
+    {
+        if (host?.Data == null)
+        {
+            return;
+        }
+
+        List<CardController> zone = owner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            StampIncomingBattleDamageRedirectOnUnit(zone[i], redirectTarget, owner, host);
+        }
+    }
+
+    private void StampIncomingBattleDamageRedirectOnUnit(
+        CardController unit,
+        CardController redirectTarget,
+        PlayerType owner,
+        CardController requiredMatch = null)
+    {
+        if (unit == null || redirectTarget == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        if (requiredMatch != null
+            && !IsSameBattleUnitForRedirect(unit, requiredMatch)
+            && (unit.Data == null
+                || requiredMatch.Data == null
+                || unit.Data.id != requiredMatch.Data.id
+                || unit.Data.id <= 0))
+        {
+            return;
+        }
+
+        unit.SetIncomingBattleDamageRedirectUntilEndOfBattle(redirectTarget);
+        unit.SetIncomingBattleDamageRedirectMeta(
+            redirectTarget.Data != null ? redirectTarget.Data.id : 0,
+            redirectTarget.Data != null && redirectTarget.Data.type == Type.Base,
+            (int)owner);
+    }
+
+    private bool IsSameBattleUnitForRedirect(CardController a, CardController b)
+    {
+        if (a == null || b == null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(a, b))
+        {
+            return true;
+        }
+
+        if (a.BattleInstanceId > 0 && a.BattleInstanceId == b.BattleInstanceId)
+        {
+            return true;
+        }
+
+        return a.Data != null
+            && b.Data != null
+            && a.Data.id == b.Data.id
+            && a.Data.id > 0
+            && ResolveCardOwner(a.transform) == ResolveCardOwner(b.transform);
+    }
+
+    private void ReplaceIncomingBattleDamageRedirectRecord(IncomingBattleDamageRedirectRecord record)
+    {
+        for (int i = _incomingBattleDamageRedirects.Count - 1; i >= 0; i--)
+        {
+            IncomingBattleDamageRedirectRecord existing = _incomingBattleDamageRedirects[i];
+            if ((record.HostBattleInstanceId > 0 && existing.HostBattleInstanceId == record.HostBattleInstanceId)
+                || (record.HostCardId > 0
+                    && existing.HostCardId == record.HostCardId
+                    && existing.HostOwner == record.HostOwner))
+            {
+                _incomingBattleDamageRedirects.RemoveAt(i);
+            }
+        }
+
+        _incomingBattleDamageRedirects.Add(record);
+    }
+
+    private CardController TryDivertIncomingBattleDamage(CardController intended)
+    {
+        if (intended == null || intended.Data == null)
+        {
+            return null;
+        }
+
+        if (_battleIncomingRedirectHostCardId > 0
+            && intended.Data.id == _battleIncomingRedirectHostCardId)
+        {
+            CardController bound = ResolveBoundIncomingRedirectRecipient(intended);
+            if (bound != null)
+            {
+                return bound;
+            }
+        }
+
+        if (intended.HasIncomingBattleDamageRedirectThisBattle)
+        {
+            PlayerType flagOwner = (PlayerType)intended.IncomingBattleDamageRedirectOwnerValue;
+            CardController fromFlags = intended.IncomingBattleDamageRedirectToBase
+                ? FindOwnerBaseForIncomingRedirect(
+                    flagOwner,
+                    intended.IncomingBattleDamageRedirectToCardId)
+                : FindAliveUnitInZoneByCardId(
+                    flagOwner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards,
+                    intended.IncomingBattleDamageRedirectToCardId,
+                    intended);
+            if (IsUsableIncomingBattleDamageRedirectRecipient(fromFlags, intended))
+            {
+                return fromFlags;
+            }
+        }
+
+        return ResolveIncomingBattleDamageRedirectTarget(intended);
+    }
+
+    private CardController ResolveIncomingBattleDamageRedirectTarget(CardController damageTarget)
+    {
+        if (damageTarget == null)
+        {
+            return null;
+        }
+
+        if (IsBattleIncomingRedirectHost(damageTarget))
+        {
+            CardController bound = ResolveBoundIncomingRedirectRecipient(damageTarget);
+            if (bound != null)
+            {
+                return bound;
+            }
+        }
+
+        CardController fromUnit = damageTarget.IncomingBattleDamageRedirectTarget;
+        if (IsUsableIncomingBattleDamageRedirectRecipient(fromUnit, damageTarget))
+        {
+            return fromUnit.Data != null && fromUnit.Data.type == Type.Base
+                ? (FindLiveOwnerBaseMatching(fromUnit) ?? fromUnit)
+                : (FindLiveBattleZoneUnitMatching(fromUnit) ?? fromUnit);
+        }
+
+        CardController liveHost = FindLiveBattleZoneUnitMatching(damageTarget);
+        if (liveHost != null && liveHost != damageTarget)
+        {
+            fromUnit = liveHost.IncomingBattleDamageRedirectTarget;
+            if (IsUsableIncomingBattleDamageRedirectRecipient(fromUnit, damageTarget))
+            {
+                return fromUnit.Data != null && fromUnit.Data.type == Type.Base
+                    ? (FindLiveOwnerBaseMatching(fromUnit) ?? fromUnit)
+                    : (FindLiveBattleZoneUnitMatching(fromUnit) ?? fromUnit);
+            }
+        }
+
+        IncomingBattleDamageRedirectRecord? record = FindIncomingBattleDamageRedirectRecord(damageTarget);
+        if (!record.HasValue)
+        {
+            return null;
+        }
+
+        return ResolveIncomingBattleDamageRedirectRecipient(record.Value, damageTarget);
+    }
+
+    private bool IsBattleIncomingRedirectHost(CardController damageTarget)
+    {
+        if (damageTarget == null || _battleIncomingRedirectHostCardId <= 0)
+        {
+            return false;
+        }
+
+        if (_battleIncomingRedirectHost != null
+            && IsSameBattleUnitForRedirect(damageTarget, _battleIncomingRedirectHost))
+        {
+            return true;
+        }
+
+        if (_battleIncomingRedirectHostInstanceId > 0
+            && damageTarget.BattleInstanceId == _battleIncomingRedirectHostInstanceId)
+        {
+            return true;
+        }
+
+        return damageTarget.Data != null
+            && damageTarget.Data.id == _battleIncomingRedirectHostCardId
+            && ResolveCardOwner(damageTarget.transform) == _battleIncomingRedirectOwner;
+    }
+
+    private CardController ResolveBoundIncomingRedirectRecipient(CardController originalTarget)
+    {
+        if (_battleIncomingRedirectToBase)
+        {
+            CardController ownerBase = FindOwnerBaseForIncomingRedirect(
+                _battleIncomingRedirectOwner,
+                _battleIncomingRedirectRecipientCardId);
+            if (IsUsableIncomingBattleDamageRedirectRecipient(ownerBase, originalTarget))
+            {
+                return ownerBase;
+            }
+        }
+
+        IncomingBattleDamageRedirectRecord? record = FindIncomingBattleDamageRedirectRecord(originalTarget);
+        if (record.HasValue)
+        {
+            CardController fromRecord = ResolveIncomingBattleDamageRedirectRecipient(record.Value, originalTarget);
+            if (fromRecord != null)
+            {
+                return fromRecord;
+            }
+        }
+
+        return null;
+    }
+
+    private IncomingBattleDamageRedirectRecord? FindIncomingBattleDamageRedirectRecord(CardController host)
+    {
+        if (host == null)
+        {
+            return null;
+        }
+
+        int instanceId = host.BattleInstanceId;
+        int cardId = host.Data != null ? host.Data.id : 0;
+        PlayerType owner = ResolveCardOwner(host.transform);
+        for (int i = 0; i < _incomingBattleDamageRedirects.Count; i++)
+        {
+            IncomingBattleDamageRedirectRecord record = _incomingBattleDamageRedirects[i];
+            if (instanceId > 0 && record.HostBattleInstanceId == instanceId)
+            {
+                return record;
+            }
+
+            if (cardId > 0 && record.HostCardId == cardId && record.HostOwner == owner)
+            {
+                return record;
+            }
+        }
+
+        return null;
+    }
+
+    private CardController ResolveIncomingBattleDamageRedirectRecipient(
+        IncomingBattleDamageRedirectRecord record,
+        CardController host)
+    {
+        if (record.RecipientIsBase)
+        {
+            CardController deployed = GetDeployedBaseForRuleSide(ToRuleSide(record.RecipientOwner));
+            if (IsUsableIncomingBattleDamageRedirectRecipient(deployed, host)
+                && (record.RecipientCardId <= 0
+                    || deployed.Data == null
+                    || deployed.Data.id == record.RecipientCardId))
+            {
+                return deployed;
+            }
+
+            CardGameRule rule = GetCardRuleForRuleSide(ToRuleSide(record.RecipientOwner));
+            if (rule?.BaseSlotContent != null)
+            {
+                for (int i = 0; i < rule.BaseSlotContent.childCount; i++)
+                {
+                    CardController occupant = rule.BaseSlotContent.GetChild(i).GetComponent<CardController>();
+                    if (IsUsableIncomingBattleDamageRedirectRecipient(occupant, host)
+                        && occupant.Data != null
+                        && occupant.Data.type == Type.Base
+                        && (record.RecipientCardId <= 0 || occupant.Data.id == record.RecipientCardId))
+                    {
+                        return occupant;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        if (record.RecipientBattleInstanceId > 0)
+        {
+            CardController byInstance = FindBattleZoneUnitByInstanceIdAnySide(record.RecipientBattleInstanceId);
+            if (IsUsableIncomingBattleDamageRedirectRecipient(byInstance, host))
+            {
+                return byInstance;
+            }
+        }
+
+        List<CardController> zone = record.RecipientOwner == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        return FindAliveUnitInZoneByCardId(zone, record.RecipientCardId, host);
+    }
+
+    private CardController FindBattleZoneUnitByInstanceIdAnySide(int instanceId)
+    {
+        CardController player = FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Player);
+        if (player != null)
+        {
+            return player;
+        }
+
+        return FindBattleZoneUnitByInstanceId(instanceId, PlayerType.Enemy);
+    }
+
+    private static CardController FindAliveUnitInZoneByCardId(
+        List<CardController> zone,
+        int cardId,
+        CardController exclude)
+    {
+        if (zone == null || cardId <= 0)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit == exclude || unit.Data == null || unit.Data.id != cardId || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            return unit;
+        }
+
+        return null;
+    }
+
+    private static bool IsUsableIncomingBattleDamageRedirectRecipient(
+        CardController recipient,
+        CardController originalTarget)
+    {
+        return recipient != null
+            && recipient != originalTarget
+            && recipient.Data != null
+            && recipient.CurrentHp > 0;
+    }
+
+    private CardController FindLiveBattleZoneUnitMatching(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return null;
+        }
+
+        if (IsCardOnBattleZone(unit) && unit.CurrentHp > 0)
+        {
+            return unit;
+        }
+
+        if (unit.BattleInstanceId > 0)
+        {
+            CardController byInstance = FindBattleZoneUnitByInstanceIdAnySide(unit.BattleInstanceId);
+            if (byInstance != null && byInstance.CurrentHp > 0)
+            {
+                return byInstance;
+            }
+        }
+
+        PlayerType owner = ResolveCardOwner(unit.transform);
+        List<CardController> zone = owner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        return FindAliveUnitInZoneByCardId(zone, unit.Data.id, exclude: null);
+    }
+
+    private CardController FindLiveOwnerBaseMatching(CardController baseCard)
+    {
+        if (baseCard == null || baseCard.Data == null || baseCard.Data.type != Type.Base)
+        {
+            return null;
+        }
+
+        if (baseCard.CurrentHp > 0 && baseCard.gameObject != null)
+        {
+            PlayerType owner = ResolveCardOwner(baseCard.transform);
+            CardController deployed = GetDeployedBaseForRuleSide(ToRuleSide(owner));
+            if (deployed == baseCard && deployed.CurrentHp > 0)
+            {
+                return deployed;
+            }
+        }
+
+        PlayerType ownerType = ResolveCardOwner(baseCard.transform);
+        CardController ownerBase = GetDeployedBaseForRuleSide(ToRuleSide(ownerType));
+        if (ownerBase != null
+            && ownerBase.Data != null
+            && ownerBase.CurrentHp > 0
+            && ownerBase.Data.id == baseCard.Data.id)
+        {
+            return ownerBase;
+        }
+
+        return baseCard.CurrentHp > 0 ? baseCard : null;
+    }
+
+    private const int NeoZeonFeatureId = 6;
+    private const int RemoteWeaponFeatureId = 77;
+
+    /// <summary>
+    /// GD06-018: 〔ネオジオン〕か〔遠隔兵器〕の味方ユニット、または〔ネオジオン〕ベース。
+    /// </summary>
+    private List<CardController> CollectIncomingBattleDamageRedirectCandidates(
+        CardController sourceCard,
+        PlayerType ownerType)
+    {
+        List<CardController> result = new List<CardController>();
+        CardController exclude = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+        List<CardController> allies = ownerType == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        if (allies != null)
+        {
+            for (int i = 0; i < allies.Count; i++)
+            {
+                CardController unit = allies[i];
+                if (!IsIncomingBattleDamageRedirectUnitCandidate(unit, exclude))
+                {
+                    continue;
+                }
+
+                result.Add(unit);
+            }
+        }
+
+        TryAddOwnerDeployedBaseToEffectTargets(ownerType, result, requiredFeatures: null);
+        return result;
+    }
+
+    private static bool IsIncomingBattleDamageRedirectUnitCandidate(
+        CardController unit,
+        CardController exclude)
+    {
+        if (unit == null
+            || unit == exclude
+            || unit.Data == null
+            || !unit.Data.IsUnitLike()
+            || unit.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        return unit.HasFeatureId(NeoZeonFeatureId)
+            || unit.HasFeatureId(RemoteWeaponFeatureId)
+            || unit.Data.HasFeatureKey("Long_Range_Weapon");
+    }
+
+    /// <summary>
+    /// 戦闘ダメージ受け替え先として、配備中の〔ネオジオン〕ベース（アクシズ等）を候補へ加える。
+    /// DeployedBase が EX のままでも BaseSlot 上の Type.Base を拾う。
+    /// </summary>
+    private void TryAddOwnerDeployedBaseToEffectTargets(
+        PlayerType ownerType,
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (result == null)
+        {
+            return;
+        }
+
+        TryAddRedirectEligibleOwnerBase(
+            result,
+            GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            requiredFeatures);
+
+        CardGameRule rule = GetCardRuleForRuleSide(ToRuleSide(ownerType));
+        if (rule?.BaseSlotContent == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < rule.BaseSlotContent.childCount; i++)
+        {
+            CardController occupant = rule.BaseSlotContent.GetChild(i).GetComponent<CardController>();
+            TryAddRedirectEligibleOwnerBase(result, occupant, requiredFeatures);
+        }
+    }
+
+    private static void TryAddRedirectEligibleOwnerBase(
+        List<CardController> result,
+        CardController baseCard,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (result == null
+            || baseCard == null
+            || baseCard.Data == null
+            || baseCard.Data.type != Type.Base
+            || baseCard.CurrentHp <= 0)
+        {
+            return;
+        }
+
+        // ベースは公式どおり〔ネオジオン〕のみ（ユニット側の〔遠隔兵器〕OR 条件は使わない）。
+        if (!baseCard.HasFeatureId(NeoZeonFeatureId)
+            && (requiredFeatures == null
+                || requiredFeatures.Count == 0
+                || !MatchesRequiredFeatures(baseCard.Data, requiredFeatures)))
+        {
+            return;
+        }
+
+        if (!result.Contains(baseCard))
+        {
+            result.Add(baseCard);
+        }
+    }
+
+    private void ClearIncomingBattleDamageRedirectUntilEndOfBattleForAllInPlayUnits()
+    {
+        ClearIncomingBattleDamageRedirectOnZone(playerBattleZoneCards);
+        ClearIncomingBattleDamageRedirectOnZone(enemyBattleZoneCards);
+        _incomingBattleDamageRedirects.Clear();
+        _battleIncomingRedirectHost = null;
+        _battleIncomingRedirectHostCardId = 0;
+        _battleIncomingRedirectHostInstanceId = 0;
+        _battleIncomingRedirectToBase = false;
+        _battleIncomingRedirectRecipientCardId = 0;
+        _battleIncomingRedirectRecipientLive = null;
+        ClearGd06018ReplacementDamageStep();
+    }
+
+    private static void ClearIncomingBattleDamageRedirectOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            zone[i]?.ClearIncomingBattleDamageRedirectUntilEndOfBattle();
+        }
+    }
+
+    private static bool HaveDistinctCardNames(IReadOnlyList<CardController> units)
+    {
+        if (units == null || units.Count <= 1)
+        {
+            return true;
+        }
+
+        HashSet<string> names = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < units.Count; i++)
+        {
+            string name = units[i]?.Data?.cardName;
+            if (string.IsNullOrEmpty(name))
+            {
+                continue;
+            }
+
+            if (!names.Add(name))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ContainsCardName(IReadOnlyList<CardController> units, CardController candidate)
+    {
+        if (units == null || candidate == null || candidate.Data == null)
+        {
+            return false;
+        }
+
+        string name = candidate.Data.cardName;
+        if (string.IsNullOrEmpty(name))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < units.Count; i++)
+        {
+            string existing = units[i]?.Data?.cardName;
+            if (!string.IsNullOrEmpty(existing)
+                && string.Equals(existing, name, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountDistinctCardNames(IReadOnlyList<CardController> units)
+    {
+        if (units == null || units.Count == 0)
+        {
+            return 0;
+        }
+
+        HashSet<string> names = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < units.Count; i++)
+        {
+            string name = units[i]?.Data?.cardName;
+            if (!string.IsNullOrEmpty(name))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names.Count;
     }
 
     private bool TryApplyGrantTurnEndRepair(EffectData effect, List<CardController> targets)
