@@ -8377,3 +8377,13959 @@ public partial class BattleGameMain : MonoBehaviour
         }
         else if (effect.type == EffectType.RecoverHp)
         {
+            ApplyRecoverHpEffect(targets, magnitude, sourceCard);
+        }
+        else if (effect.type == EffectType.AddExResource)
+        {
+            ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+        }
+        else if (effect.type == EffectType.DeployExBase)
+        {
+            ApplyDeployExBaseEffect(sourceCard, ownerType, effect);
+        }
+        else if (effect.type == EffectType.RestResource)
+        {
+            ApplyRestResourceEffect(sourceCard, ownerType, effect);
+        }
+        else if (effect.type == EffectType.ActivateResource)
+        {
+            ApplyActivateResourceEffect(sourceCard, ownerType, effect);
+        }
+
+        // Activate は ApplyActivateEffect 内で、実際に REST→ACTIVE になった対象だけを保存する。
+        if (effect.type != EffectType.Activate && targets != null && targets.Count > 0)
+        {
+            SetEffectChainLastPickedTargets(targets);
+            // 《援護》等: Buff/Debuff 対象をチェーン観測へ載せ、後続の ObservedCardHasFeature 判定に使う
+            if (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+            {
+                for (int oi = 0; oi < targets.Count; oi++)
+                {
+                    CardController observedUnit = targets[oi];
+                    if (observedUnit?.Data != null)
+                    {
+                        ObserveCardInEffectChain(observedUnit.Data);
+                    }
+                }
+            }
+        }
+
+        if (!nestedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
+
+        SyncAllResourceViewsFromRule();
+    }
+    // ブロックリダイレクトを無視するかどうかを判定する
+    private static bool AttackerIgnoresBlockRedirect(CardController attacker)
+    {
+        return attacker != null && attacker.HasHighMobilityAbility();
+    }
+
+    /// <summary>
+    /// シールド攻撃。AP が 1 未満のときは何もしない。
+    /// EXベースありなら power を EX ベースに与え、無いならシールド 1 枚のみ破壊（<see cref="Gundam2024RuleScript.TryApplyUnitShieldAttack"/>）。
+    /// </summary>
+    private void TryUnitShieldAttackFromUnit(
+        CardController attacker,
+        bool skipOnActionPause = false,
+        bool skipOnAttackSelection = false,
+        bool skipAttackedSidePanelPause = false,
+        bool skipOnlineBlockPhase = false,
+        int onlineChosenBlockerInstanceId = 0)
+    {
+        if (attacker?.Data?.id == 1000703)
+        {
+            Debug.Log("[T-029] ビット/ファンネルトークンは通常アタックできません。");
+            return;
+        }
+
+        if (enableShieldAttackFlowDebugLog)
+        {
+            string attackerName = attacker != null && attacker.Data != null ? attacker.Data.cardName : "null";
+            Debug.Log(
+                $"[TryUnitShieldAttackFromUnit] called attacker:{attackerName} skipOnActionPause:{skipOnActionPause} skipOnAttackSelection:{skipOnAttackSelection} skipAttackedSidePanelPause:{skipAttackedSidePanelPause}");
+        }
+
+        if (skipOnAttackSelection || skipOnActionPause)
+        {
+            if (TryAbortRemainingAttackAfterArmedIntervention())
+            {
+                Debug.Log("[ArmedIntervention] Shield strike aborted — original attack already replaced by unit battle.");
+                return;
+            }
+        }
+
+        // OnAttack 再開時はパネル残留フラグで黙って return しない（Master Gundam 等が止まる原因）
+        if (!skipOnAttackSelection)
+        {
+            if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
+            {
+                if (enableShieldAttackFlowDebugLog)
+                {
+                    Debug.Log("[TryUnitShieldAttackFromUnit] skipped — attacked-side panel open.");
+                }
+
+                return;
+            }
+
+            if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
+            {
+                if (enableShieldAttackFlowDebugLog)
+                {
+                    Debug.Log("[TryUnitShieldAttackFromUnit] skipped — action-think pause open.");
+                }
+
+                return;
+            }
+        }
+
+        if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        // シールド攻撃は攻撃可能フラグ(True)のみで判定する（宣言済みの OnAttack/OnAction 再開時は除く）。
+        if (!skipOnAttackSelection && attacker.AttackFlgState != AttackFlg.True)
+        {
+            Debug.Log("This unit cannot attack.");
+            return;
+        }
+
+        if (attacker.CannotDirectAttackPlayerOrShield())
+        {
+            Debug.Log("This unit cannot attack shield or the player directly (isNotDirectAttack).");
+            return;
+        }
+
+        PlayerType shieldAttackOwnerEarly = ResolveCardOwner(attacker.transform);
+        if (HasForcedEnemyAttackTarget(shieldAttackOwnerEarly, attacker))
+        {
+            Debug.Log("This unit must attack a forced enemy unit target (cannot attack shield/player).");
+            return;
+        }
+
+        if (currentPhase != BattlePhase.MainPhase)
+        {
+            return;
+        }
+
+        PlayerType attackerOwner = shieldAttackOwnerEarly;
+        if (!IsActingSideForUi(attackerOwner))
+        {
+            return;
+        }
+
+        if (attacker.CurrentHp <= 0)
+        {
+            Debug.Log("[ShieldAttack] HP is 0 — consume attack and set REST.");
+            CommitUnitAttackDeclaration(attacker, attackerOwner);
+            pendingUnitAttackAttacker = null;
+            pendingOnAttackEffectResolvedAttacker = null;
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+
+        // 宣言時点のベース層を記録。溢れ防止フラグは OnAttack 解決後（打撃フェーズ）で立てる。
+        // （先に立てると Master Gundam の【アタック時】シールドエリアダメージが実シールドまで届かない）
+        bool hadExBaseLayerAtShieldAttackStart;
+        if (!skipOnAttackSelection)
+        {
+            // 新規シールド攻撃宣言: 前回攻撃の残留フラグを掃除
+            isShieldAttackResolving = false;
+            blockShieldFlowDuringShieldAttack = false;
+            deferredShieldBlockRedirectWait = false;
+            blockExchangeCancelledForCurrentAttack = false;
+            shieldStrikeAbortedAfterBlockInterrupt = false;
+            _armedInterventionCancelOriginalStrike = false;
+            _armedInterventionCombatResolvedThisAttack = false;
+            _armedInterventionIgnoreRemoteShieldAttack = false;
+
+            hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
+                || HasActiveDeployedBaseForRuleSide(targetSide);
+            _shieldAttackHadExOrBaseAtDeclaration = hadExBaseLayerAtShieldAttackStart;
+            _shieldAttackHadExOrBaseAtDeclarationValid = true;
+        }
+        else if (_shieldAttackHadExOrBaseAtDeclarationValid)
+        {
+            hadExBaseLayerAtShieldAttackStart = _shieldAttackHadExOrBaseAtDeclaration;
+        }
+        else
+        {
+            hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
+                || HasActiveDeployedBaseForRuleSide(targetSide);
+        }
+
+        CommitUnitAttackDeclaration(attacker, attackerOwner);
+
+        // OnAttack 条件（SourceAttackingEnemyPlayer 等）評価のため、シールド攻撃コンテキストを先に登録する。
+        // （ユニット攻撃と同様。登録が遅いと Zee Zulu 等の「相手プレイヤーにアタックしているなら」が偽になる）
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.Shield,
+            null,
+            null);
+
+        if (!skipOnAttackSelection)
+        {
+            if (!HasOnAttackPreCombatEffectsBeenApplied(attacker))
+            {
+                ResetOnAttackTrashReturnSession();
+            }
+
+            void ProceedShieldAttack()
+            {
+                pendingOnAttackEffectResolvedAttacker = attacker;
+                _onAttackPreCombatCompletedAttacker = attacker;
+                // OnAttack 効果のシールド破壊 UI がブロックパネル等を Destroy して攻撃が止まるのを防ぐ。
+                // シールド破壊（バースト含む）完了後にブロック→アクション→本体打撃へ進む。
+                StartCoroutine(ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine(
+                    attacker,
+                    skipOnActionPause,
+                    skipAttackedSidePanelPause: true));
+            }
+
+            // Master Gundam: 効果選択→シールド効果ダメのみ専用。ブロック／アクション／打撃は通常どおり。
+            // ※他カードの ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine は変更しない。
+            if (TryBeginMasterGundamOnAttackEffect(
+                attacker,
+                attackerOwner,
+                () =>
+                {
+                    pendingOnAttackEffectResolvedAttacker = attacker;
+                    _onAttackPreCombatCompletedAttacker = attacker;
+                    StartCoroutine(CoResumeShieldAttackAfterMasterGundamOnAttack(
+                        attacker,
+                        skipOnActionPause));
+                }))
+            {
+                return;
+            }
+
+            if (TryOpenOnAttackEffectSelectionBeforeCombat(attacker, attackerOwner, null, ProceedShieldAttack))
+            {
+                return;
+            }
+
+            ProceedShieldAttack();
+            return;
+        }
+
+        // 打撃／OnAction フェーズ: 宣言時からあるベース層への溢れ防止のみ有効化
+        // （効果バーストで後から出たベースは打撃対象にはなるが、溢れ防止フラグの根拠にはしない）
+        bool layerRemainsForOverflowGuard = hadExBaseLayerAtShieldAttackStart
+            && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
+        if (layerRemainsForOverflowGuard)
+        {
+            blockShieldFlowDuringShieldAttack = true;
+            blockedShieldFlowSide = targetSide;
+        }
+        else if (!hadExBaseLayerAtShieldAttackStart)
+        {
+            blockShieldFlowDuringShieldAttack = false;
+        }
+
+        if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !AttackerIgnoresBlockRedirect(attacker))
+        {
+            if (CollectSelectableBlockRedirectUnits(attackerOwner).Count > 0)
+            {
+                if (TryBeginOnlineBlockWait(
+                    attacker,
+                    isShieldAttack: true,
+                    originalDefender: null,
+                    blockerId => ResumeOnlineShieldAttackAfterBlockResponse(attacker, attackerOwner, blockerId)))
+                {
+                    return;
+                }
+            }
+        }
+
+        if (isShieldAttackResolving)
+        {
+            if (enableShieldAttackFlowDebugLog)
+            {
+                Debug.Log("[TryUnitShieldAttackFromUnit] skipped by isShieldAttackResolving guard.");
+            }
+            return;
+        }
+        isShieldAttackResolving = true;
+        bool deferredShieldBreakWait = false;
+        bool deferredBaseBattleDamageWait = false;
+
+        try
+        {
+            CommitUnitAttackDeclaration(attacker, attackerOwner);
+
+            // シールド攻撃時も OnAttack の対象選択効果を先に解決する。
+            if (!skipOnAttackSelection && pendingOnAttackEffectResolvedAttacker != attacker)
+            {
+                // 効果適用するためのカードを選択するUI生成
+                if (TryOpenOnAttackEnemySelectionPanel(
+                    attacker,
+                    attackerOwner,
+                    null,
+                    () => TryUnitShieldAttackFromUnit(attacker, skipOnActionPause, true, skipAttackedSidePanelPause)))
+                {
+                    return;
+                }
+
+                pendingOnAttackEffectResolvedAttacker = attacker;
+            }
+
+            bool attackerIgnoresBlock = AttackerIgnoresBlockRedirect(attacker);
+            if (attackerIgnoresBlock && enableShieldAttackFlowDebugLog)
+            {
+                Debug.Log($"[HighMobility] {attacker.Data.cardName} — skip block phase (shield attack)");
+            }
+
+            if (attackFlowBlockSelectionResolved)
+            {
+                skipAttackedSidePanelPause = true;
+                skipOnlineBlockPhase = true;
+                if (!attackFlowPostBlockPassOnActionDone)
+                {
+                    ContinueShieldAttackAfterBlockPassWithoutBlocking(attacker, attackerOwner);
+                    return;
+                }
+
+                skipOnActionPause = true;
+            }
+
+            if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
+            {
+                CardController onlineBlocker = FindBlockerUnitFromRemoteResponse(onlineChosenBlockerInstanceId);
+                PlayerType onlineBlockerOwner = onlineBlocker != null
+                    ? ResolveCardOwner(onlineBlocker.transform)
+                    : PlayerType.Enemy;
+                if (onlineBlocker != null && IsBlockRedirectReactionReady(onlineBlocker, onlineBlockerOwner))
+                {
+                    ApplyDefenderOnAttackReactionEffects(onlineBlocker, attacker, onlineBlockerOwner);
+                    BeginShieldAttackBlockRedirectFlow(onlineBlocker);
+                    TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                        attacker,
+                        onlineBlocker,
+                        attackerOwner,
+                        onlineBlockerOwner);
+                    return;
+                }
+            }
+
+            if (!skipOnlineBlockPhase
+                && !attackerIgnoresBlock
+                && !skipAttackedSidePanelPause
+                && attackerOwner == PlayerType.Player
+                && !IsOnlineBattle()
+                && TryAutoApplyBlockRedirectFromAttack(
+                    attackerOwner,
+                    attacker,
+                    out CardController autoBlockFromShield,
+                    out PlayerType autoBlockOwnerFromShield)
+                && autoBlockFromShield != null)
+            {
+                Debug.Log($"[ShieldToUnit] AI auto redirect to {autoBlockFromShield.Data.cardName}");
+                BeginShieldAttackBlockRedirectFlow(autoBlockFromShield);
+                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    attacker,
+                    autoBlockFromShield,
+                    attackerOwner,
+                    autoBlockOwnerFromShield);
+                return;
+            }
+
+            RegisterAttackFlowContextForOnAction(
+                attacker,
+                attackerOwner,
+                AttackFlowStrikeKind.Shield,
+                null,
+                null);
+
+            CardController selectedDefenderFromShieldPanel = null;
+            PlayerType shieldBlockDefenderSide = attackerOwner == PlayerType.Player
+                ? PlayerType.Enemy
+                : PlayerType.Player;
+            System.Action passShieldBlockAndStartOnAction = () => RunOnActionStepsImmediatelyAfterBlockPass(
+                attacker,
+                null,
+                attackerOwner,
+                shieldBlockDefenderSide,
+                AttackFlowStrikeKind.Shield);
+
+            if (!skipOnlineBlockPhase
+                && !attackerIgnoresBlock
+                && !skipAttackedSidePanelPause
+                && !attackFlowBlockSelectionResolved
+                && attackFlowPipelinePhase != AttackFlowPipelinePhase.PostBlockOnAction
+                && attackerOwner == PlayerType.Enemy
+                && !IsOnlineBattle())
+            {
+                attackFlowPipelinePhase = AttackFlowPipelinePhase.AwaitingBlockUi;
+                if (TryOpenAttackedSideUnitsPanel(
+                    attackerOwner,
+                    attacker,
+                    selected =>
+                    {
+                        selectedDefenderFromShieldPanel = selected;
+                    },
+                    () =>
+                    {
+                        if (selectedDefenderFromShieldPanel != null)
+                        {
+                            PlayerType selectedDefenderOwner = ResolveCardOwner(selectedDefenderFromShieldPanel.transform);
+                            if (IsBlockRedirectReactionReady(selectedDefenderFromShieldPanel, selectedDefenderOwner))
+                            {
+                                ApplyDefenderOnAttackReactionEffects(
+                                    selectedDefenderFromShieldPanel,
+                                    attacker,
+                                    selectedDefenderOwner);
+                                BeginShieldAttackBlockRedirectFlow(selectedDefenderFromShieldPanel);
+                                Debug.Log(
+                                    $"[ShieldToUnit] redirect to unit battle defender:{selectedDefenderFromShieldPanel.Data.cardName}");
+                                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                                    attacker,
+                                    selectedDefenderFromShieldPanel,
+                                    attackerOwner,
+                                    selectedDefenderOwner);
+                                return;
+                            }
+
+                            Debug.LogWarning(
+                                $"[ShieldToUnit] 選択ユニットはブロック不可のためシールド攻撃へ継続: "
+                                + $"{selectedDefenderFromShieldPanel.Data.cardName}");
+                        }
+
+                        passShieldBlockAndStartOnAction.Invoke();
+                    },
+                    passShieldBlockAndStartOnAction,
+                    declaredAttackTargetForDisplay: null))
+                {
+                    return;
+                }
+
+                attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+            }
+
+            if (shieldStrikeAbortedAfterBlockInterrupt || deferredShieldBlockRedirectWait || blockExchangeCancelledForCurrentAttack
+                || _armedInterventionCancelOriginalStrike)
+            {
+                Debug.Log("[ShieldAttack] Shield strike skipped — block redirect flow interrupted or pending.");
+                TryAbortRemainingAttackAfterArmedIntervention();
+                if (attackFlowStrikeKind != AttackFlowStrikeKind.None)
+                {
+                    FinalizeBlockInterruptWithoutExchange();
+                }
+
+                return;
+            }
+
+            RegisterAttackFlowContextForOnAction(
+                attacker,
+                attackerOwner,
+                AttackFlowStrikeKind.Shield,
+                null,
+                null);
+
+            if (!skipOnActionPause
+                && TryRunAttackActionSteps(
+                    attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player,
+                    attackerOwner,
+                    () =>
+                    {
+                        if (TrySettleAttackFlowAfterOnActionPhases())
+                        {
+                            return;
+                        }
+
+                        if (TryFinishArmedInterventionAlreadyResolvedCombat())
+                        {
+                            return;
+                        }
+
+                        if (TryResumeArmedInterventionUnitCombatAfterOnAction(attacker))
+                        {
+                            return;
+                        }
+
+                        TryUnitShieldAttackFromUnit(attacker, true, true, true);
+                    },
+                    attacker))
+            {
+                return;
+            }
+
+            // ユニット戦と同様、Self AP バフは盤面に残さず打撃時のみ加算
+            int shieldStrikeAp = Mathf.Max(
+                0,
+                GetUnitStrikeDamagePower(attacker) + ComputeOnAttackSelfApBonus(attacker, attackerOwner));
+
+            if (shieldStrikeAp <= 0)
+            {
+                Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or direct attack.");
+                pendingUnitAttackAttacker = null;
+                pendingOnAttackEffectResolvedAttacker = null;
+                ClearEndOfBattleCombatModifiers("shield attack aborted (AP0)");
+                ClearAttackFlowContext();
+                return;
+            }
+
+            if (!gundamRule.HasShieldZoneProtection(targetSide))
+            {
+                Debug.Log($"[DirectAttack] No shield zone protection. Resolving direct attack. attackPower:{shieldStrikeAp}");
+                pendingUnitAttackAttacker = null;
+                pendingOnAttackEffectResolvedAttacker = null;
+                NotifyLocalShieldAttackResolved(attacker, 0, 0, directAttackWin: true);
+                HandleDirectAttackWinLose(attackerOwner);
+                ClearEndOfBattleCombatModifiers("shield direct attack");
+                ClearAttackFlowContext();
+                return;
+            }
+
+            int shieldBeforeStrike = defender.shield;
+            int exBaseBeforeStrike = defender.exBase;
+            if (!TryResolveShieldAttackStrikeDamage(
+                    attacker,
+                    targetSide,
+                    defender,
+                    hadExBaseLayerAtShieldAttackStart,
+                    shieldStrikeAp,
+                    out string shieldStrikeLog,
+                    out bool destroyedDeployedBase))
+            {
+                Debug.Log("Cannot attack shield (no shields or invalid power for EX Base).");
+                ClearEndOfBattleCombatModifiers("shield strike failed");
+                ClearAttackFlowContext();
+                return;
+            }
+
+            ClearEndOfBattleCombatModifiers("shield attack after strike");
+
+            Gundam2024RuleScript.PlayerState defenderAfter = targetSide == Gundam2024RuleScript.PlayerSide.Player
+                ? gundamRule.Player
+                : gundamRule.Enemy;
+            int shieldsBroken = shieldBeforeStrike - defenderAfter.shield;
+            bool destroyedExBase = exBaseBeforeStrike > 0 && defenderAfter.exBase <= 0;
+            if (shieldsBroken > 0 || destroyedDeployedBase || destroyedExBase)
+            {
+                deferredShieldBreakWait = true;
+                StartCoroutine(FinishUnitShieldAttackAfterBreakCoroutine(
+                    attacker,
+                    attackerOwner,
+                    shieldStrikeLog,
+                    hadExBaseLayerAtShieldAttackStart,
+                    triggerShieldDestroyedWatch: shieldsBroken > 0,
+                    triggerBaseDestroyedWatch: destroyedDeployedBase,
+                    triggerExBaseDestroyedWatch: destroyedExBase));
+                return;
+            }
+
+            if (HasPendingOrRunningBaseBattleDamageWatch)
+            {
+                deferredBaseBattleDamageWait = true;
+                StartCoroutine(CoFinishShieldAttackAfterBaseBattleDamageWatch(
+                    attacker,
+                    attackerOwner,
+                    shieldStrikeLog,
+                    hadExBaseLayerAtShieldAttackStart));
+                return;
+            }
+
+            CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
+        }
+        finally
+        {
+            if (!deferredShieldBreakWait && !deferredShieldBlockRedirectWait && !deferredBaseBattleDamageWait)
+            {
+                isShieldAttackResolving = false;
+                if (hadExBaseLayerAtShieldAttackStart)
+                {
+                    blockShieldFlowDuringShieldAttack = false;
+                }
+            }
+        }
+    }
+
+    private void CompleteUnitShieldAttackPostStrikeFollowUp(
+        CardController attacker,
+        PlayerType attackerOwner,
+        string shieldStrikeLog)
+    {
+        if (!string.IsNullOrEmpty(shieldStrikeLog))
+        {
+            Debug.Log(shieldStrikeLog);
+        }
+
+        TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnShieldAttack);
+        TriggerMountedPilotOnShieldAttackEffects(attacker, attackerOwner);
+        TriggerCardEffects(attacker, attackerOwner, EffectTiming.OnAttack);
+        TriggerMountedPilotOnAttackEffects(attacker, attackerOwner);
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearShieldAttackDeclarationLayerCache();
+        ClearEndOfBattleCombatModifiers("unit shield attack");
+        DumpTurnResourceUsageLogs(attackerOwner, "unit shield attack");
+
+        Gundam2024RuleScript.PlayerSide targetSide = attackerOwner == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defenderAfter = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        if (!_onlineShieldAttackNotifySent)
+        {
+            NotifyLocalShieldAttackResolved(
+                attacker,
+                defenderAfter.shield,
+                defenderAfter.exBase,
+                directAttackWin: false);
+        }
+        else
+        {
+            _onlineShieldAttackNotifySent = false;
+        }
+
+        SyncAllResourceViewsFromRule();
+        FinishUnitAttackSessionAndClearFlowContext();
+    }
+
+    private IEnumerator CoFinishShieldAttackAfterBaseBattleDamageWatch(
+        CardController attacker,
+        PlayerType attackerOwner,
+        string shieldStrikeLog,
+        bool hadExBaseLayerAtShieldAttackStart)
+    {
+        // ダメージ→判定のあと（シールド破壊なし）にアーガマの相手ユニット選択。
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return CoResolveArgamaAfterBaseDamageStep();
+        try
+        {
+            CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
+        }
+        finally
+        {
+            isShieldAttackResolving = false;
+            if (hadExBaseLayerAtShieldAttackStart)
+            {
+                blockShieldFlowDuringShieldAttack = false;
+            }
+        }
+    }
+
+    private IEnumerator FinishUnitShieldAttackAfterBreakCoroutine(
+        CardController attacker,
+        PlayerType attackerOwner,
+        string shieldStrikeLog,
+        bool hadExBaseLayerAtShieldAttackStart,
+        bool triggerShieldDestroyedWatch,
+        bool triggerBaseDestroyedWatch,
+        bool triggerExBaseDestroyedWatch)
+    {
+        if (triggerShieldDestroyedWatch && _onlineDeferredEnemyShieldBreak.HasValue)
+        {
+            OnlineDeferredEnemyShieldBreak deferred = _onlineDeferredEnemyShieldBreak.Value;
+            _onlineDeferredEnemyShieldBreak = null;
+            yield return RunOnlineAttackerEnemyShieldBreakHandshakeCoroutine(attacker, deferred);
+        }
+        else if (triggerShieldDestroyedWatch)
+        {
+            yield return WaitForShieldBreakFlowCompleteCoroutine();
+        }
+
+        if (triggerShieldDestroyedWatch)
+        {
+            yield return WaitObservedUnitWatchEffectsCoroutine(
+                attacker,
+                attackerOwner,
+                ObservedUnitTriggerKind.ShieldDestroyed);
+        }
+
+        if (triggerBaseDestroyedWatch)
+        {
+            yield return WaitObservedUnitWatchEffectsCoroutine(
+                attacker,
+                attackerOwner,
+                ObservedUnitTriggerKind.BaseDestroyed);
+        }
+
+        if (triggerExBaseDestroyedWatch)
+        {
+            yield return WaitObservedUnitWatchEffectsCoroutine(
+                attacker,
+                attackerOwner,
+                ObservedUnitTriggerKind.ExBaseDestroyed);
+        }
+
+        if (triggerShieldDestroyedWatch || triggerBaseDestroyedWatch || triggerExBaseDestroyedWatch)
+        {
+            yield return WaitOnOpponentShieldAreaCardDestroyedCoroutine(attacker, attackerOwner);
+        }
+
+        // アタック→アクション→ダメージ→判定のあとでアーガマの相手ユニット選択 UI。
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return CoResolveArgamaAfterBaseDamageStep();
+
+        try
+        {
+            CompleteUnitShieldAttackPostStrikeFollowUp(attacker, attackerOwner, shieldStrikeLog);
+        }
+        finally
+        {
+            isShieldAttackResolving = false;
+            if (hadExBaseLayerAtShieldAttackStart)
+            {
+                blockShieldFlowDuringShieldAttack = false;
+            }
+        }
+    }
+
+    private const int DefaultSuppressShieldBreakCount = 2;
+
+    /// <summary>
+    /// 攻撃者（＋搭乗パイロット）の OnShieldAttack にある制圧の最大破壊枚数。無ければ 0。
+    /// 発動条件（味方ベースがある間など）を満たすブロックのみ数える。
+    /// </summary>
+    private int GetMaxSuppressBreakCountFromCardData(CardData data, PlayerType ownerType, CardController sourceCard)
+    {
+        if (data == null || data.timedEffects == null)
+        {
+            return 0;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        int maxBreaks = 0;
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null
+                || timed.timing != EffectTiming.OnShieldAttack
+                || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int j = 0; j < effects.Count; j++)
+            {
+                EffectData effect = effects[j];
+                if (effect == null || effect.type != EffectType.Suppress)
+                {
+                    continue;
+                }
+
+                int breaks = effect.value > 0 ? effect.value : DefaultSuppressShieldBreakCount;
+                if (breaks > maxBreaks)
+                {
+                    maxBreaks = breaks;
+                }
+            }
+        }
+
+        return maxBreaks;
+    }
+
+    private int GetMaxSuppressBreakCountFromUnit(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return 0;
+        }
+
+        PlayerType ownerType = ResolveCardOwner(unit.transform);
+        int maxBreaks = GetMaxSuppressBreakCountFromCardData(unit.Data, ownerType, unit);
+        CardController pilot = unit.MountedPilot;
+        if (pilot != null && pilot.Data != null)
+        {
+            maxBreaks = Mathf.Max(
+                maxBreaks,
+                GetMaxSuppressBreakCountFromCardData(pilot.Data, ownerType, unit));
+        }
+
+        if (unit.HasSuppressUntilEndOfTurnGrant)
+        {
+            maxBreaks = Mathf.Max(maxBreaks, unit.SuppressUntilEndOfTurnBreakCount);
+        }
+
+        return maxBreaks;
+    }
+
+    /// <summary>
+    /// OnAttack プレコンバット（除外→効果ダメージ等）完了後、シールド破壊フローが済んでから本体攻撃へ。
+    /// </summary>
+    /// <summary>
+    /// Master Gundam 専用: OnAttack 効果ダメ完了後、ブロック→アクション→本体打撃へ戻す。
+    /// 他カード用 ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine とは分離する。
+    /// </summary>
+    private IEnumerator CoResumeShieldAttackAfterMasterGundamOnAttack(
+        CardController attacker,
+        bool skipOnActionPause)
+    {
+        Debug.Log("[MasterGundam] Resume shield attack → block → action → strike");
+
+        // バースト Yes/No・ベース配備が終わるまで本体攻撃（ブロック／アクション／打撃）に入らない
+        yield return WaitForShieldBreakFlowCompleteCoroutine(-1f);
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(-1f);
+
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null || !attacker.Data.IsUnitLike())
+        {
+            ClearShieldAttackDeclarationLayerCache();
+            Debug.LogWarning("[MasterGundam] Resume aborted — attacker invalid.");
+            yield break;
+        }
+
+        Gundam2024RuleScript.PlayerSide targetSide = ResolveCardOwner(attacker.transform) == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        // 溢れ防止は「宣言時からベース/EX があった」ときだけ。
+        // バーストで後から出たベースは打撃時に TryApplyShieldAttackDamageToDeployedBase で受ける。
+        bool declaredLayerStillUp = _shieldAttackHadExOrBaseAtDeclarationValid
+            && _shieldAttackHadExOrBaseAtDeclaration
+            && defender != null
+            && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
+        blockShieldFlowDuringShieldAttack = declaredLayerStillUp;
+        if (declaredLayerStillUp)
+        {
+            blockedShieldFlowSide = targetSide;
+        }
+        else
+        {
+            blockShieldFlowDuringShieldAttack = false;
+        }
+
+        isShieldAttackResolving = false;
+        isAttackedSidePanelOpen = false;
+        isActionThinkPauseOpen = false;
+
+        // ブロック／アクションをスキップしない（他カード用 resume とはフラグが異なる）
+        TryUnitShieldAttackFromUnit(
+            attacker,
+            skipOnActionPause: false,
+            skipOnAttackSelection: true,
+            skipAttackedSidePanelPause: false,
+            skipOnlineBlockPhase: false);
+    }
+
+    private IEnumerator ContinueShieldAttackAfterOnAttackPreCombatSettledCoroutine(
+        CardController attacker,
+        bool skipOnActionPause,
+        bool skipAttackedSidePanelPause)
+    {
+        Debug.Log(
+            "[ShieldAttack] Resume after OnAttack pre-combat "
+            + $"attacker:{(attacker != null && attacker.Data != null ? attacker.Data.cardName : "null")}");
+
+        // OnAttack でシールド破壊が走った場合は完了を待つ。滞留時はタイムアウトで攻撃を続行する。
+        yield return WaitForShieldBreakFlowCompleteCoroutine(45f);
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null || !attacker.Data.IsUnitLike())
+        {
+            ClearShieldAttackDeclarationLayerCache();
+            Debug.LogWarning("[ShieldAttack] Resume aborted — attacker invalid after OnAttack.");
+            yield break;
+        }
+
+        // OnAttack 効果でベース/EX が消えた場合、溢れ防止フラグを落とす（残りシールド／ダイレクトへ通す）。
+        Gundam2024RuleScript.PlayerSide targetSide = ResolveCardOwner(attacker.transform) == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Enemy
+            : Gundam2024RuleScript.PlayerSide.Player;
+        Gundam2024RuleScript.PlayerState defender = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        bool layerRemains = defender != null
+            && (defender.exBase > 0 || HasActiveDeployedBaseForRuleSide(targetSide));
+        if (!layerRemains)
+        {
+            blockShieldFlowDuringShieldAttack = false;
+        }
+
+        // 再開時はパネル／resolving 残留で止めない。本体攻撃（ブロック→アクション→打撃）へ進める。
+        isShieldAttackResolving = false;
+        isAttackedSidePanelOpen = false;
+        TryUnitShieldAttackFromUnit(
+            attacker,
+            skipOnActionPause,
+            skipOnAttackSelection: true,
+            skipAttackedSidePanelPause: true);
+    }
+
+    private void ClearShieldAttackDeclarationLayerCache()
+    {
+        _shieldAttackHadExOrBaseAtDeclaration = false;
+        _shieldAttackHadExOrBaseAtDeclarationValid = false;
+    }
+
+    /// <summary>
+    /// シールド攻撃のダメージ本体。EX あり→通常シールド攻撃。シールドのみ＋制圧→実シールドを複数枚。
+    /// </summary>
+    private bool TryResolveShieldAttackStrikeDamage(
+        CardController attacker,
+        Gundam2024RuleScript.PlayerSide targetSide,
+        Gundam2024RuleScript.PlayerState defender,
+        bool hadExBaseLayerAtShieldAttackStart,
+        int strikeAp,
+        out string logMessage,
+        out bool destroyedDeployedBase)
+    {
+        logMessage = null;
+        destroyedDeployedBase = false;
+        if (blockExchangeCancelledForCurrentAttack || shieldStrikeAbortedAfterBlockInterrupt)
+        {
+            Debug.Log("[ShieldAttack] Shield strike skipped — block exchange was cancelled for this attack.");
+            return false;
+        }
+
+        if (attacker == null || defender == null || gundamRule == null)
+        {
+            return false;
+        }
+
+        // 攻撃フロー所有者を優先（階層 ResolveCardOwner の誤判定で無効化が外れるのを防ぐ）
+        PlayerType? attackerOwnerHint = attackFlowStrikeKind != AttackFlowStrikeKind.None
+            ? attackFlowAttackerOwner
+            : (PlayerType?)null;
+
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, attacker, attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] Shield-area (Base/EX/Shield) immune to unit damage "
+                + $"({attacker.Data?.cardName} Lv:{attacker.CurrentLevel}).";
+            return true;
+        }
+
+        int suppressBreaks = GetMaxSuppressBreakCountFromUnit(attacker);
+        bool shieldOnly = defender.exBase <= 0
+            && !HasActiveDeployedBaseForRuleSide(targetSide)
+            && !hadExBaseLayerAtShieldAttackStart;
+
+        if (TryApplyShieldAttackDamageToDeployedBase(
+                attacker,
+                targetSide,
+                strikeAp,
+                out logMessage,
+                out destroyedDeployedBase,
+                attackerOwnerHint))
+        {
+            return true;
+        }
+
+        // 配備ベースがいるのにダメージ未適用 → EX層空振り扱いにせずシールド破壊へ（Master Gundam バースト後など）
+        bool overflowGuardAsExLayer = hadExBaseLayerAtShieldAttackStart
+            && !HasActiveDeployedBaseForRuleSide(targetSide);
+
+        // 無効化は EX／制圧／実シールドすべてに再確認（配備ベース無し経路の取りこぼし防止）
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, attacker, attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] EX/Shield immune to unit damage "
+                + $"({attacker.Data?.cardName} Lv:{attacker.CurrentLevel}).";
+            return true;
+        }
+
+        if (suppressBreaks > 0 && shieldOnly)
+        {
+            int applied = gundamRule.ApplySuppressShieldBreaks(targetSide, suppressBreaks);
+            if (applied <= 0)
+            {
+                return false;
+            }
+
+            logMessage = $"[Attack] Suppress broke {applied} shield(s) (shield-only).";
+            return true;
+        }
+
+        if (strikeAp <= 0)
+        {
+            return false;
+        }
+
+        if (!gundamRule.TryApplyUnitShieldAttack(targetSide, strikeAp, overflowGuardAsExLayer))
+        {
+            return false;
+        }
+
+        if (overflowGuardAsExLayer)
+        {
+            logMessage = $"[Attack] Shield attack vs EX layer. EX Base is now {defender.exBase}.";
+        }
+        else
+        {
+            logMessage = "[Attack] Broke 1 shield (no EX Base).";
+        }
+
+        return true;
+    }
+
+    private void TriggerMountedPilotOnShieldAttackEffects(CardController attacker, PlayerType attackerOwner)
+    {
+        if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        CardController pilot = attacker.MountedPilot;
+        if (pilot == null || pilot.Data == null)
+        {
+            return;
+        }
+
+        TriggerCardEffects(pilot, attackerOwner, EffectTiming.OnShieldAttack);
+    }
+
+    private void SetUnitRestAndTriggerEffects(CardController unit, PlayerType ownerType)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return;
+        }
+
+        unit.SetUnitRestVisual(true);
+    }
+
+    /// <summary>攻撃対象確定（宣言）時に攻撃権を消費してレストする。中断・不成立時も ACTIVE に戻さない。</summary>
+    private void CommitUnitAttackDeclaration(CardController attacker, PlayerType attackerOwner)
+    {
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null)
+        {
+            return;
+        }
+
+        if (attacker.AttackFlgState == AttackFlg.False && attacker.IsRestState)
+        {
+            return;
+        }
+
+        if (attacker.AttackFlgState == AttackFlg.True)
+        {
+            blockExchangeCancelledForCurrentAttack = false;
+            shieldStrikeAbortedAfterBlockInterrupt = false;
+            ResetAttackFlowBlockPassFlagsForNewDeclaration();
+        }
+
+        attacker.SetAttackFlg(AttackFlg.False);
+        SetUnitRestAndTriggerEffects(attacker, attackerOwner);
+        SyncOnlineRestFromAttackAuthority(attacker);
+        // OnAttack プレコンバット中は pending を残す（効果ダメージのシールド破壊許可に使う）
+        if (_pendingOnAttackPreCombatResolvedAttacker == null
+            || !IsSameBattleUnit(_pendingOnAttackPreCombatResolvedAttacker, attacker))
+        {
+            ClearOnAttackPreCombatResolvedState();
+        }
+
+        Debug.Log($"[AttackDeclare] {attacker.Data.cardName} attack declared — REST + attack right consumed.");
+    }
+
+    /// <summary>シールドゾーンから OnRest できるのは、表向き（裏面カバーなし）のベースのみ。</summary>
+    private static bool IsVisibleBaseInShieldZone(CardController card)
+    {
+        return card != null
+            && card.Data != null
+            && card.Data.type == Type.Base
+            && !card.IsShieldFaceHidden;
+    }
+
+    private bool IsCardInOwnerShieldZone(CardController card, PlayerType ownerType)
+    {
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        return card != null
+            && rule != null
+            && rule.ShieldCardsContent != null
+            && card.transform.IsChildOf(rule.ShieldCardsContent);
+    }
+
+    /// <summary>OnRest の起動元として有効な場所か（シールド上は表ベースのみ）。</summary>
+    private bool CanUseOnRestAtCardLocation(CardController card, PlayerType ownerType)
+    {
+        if (card == null || card.Data == null)
+        {
+            return false;
+        }
+
+        if (IsCardInBaseSlot(card) || IsCardOnBattleZone(card))
+        {
+            return true;
+        }
+
+        if (IsCardInOwnerShieldZone(card, ownerType))
+        {
+            return IsVisibleBaseInShieldZone(card);
+        }
+
+        return false;
+    }
+
+    private bool CanActivateOnRestBySelf(PlayerType ownerType, CardController source)
+    {
+        if (source == null || source.Data == null)
+        {
+            return false;
+        }
+
+        if (!IsActingSideForUi(ownerType) || currentPhase != BattlePhase.MainPhase)
+        {
+            return false;
+        }
+
+        if (!CanUseOnRestAtCardLocation(source, ownerType))
+        {
+            return false;
+        }
+
+        if (source.IsRestState)
+        {
+            return false;
+        }
+
+        int turnIndex = gundamRule != null ? gundamRule.TurnIndex : -1;
+        if (onRestActivatedTurnByCard.TryGetValue(source, out int activatedTurn) && activatedTurn == turnIndex)
+        {
+            return false;
+        }
+
+        return HasEffectTiming(source.Data, EffectTiming.OnRest);
+    }
+
+    private bool TryActivateOnRestBySelf(PlayerType ownerType, CardController source)
+    {
+        if (!CanActivateOnRestBySelf(ownerType, source))
+        {
+            Debug.Log("OnRest: 現在は発動できません（ターン/フェイズ/REST状態）。");
+            return false;
+        }
+
+        source.SetAttackFlg(AttackFlg.False);
+        source.SetUnitRestVisual(true);
+        int turnIndex = gundamRule != null ? gundamRule.TurnIndex : -1;
+        onRestActivatedTurnByCard[source] = turnIndex;
+        // TriggerCardEffects は手動選択効果を continue で捨てるため、コルーチン解決を使う。
+        TriggerTimedEffectsForCard(source, ownerType, EffectTiming.OnRest);
+        SyncAllResourceViewsFromRule();
+        return true;
+    }
+
+    private void TryUnitVsUnitAttack(
+        CardController attacker,
+        CardController defender,
+        PlayerType attackerOwner,
+        PlayerType defenderOwner,
+        bool skipOnActionPause = false,
+        bool skipAttackedSidePanelPause = false,
+        bool skipOnlineBlockPhase = false,
+        int onlineChosenBlockerInstanceId = 0,
+        bool resumeAfterPreCombatOnAttack = false)
+    {
+        if (attacker?.Data?.id == 1000703)
+        {
+            Debug.Log("[T-029] ビット/ファンネルトークンは通常アタックできません。");
+            return;
+        }
+
+        if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
+        {
+            Debug.Log("[UnitAttack] Paused — attacked-side block panel is still open.");
+            return;
+        }
+
+        if (isActionThinkPauseOpen && !skipOnActionPause)
+        {
+            Debug.Log("[UnitAttack] Paused — action think panel is still open.");
+            return;
+        }
+
+        if (currentPhase != BattlePhase.MainPhase || !IsActingSideForUi(attackerOwner))
+        {
+            Debug.Log("[UnitAttack] Cancel — not main phase or not acting side.");
+            return;
+        }
+
+        if (!IsCardControllerInstanceValid(attacker) || !IsCardControllerInstanceValid(defender))
+        {
+            Debug.Log("[UnitAttack] Attacker or defender no longer exists — cancel.");
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        if (!attacker.Data.IsUnitLike() || !defender.Data.IsUnitLike())
+        {
+            Debug.Log("Only units can attack each other.");
+            return;
+        }
+
+        // 既に宣言済みの防御対象への再開では、Action 後の CannotBeChosen 付与でバトルを中断しない。
+        bool resumeDeclaredTarget = IsCardControllerInstanceValid(attackFlowDeclaredDefenderUnit)
+            && ReferenceEquals(attackFlowDeclaredDefenderUnit, defender);
+
+        if (!IsValidEnemyUnitAttackTarget(
+                attacker,
+                defender,
+                attackerOwner,
+                enforceCannotBeChosenAsAttackTarget: !resumeDeclaredTarget))
+        {
+            Debug.Log("Invalid unit attack target (forced attack or illegal combat target).");
+            return;
+        }
+
+        if (attackFlowBlockSelectionResolved
+            || attackFlowPipelinePhase == AttackFlowPipelinePhase.PostBlockOnAction)
+        {
+            skipAttackedSidePanelPause = true;
+            CardController resolvedAttacker = attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker;
+            CardController resolvedDefender = attackFlowDeclaredDefenderUnit != null
+                ? attackFlowDeclaredDefenderUnit
+                : defender;
+            PlayerType resolvedDefenderOwner = ResolveCardOwner(resolvedDefender.transform);
+
+            if (!attackFlowPostBlockPassOnActionDone)
+            {
+                RunOnActionStepsImmediatelyAfterBlockPass(
+                    resolvedAttacker,
+                    resolvedDefender,
+                    attackFlowAttackerOwner,
+                    resolvedDefenderOwner,
+                    AttackFlowStrikeKind.UnitVsUnit);
+                return;
+            }
+
+            ExecuteUnitVsUnitDeclaredCombat(
+                resolvedAttacker,
+                resolvedDefender,
+                attackFlowAttackerOwner,
+                resolvedDefenderOwner);
+            return;
+        }
+
+        // 攻撃前 OnAttack（Draw / トラッシュ返却等）を1回だけ解決してから宣言する
+        if (!resumeAfterPreCombatOnAttack && !HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        {
+            ResetOnAttackTrashReturnSession();
+
+            // SourceAttackingEnemyUnit 等は攻撃コンテキスト必須（AI 直呼びでも登録する）
+            RegisterAttackFlowContextForOnAction(
+                attacker,
+                attackerOwner,
+                AttackFlowStrikeKind.UnitVsUnit,
+                defender,
+                AttackerIgnoresBlockRedirect(attacker) ? null : attackFlowBlockRedirectUnit);
+
+            void ContinueAfterOnAttack()
+            {
+                ContinueUnitAttackAfterOnAttackEffects(
+                    attacker,
+                    attackerOwner,
+                    defender,
+                    skipOnActionPause);
+            }
+
+            // Master Gundam: 専用パス後にユニット戦へ
+            if (TryBeginMasterGundamOnAttackEffect(attacker, attackerOwner, ContinueAfterOnAttack))
+            {
+                return;
+            }
+
+            if (TryOpenOnAttackEffectSelectionBeforeCombat(
+                attacker,
+                attackerOwner,
+                defender,
+                ContinueAfterOnAttack))
+            {
+                return;
+            }
+        }
+
+        bool attackerIgnoresBlock = AttackerIgnoresBlockRedirect(attacker);
+        if (attackerIgnoresBlock)
+        {
+            attackFlowBlockRedirectUnit = null;
+        }
+
+        CommitUnitAttackDeclaration(attacker, attackerOwner);
+
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            defender,
+            attackerIgnoresBlock ? null : attackFlowBlockRedirectUnit);
+
+        if (!IsUnitAliveOnAnyDeployField(attacker))
+        {
+            Debug.Log("[UnitAttack] Attacker not on field or HP is 0 — cancel attack.");
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        // 敵 AI のスコア中止は TryEnemyShieldAttacks およびシールド→ブロック直前のみ（バトル開始後は判定しない。宣言前のみ有効）。
+
+        // 攻撃宣言後に、OnAttackの非戦闘効果（GrantAttackFlag 等）→対象選択(デバフ等)を行う。
+        if (!resumeAfterPreCombatOnAttack)
+        {
+            if (_onAttackPreCombatCompletedAttacker != attacker)
+            {
+                TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, null);
+                _onAttackPreCombatCompletedAttacker = attacker;
+            }
+
+            if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
+            {
+                if (TryOpenOnAttackEnemySelectionPanel(
+                        attacker,
+                        attackerOwner,
+                        defender,
+                        () => ContinueUnitAttackAfterOnAttackEffects(
+                            attacker,
+                            attackerOwner,
+                            defender,
+                            skipOnActionPause)))
+                {
+                    return;
+                }
+
+                pendingOnAttackEffectResolvedAttacker = attacker;
+            }
+        }
+        else if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
+        {
+            pendingOnAttackEffectResolvedAttacker = attacker;
+        }
+
+        if (ShouldUseOnlineBlockPhase(attackerOwner) && !skipOnlineBlockPhase && !attackerIgnoresBlock)
+        {
+            if (CollectSelectableBlockRedirectUnits(attackerOwner).Count > 0)
+            {
+                if (TryBeginOnlineBlockWait(
+                    attacker,
+                    isShieldAttack: false,
+                    originalDefender: defender,
+                    blockerId => ResumeOnlineUnitAttackAfterBlockResponse(
+                        attacker,
+                        defender,
+                        attackerOwner,
+                        defenderOwner,
+                        blockerId)))
+                {
+                    return;
+                }
+            }
+        }
+
+        if (skipOnlineBlockPhase && onlineChosenBlockerInstanceId > 0)
+        {
+            CardController onlineBlocker = FindBlockerUnitFromRemoteResponse(onlineChosenBlockerInstanceId);
+            if (onlineBlocker != null)
+            {
+                CommitBlockRedirectSelection(attacker, onlineBlocker, ref defender, ref defenderOwner);
+                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    attacker,
+                    onlineBlocker,
+                    attackerOwner,
+                    defenderOwner);
+                return;
+            }
+        }
+
+        if (!skipOnlineBlockPhase
+            && !attackerIgnoresBlock
+            && !skipAttackedSidePanelPause
+            && attackerOwner == PlayerType.Player
+            && !IsOnlineBattle()
+            && TryAutoApplyBlockRedirectFromAttack(
+                attackerOwner,
+                attacker,
+                out CardController autoBlockUnit,
+                out PlayerType autoBlockOwner)
+            && autoBlockUnit != null)
+        {
+            attackFlowBlockRedirectUnit = autoBlockUnit;
+            attackFlowBlockRedirectEngaged = true;
+            defender = autoBlockUnit;
+            defenderOwner = autoBlockOwner;
+        }
+        else if (!skipOnlineBlockPhase
+            && !attackerIgnoresBlock
+            && !skipAttackedSidePanelPause
+            && !attackFlowBlockSelectionResolved
+            && attackFlowPipelinePhase != AttackFlowPipelinePhase.PostBlockOnAction
+            && attackerOwner == PlayerType.Enemy
+            && !IsOnlineBattle())
+        {
+            CardController blockFlowAttacker = attacker;
+            CardController blockFlowDefender = defender;
+            PlayerType blockFlowAttackerOwner = attackerOwner;
+            PlayerType blockFlowDefenderOwner = defenderOwner;
+            System.Action passBlockAndStartOnAction = () => RunOnActionStepsImmediatelyAfterBlockPass(
+                blockFlowAttacker,
+                blockFlowDefender,
+                blockFlowAttackerOwner,
+                blockFlowDefenderOwner,
+                AttackFlowStrikeKind.UnitVsUnit);
+
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.AwaitingBlockUi;
+            if (TryOpenAttackedSideUnitsPanel(
+                attackerOwner,
+                attacker,
+                selected =>
+                {
+                    if (selected == null)
+                    {
+                        ClearPendingBlockRedirectSelection();
+                        return;
+                    }
+
+                    CommitBlockRedirectSelection(attacker, selected, ref defender, ref defenderOwner);
+                },
+                () =>
+                {
+                    if (attackFlowBlockRedirectUnit != null)
+                    {
+                        PlayerType blockOwner = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+                        TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                            attacker,
+                            attackFlowBlockRedirectUnit,
+                            attackerOwner,
+                            blockOwner);
+                        return;
+                    }
+
+                    passBlockAndStartOnAction.Invoke();
+                },
+                passBlockAndStartOnAction,
+                declaredAttackTargetForDisplay: defender))
+            {
+                return;
+            }
+
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+        }
+
+        if (attackFlowPipelinePhase == AttackFlowPipelinePhase.AwaitingBlockUi)
+        {
+            attackFlowPipelinePhase = AttackFlowPipelinePhase.None;
+        }
+
+        if (attackFlowBlockRedirectEngaged && attackFlowBlockRedirectUnit != null)
+        {
+            PlayerType blockOwner = ResolveCardOwner(attackFlowBlockRedirectUnit.transform);
+            TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                attacker,
+                attackFlowBlockRedirectUnit,
+                attackerOwner,
+                blockOwner,
+                skipOnActionPause: attackFlowBlockOnActionCompleted || skipOnActionPause);
+            return;
+        }
+
+        if (attackFlowBlockRedirectUnit != null && defender != null && defender == attackFlowBlockRedirectUnit)
+        {
+            TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                attacker,
+                defender,
+                attackerOwner,
+                defenderOwner,
+                skipOnActionPause: attackFlowBlockOnActionCompleted || skipOnActionPause);
+            return;
+        }
+
+        if (!skipOnActionPause
+            && !attackFlowPostBlockPassOnActionDone
+            && !attackFlowBlockSelectionResolved
+            && attackFlowPipelinePhase != AttackFlowPipelinePhase.PostBlockOnAction
+            && TryRunAttackActionSteps(
+                defenderOwner,
+                attackerOwner,
+                () =>
+                {
+                    if (attackFlowBlockSelectionResolved)
+                    {
+                        if (attackFlowPostBlockPassOnActionDone)
+                        {
+                            ExecuteUnitVsUnitDeclaredCombat(
+                                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
+                                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
+                                attackFlowAttackerOwner,
+                                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender).transform));
+                        }
+                        else
+                        {
+                            RunOnActionStepsImmediatelyAfterBlockPass(
+                                attackFlowAttackerUnit != null ? attackFlowAttackerUnit : attacker,
+                                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender,
+                                attackFlowAttackerOwner,
+                                ResolveCardOwner((attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender).transform),
+                                AttackFlowStrikeKind.UnitVsUnit);
+                        }
+
+                        return;
+                    }
+
+                    CardController combatAttacker = attackFlowAttackerUnit != null
+                        ? attackFlowAttackerUnit
+                        : attacker;
+                    CardController combatDefender = attackFlowDeclaredDefenderUnit != null
+                        ? attackFlowDeclaredDefenderUnit
+                        : defender;
+                    if (!IsUnitAliveOnAnyDeployField(combatAttacker)
+                        || !IsUnitAliveOnAnyDeployField(combatDefender))
+                    {
+                        Debug.Log("[UnitAttack] Attacker or defender gone after OnAction — cancel.");
+                        CancelPendingUnitAttackFlow();
+                        return;
+                    }
+
+                    ExecuteUnitVsUnitDeclaredCombat(
+                        combatAttacker,
+                        combatDefender,
+                        attackFlowAttackerOwner,
+                        ResolveCardOwner(combatDefender.transform));
+                },
+                attacker,
+                attackFlowDeclaredDefenderUnit != null ? attackFlowDeclaredDefenderUnit : defender))
+        {
+            return;
+        }
+
+        ExecuteUnitVsUnitDeclaredCombat(attacker, defender, attackerOwner, defenderOwner);
+    }
+
+    /// <summary>
+    /// ブロック確定後：通常攻撃と同順で OnAction（敵→プレイヤー）を挟んでからブロック戦を解決する。
+    /// </summary>
+    private void TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+        CardController attacker,
+        CardController blocker,
+        PlayerType attackerOwner,
+        PlayerType blockerOwner,
+        bool skipOnActionPause = false)
+    {
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null)
+        {
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        if (blockExchangeCancelledForCurrentAttack || attackFlowBlockRedirectCombatVoided)
+        {
+            FinalizeBlockInterruptWithoutExchange();
+            return;
+        }
+
+        if (attackFlowBlockOnActionCompleted)
+        {
+            skipOnActionPause = true;
+        }
+
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Before block OnAction"))
+        {
+            LogArgamaShieldBlockCloseCombatDebug("TryResolveBlock_AbortBeforeOnAction", "ShouldAbort before OnAction", attacker, blocker);
+            return;
+        }
+
+        attackFlowBlockRedirectEngaged = true;
+        attackFlowBlockRedirectUnit = blocker;
+        CardController declaredDefenderForContext = attackFlowDeclaredDefenderUnit != null
+            && attackFlowDeclaredDefenderUnit != blocker
+            ? attackFlowDeclaredDefenderUnit
+            : attackFlowBlockRedirectFromShieldStrike ? null : blocker;
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            attackFlowBlockRedirectFromShieldStrike ? AttackFlowStrikeKind.Shield : AttackFlowStrikeKind.UnitVsUnit,
+            declaredDefenderForContext,
+            blocker);
+
+        if (!skipOnActionPause)
+        {
+            LogArgamaShieldBlockCloseCombatDebug(
+                "TryResolveBlock_StartOnAction",
+                $"skipOnActionPause:false blockerOwner:{blockerOwner} attackerOwner:{attackerOwner}",
+                attacker,
+                blocker);
+
+            System.Action resumeCombatAfterOnAction = () =>
+            {
+                if (TrySettleAttackFlowAfterOnActionPhases())
+                {
+                    return;
+                }
+
+                attackFlowBlockOnActionCompleted = true;
+
+                CardController resumeAttacker = attackFlowAttackerUnit;
+                CardController resumeBlocker = attackFlowBlockRedirectUnit;
+                if (!IsUnitAliveOnAnyDeployField(resumeAttacker))
+                {
+                    LogArgamaShieldBlockCloseCombatDebug(
+                        "TryResolveBlock_OnActionComplete",
+                        "resumeAttacker invalid — rest blocker and finalize",
+                        resumeAttacker,
+                        resumeBlocker);
+                    TrashUnitIfDeadOnField(resumeAttacker, attackFlowAttackerOwner);
+                    FinalizeBlockInterruptWithoutExchange();
+                    return;
+                }
+
+                LogArgamaShieldBlockCloseCombatDebug(
+                    "TryResolveBlock_ResumeAfterOnAction",
+                    $"resume exchange blockerAlive:{IsUnitAvailableForAttackExchange(resumeBlocker)}",
+                    resumeAttacker,
+                    resumeBlocker);
+
+                TryResolveBlockRedirectUnitCombatWithOnActionSteps(
+                    resumeAttacker,
+                    resumeBlocker,
+                    attackFlowAttackerOwner,
+                    ResolveCardOwner(resumeBlocker != null ? resumeBlocker.transform : null),
+                    skipOnActionPause: true);
+            };
+
+            if (TryRunAttackActionSteps(
+                blockerOwner,
+                attackerOwner,
+                resumeCombatAfterOnAction,
+                attacker,
+                blocker))
+            {
+                return;
+            }
+
+            Debug.LogWarning(
+                "[AttackFlow] Block OnAction could not start — proceeding to combat without action pause.");
+            resumeCombatAfterOnAction.Invoke();
+            return;
+        }
+
+        LogArgamaShieldBlockCloseCombatDebug(
+            "TryResolveBlock_BeforeExchange",
+            $"skipOnActionPause:true blockerAlive:{IsUnitAvailableForAttackExchange(blocker)}",
+            attacker,
+            blocker);
+
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Before block exchange"))
+        {
+            return;
+        }
+
+        ExecuteBlockRedirectUnitCombat(attacker, blocker, attackerOwner, blockerOwner);
+    }
+
+    /// <summary>
+    /// ブロックリダイレクト後のユニット戦。通常攻撃ルール（REST 対象のみ等）を迂回し、
+    /// 攻撃者とブロッカーの双方が必ずレスト＋相互ダメージ（最低 1）になる。
+    /// OnAction は <see cref="TryResolveBlockRedirectUnitCombatWithOnActionSteps"/> で先に処理する。
+    /// </summary>
+    private void ExecuteBlockRedirectUnitCombat(
+        CardController attacker,
+        CardController blocker,
+        PlayerType attackerOwner,
+        PlayerType blockerOwner)
+    {
+        if (blockExchangeCancelledForCurrentAttack)
+        {
+            Debug.Log("[BlockCombat] Exchange skipped — blockExchangeCancelledForCurrentAttack.");
+            LogArgamaShieldBlockCloseCombatDebug(
+                "ExecuteBlockRedirect_EntrySkip",
+                "exchange skipped at entry (cancel flag set)",
+                attacker,
+                blocker);
+            TrashUnitIfDeadOnField(blocker, blockerOwner, attacker);
+            TrashUnitIfDeadOnField(attacker, attackerOwner);
+            FinalizeBlockInterruptWithoutExchange();
+            return;
+        }
+
+        LogArgamaShieldBlockCloseCombatDebug(
+            "ExecuteBlockRedirect_Entry",
+            "exchange resolution starting",
+            attacker,
+            blocker);
+
+        if (!IsCardControllerInstanceValid(attacker) || attacker.Data == null)
+        {
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "At block combat resolution"))
+        {
+            return;
+        }
+
+        if (!IsUnitAvailableForAttackExchange(blocker))
+        {
+            TrashUnitIfDeadOnField(blocker, blockerOwner, attacker);
+            MarkBlockExchangeCancelled("Blocker not alive at exchange resolution.", finalizeFlowNow: true);
+            return;
+        }
+
+        if (!attacker.Data.IsUnitLike() || !blocker.Data.IsUnitLike())
+        {
+            CancelInterruptedBlockRedirectAttackFlow("Invalid unit type for block combat.");
+            return;
+        }
+
+        if (currentPhase != BattlePhase.MainPhase)
+        {
+            Debug.LogWarning("[BlockCombat] skipped: not MainPhase.");
+            CancelInterruptedBlockRedirectAttackFlow("Not MainPhase.");
+            return;
+        }
+
+        if (!IsUnitAvailableForAttackExchange(attacker))
+        {
+            TrashUnitIfDeadOnField(attacker, attackerOwner);
+            CancelPendingUnitAttackFlow();
+            return;
+        }
+
+        attackFlowBlockRedirectEngaged = true;
+        attackFlowBlockRedirectUnit = blocker;
+        CardController declaredDefenderForContext = attackFlowDeclaredDefenderUnit != null
+            && attackFlowDeclaredDefenderUnit != blocker
+            ? attackFlowDeclaredDefenderUnit
+            : blocker;
+        RegisterAttackFlowContextForOnAction(
+            attacker,
+            attackerOwner,
+            AttackFlowStrikeKind.UnitVsUnit,
+            declaredDefenderForContext,
+            attackFlowBlockRedirectUnit);
+
+        ResolveUnitVsUnitCombatStrikePowers(
+            attacker,
+            attackerOwner,
+            blocker,
+            out int attackerPowerForCombat,
+            out int blockerPowerForCombat,
+            applyOnAttackPairEffects: !attackFlowBlockRedirectFromShieldStrike);
+
+        // ストライク確定後も UntilEndOfBattle 修飾は交換完了まで残す（Galluss-K 等の OnAction AP バフ表示用）。
+        // 解除は CoFinishBlockRedirectCombatAfterTrashUi / 中断系 Clear で行う。
+
+        int blockerHpBeforeExchange = blocker.CurrentHp;
+        int attackerHpBeforeExchange = attacker.CurrentHp;
+
+        Debug.Log(
+            $"[BlockCombat] {attacker.Data.cardName}(strikeAP:{attackerPowerForCombat}) vs {blocker.Data.cardName}(strikeAP:{blockerPowerForCombat}) "
+            + $"owners attacker:{attackerOwner} blocker:{blockerOwner} note:OnActionデバフ後のCurrentPowerを使用(最低1強制なし)"
+            + (attackFlowBlockRedirectFromShieldStrike ? " shieldOriginBlock:true" : string.Empty));
+
+        if (ShouldAbortBlockRedirectCombatBeforeExchange(blocker, "Immediately before block exchange"))
+        {
+            ClearEndOfBattleCombatModifiers("block redirect aborted before exchange");
+            return;
+        }
+
+        if (blockExchangeCancelledForCurrentAttack)
+        {
+            TrashUnitIfDeadOnField(blocker, blockerOwner, attacker);
+            TrashUnitIfDeadOnField(attacker, attackerOwner);
+            ClearEndOfBattleCombatModifiers("block redirect cancelled before exchange");
+            FinalizeBlockInterruptWithoutExchange();
+            return;
+        }
+
+        // 交換開始時点でブロッカーが生存している場合は相互ダメージ（同時解決）。
+        LogArgamaShieldBlockCloseCombatDebug(
+            "ExecuteBlockRedirect_ApplyExchangeDamage",
+            $"BEFORE exchange attackerHP:{attackerHpBeforeExchange} blockerHP:{blockerHpBeforeExchange} "
+            + $"attackerAP:{attackerPowerForCombat} blockerAP:{blockerPowerForCombat}",
+            attacker,
+            blocker);
+
+        ApplyUnitVsUnitCombatDamageExchange(
+            attacker,
+            blocker,
+            attackerOwner,
+            blockerOwner,
+            attackerPowerForCombat,
+            blockerPowerForCombat);
+
+        LogArgamaShieldBlockCloseCombatDebug(
+            "ExecuteBlockRedirect_AfterExchangeDamage",
+            $"AFTER exchange attackerHP:{attacker.CurrentHp} blockerHP:{blocker.CurrentHp}",
+            attacker,
+            blocker);
+
+        int blockerHpAfterExchange = blocker.CurrentHp;
+        int attackerHpAfterExchange = attacker.CurrentHp;
+
+        TryResolveOnDealtBattleDamageEffects(
+            attacker,
+            attackerOwner,
+            blocker,
+            attackerPowerForCombat,
+            blockerHpBeforeExchange,
+            blockerHpAfterExchange);
+
+        blockerHpAfterExchange = blocker.CurrentHp;
+        attackerHpAfterExchange = attacker.CurrentHp;
+
+        NotifyLocalUnitAttackResolved(
+            attacker,
+            blocker,
+            attackerHpAfterExchange,
+            blockerHpAfterExchange,
+            blockCombat: true);
+
+        RestBlockerThenNotifyActivated(blocker, syncOnlineRest: true);
+
+        if (blocker.CurrentHp <= 0)
+        {
+            SendCardToTrash(blocker, blockerOwner, attacker, destroyedByBattleDamage: true);
+        }
+
+        if (attacker.CurrentHp <= 0)
+        {
+            SendCardToTrash(attacker, attackerOwner);
+        }
+
+        StartCoroutine(CoFinishBlockRedirectCombatAfterTrashUi(
+            attacker,
+            blocker,
+            attackerOwner,
+            attackerPowerForCombat,
+            blockerPowerForCombat,
+            attackerHpBeforeExchange,
+            blockerHpBeforeExchange,
+            attackerHpAfterExchange,
+            blockerHpAfterExchange));
+    }
+
+    private IEnumerator CoFinishBlockRedirectCombatAfterTrashUi(
+        CardController attacker,
+        CardController blocker,
+        PlayerType attackerOwner,
+        int attackerPowerForCombat,
+        int blockerPowerForCombat,
+        int attackerHpBeforeExchange,
+        int blockerHpBeforeExchange,
+        int attackerHpAfterExchange,
+        int blockerHpAfterExchange)
+    {
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared();
+
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        ClearEndOfBattleCombatModifiers("block redirect unit combat finish");
+        DumpTurnResourceUsageLogs(attackerOwner, "block redirect unit combat");
+        SyncAllResourceViewsFromRule();
+
+        LogUnitAttackBlockedExchangeCalc(
+            attacker,
+            blocker,
+            attackerOwner,
+            attackerPowerForCombat,
+            blockerPowerForCombat,
+            attackerHpBeforeExchange,
+            blockerHpBeforeExchange,
+            attackerHpAfterExchange,
+            blockerHpAfterExchange);
+        LogAttackPostBattleFieldCompact(attacker, attackerOwner);
+        FinishDeferredShieldAttackBlockFlow();
+        FinishUnitAttackSessionAndClearFlowContext();
+    }
+
+    /// <summary>ユニット対ユニット攻防の処理が終わった直後の味方・敵フィールド 1 行ずつ（<c>[AttackPostBattle]</c>）。</summary>
+    private void LogAttackPostBattleFieldCompact(CardController attacker, PlayerType attackerOwner)
+    {
+        CardController highlight = attacker != null && attacker.gameObject != null ? attacker : null;
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(640);
+        sb.Append("[AttackPostBattle] phase:AfterUnitVsUnitExchange attackerOwner:").Append(attackerOwner).AppendLine();
+        sb.AppendLine("  === Field_AP_HP_afterUnitVsUnitBattle (攻撃中=[ユニットナウ] / ブロック中=[ブロックナウ] は場に残っている場合のみ付与) ===");
+        CardController blockHighlight = attackFlowBlockRedirectUnit != null && attackFlowBlockRedirectUnit.gameObject != null
+            ? attackFlowBlockRedirectUnit
+            : null;
+        AppendCompactSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, highlight, blockHighlight);
+        AppendCompactSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, highlight, blockHighlight);
+
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// ブロック（防御側ユニットへのリダイレクト）でユニット同士の交換が行われたとき、OnAction とは別に交換計算式を 1 本ログする。
+    /// </summary>
+    private void LogUnitAttackBlockedExchangeCalc(
+        CardController attacker,
+        CardController blockUnit,
+        PlayerType attackerOwner,
+        int attackerApCombat,
+        int blockApCombat,
+        int attackerHpBeforeExchange,
+        int blockHpBeforeExchange,
+        int attackerHpAfterExchange,
+        int blockHpAfterExchange)
+    {
+        if (attacker == null || attacker.Data == null || blockUnit == null || blockUnit.Data == null)
+        {
+            return;
+        }
+
+        int rawBlockHpMinusAttackAp = blockHpBeforeExchange - attackerApCombat;
+        int rawAttackHpMinusBlockAp = attackerHpBeforeExchange - blockApCombat;
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(768);
+        sb.AppendLine(
+            "[UnitAttackBlockedExchangeCalc] note:ブロック(リダイレクト)時のユニット同士交換。AP は OnAttack 効果適用後の戦闘値。HP は ApplyDamage 直前/直後（トラッシュ前）。OnAction コマンドログとは別。");
+        sb.Append("  attackerOwner:").Append(attackerOwner).Append(" attackNow:").Append(attacker.Data.cardName).Append("(id:").Append(attacker.Data.id)
+            .Append(") blockNow:").Append(blockUnit.Data.cardName).Append("(id:").Append(blockUnit.Data.id).AppendLine(")");
+        sb.Append("  戦闘確定AP  attackNow:").Append(attackerApCombat).Append("  blockNow:").Append(blockApCombat).AppendLine();
+        sb.Append("  交換前HP  attackNow:").Append(attackerHpBeforeExchange).Append("  blockNow:").Append(blockHpBeforeExchange).AppendLine();
+        sb.Append("  ブロックナウHP-アタックナウAP: ").Append(blockHpBeforeExchange).Append('-').Append(attackerApCombat).Append('=').Append(rawBlockHpMinusAttackAp)
+            .Append(" -> 交換後HP:").Append(blockHpAfterExchange).AppendLine();
+        sb.Append("  アタックナウHP-ブロックナウAP: ").Append(attackerHpBeforeExchange).Append('-').Append(blockApCombat).Append('=').Append(rawAttackHpMinusBlockAp)
+            .Append(" -> 交換後HP:").Append(attackerHpAfterExchange).AppendLine();
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>ユニット戦の与ダメージ AP。OnAction 等の powerModifiers を CurrentPower 経由で反映（0 なら与ダメージなし）。</summary>
+    private static int GetUnitStrikeDamagePower(CardController unit)
+    {
+        if (unit == null)
+        {
+            return 0;
+        }
+
+        return Mathf.Max(0, unit.CurrentPower);
+    }
+
+    /// <summary>「このバトル中」の時限修飾・付与を解除する。</summary>
+    private void ClearEndOfBattleCombatModifiers(string reason)
+    {
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfBattle);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfBattle);
+        ClearBreachUntilEndOfBattleGrantsForAllInPlayUnits();
+        ClearTheBlueGiantBattleDamageImmunityForAllInPlayUnits();
+        ClearBattleDamageImmunityUntilEndOfBattleGrantsForAllInPlayUnits();
+        ClearSuppressUntilEndOfBattleGrantsForAllInPlayUnits();
+        ClearShieldAreaImmunityFromEnemyUnitLevelOrLess();
+        ClearObservedUnitWatchesAtEndOfBattle();
+        // ゾーンリスト漏れ対策: 配備パネル直下も走査
+        ClearTimedStatModifiersOnDeployPanels(EffectDuration.UntilEndOfBattle);
+        if (!string.IsNullOrEmpty(reason))
+        {
+            Debug.Log($"[UntilEndOfBattle] Cleared combat modifiers ({reason})");
+        }
+    }
+
+    /// <summary>
+    /// エンド時アクションなど戦闘外で付与された「この戦闘中」は、戦闘終了イベントが来ない。
+    /// 次ターン開始と同時に解除する（戦闘中に付与された分は既に戦闘終了で落ちている）。
+    /// Familial Love 等の AP バフが相手ターン以降も残らないようにする。
+    /// </summary>
+    private void ExpireUntilEndOfBattleModifiersAtTurnStart()
+    {
+        ClearEndOfBattleCombatModifiers("turn start (end-action この戦闘中)");
+    }
+
+    private void ClearTimedStatModifiersOnDeployPanels(EffectDuration duration)
+    {
+        ClearTimedStatModifiersOnTransform(cardGameRule != null ? cardGameRule.PlayerDeployPanel : null, duration);
+        ClearTimedStatModifiersOnTransform(enemyCardGameRule != null ? enemyCardGameRule.PlayerDeployPanel : null, duration);
+    }
+
+    private static void ClearTimedStatModifiersOnTransform(Transform root, EffectDuration duration)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            CardController c = root.GetChild(i).GetComponent<CardController>();
+            if (c != null)
+            {
+                c.ClearTimedStatModifiersByDuration(duration);
+            }
+        }
+    }
+
+    /// <summary>
+    /// OnAttack の Self Buff/Debuff（AP）を盤面修飾せず加算値として返す。
+    /// Zee Zulu 等「このバトル中」自己 AP 増、および Permanent のストライク専任バフを含む。
+    /// </summary>
+    private int ComputeOnAttackSelfApBonus(CardController attacker, PlayerType ownerType)
+    {
+        if (attacker == null || attacker.Data == null)
+        {
+            return 0;
+        }
+
+        int bonus = ComputeOnAttackSelfApBonusFromSource(attacker, ownerType, attacker.Data);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            bonus += ComputeOnAttackSelfApBonusFromSource(attacker, ownerType, attacker.MountedPilot.Data);
+        }
+
+        return bonus;
+    }
+
+    private int ComputeOnAttackSelfApBonusFromSource(
+        CardController attacker,
+        PlayerType ownerType,
+        CardData data)
+    {
+        if (attacker == null || data?.timedEffects == null)
+        {
+            return 0;
+        }
+
+        CardController effectSource = data == attacker.Data ? attacker : attacker.MountedPilot;
+        if (effectSource == null)
+        {
+            return 0;
+        }
+
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(ownerType, attacker);
+        int bonus = 0;
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnAttack.Count; j++)
+            {
+                EffectData effect = resolvedOnAttack[j];
+                if (effect == null
+                    || (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+                    || effect.target != TargetType.Self)
+                {
+                    continue;
+                }
+
+                // UntilEndOfTurn Self はプレコンバットで盤面付与済み（二重加算しない）
+                if (effect.duration == EffectDuration.UntilEndOfTurn)
+                {
+                    continue;
+                }
+
+                if (effect.statTarget != EffectStatTarget.AP && effect.statTarget != EffectStatTarget.Both)
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                int magnitude = ResolveEffectMagnitude(effect, ownerType, effectSource);
+                if (magnitude <= 0)
+                {
+                    continue;
+                }
+
+                int signed = effect.type == EffectType.Buff ? magnitude : -magnitude;
+                bonus += signed;
+                Debug.Log(
+                    $"[OnAttack] Strike-only Self AP {effect.type} {signed} (duration:{effect.duration}) "
+                    + $"source:{effectSource.Data?.cardName} attackingPlayer:{activationContext.SourceAttackingEnemyPlayer}");
+            }
+        }
+
+        return bonus;
+    }
+
+    /// <summary>
+    /// OnAttack 効果を適用したうえで攻防の strike AP を確定する。
+    /// OnAction コマンドの AP デバフは既に CurrentPower に載っている前提（戦闘直前に OnAction 済み）。
+    /// Self AP バフ（ザクⅡ等）は盤面に残さず strike 加算のみ。
+    /// </summary>
+    private void ResolveUnitVsUnitCombatStrikePowers(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController defender,
+        out int attackerStrikePower,
+        out int defenderStrikePower,
+        bool applyOnAttackPairEffects = true)
+    {
+        int defenderPowerBeforeOnAttackResolve = defender != null ? defender.CurrentPower : 0;
+        int attackerPowerBeforeOnAttackResolve = attacker != null ? attacker.CurrentPower : 0;
+
+        if (applyOnAttackPairEffects)
+        {
+            ApplyOnAttackPreCombatEffectsImmediately(attacker, attackerOwner);
+            ApplyOnAttackEffectsForCombatPair(attacker, attackerOwner, defender);
+        }
+
+        int selfApBonus = applyOnAttackPairEffects
+            ? ComputeOnAttackSelfApBonus(attacker, attackerOwner)
+            : 0;
+        attackerStrikePower = Mathf.Max(0, GetUnitStrikeDamagePower(attacker) + selfApBonus);
+        defenderStrikePower = GetUnitStrikeDamagePower(defender);
+
+        Debug.Log(
+            $"[CombatPower] attackerStrike:{attackerStrikePower} "
+            + $"(base:{attackerPowerBeforeOnAttackResolve} selfBonus:{selfApBonus}) "
+            + $"defenderStrike:{defenderStrikePower} (pre:{defenderPowerBeforeOnAttackResolve})");
+    }
+
+    private void ApplyOnAttackEffectsForCombatPair(CardController attacker, PlayerType attackerOwner, CardController defender)
+    {
+        if (attacker == null || attacker.Data == null || defender == null || defender.Data == null)
+        {
+            return;
+        }
+
+        ApplyOnAttackEffectsFromSourceToDefender(attacker, attackerOwner, attacker.Data, defender);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            ApplyOnAttackEffectsFromSourceToDefender(attacker, attackerOwner, attacker.MountedPilot.Data, defender);
+        }
+    }
+
+    private void ApplyOnAttackEffectsFromSourceToDefender(
+        CardController attacker,
+        PlayerType ownerType,
+        CardData data,
+        CardController defender)
+    {
+        if (attacker == null || attacker.Data == null || data == null || data.timedEffects == null || defender == null)
+        {
+            return;
+        }
+
+        CardController effectSource = data == attacker.Data ? attacker : attacker.MountedPilot;
+        if (effectSource == null)
+        {
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(ownerType, attacker);
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnAttack.Count; j++)
+            {
+                EffectData effect = resolvedOnAttack[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                // Draw 等は攻撃前チェーン（TryBeginOnAttackPreCombatEffectChain）で解決済み。
+                if (IsOnAttackNonCombatEffect(effect))
+                {
+                    continue;
+                }
+
+                // 敵ユニット対象／Destroy 等の手動選択は TryOpenOnAttackEnemySelectionPanel で攻撃前に解決済み。
+                if (effect.target.IsOpponentUnitTarget()
+                    || effect.type.UsesTargetCountValue()
+                    || effect.type.RequiresManualUnitSelection()
+                    || effect.opponentChoosesTarget)
+                {
+                    continue;
+                }
+
+                // Self AP Buff/Debuff は ComputeOnAttackSelfApBonus（ストライク加算）専任。盤面修飾しない。
+                if ((effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                    && effect.target == TargetType.Self)
+                {
+                    continue;
+                }
+
+                // それ以外の味方対象時限バフ等も戦闘ペア経路では扱わない
+                if ((effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                    && !effect.target.IsOpponentUnitTarget())
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                ApplyEffect(effectSource, ownerType, effect);
+            }
+        }
+    }
+
+    private void TriggerMountedPilotOnAttackEffects(CardController attacker, PlayerType attackerOwner)
+    {
+        if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        CardController pilot = attacker.MountedPilot;
+        if (pilot == null || pilot.Data == null)
+        {
+            return;
+        }
+
+        TriggerCardEffects(pilot, attackerOwner, EffectTiming.OnAttack);
+    }
+
+    /// <summary>選択ユニットへ攻撃をリダイレクトすべきか（<see cref="CardData.isBlocker"/> または旧 BlockRedirect）。</summary>
+    private bool ShouldRedirectAttackToBlocker(CardController reactionUnit, PlayerType defenderOwner)
+    {
+        if (reactionUnit == null || reactionUnit.Data == null)
+        {
+            return false;
+        }
+
+        EffectActivationContext ctx = BuildActivationContext(defenderOwner, reactionUnit);
+        bool shouldRedirect = reactionUnit.IsBlockerEligible(ctx);
+        if (shouldRedirect)
+        {
+            return true;
+        }
+
+        if (reactionUnit.Data.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < reactionUnit.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = reactionUnit.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedOnEnemyAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnEnemyAttack.Count; j++)
+            {
+                EffectData effect = resolvedOnEnemyAttack[j];
+                if (effect != null && effect.type == EffectType.BlockRedirect)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>OnEnemyAttack の BlockRedirect 以外の効果のみ適用（リダイレクト可否は別判定）。</summary>
+    private void ApplyDefenderOnAttackReactionEffects(
+        CardController reactionUnit,
+        CardController attacker,
+        PlayerType defenderOwner,
+        bool includeDrawEffects = false)
+    {
+        if (reactionUnit == null || reactionUnit.Data == null || reactionUnit.Data.timedEffects == null)
+        {
+            return;
+        }
+
+        EffectActivationContext ctx = BuildActivationContext(defenderOwner, reactionUnit);
+        for (int i = 0; i < reactionUnit.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = reactionUnit.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnEnemyAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(defenderOwner, reactionUnit, i))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedOnEnemyAttack = timed.GetResolvedEffects();
+            bool appliedAny = false;
+            for (int j = 0; j < resolvedOnEnemyAttack.Count; j++)
+            {
+                EffectData effect = resolvedOnEnemyAttack[j];
+                if (effect == null || effect.type == EffectType.BlockRedirect)
+                {
+                    continue;
+                }
+
+                if (ShouldSkipOnlineNonOwnerOnEnemyAttackOwnerZoneEffect(effect, defenderOwner))
+                {
+                    continue;
+                }
+
+                if (!includeDrawEffects && IsOnEnemyAttackOwnerDrawEffect(effect))
+                {
+                    continue;
+                }
+
+                if (includeDrawEffects && !IsOnEnemyAttackOwnerDrawEffect(effect))
+                {
+                    continue;
+                }
+
+                    bool enemyUnitTarget = effect.target.IsOpponentUnitTarget();
+                    if (enemyUnitTarget && attacker != null)
+                    {
+                        if (effect.target.IsSingleOpponentUnitPickTarget())
+                        {
+                            if (effect.target != TargetType.RestEnemyUnit || attacker.IsRestState)
+                            {
+                                ApplyEffectToSpecificTargets(
+                                    reactionUnit,
+                                    defenderOwner,
+                                    effect,
+                                    new List<CardController> { attacker });
+                                appliedAny = true;
+                            }
+                        }
+                        else
+                        {
+                            ApplyEffect(reactionUnit, defenderOwner, effect);
+                            appliedAny = true;
+                        }
+                    }
+                else
+                {
+                    ApplyEffect(reactionUnit, defenderOwner, effect);
+                    appliedAny = true;
+                }
+            }
+
+            if (appliedAny && timed.oncePerTurn)
+            {
+                MarkPaidActivationUsedThisTurn(defenderOwner, reactionUnit, i);
+            }
+        }
+    }
+
+    private bool ShouldSkipOnlineNonOwnerOnEnemyAttackOwnerZoneEffect(EffectData effect, PlayerType defenderOwner)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            return false;
+        }
+
+        if (defenderOwner != PlayerType.Enemy)
+        {
+            return false;
+        }
+
+        return IsOnEnemyAttackOwnerDrawEffect(effect);
+    }
+
+    /// <summary>被攻撃時にオーナーの山札／手札を動かす効果（アクションステップへ遅延する）。</summary>
+    private static bool IsOnEnemyAttackOwnerDrawEffect(EffectData effect)
+    {
+        return effect != null
+            && (effect.type == EffectType.Draw
+                || effect.type == EffectType.Look
+                || effect.type == EffectType.AddSelfToHand
+                || effect.type == EffectType.AddFromTrashToHand
+                || effect.type == EffectType.MillTopToTrash
+                || effect.type == EffectType.ExileFromDeck);
+    }
+
+    /// <summary>
+    /// 攻撃アクションステップ開始時：被攻撃ユニットのターン1回ドローを所有者側で解決する。
+    /// </summary>
+    private void TryResolveWhenAttackedDrawsAtActionStep(
+        PlayerType actingSide,
+        bool treatAsAttackContext = false)
+    {
+        bool attackContext = treatAsAttackContext
+            || (_actionStepSession != null && _actionStepSession.IsAttackContext);
+        if (!attackContext)
+        {
+            return;
+        }
+
+        CardController attacker = attackFlowAttackerUnit != null
+            ? attackFlowAttackerUnit
+            : (_actionStepSession != null ? _actionStepSession.AttackingUnit : null);
+        if (attacker == null)
+        {
+            return;
+        }
+        CardController declared = attackFlowDeclaredDefenderUnit != null
+            ? attackFlowDeclaredDefenderUnit
+            : (_actionStepSession != null ? _actionStepSession.DefendingUnit : null);
+        CardController blocker = attackFlowBlockRedirectUnit;
+
+        TryApplyWhenAttackedDrawForActionStep(declared, attacker, actingSide);
+        if (blocker != null && !IsSameBattleUnit(blocker, declared))
+        {
+            TryApplyWhenAttackedDrawForActionStep(blocker, attacker, actingSide);
+        }
+    }
+
+    private void TryApplyWhenAttackedDrawForActionStep(
+        CardController unit,
+        CardController attacker,
+        PlayerType actingSide)
+    {
+        if (unit == null || unit.Data == null || unit.CurrentHp <= 0)
+        {
+            return;
+        }
+
+        PlayerType owner = ResolveCardOwner(unit.transform);
+        if (owner != actingSide)
+        {
+            return;
+        }
+
+        ApplyDefenderOnAttackReactionEffects(unit, attacker, owner, includeDrawEffects: true);
+    }
+
+    private const int KouUrakiCardId = 1000826;
+
+    private static bool IsKouUrakiCard(CardController card)
+    {
+        return card != null && card.Data != null && card.Data.id == KouUrakiCardId;
+    }
+
+    private bool ExecuteDefenderOnAttackReaction(
+        CardController reactionUnit,
+        CardController attacker,
+        PlayerType defenderOwner)
+    {
+        if (reactionUnit == null || reactionUnit.Data == null)
+        {
+            return false;
+        }
+
+        bool shouldRedirect = ShouldRedirectAttackToBlocker(reactionUnit, defenderOwner);
+        ApplyDefenderOnAttackReactionEffects(reactionUnit, attacker, defenderOwner);
+        return shouldRedirect;
+    }
+
+    private void CommitBlockRedirectSelection(
+        CardController attacker,
+        CardController blocker,
+        ref CardController defender,
+        ref PlayerType defenderOwner)
+    {
+        if (blocker == null || blocker.Data == null)
+        {
+            return;
+        }
+
+        PlayerType blockerOwner = ResolveCardOwner(blocker.transform);
+        if (!IsBlockRedirectReactionReady(blocker, blockerOwner))
+        {
+            Debug.LogWarning(
+                $"[BlockRedirect] ブロック不可のユニットが選択されました: {blocker.Data.cardName} "
+                + $"{(blocker.IsRestState ? "REST" : "ACTIVE")}");
+            return;
+        }
+
+        ApplyDefenderOnAttackReactionEffects(blocker, attacker, blockerOwner);
+        attackFlowBlockRedirectUnit = blocker;
+        attackFlowBlockRedirectEngaged = true;
+        defender = blocker;
+        defenderOwner = blockerOwner;
+        Debug.Log(
+            $"[BlockRedirect] ブロッカー確定: {blocker.Data.cardName}(id:{blocker.Data.id}) owner:{blockerOwner}");
+    }
+
+    private bool IsBlockRedirectReactionReady(CardController unit, PlayerType defenderOwner)
+    {
+        if (unit == null || unit.Data == null || unit.IsRestState)
+        {
+            return false;
+        }
+
+        EffectActivationContext ctx = BuildActivationContext(defenderOwner, unit);
+        return unit.IsBlockerEligible(ctx);
+    }
+
+    private List<CardController> CollectSelectableBlockRedirectUnits(PlayerType attackerOwner)
+    {
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        List<CardController> defenderUnits = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> result = new List<CardController>();
+        for (int i = 0; i < defenderUnits.Count; i++)
+        {
+            CardController unit = defenderUnits[i];
+            if (IsBlockRedirectReactionReady(unit, defenderOwner))
+            {
+                result.Add(unit);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>防御側バトルゾーンの BlockRedirect 持ちユニット（REST 含む。表示用）。</summary>
+    private List<CardController> CollectBlockRedirectCapableUnits(PlayerType attackerOwner)
+    {
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        List<CardController> defenderUnits = GetAliveEnemyUnits(attackerOwner);
+        List<CardController> result = new List<CardController>();
+        for (int i = 0; i < defenderUnits.Count; i++)
+        {
+            CardController unit = defenderUnits[i];
+            if (unit == null || unit.Data == null)
+            {
+                continue;
+            }
+
+            if (unit.HasBlockerAbility)
+            {
+                result.Add(unit);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 防御側が AI、またはプレイヤーで選択可能ブロッカーが1体だけのとき自動で BlockRedirect を適用する。
+    /// </summary>
+    private bool TryAutoApplyBlockRedirectFromAttack(
+        PlayerType attackerOwner,
+        CardController attacker,
+        out CardController blockUnit,
+        out PlayerType blockOwner)
+    {
+        blockUnit = null;
+        blockOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        if (attacker == null)
+        {
+            return false;
+        }
+
+        List<CardController> selectable = CollectSelectableBlockRedirectUnits(attackerOwner);
+        if (selectable.Count == 0)
+        {
+            return false;
+        }
+
+        CardController pick;
+        if (blockOwner == PlayerType.Enemy)
+        {
+            pick = PickEnemyAiBlockRedirectUnit(attacker, selectable);
+        }
+        else
+        {
+            // プレイヤー防御は手動選択（攻撃元表示パネル）。AI のみ自動。
+            return false;
+        }
+
+        if (pick == null)
+        {
+            return false;
+        }
+
+        if (!IsBlockRedirectReactionReady(pick, blockOwner))
+        {
+            return false;
+        }
+
+        ApplyDefenderOnAttackReactionEffects(pick, attacker, blockOwner);
+        blockUnit = pick;
+        Debug.Log(
+            $"[BlockRedirect] auto applied blocker:{pick.Data.cardName}(id:{pick.Data.id}) owner:{blockOwner} "
+            + $"attacker:{attacker.Data?.cardName}");
+        return true;
+    }
+
+    private static CardController PickEnemyAiBlockRedirectUnit(CardController attacker, List<CardController> selectable)
+    {
+        if (selectable == null || selectable.Count == 0)
+        {
+            return null;
+        }
+
+        CardController best = selectable[0];
+        for (int i = 1; i < selectable.Count; i++)
+        {
+            CardController c = selectable[i];
+            if (c == null)
+            {
+                continue;
+            }
+
+            if (c.CurrentHp < best.CurrentHp)
+            {
+                best = c;
+            }
+        }
+
+        return best;
+    }
+
+    private void AppendAttackerPreviewToDefensePanel(GameObject root, CardController attacker)
+    {
+        if (root == null || attacker == null || attacker.Data == null || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        TextMeshProUGUI attackerLabel = root.CreateChildTextCustom("AttackerLabel", UIAnchor.TopCenter, 240, 28);
+        attackerLabel.SetLocalizedText("攻撃元", "Attacker");
+        attackerLabel.fontSize = 18;
+        attackerLabel.color = Color.white;
+        attackerLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
+
+        GameObject attackerCard = Instantiate(CardImagePrefab, root.transform);
+        RectTransform attackerRt = attackerCard.GetComponent<RectTransform>();
+        if (attackerRt != null)
+        {
+            attackerRt.anchorMin = new Vector2(0.5f, 1f);
+            attackerRt.anchorMax = new Vector2(0.5f, 1f);
+            attackerRt.pivot = new Vector2(0.5f, 1f);
+            attackerRt.sizeDelta = new Vector2(120f, 168f);
+            attackerRt.anchoredPosition = new Vector2(0f, -88f);
+        }
+
+        CardController preview = attackerCard.GetComponent<CardController>();
+        if (preview != null)
+        {
+            preview.SetUp(attacker.Data, _ => { });
+        }
+
+        TextMeshProUGUI attackerStat = attackerCard.CreateChildTextCustom(
+            "AttackerStat",
+            UIAnchor.BottomCenter,
+            110,
+            26);
+        attackerStat.text = $"AP:{attacker.CurrentPower} HP:{attacker.CurrentHp} {(attacker.IsRestState ? "REST" : "ACTIVE")}";
+        attackerStat.fontSize = 13;
+        attackerStat.color = Color.white;
+        attackerStat.alignment = TextAlignmentOptions.Center;
+
+        Button attackerBtn = attackerCard.GetComponent<Button>();
+        if (attackerBtn != null)
+        {
+            attackerBtn.interactable = false;
+        }
+    }
+
+    private void AppendDefensePanelUnitCard(
+        RectTransform content,
+        CardController unit,
+        bool canSelect,
+        string statusSuffix,
+        System.Action onPicked)
+    {
+        if (content == null || unit == null || unit.Data == null || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        GameObject cardItem = Instantiate(CardImagePrefab, content);
+        CardController itemCc = cardItem.GetComponent<CardController>();
+        if (itemCc != null)
+        {
+            itemCc.SetUp(unit.Data, _ => { });
+        }
+
+        GameObject statBg = new GameObject("StatBg", typeof(RectTransform), typeof(Image));
+        statBg.transform.SetParent(cardItem.transform, false);
+        RectTransform statBgRt = statBg.GetComponent<RectTransform>();
+        statBgRt.anchorMin = new Vector2(0f, 0f);
+        statBgRt.anchorMax = new Vector2(1f, 0f);
+        statBgRt.pivot = new Vector2(0.5f, 0f);
+        statBgRt.sizeDelta = new Vector2(0f, 28f);
+        statBgRt.anchoredPosition = Vector2.zero;
+        Image statBgImg = statBg.GetComponent<Image>();
+        statBgImg.color = new Color(0f, 0f, 0f, 0.55f);
+        statBgImg.raycastTarget = false;
+
+        TextMeshProUGUI statText = statBg.CreateChildTextCustom("StatText", UIAnchor.FullSize, 120, 24);
+        statText.text = $"AP:{unit.CurrentPower} HP:{unit.CurrentHp} {(unit.IsRestState ? "REST" : "ACTIVE")}{statusSuffix}";
+        statText.fontSize = 14;
+        statText.color = canSelect ? Color.white : new Color(0.75f, 0.75f, 0.75f, 1f);
+        statText.alignment = TextAlignmentOptions.Center;
+
+        Button btn = cardItem.GetComponent<Button>();
+        if (btn == null)
+        {
+            btn = cardItem.AddComponent<Button>();
+        }
+
+        btn.interactable = canSelect;
+        if (canSelect)
+        {
+            btn.onClick.AddListener(() =>
+            {
+                onPicked?.Invoke();
+                statText.color = new Color(1f, 0.35f, 0.35f, 1f);
+            });
+        }
+    }
+
+    private bool TryOpenAttackedSideUnitsPanel(
+        PlayerType attackerOwner,
+        CardController attackingUnitForDisplay,
+        System.Action<CardController> onSelectDefender,
+        System.Action onCloseResume,
+        System.Action onBlockPassOrCancel = null,
+        CardController declaredAttackTargetForDisplay = null)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return false;
+        }
+
+        List<CardController> selectableBlockRedirects = CollectSelectableBlockRedirectUnits(attackerOwner);
+        if (selectableBlockRedirects.Count <= 0)
+        {
+            return false;
+        }
+
+        if (activeAttackFlowDebugPanelRoot != null)
+        {
+            Destroy(activeAttackFlowDebugPanelRoot);
+            activeAttackFlowDebugPanelRoot = null;
+        }
+
+        GameObject root = new GameObject("AttackFlowDebugPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        activeAttackFlowDebugPanelRoot = root;
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        isAttackedSidePanelOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.5f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("AttackedSideUnitsTitle", UIAnchor.TopCenter, AttackFlowPopupContentWidth, 48);
+        title.color = Color.white;
+        title.fontSize = 22;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        bool enemyAttackingPlayer = attackerOwner == PlayerType.Enemy
+            && attackingUnitForDisplay != null
+            && attackingUnitForDisplay.Data != null;
+        List<CardController> blockRedirectUnits = CollectBlockRedirectCapableUnits(attackerOwner);
+
+        if (enemyAttackingPlayer)
+        {
+            title.text = enableAttackFlowActionThinkTest
+                ? "blockthink — Select an ACTIVE blocker, then Close"
+                : "Enemy attack — Select an ACTIVE blocker, then Close";
+        }
+        else
+        {
+            title.text = enableAttackFlowActionThinkTest ? "blockthink" : "Select a blocker, then Close";
+        }
+
+        // ブロッカー一覧（上）。下は Close 直上にバトル予定を固定表示
+        const int scrollHeight = 300;
+        GameObject scrollGo = root.CreateGridScrollView(AttackFlowPopupContentWidth, scrollHeight, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -86f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+        if (content == null)
+        {
+            Destroy(root);
+            activeAttackFlowDebugPanelRoot = null;
+            if (activeOnActionPopupRoot == root)
+            {
+                activeOnActionPopupRoot = null;
+                isOnActionPopupOpen = false;
+            }
+            isAttackedSidePanelOpen = false;
+            return false;
+        }
+
+        CardController selectedDefender = null;
+        if (blockRedirectUnits.Count == 0)
+        {
+            TextMeshProUGUI empty = root.CreateChildTextCustom("AttackedSideEmpty", UIAnchor.TopCenter, AttackFlowPopupContentWidth, 40);
+            empty.text = enemyAttackingPlayer
+                ? "No blockers (isBlocker) on the battlefield"
+                : "No blockers available";
+            empty.fontSize = 18;
+            empty.color = Color.white;
+            empty.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -126f);
+        }
+        else
+        {
+            for (int i = 0; i < blockRedirectUnits.Count; i++)
+            {
+                CardController unit = blockRedirectUnits[i];
+                if (unit == null || unit.Data == null)
+                {
+                    continue;
+                }
+
+                bool canSelect = IsBlockRedirectReactionReady(unit, defenderOwner);
+                Debug.Log(
+                    $"[AttackedSidePanelList] index:{i} card:{unit.Data.cardName} AP:{unit.CurrentPower} HP:{unit.CurrentHp} "
+                    + $"{(unit.IsRestState ? "REST" : "ACTIVE")} selectable:{canSelect}");
+
+                AppendDefensePanelUnitCard(
+                    content,
+                    unit,
+                    canSelect,
+                    canSelect ? "(Can block)" : " (REST — cannot block)",
+                    () =>
+                    {
+                        selectedDefender = unit;
+                        title.text = $"Blocker selected: {unit.Data.cardName}";
+                    });
+            }
+        }
+
+        // 画面下部（Close/Cancel の直上）に攻撃元 → 攻撃先
+        CardController matchupAttacker = attackingUnitForDisplay != null && attackingUnitForDisplay.Data != null
+            ? attackingUnitForDisplay
+            : attackFlowAttackerUnit;
+        CardController matchupDefender = declaredAttackTargetForDisplay != null
+            && declaredAttackTargetForDisplay.Data != null
+                ? declaredAttackTargetForDisplay
+                : ResolveAttackFlowDefenderForPreview();
+        string shieldFallback = attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+            ? GameLocale.T("シールド", "Shield")
+            : null;
+        if (matchupAttacker != null && matchupAttacker.Data != null)
+        {
+            AppendAttackMatchupPreviewAboveBottomButtons(
+                root,
+                matchupAttacker,
+                matchupDefender,
+                GameLocale.T("バトル予定（誰が誰に攻撃）", "Battle preview (who attacks whom)"),
+                shieldFallback);
+            Debug.Log(
+                $"[BlockPanelMatchup] attacker:{matchupAttacker.Data.cardName} "
+                + $"defender:{(matchupDefender != null ? matchupDefender.Data.cardName : shieldFallback ?? "none")} "
+                + $"strike:{attackFlowStrikeKind}");
+        }
+
+        Button closeBtn = root.CreateChildButton("Close");
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(140f, 48f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(100f, 36f);
+
+        Button cancelBtn = root.CreateChildButton("Cancel");
+        RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(140f, 48f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(-100f, 36f);
+        closeBtn.transform.SetAsLastSibling();
+        cancelBtn.transform.SetAsLastSibling();
+
+        void CloseAttackedSidePanel()
+        {
+            isAttackedSidePanelOpen = false;
+            isOnActionPopupOpen = false;
+
+            if (activeAttackFlowDebugPanelRoot == root)
+            {
+                activeAttackFlowDebugPanelRoot = null;
+            }
+
+            if (activeOnActionPopupRoot == root)
+            {
+                activeOnActionPopupRoot = null;
+            }
+
+            Destroy(root);
+        }
+
+        closeBtn.onClick.AddListener(() =>
+        {
+            CardController chosen = selectedDefender;
+            CloseAttackedSidePanel();
+            onSelectDefender?.Invoke(chosen);
+            if (chosen != null)
+            {
+                onCloseResume?.Invoke();
+            }
+            else if (onBlockPassOrCancel != null)
+            {
+                onBlockPassOrCancel.Invoke();
+            }
+            else
+            {
+                onCloseResume?.Invoke();
+            }
+        });
+        cancelBtn.onClick.AddListener(() =>
+        {
+            selectedDefender = null;
+            CloseAttackedSidePanel();
+            if (onBlockPassOrCancel != null)
+            {
+                onBlockPassOrCancel.Invoke();
+            }
+            else
+            {
+                ClearPendingBlockRedirectSelection();
+                onSelectDefender?.Invoke(null);
+                onCloseResume?.Invoke();
+            }
+        });
+
+        return true;
+    }
+
+    private void ApplyOnAttackAutoTargetEffects(CardController attacker, PlayerType attackerOwner, CardController defender)
+    {
+        if (attacker == null || attacker.Data == null || defender == null || defender.Data == null)
+        {
+            return;
+        }
+
+        ApplyOnAttackAutoTargetEffectsFromData(attacker, attackerOwner, attacker.Data, defender);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            ApplyOnAttackAutoTargetEffectsFromData(attacker.MountedPilot, attackerOwner, attacker.MountedPilot.Data, defender);
+        }
+    }
+
+    /// <summary>
+    /// ユニット戦で相手へバトルダメージを与えたあと、
+    /// resolveAfterDealtBattleDamage の OnAttack（攻撃対象限定）を解決する。
+    /// </summary>
+    private void TryResolveOnDealtBattleDamageEffects(
+        CardController attacker,
+        PlayerType attackerOwner,
+        CardController defender,
+        int attackerStrike,
+        int defenderHpBefore,
+        int defenderHpAfter)
+    {
+        if (attacker == null || attacker.Data == null || defender == null || defender.Data == null)
+        {
+            return;
+        }
+
+        if (attackerStrike <= 0 || defenderHpAfter >= defenderHpBefore)
+        {
+            return;
+        }
+
+        // 戦闘ダメージで既に撃破済みなら追加の破壊効果は不要。
+        if (defenderHpAfter <= 0)
+        {
+            return;
+        }
+
+        TryResolveOnDealtBattleDamageFromSource(attacker, attackerOwner, defender);
+        if (attacker.MountedPilot != null && attacker.MountedPilot.Data != null)
+        {
+            TryResolveOnDealtBattleDamageFromSource(attacker.MountedPilot, attackerOwner, defender, attacker);
+        }
+    }
+
+    private void TryResolveOnDealtBattleDamageFromSource(
+        CardController sourceCard,
+        PlayerType ownerType,
+        CardController defender,
+        CardController attackHost = null)
+    {
+        if (sourceCard?.Data?.timedEffects == null || defender == null)
+        {
+            return;
+        }
+
+        // 既に場から消えていれば何もしない。
+        if (!IsUnitAliveOnAnyDeployField(defender))
+        {
+            return;
+        }
+
+        CardController hostForContext = attackHost != null ? attackHost : sourceCard;
+        EffectActivationContext activationContext = BuildOnAttackActivationContext(ownerType, hostForContext);
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+            for (int j = 0; j < resolved.Count; j++)
+            {
+                EffectData effect = resolved[j];
+                if (effect == null
+                    || !effect.resolveAfterDealtBattleDamage
+                    || !effect.target.IsOpponentUnitTarget())
+                {
+                    continue;
+                }
+
+                // 攻撃対象限定以外は「その攻撃でダメージを与えたユニット」に限定できないためスキップ
+                if (!effect.selectionMode.IsAttackedTargetOnlyMode()
+                    && effect.selectionMode != EffectSelectionMode.Unset)
+                {
+                    continue;
+                }
+
+                if (effect.target == TargetType.RestEnemyUnit && !defender.IsRestState)
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                List<CardController> singleTarget = new List<CardController> { defender };
+                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard, ownerType);
+                if (singleTarget.Count == 0)
+                {
+                    continue;
+                }
+
+                System.Action applyDefenderTarget = () =>
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+                if (ownerType == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyDefenderTarget);
+                }
+                else
+                {
+                    applyDefenderTarget();
+                }
+
+                if (!IsUnitAliveOnAnyDeployField(defender))
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private void ApplyOnAttackAutoTargetEffectsFromData(CardController sourceCard, PlayerType ownerType, CardData data, CardController defender)
+    {
+        if (data == null || data.timedEffects == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnAttack || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedOnAttack.Count; j++)
+            {
+                EffectData effect = resolvedOnAttack[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                if (!effect.target.IsOpponentUnitTarget() || !effect.selectionMode.IsAttackedTargetOnlyMode())
+                {
+                    continue;
+                }
+
+                // バトルダメージ後解決は TryResolveOnDealtBattleDamageEffects 専任
+                if (effect.resolveAfterDealtBattleDamage)
+                {
+                    continue;
+                }
+
+                if (effect.target == TargetType.RestEnemyUnit && (defender == null || !defender.IsRestState))
+                {
+                    continue;
+                }
+
+                List<CardController> singleTarget = new List<CardController> { defender };
+                FilterTargetsByUnitCondition(singleTarget, effect, sourceCard, ownerType);
+                if (singleTarget.Count == 0)
+                {
+                    continue;
+                }
+
+                System.Action applyDefenderTarget = () =>
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+                if (ownerType == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyDefenderTarget);
+                }
+                else
+                {
+                    applyDefenderTarget();
+                }
+            }
+        }
+    }
+
+    private void DumpTurnResourceUsageLogs(PlayerType side, string context)
+    {
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
+        IReadOnlyList<Gundam2024RuleScript.ResourceUsageLog> logs = gundamRule.GetCurrentTurnResourceUsageLogs(ruleSide);
+        if (logs == null || logs.Count == 0)
+        {
+            Debug.Log($"[ResourceUsageDump] context:{context} side:{side} logs:empty");
+            return;
+        }
+
+        Debug.Log($"[ResourceUsageDump] context:{context} side:{side} count:{logs.Count}");
+        for (int i = 0; i < logs.Count; i++)
+        {
+            var log = logs[i];
+            Debug.Log($"[ResourceUsageDump] #{i} turn:{log.turnIndex} side:{log.side} cardId:{log.cardId} resourceUsed:{log.resourceUsed} exUsed:{log.exUsed}");
+        }
+    }
+
+    private void HandleDirectAttackWinLose(PlayerType attackerOwner)
+    {
+        if (isMatchFinished)
+        {
+            return;
+        }
+
+        TriggerAllTimedEffectsForSide(PlayerType.Player, EffectTiming.OnEndOfGame);
+        TriggerAllTimedEffectsForSide(PlayerType.Enemy, EffectTiming.OnEndOfGame);
+        isMatchFinished = true;
+        bool playerWin = attackerOwner == PlayerType.Player;
+        ShowResultOverlay(playerWin ? "WIN" : "LOSE");
+    }
+
+    private void TriggerAllTimedEffectsForSide(PlayerType ownerType, EffectTiming timing)
+    {
+        List<CardController> source = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController card = source[i];
+            if (card == null || card.Data == null)
+            {
+                continue;
+            }
+            TriggerCardEffects(card, ownerType, timing);
+        }
+    }
+
+    /// <summary>
+    /// 手札に入ったカードの OnHandAuto を即時適用（プレイヤー操作・リソース消費なし）。
+    /// 条件付きブロックは <see cref="RefreshAllHandsConditionalOnHandAuto"/> で適用する。
+    /// </summary>
+    /// <param name="skipHandZoneCheck">CardAddtoHand 直後など、手札判定を省略して適用する。</param>
+    private void TriggerOnHandAutoEffects(CardController card, PlayerType ownerType, bool skipHandZoneCheck = false)
+    {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            // TestPlay でも手札の条件付きコスト／Lv パッシブは盤面に追従させる
+            RefreshAllHandsConditionalOnHandAuto();
+            return;
+        }
+
+        if (card == null || card.Data == null || !onHandAutoProcessing.Add(card))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!skipHandZoneCheck && !IsCardInOwnerHand(card, ownerType))
+            {
+                Debug.LogWarning(
+                    $"[OnHandAuto] skipped (not in hand) card:{card.Data.cardName}(id:{card.Data.id}) side:{ownerType}");
+                return;
+            }
+
+            if (!HasEffectTiming(card.Data, EffectTiming.OnHandAuto))
+            {
+                return;
+            }
+
+            for (int ti = 0; ti < card.Data.timedEffects.Count; ti++)
+            {
+                TimedEffectData timed = card.Data.timedEffects[ti];
+                if (timed == null || timed.timing != EffectTiming.OnHandAuto || !timed.HasResolvedEffects())
+                {
+                    continue;
+                }
+
+                if (timed.HasActivationConditions())
+                {
+                    continue;
+                }
+
+                IReadOnlyList<EffectData> resolvedOnHandAuto = timed.GetResolvedEffects();
+                Debug.Log(
+                    $"[OnHandAuto] unconditional block side:{ownerType} card:{card.Data.cardName}(id:{card.Data.id}) "
+                    + $"costBefore:{card.CurrentCost} effects:{resolvedOnHandAuto.Count}");
+                for (int ei = 0; ei < resolvedOnHandAuto.Count; ei++)
+                {
+                    EffectData effect = resolvedOnHandAuto[ei];
+                    if (effect == null)
+                    {
+                        continue;
+                    }
+
+                    ApplyEffectForOnHandAuto(card, ownerType, effect, null);
+                }
+
+                Debug.Log(
+                    $"[OnHandAuto] unconditional done card:{card.Data.cardName}(id:{card.Data.id}) costAfter:{card.CurrentCost}");
+            }
+        }
+        finally
+        {
+            onHandAutoProcessing.Remove(card);
+        }
+
+        RefreshAllHandsConditionalOnHandAuto();
+    }
+
+    /// <summary>
+    /// OnHandAuto 用。Self への Buff/Debuff は手札の <see cref="CardController"/> に直接付与する。
+    /// </summary>
+    /// <param name="passiveSourceKey">条件付きパッシブ時は非 null（除去用）。無条件ワンショットは null。</param>
+    private void ApplyEffectForOnHandAuto(CardController source, PlayerType ownerType, EffectData effect, string passiveSourceKey)
+    {
+        int magnitude = ResolveEffectMagnitude(effect, ownerType, source);
+        if (magnitude == 0)
+        {
+            return;
+        }
+
+        switch (effect.type)
+        {
+            case EffectType.Buff:
+            case EffectType.Debuff:
+                int sign = effect.type == EffectType.Buff ? 1 : -1;
+                int signedValue = sign * magnitude;
+                if (effect.target == TargetType.Self)
+                {
+                    int costBefore = source.CurrentCost;
+                    int levelBefore = source.CurrentLevel;
+                    ApplyStatEffect(source, signedValue, effect.statTarget, effect.duration, passiveSourceKey);
+                    int scaleCount = effect.valueMode == EffectValueMode.MultiplyByBoardCount
+                        ? EffectMagnitudeResolver.CountForValueScale(
+                            effect,
+                            BuildActivationContext(ownerType, source),
+                            source)
+                        : 0;
+                    Debug.Log(
+                        $"[OnHandAuto] Self {effect.type} stat:{effect.statTarget} mode:{effect.valueMode} "
+                        + $"value:{effect.value} resolved:{magnitude}"
+                        + (effect.valueMode == EffectValueMode.MultiplyByBoardCount ? $" count:{scaleCount}" : string.Empty)
+                        + $" cost:{costBefore}->{source.CurrentCost} level:{levelBefore}->{source.CurrentLevel} "
+                        + $"card:{source.Data.cardName}(id:{source.Data.id})");
+                    return;
+                }
+
+                break;
+        }
+
+        ApplyEffect(source, ownerType, effect);
+    }
+
+    private static List<CardController> CollectHandControllers(CardGameRule rule)
+    {
+        List<CardController> list = new List<CardController>();
+        if (rule?.HandScrollContent == null)
+        {
+            return list;
+        }
+
+        RectTransform hand = rule.HandScrollContent;
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController cc = hand.GetChild(i).GetComponent<CardController>();
+            if (cc != null)
+            {
+                list.Add(cc);
+            }
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// 条件付き《高機動》判定用。トラッシュ枚数条件（Val Walo 等）を評価できるコンテキストを返す。
+    /// </summary>
+    public bool TryBuildHighMobilityActivationContext(CardController unit, out EffectActivationContext context)
+    {
+        context = null;
+        if (unit == null)
+        {
+            return false;
+        }
+
+        PlayerType ownerType = ResolveCardOwner(unit.transform);
+        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        CardGameRule opponentRule = ownerType == PlayerType.Player ? enemyCardGameRule : cardGameRule;
+        Gundam2024RuleScript.PlayerState ownerStateForHm = null;
+        if (gundamRule != null)
+        {
+            ownerStateForHm = ownerType == PlayerType.Player ? gundamRule.Player : gundamRule.Enemy;
+        }
+
+        context = new EffectActivationContext(
+            ownerType,
+            unit,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: unit,
+            mountedPilot: unit.MountedPilot,
+            ownerTrashCardIds: ownerRule != null ? ownerRule.GetTrashCardIds() : null,
+            opponentTrashCardIds: opponentRule != null ? opponentRule.GetTrashCardIds() : null,
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            ownerTotalLevel: ownerStateForHm != null ? ownerStateForHm.TotalLevel : -1,
+            ownerExResource: ownerStateForHm != null ? ownerStateForHm.exResource : -1,
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
+            ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType));
+        return true;
+    }
+
+    private EffectActivationContext BuildActivationContext(PlayerType ownerType, CardController sourceCard)
+    {
+        Gundam2024RuleScript.PlayerState ownerState = ownerType == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+
+        return new EffectActivationContext(
+            ownerType,
+            sourceCard,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            ownerTotalLevel: ownerState.TotalLevel,
+            ownerExResource: ownerState.exResource,
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
+    }
+
+    /// <summary>
+    /// 【起動・アクション】判定用。攻撃フロー中のソースならシールド／ユニット交戦フラグを載せる。
+    /// </summary>
+    private EffectActivationContext BuildOnActionActivationContext(PlayerType ownerType, CardController sourceCard)
+    {
+        CardController host = ResolveEffectSourceBattleHost(sourceCard);
+        if (host == null)
+        {
+            host = sourceCard;
+        }
+
+        if (host != null
+            && host.Data != null
+            && host.Data.IsUnitLike()
+            && attackFlowAttackerUnit != null
+            && IsSameBattleUnit(host, attackFlowAttackerUnit))
+        {
+            return BuildOnAttackActivationContext(ownerType, host);
+        }
+
+        return BuildActivationContext(ownerType, sourceCard);
+    }
+
+    /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
+    private EffectActivationContext BuildOnAttackActivationContext(
+        PlayerType ownerType,
+        CardController attacker,
+        CardController battlingEnemyOverride = null)
+    {
+        CardController host = attacker;
+        CardController pilot = attacker != null ? attacker.MountedPilot : null;
+        CardController battlingEnemy = battlingEnemyOverride != null
+            ? battlingEnemyOverride
+            : ResolveBattlingEnemyUnitFor(attacker);
+        Gundam2024RuleScript.PlayerState ownerState = ownerType == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        return new EffectActivationContext(
+            ownerType,
+            attacker,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: host,
+            mountedPilot: pilot,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(attacker),
+            sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(attacker),
+            battlingEnemyUnit: battlingEnemy,
+            ownerTotalLevel: ownerState != null ? ownerState.TotalLevel : -1,
+            ownerExResource: ownerState != null ? ownerState.exResource : -1,
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
+    }
+
+    /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
+    /// <param name="allowDestroyedDefender">
+    /// true のとき、破壊処理中で対戦相手 HP が 0 以下でも敵ユニット攻撃とみなす
+    /// （OnEnemyUnitDestroyed の「アタックしている間」判定用）。
+    /// </param>
+    private bool IsSourceAttackingEnemyUnit(CardController attacker, bool allowDestroyedDefender = false)
+    {
+        if (attacker == null || attackFlowAttackerUnit == null)
+        {
+            return false;
+        }
+
+        // 攻撃フロー中の攻撃者と同一ユニットであること（「このユニットがアタックしている間」）
+        if (!IsSameBattleUnit(attacker, attackFlowAttackerUnit))
+        {
+            return false;
+        }
+
+        CardController defender = attackFlowBlockRedirectUnit != null
+            ? attackFlowBlockRedirectUnit
+            : attackFlowDeclaredDefenderUnit;
+        if (defender == null || defender.Data == null || !defender.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (!allowDestroyedDefender && defender.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        PlayerType attackerOwner = ResolveCardOwner(attacker.transform);
+        PlayerType defenderOwner = ResolveCardOwner(defender.transform);
+        return attackerOwner != defenderOwner;
+    }
+
+    /// <summary>シールド／プレイヤー攻撃を宣言しているか（ブロック後も宣言種別は Shield のまま）。</summary>
+    private bool IsSourceAttackingEnemyPlayer(CardController attacker)
+    {
+        if (attacker == null || attackFlowAttackerUnit == null)
+        {
+            return false;
+        }
+
+        if (!IsSameBattleUnit(attacker, attackFlowAttackerUnit))
+        {
+            return false;
+        }
+
+        return attackFlowStrikeKind == AttackFlowStrikeKind.Shield;
+    }
+
+    /// <summary>source から見た現在バトルの相手ユニット（ブロック後の最終対戦相手）。</summary>
+    /// <summary>
+    /// 効果ソースのバトルホスト。パイロットなら搭乗ユニット（MountedUnit 欠落時は盤面から逆引き）。
+    /// </summary>
+    private CardController ResolveEffectSourceBattleHost(CardController source)
+    {
+        if (source == null || source.Data == null)
+        {
+            return null;
+        }
+
+        if (source.Data.IsUnitLike())
+        {
+            return source;
+        }
+
+        if (!source.Data.IsPilot())
+        {
+            return source;
+        }
+
+        if (source.MountedUnit != null
+            && source.MountedUnit.Data != null
+            && source.MountedUnit.Data.IsUnitLike())
+        {
+            return source.MountedUnit;
+        }
+
+        return FindHostUnitMountingPilot(source);
+    }
+
+    /// <summary>盤面から「このパイロットを乗せているユニット」を探す。</summary>
+    private CardController FindHostUnitMountingPilot(CardController pilot)
+    {
+        if (pilot == null)
+        {
+            return null;
+        }
+
+        CardController fromPlayer = FindHostUnitMountingPilotInZone(playerBattleZoneCards, pilot);
+        if (fromPlayer != null)
+        {
+            return fromPlayer;
+        }
+
+        CardController fromEnemy = FindHostUnitMountingPilotInZone(enemyBattleZoneCards, pilot);
+        if (fromEnemy != null)
+        {
+            return fromEnemy;
+        }
+
+        CardController fromPlayerPanel = FindHostUnitMountingPilotOnDeployPanel(cardGameRule, pilot);
+        if (fromPlayerPanel != null)
+        {
+            return fromPlayerPanel;
+        }
+
+        return FindHostUnitMountingPilotOnDeployPanel(enemyCardGameRule, pilot);
+    }
+
+    private static CardController FindHostUnitMountingPilotOnDeployPanel(CardGameRule rule, CardController pilot)
+    {
+        Transform panel = rule != null ? rule.PlayerDeployPanel : null;
+        if (panel == null || pilot == null)
+        {
+            return null;
+        }
+
+        CardController[] nested = panel.GetComponentsInChildren<CardController>(true);
+        if (nested == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < nested.Length; i++)
+        {
+            CardController unit = nested[i];
+            if (unit == null || unit.CurrentHp <= 0 || unit.Data == null || !unit.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            if (unit.MountedPilot == null)
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(unit.MountedPilot, pilot)
+                || (pilot.BattleInstanceId > 0
+                    && unit.MountedPilot.BattleInstanceId == pilot.BattleInstanceId))
+            {
+                return unit;
+            }
+        }
+
+        return null;
+    }
+
+    private static CardController FindHostUnitMountingPilotInZone(
+        List<CardController> zone,
+        CardController pilot)
+    {
+        if (zone == null || pilot == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (unit.MountedPilot == null)
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(unit.MountedPilot, pilot)
+                || (pilot.BattleInstanceId > 0
+                    && unit.MountedPilot.BattleInstanceId == pilot.BattleInstanceId))
+            {
+                return unit;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// ソース（ユニットまたは搭乗パイロット）と現在バトル中の相手ユニット。
+    /// 自分攻撃・相手攻撃のどちらでも、ホストが攻撃者／現防衛者なら相手を返す。
+    /// </summary>
+    private CardController ResolveBattlingEnemyUnitFor(CardController source)
+    {
+        CardController attacker = attackFlowAttackerUnit != null
+            ? attackFlowAttackerUnit
+            : pendingUnitAttackAttacker;
+        if (source == null || attacker == null)
+        {
+            return null;
+        }
+
+        // ブロック確定後はブロッカーが「バトル中」の相手。未ブロックなら宣言された防衛ユニット。
+        CardController defender = attackFlowBlockRedirectUnit != null
+            ? attackFlowBlockRedirectUnit
+            : attackFlowDeclaredDefenderUnit;
+        if (defender == null || defender.Data == null || !defender.Data.IsUnitLike())
+        {
+            return null;
+        }
+
+        CardController host = ResolveEffectSourceBattleHost(source);
+        if (host == null || host.CurrentHp <= 0)
+        {
+            return null;
+        }
+
+        if (IsSameBattleUnit(host, attacker))
+        {
+            return defender;
+        }
+
+        if (IsSameBattleUnit(host, defender))
+        {
+            return attacker;
+        }
+
+        return null;
+    }
+
+    private EffectActivationContext BuildPilotMountActivationContext(
+        PlayerType ownerType,
+        CardController sourceCard,
+        CardController hostUnit,
+        CardController pilot)
+    {
+        return new EffectActivationContext(
+            ownerType,
+            sourceCard,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: hostUnit,
+            mountedPilot: pilot,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+    }
+
+    private void RefreshAllHandsConditionalOnHandAuto()
+    {
+        RefreshHandConditionalOnHandAuto(PlayerType.Player);
+        RefreshHandConditionalOnHandAuto(PlayerType.Enemy);
+        RefreshConditionalFieldSelfStatPassives();
+    }
+
+    private void RefreshHandConditionalOnHandAuto(PlayerType side)
+    {
+        CardGameRule rule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        RectTransform hand = rule?.HandScrollContent;
+        if (hand == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController cc = hand.GetChild(i).GetComponent<CardController>();
+            ApplyConditionalOnHandAutoPassiveToCard(cc, side);
+        }
+    }
+
+    private static string MakeOnHandAutoPassiveSourceKey(CardController handCard, int timedBlockIndex)
+    {
+        return $"OnHandAutoPassive:{handCard.GetEntityId()}:{timedBlockIndex}";
+    }
+
+    private void ApplyConditionalOnHandAutoPassiveToCard(CardController cc, PlayerType ownerType)
+    {
+        if (cc == null || cc.Data == null || cc.Data.timedEffects == null)
+        {
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, cc);
+        for (int bi = 0; bi < cc.Data.timedEffects.Count; bi++)
+        {
+            TimedEffectData timed = cc.Data.timedEffects[bi];
+            if (timed == null || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!timed.IsHandConditionalPassiveBlock())
+            {
+                continue;
+            }
+
+            string key = MakeOnHandAutoPassiveSourceKey(cc, bi);
+            cc.RemoveStatModifiersBySource(key);
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedHandPassive = timed.GetResolvedEffects();
+            for (int ei = 0; ei < resolvedHandPassive.Count; ei++)
+            {
+                EffectData effect = resolvedHandPassive[ei];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                ApplyEffectForOnHandAuto(cc, ownerType, effect, key);
+            }
+        }
+    }
+
+    private bool IsCardInOwnerHand(CardController card, PlayerType ownerType)
+    {
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        return rule != null
+            && rule.HandScrollContent != null
+            && card.transform.IsChildOf(rule.HandScrollContent);
+    }
+
+    private void TriggerCardEffects(CardController sourceCard, PlayerType ownerType, EffectTiming timing)
+    {
+        if (ShouldSkipAutomaticEffectsInTestPlay())
+        {
+            return;
+        }
+
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            return;
+        }
+
+        if (timing == EffectTiming.OnPlayed)
+        {
+            TriggerOnPlayedEffects(sourceCard, ownerType, null);
+            return;
+        }
+
+        if (timing == EffectTiming.OnDestroyed || timing == EffectTiming.OnUnitDestroyed)
+        {
+            RunOrDeferOnDestroyedEffects(sourceCard, ownerType, null);
+            return;
+        }
+
+        if (timing == EffectTiming.OnEnemyUnitDestroyed)
+        {
+            return;
+        }
+
+        if (timing == EffectTiming.OnObservedUnitTrigger)
+        {
+            return;
+        }
+
+        if (timing == EffectTiming.OnPilotMounted || timing == EffectTiming.OnLink)
+        {
+            return;
+        }
+
+        EffectActivationContext activationContext = timing == EffectTiming.OnAttack
+            ? BuildOnAttackActivationContext(ownerType, sourceCard)
+            : BuildActivationContext(ownerType, sourceCard);
+
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || timed.timing != timing || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (timed.IsFieldOwnerTurnSelfStatPassiveBlock())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> resolvedTimed = timed.GetResolvedEffects();
+            for (int j = 0; j < resolvedTimed.Count; j++)
+            {
+                EffectData effect = resolvedTimed[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+                if (timing == EffectTiming.OnAttack && effect.target.IsOpponentUnitTarget())
+                {
+                    // Enemy unit target effects are resolved before attack target decision.
+                    continue;
+                }
+
+                // Self AP バフ（ザクⅡ等）は strike 加算専用。ここで Apply すると盤面に残る。
+                if (timing == EffectTiming.OnAttack
+                    && (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+                    && effect.target == TargetType.Self)
+                {
+                    continue;
+                }
+
+                // 非戦闘 OnAttack（除外→シールドダメージ等）はプレコンバットチェーン専任。
+                // ここでの再適用は観測リークにより「除外なしダメージ」が他ユニット／翌ターンへ残る。
+                if (timing == EffectTiming.OnAttack && IsOnAttackNonCombatEffect(effect))
+                {
+                    continue;
+                }
+
+                // トラッシュ返却チェーン（Return→Activate→FirstStrike）は専用経路のみ。
+                if (timing == EffectTiming.OnAttack
+                    && TimedBlockContainsReturnFromTrash(timed)
+                    && (effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
+                        || effect.type == EffectType.Activate
+                        || effect.type == EffectType.FirstStrike))
+                {
+                    continue;
+                }
+
+                if (effect.requireChainObservationContext && !HasEffectChainObservation)
+                {
+                    continue;
+                }
+
+                if (effect.HasEffectActivationConditions()
+                    && !EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        activationContext))
+                {
+                    continue;
+                }
+
+                if (EffectRequiresManualUnitSelection(effect))
+                {
+                    continue;
+                }
+
+                ApplyEffect(sourceCard, ownerType, effect);
+            }
+        }
+    }
+
+    /// <summary>パイロット搭乗時（OnPilotMounted）。ユニット／パイロット双方にあれば順番選択 UI。</summary>
+    private void TriggerOnPilotMountedEffects(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType,
+        System.Action onComplete)
+    {
+        if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        UnitLinkExtensions.ResolveOnPilotMountedExecutionPlan(
+            hostUnit.Data,
+            out bool resolveUnit,
+            out bool resolvePilot,
+            out _);
+
+        List<TimedEffectData> unitBlocks = resolveUnit
+            ? CollectMountTimedBlocks(hostUnit, ownerType, hostUnit, pilot, EffectTiming.OnPilotMounted)
+            : new List<TimedEffectData>();
+        List<TimedEffectData> pilotBlocks = resolvePilot
+            ? CollectMountTimedBlocks(pilot, ownerType, hostUnit, pilot, EffectTiming.OnPilotMounted)
+            : new List<TimedEffectData>();
+
+        if (resolvePilot && pilot.Data.id == 1000648)
+        {
+            ApplySt11011SetBuff(hostUnit, pilot, ownerType);
+            // ST11-011のデータ定義ブロックは専用処理と二重適用しない。
+            pilotBlocks.Clear();
+        }
+
+        void FinishAllyPilotMountWatchAndComplete()
+        {
+            NotifyAllyPilotMounted(ownerType, hostUnit, pilot, () =>
+            {
+                RefreshAllFieldOwnerTurnPassives();
+                onComplete?.Invoke();
+            });
+        }
+
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
+        {
+            FinishAllyPilotMountWatchAndComplete();
+            return;
+        }
+
+        Debug.Log(
+            $"[OnPilotMounted] 開始: {pilot.Data.cardName} → {hostUnit.Data.cardName} "
+            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} "
+            + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
+
+        void FinishPilotMountChain()
+        {
+            _pilotMountEffectHostUnit = null;
+            EndEffectChainObservationScope();
+            FinishAllyPilotMountWatchAndComplete();
+        }
+
+        _pilotMountEffectHostUnit = hostUnit;
+        BeginEffectChainObservationScope();
+        ResolveUnitPilotEffectOrder(
+            ownerType,
+            hostUnit,
+            pilot,
+            unitBlocks,
+            pilotBlocks,
+            hostUnit.Data,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    FinishPilotMountChain();
+                    return;
+                }
+
+                RunOrderedUnitPilotEffectEntries(
+                    ownerType,
+                    ordered,
+                    0,
+                    hostUnit,
+                    pilot,
+                    FinishPilotMountChain);
+            });
+    }
+
+    private void ApplySt11011SetBuff(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType)
+    {
+        HashSet<CardController> uniqueTargets = new HashSet<CardController>();
+        List<CardController> ownerZone =
+            ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (ownerZone != null)
+        {
+            for (int i = 0; i < ownerZone.Count; i++)
+            {
+                uniqueTargets.Add(ownerZone[i]);
+            }
+        }
+
+        uniqueTargets.Add(hostUnit);
+        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (ownerRule?.PlayerDeployPanel != null)
+        {
+            CardController[] fieldCards =
+                ownerRule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+            for (int i = 0; i < fieldCards.Length; i++)
+            {
+                uniqueTargets.Add(fieldCards[i]);
+            }
+        }
+
+        List<CardController> aquaticUnits = new List<CardController>();
+        foreach (CardController unit in uniqueTargets)
+        {
+            if (unit == null
+                || unit.Data == null
+                || !unit.Data.IsUnitLike()
+                || unit.CurrentHp <= 0
+                || !unit.HasFeatureId(76))
+            {
+                continue;
+            }
+
+            aquaticUnits.Add(unit);
+        }
+
+        EffectData buff = new EffectData
+        {
+            type = EffectType.Buff,
+            value = 1,
+            target = TargetType.AllyAllUnits,
+            statTarget = EffectStatTarget.AP,
+            duration = EffectDuration.UntilEndOfTurn
+        };
+        ApplyEffectToSpecificTargets(pilot, ownerType, buff, aquaticUnits);
+        Debug.Log($"[ST11-011] セット時〔水中〕AP+1 targets:{aquaticUnits.Count}");
+    }
+
+    /// <summary>Link 条件を満たす搭乗時（OnLink）。双方にあれば順番選択 UI。</summary>
+    private void TriggerOnLinkEffects(
+        CardController hostUnit,
+        CardController pilot,
+        PlayerType ownerType,
+        System.Action onComplete)
+    {
+        if (hostUnit == null || pilot == null || hostUnit.Data == null || pilot.Data == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (!UnitLinkExtensions.HasValidLinkPilot(hostUnit.Data, pilot))
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        UnitLinkExtensions.ResolveOnPilotMountedExecutionPlan(
+            hostUnit.Data,
+            out bool resolveUnit,
+            out bool resolvePilot,
+            out _);
+
+        List<TimedEffectData> unitBlocks = resolveUnit
+            ? CollectMountTimedBlocks(hostUnit, ownerType, hostUnit, pilot, EffectTiming.OnLink)
+            : new List<TimedEffectData>();
+        List<TimedEffectData> pilotBlocks = resolvePilot
+            ? CollectMountTimedBlocks(pilot, ownerType, hostUnit, pilot, EffectTiming.OnLink)
+            : new List<TimedEffectData>();
+
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
+        {
+            NotifyAllyUnitLinked(ownerType, hostUnit, pilot, onComplete);
+            return;
+        }
+
+        Debug.Log(
+            $"[OnLink] 開始: {pilot.Data.cardName} → {hostUnit.Data.cardName} "
+            + $"source:{hostUnit.Data.pilotMountOnPilotMountedSource} "
+            + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
+
+        void FinishOnLinkChain()
+        {
+            _pilotMountEffectHostUnit = null;
+            EndEffectChainObservationScope();
+            RefreshAllFieldOwnerTurnPassives();
+            NotifyAllyUnitLinked(ownerType, hostUnit, pilot, onComplete);
+        }
+
+        _pilotMountEffectHostUnit = hostUnit;
+        BeginEffectChainObservationScope();
+        ResolveUnitPilotEffectOrder(
+            ownerType,
+            hostUnit,
+            pilot,
+            unitBlocks,
+            pilotBlocks,
+            hostUnit.Data,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    FinishOnLinkChain();
+                    return;
+                }
+
+                RunOrderedUnitPilotEffectEntries(
+                    ownerType,
+                    ordered,
+                    0,
+                    hostUnit,
+                    pilot,
+                    FinishOnLinkChain);
+            });
+    }
+
+    private List<TimedEffectData> CollectMountTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        CardController hostUnit,
+        CardController pilot,
+        EffectTiming mountTiming)
+    {
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            return blocks;
+        }
+
+        EffectActivationContext activationContext =
+            BuildPilotMountActivationContext(ownerType, sourceCard, hostUnit, pilot);
+        string timingLabel = mountTiming == EffectTiming.OnLink ? "OnLink" : "OnPilotMounted";
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || !IsMountResolutionBlock(timed, mountTiming))
+            {
+                continue;
+            }
+
+            if (mountTiming == EffectTiming.OnPilotMounted
+                && (timed.IsFieldOwnerTurnStatPassiveBlock() || timed.MatchesOwnerTurnMountFieldPassivePattern()))
+            {
+                continue;
+            }
+
+            // 【リンク中】Self ステータスは搭乗時ワンショットにせず RefreshDuringLinkSelfStatPassives で維持する。
+            if (timed.IsDuringLinkSelfStatPassiveBlock())
+            {
+                continue;
+            }
+
+            if (!timed.ShouldDeferActivationToRunTime()
+                && !EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                Debug.Log(
+                    $"[{timingLabel}] 条件未達: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+
+        return blocks;
+    }
+
+    private static bool IsMountResolutionBlock(TimedEffectData timed, EffectTiming mountTiming)
+    {
+        return mountTiming == EffectTiming.OnLink
+            ? timed.IsOnLinkResolutionBlock()
+            : timed.IsOnPilotMountedResolutionBlock();
+    }
+
+    private void RunMountTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        List<TimedEffectData> blocks,
+        int blockIndex,
+        System.Action onComplete,
+        CardController mountHostUnit = null,
+        CardController mountPilot = null)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        TimedEffectData block = blocks[blockIndex];
+        if (block.IsFieldOwnerTurnStatPassiveBlock() || block.MatchesOwnerTurnMountFieldPassivePattern())
+        {
+            RunMountTimedBlocks(
+                sourceCard,
+                ownerType,
+                blocks,
+                blockIndex + 1,
+                onComplete,
+                mountHostUnit,
+                mountPilot);
+            return;
+        }
+
+        EffectActivationContext activationContext = mountHostUnit != null || mountPilot != null
+            ? BuildPilotMountActivationContext(ownerType, sourceCard, mountHostUnit ?? sourceCard, mountPilot)
+            : BuildActivationContext(ownerType, sourceCard);
+        if (!CanRunTimedBlockAtChainTime(block, activationContext, "MountChain"))
+        {
+            RunMountTimedBlocks(
+                sourceCard,
+                ownerType,
+                blocks,
+                blockIndex + 1,
+                onComplete,
+                mountHostUnit,
+                mountPilot);
+            return;
+        }
+
+        TryExecuteOnPlayedEffectChain(
+            sourceCard,
+            ownerType,
+            block.GetResolvedEffects(),
+            0,
+            () => RunMountTimedBlocks(
+                sourceCard,
+                ownerType,
+                blocks,
+                blockIndex + 1,
+                onComplete,
+                mountHostUnit,
+                mountPilot));
+    }
+
+    /// <summary>場に出した時（OnPlayed）。条件付きブロック内の効果を順に解決し、敵ユニット選択が必要なら UI を出す。</summary>
+    private void TriggerOnPlayedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
+    {
+        bool skipNonLookAutosInTestPlay = ShouldSkipAutomaticEffectsInTestPlay();
+
+        // ST12-001【配備時】はカードデータの汎用対象解決を介さず、ベース領域へ直接解決する。
+        // 配備ベース／EXベースがなければ不発。ユニットとシールドには波及しない。
+        if (sourceCard?.Data?.id == 1000654)
+        {
+            if (skipNonLookAutosInTestPlay)
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
+            Gundam2024RuleScript.PlayerSide targetSide =
+                ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player);
+            if (!ApplyEffectDamageToBaseAreaOnly(targetSide, 5, sourceCard))
+            {
+                Debug.Log("[ST12-001] 相手に配備ベースもEXベースもないため、配備時5ダメージをスキップ。");
+            }
+
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || !timed.IsOnFieldPlayedResolutionBlock())
+            {
+                continue;
+            }
+
+            // TestPlay は自動効果を抑止するが、山札 Look は確認のため解決する。
+            if (skipNonLookAutosInTestPlay && !timed.ContainsLookEffect())
+            {
+                continue;
+            }
+
+            if (!timed.ShouldDeferActivationToRunTime()
+                && !EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                Debug.Log(
+                    $"[OnPlayed] 条件未達のためスキップ: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+
+        if (blocks.Count == 0)
+        {
+            Debug.Log(
+                $"[OnPlayed] 解決対象ブロックなし: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) "
+                + $"(手札パッシブ専用・効果未設定・発動条件未達のいずれか)");
+            onComplete?.Invoke();
+            return;
+        }
+
+        Debug.Log(
+            $"[OnPlayed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count}");
+        BeginEffectChainObservationScope();
+        RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, 0, () =>
+        {
+            EndEffectChainObservationScope();
+            onComplete?.Invoke();
+        });
+    }
+
+    /// <summary>破壊時（OnDestroyed / OnUnitDestroyed）。条件付きブロック内の効果を順に解決する。
+    /// 自分／相手ターン・アクションステップ中など、破壊が発生したタイミングを問わず実行する。</summary>
+    private void TriggerOnDestroyedEffects(
+        CardController sourceCard,
+        PlayerType ownerType,
+        System.Action onComplete,
+        CardController destroyedBy = null)
+    {
+        List<TimedEffectData> blocks = CollectOnDestroyedTimedBlocks(sourceCard, ownerType, destroyedBy);
+        if (blocks.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        Debug.Log(
+            $"[OnDestroyed] 開始: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) blocks:{blocks.Count} "
+            + $"owner:{ownerType} turn:{currentPlayerType} phase:{currentPhase} "
+            + $"destroyedBy:{(destroyedBy != null && destroyedBy.Data != null ? destroyedBy.Data.cardName : "-")}");
+        RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, 0, onComplete);
+    }
+
+    private List<TimedEffectData> CollectOnDestroyedTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        CardController destroyedBy = null,
+        CardController detachedMountedPilot = null,
+        CardController destroyedHostUnit = null,
+        bool destroyedUnitWasLinkedHint = false)
+    {
+        List<TimedEffectData> blocks = new List<TimedEffectData>();
+        if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
+        {
+            return blocks;
+        }
+
+        // ST12-009【破壊時】：どちらかのプレイヤーのシールドが3枚以下の場合のみ解決する。
+        if (sourceCard.Data.id == 1000662)
+        {
+            int playerShields = cardGameRule != null ? cardGameRule.GetShieldZoneCardCount() : int.MaxValue;
+            int enemyShields = enemyCardGameRule != null ? enemyCardGameRule.GetShieldZoneCardCount() : int.MaxValue;
+            if (playerShields > 3 && enemyShields > 3)
+            {
+                Debug.Log(
+                    $"[ST12-009] 双方のシールドが4枚以上のため破壊時効果をスキップ "
+                    + $"(Player:{playerShields} Enemy:{enemyShields})");
+                return blocks;
+            }
+        }
+
+        EffectActivationContext activationContext = BuildOnDestroyedActivationContext(
+            ownerType,
+            sourceCard,
+            destroyedBy,
+            detachedMountedPilot,
+            destroyedHostUnit,
+            destroyedUnitWasLinkedHint);
+        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = sourceCard.Data.timedEffects[i];
+            if (timed == null || !timed.IsOnUnitDestroyedResolutionBlock())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                Debug.Log(
+                    $"[OnDestroyed] 条件未達のためスキップ: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) block:{i}");
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+
+        return blocks;
+    }
+
+    private EffectActivationContext BuildOnDestroyedActivationContext(
+        PlayerType ownerType,
+        CardController sourceCard,
+        CardController destroyedBy,
+        CardController detachedMountedPilot = null,
+        CardController destroyedHostUnit = null,
+        bool destroyedUnitWasLinkedHint = false)
+    {
+        bool hasDestroyerOwner = false;
+        PlayerType destroyerOwner = default;
+        if (destroyedBy != null)
+        {
+            destroyerOwner = ResolveCardOwner(destroyedBy.transform);
+            hasDestroyerOwner = true;
+        }
+
+        CardController mountHost = null;
+        CardController mountedPilot = detachedMountedPilot;
+        if (sourceCard != null && sourceCard.Data != null && sourceCard.Data.IsUnitLike())
+        {
+            mountHost = sourceCard;
+            if (mountedPilot == null)
+            {
+                mountedPilot = sourceCard.MountedPilot;
+            }
+        }
+        else if (sourceCard != null && sourceCard.Data != null && sourceCard.Data.IsPilot())
+        {
+            mountedPilot = sourceCard;
+            if (sourceCard.MountedUnit != null
+                && sourceCard.MountedUnit.Data != null
+                && sourceCard.MountedUnit.Data.IsUnitLike())
+            {
+                mountHost = sourceCard.MountedUnit;
+            }
+            else if (destroyedHostUnit != null
+                && destroyedHostUnit.Data != null
+                && destroyedHostUnit.Data.IsUnitLike())
+            {
+                mountHost = destroyedHostUnit;
+            }
+        }
+
+        bool destroyedUnitWasLinked = destroyedUnitWasLinkedHint
+            || (mountHost != null
+                && mountHost.Data != null
+                && mountedPilot != null
+                && mountedPilot.Data != null
+                && UnitLinkExtensions.HasValidLinkPilot(mountHost.Data, mountedPilot));
+
+        return new EffectActivationContext(
+            ownerType,
+            sourceCard,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: mountHost,
+            mountedPilot: mountedPilot,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: CopyTrashIdsIncludingPendingDestroyed(
+                cardGameRule != null ? cardGameRule.GetTrashCardIds() : null,
+                sourceCard,
+                ownerType == PlayerType.Player),
+            opponentTrashCardIds: CopyTrashIdsIncludingPendingDestroyed(
+                enemyCardGameRule != null ? enemyCardGameRule.GetTrashCardIds() : null,
+                sourceCard,
+                ownerType == PlayerType.Enemy),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            destroyingCard: destroyedBy,
+            hasDestroyingCardOwner: hasDestroyerOwner,
+            destroyingCardOwner: destroyerOwner,
+            destroyedUnitWasLinked: destroyedUnitWasLinked);
+    }
+
+    /// <summary>
+    /// 【破壊時】解決時点ではまだ FinishSendCardToTrash 前のため、破壊中のカードをトラッシュ枚数に含める。
+    /// バエル等「トラッシュに〔特徴〕がN枚以上」は、破壊された自身も数える。
+    /// </summary>
+    private static List<int> CopyTrashIdsIncludingPendingDestroyed(
+        IReadOnlyList<int> trashIds,
+        CardController pendingDestroyed,
+        bool includePending)
+    {
+        List<int> result = trashIds != null ? new List<int>(trashIds) : new List<int>();
+        if (!includePending || pendingDestroyed == null || pendingDestroyed.Data == null)
+        {
+            return result;
+        }
+
+        int cardId = pendingDestroyed.Data.id;
+        if (cardId > 0)
+        {
+            result.Add(cardId);
+        }
+
+        return result;
+    }
+
+    private void RunOnDestroyedTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        List<TimedEffectData> blocks,
+        int blockIndex,
+        System.Action onComplete)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        TimedEffectData block = blocks[blockIndex];
+        TryExecuteOnDestroyedEffectChain(
+            sourceCard,
+            ownerType,
+            block.GetResolvedEffects(),
+            0,
+            () => RunOnDestroyedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
+    }
+
+    private void TryExecuteOnDestroyedEffectChain(
+        CardController sourceCard,
+        PlayerType ownerType,
+        IReadOnlyList<EffectData> effects,
+        int index,
+        System.Action onDone)
+    {
+        if (effects == null || index >= effects.Count)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        EffectData effect = effects[index];
+        if (effect == null)
+        {
+            TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        if (effect.type == EffectType.AddFromTrashToHand)
+        {
+            // 回収できた場合だけ後続の「手札を1枚捨てる」へ進む。
+            // 選択UIにはキャンセル操作がないため、候補がある場合は必ず1枚選択する。
+            if (CollectAddFromTrashToHandCandidates(ownerType, effect).Count == 0)
+            {
+                Debug.Log(
+                    $"[OnDestroyed] AddFromTrashToHand 候補なし。後続効果を中止 "
+                    + $"(cardId:{sourceCard?.Data?.id})");
+                onDone?.Invoke();
+                return;
+            }
+
+            ApplyAddFromTrashToHandEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            TryExecuteManualHandSelectionEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                success =>
+                {
+                    if (!success && effect.abortRemainingChainOnSkip)
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                });
+            return;
+        }
+
+        if (effect.type == EffectType.ReturnMountedPilotToHand)
+        {
+            ApplyReturnMountedPilotToHandEffect(sourceCard, ownerType);
+            TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+            FilterOutUnitsPendingSendToTrash(candidates);
+            if (candidates.Count == 0)
+            {
+                TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            if (ownerType == PlayerType.Enemy)
+            {
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                }
+
+                TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                return;
+            }
+
+            OpenManualUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                null,
+                picked =>
+                {
+                    if (picked != null)
+                    {
+                        ApplyEffectToSpecificTargets(
+                            sourceCard,
+                            ownerType,
+                            effect,
+                            new List<CardController> { picked });
+                    }
+
+                    // オンライン: 対象選択が終わったら待機中の相手 effectthink を早めに解除し得るよう通知
+                    // （Look OK と同様。完了はチェーン終了時にも送るが二重送信はガード済み）
+                    NotifyOnlineOnDestroyedPlayerAcknowledged();
+
+                    TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                });
+            return;
+        }
+
+        ApplyEffectRespectingLookAsync(
+            sourceCard,
+            ownerType,
+            effect,
+            () => TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+    }
+
+    /// <summary>
+    /// このカードが敵ユニットを破壊した時。
+    /// キル元ユニット本体および搭乗パイロットの OnEnemyUnitDestroyed を解決する
+    /// （戦闘ダメージ破壊・エフェクトバトル破壊の双方。効果適用元は常にキル元ユニット＝Self はペア本体）。
+    /// </summary>
+    private void TriggerOnEnemyUnitDestroyedEffects(
+        CardController destroyedUnit,
+        PlayerType destroyedOwner,
+        CardController destroyedBy,
+        bool destroyedByBattleDamage,
+        bool destroyedByEffectDamage,
+        bool destroyedUnitWasLinked,
+        System.Action onComplete)
+    {
+        if (!TryResolveEnemyUnitKillContext(destroyedUnit, destroyedOwner, destroyedBy, out CardController killer, out PlayerType killerOwner))
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (TryResolveArmedLibraAfterPilotBattleKill(
+            killer,
+            killerOwner,
+            destroyedByBattleDamage,
+            () => TriggerOnEnemyUnitDestroyedEffects(
+                destroyedUnit,
+                destroyedOwner,
+                destroyedBy,
+                destroyedByBattleDamage,
+                destroyedByEffectDamage,
+                destroyedUnitWasLinked,
+                onComplete)))
+        {
+            return;
+        }
+
+        // ST12-001 は戦闘または効果の「ダメージ」で破壊した場合のみ誘発する。
+        if (killer?.Data?.id == 1000654
+            && !destroyedByBattleDamage
+            && !destroyedByEffectDamage)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        if (killer?.Data?.id == 1000654
+            && killerOwner == currentPlayerType
+            && killer.MountedPilot?.Data != null
+            && killer.MountedPilot.Data.IsPilot()
+            && killer.MountedPilot.CurrentLevel >= 5)
+        {
+            EffectData epyonDamage = new EffectData
+            {
+                type = EffectType.Damage,
+                value = 2,
+                target = TargetType.EnemyAllUnits,
+                selectionMode = EffectSelectionMode.Unset,
+                targetUnitFilterStat = EffectTargetUnitFilterStat.AP,
+                targetUnitStatCompareOp = EffectCompareOperator.LessOrEqual,
+                targetUnitStatCompareValue = 5
+            };
+            ApplyEffect(killer, killerOwner, epyonDamage);
+        }
+
+        EffectActivationContext activationContext = new EffectActivationContext(
+            killerOwner,
+            killer,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: killerOwner == currentPlayerType,
+            mountHostUnit: killer,
+            mountedPilot: killer.MountedPilot,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            destroyingCard: destroyedBy,
+            hasDestroyingCardOwner: true,
+            destroyingCardOwner: killerOwner,
+            destroyedByBattleDamage: destroyedByBattleDamage,
+            destroyedByEffectDamage: destroyedByEffectDamage,
+            sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(killer, allowDestroyedDefender: true),
+            destroyedUnitWasLinked: destroyedUnitWasLinked,
+            sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(killer));
+        List<TimedEffectData> unitBlocks = new List<TimedEffectData>();
+        List<TimedEffectData> pilotBlocks = new List<TimedEffectData>();
+        AppendOnEnemyUnitDestroyedBlocks(killer, activationContext, unitBlocks);
+        CardController killerPilot = killer.MountedPilot;
+        if (killerPilot != null)
+        {
+            AppendOnEnemyUnitDestroyedBlocks(killerPilot, activationContext, pilotBlocks);
+        }
+
+        if (unitBlocks.Count == 0 && pilotBlocks.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        string pilotName = killerPilot?.Data != null ? killerPilot.Data.cardName : "-";
+        Debug.Log(
+            $"[OnEnemyUnitDestroyed] キル:{killer.Data.cardName}(id:{killer.Data.id}) pilot:{pilotName} "
+            + $"→ 破壊:{destroyedUnit.Data.cardName}(id:{destroyedUnit.Data.id}) "
+            + $"battleDmg:{destroyedByBattleDamage} linked:{destroyedUnitWasLinked} "
+            + $"attackingEnemy:{activationContext.SourceAttackingEnemyUnit} "
+            + $"unitBlocks:{unitBlocks.Count} pilotBlocks:{pilotBlocks.Count}");
+
+        ResolveUnitPilotEffectOrder(
+            killerOwner,
+            killer,
+            killerPilot,
+            unitBlocks,
+            pilotBlocks,
+            killer.Data,
+            ordered =>
+            {
+                if (ordered == null || ordered.Count == 0)
+                {
+                    onComplete?.Invoke();
+                    return;
+                }
+
+                // パイロット効果も Self＝ホストユニットとして解決する
+                RunOrderedOnEnemyUnitDestroyedEntries(killer, killerOwner, ordered, 0, onComplete);
+            });
+    }
+
+    private void RunOrderedOnEnemyUnitDestroyedEntries(
+        CardController killer,
+        PlayerType killerOwner,
+        List<UnitPilotEffectOrderEntry> ordered,
+        int index,
+        System.Action onComplete)
+    {
+        if (ordered == null || index >= ordered.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        UnitPilotEffectOrderEntry entry = ordered[index];
+        if (entry == null || entry.Blocks == null || entry.Blocks.Count == 0)
+        {
+            RunOrderedOnEnemyUnitDestroyedEntries(killer, killerOwner, ordered, index + 1, onComplete);
+            return;
+        }
+
+        RunOnEnemyUnitDestroyedTimedBlocks(
+            killer,
+            killerOwner,
+            entry.Source,
+            entry.Blocks,
+            0,
+            () => RunOrderedOnEnemyUnitDestroyedEntries(
+                killer,
+                killerOwner,
+                ordered,
+                index + 1,
+                onComplete));
+    }
+
+    private void AppendOnEnemyUnitDestroyedBlocks(
+        CardController effectSource,
+        EffectActivationContext activationContext,
+        List<TimedEffectData> blocks)
+    {
+        CardData data = effectSource?.Data;
+        if (data?.timedEffects == null || blocks == null)
+        {
+            return;
+        }
+
+        // ST12-001 本体効果は TriggerOnEnemyUnitDestroyedEffects でダメージ破壊条件込みで直接解決する。
+        if (data.id == 1000654)
+        {
+            return;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || !timed.IsOnEnemyUnitDestroyedResolutionBlock())
+            {
+                continue;
+            }
+
+            if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(activationContext.OwnerType, effectSource, i))
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            blocks.Add(timed);
+        }
+    }
+
+    private void RunOnEnemyUnitDestroyedTimedBlocks(
+        CardController sourceCard,
+        PlayerType beneficiary,
+        CardController effectOwner,
+        List<TimedEffectData> blocks,
+        int blockIndex,
+        System.Action onComplete)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        TimedEffectData block = blocks[blockIndex];
+        if (block != null && block.oncePerTurn && effectOwner != null)
+        {
+            int timedIndex = IndexOfTimedEffectOnCard(effectOwner, block);
+            if (timedIndex >= 0)
+            {
+                MarkPaidActivationUsedThisTurn(beneficiary, effectOwner, timedIndex);
+            }
+        }
+
+        TryExecuteOnEnemyUnitDestroyedEffectChain(
+            sourceCard,
+            beneficiary,
+            block.GetResolvedEffects(),
+            0,
+            () => RunOnEnemyUnitDestroyedTimedBlocks(
+                sourceCard,
+                beneficiary,
+                effectOwner,
+                blocks,
+                blockIndex + 1,
+                onComplete));
+    }
+
+    private void TryExecuteOnEnemyUnitDestroyedEffectChain(
+        CardController sourceCard,
+        PlayerType beneficiary,
+        IReadOnlyList<EffectData> effects,
+        int index,
+        System.Action onDone)
+    {
+        if (effects == null || index >= effects.Count)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        EffectData effect = effects[index];
+        if (effect == null)
+        {
+            TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+            return;
+        }
+
+        if (effect.type == EffectType.AddFromTrashToHand)
+        {
+            if (CollectAddFromTrashToHandCandidates(beneficiary, effect).Count == 0)
+            {
+                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                return;
+            }
+
+            ApplyAddFromTrashToHandEffect(
+                sourceCard,
+                beneficiary,
+                effect,
+                () => TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone));
+            return;
+        }
+
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, beneficiary, effect);
+            if (candidates.Count == 0)
+            {
+                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                return;
+            }
+
+            if (beneficiary == PlayerType.Enemy)
+            {
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(beneficiary, sourceCard, null, null);
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, beneficiary, effect, new List<CardController> { picked });
+                }
+
+                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                return;
+            }
+
+            Debug.Log(
+                $"[OnEnemyUnitDestroyed] 手動対象選択は未対応のためスキップ ({effect.FormatEffectSelectionSummary()})。");
+            TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+            return;
+        }
+
+        ApplyEffectRespectingLookAsync(
+            sourceCard,
+            beneficiary,
+            effect,
+            () => TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone));
+    }
+
+    private void RunOnPlayedTimedBlocks(
+        CardController sourceCard,
+        PlayerType ownerType,
+        List<TimedEffectData> blocks,
+        int blockIndex,
+        System.Action onComplete)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        TimedEffectData block = blocks[blockIndex];
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        if (!CanRunTimedBlockAtChainTime(block, activationContext, "OnPlayed"))
+        {
+            RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete);
+            return;
+        }
+
+        TryExecuteOnPlayedEffectChain(
+            sourceCard,
+            ownerType,
+            block.GetResolvedEffects(),
+            0,
+            () => RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, blockIndex + 1, onComplete));
+    }
+
+    private void TryExecuteOnPlayedEffectChain(
+        CardController sourceCard,
+        PlayerType ownerType,
+        IReadOnlyList<EffectData> effects,
+        int index,
+        System.Action onDone)
+    {
+        if (effects == null || index >= effects.Count)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        EffectData effect = effects[index];
+        if (effect == null)
+        {
+            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
+        if (!ShouldApplyChainedEffect(effect, activationContext, "EffectChain"))
+        {
+            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        if (TryExecutePriorChainPickedTargetEffect(
+            sourceCard,
+            ownerType,
+            effect,
+            () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone)))
+        {
+            return;
+        }
+
+        if (effect.type == EffectType.DeployBase && effect.RequiresDeployBaseFromTrashSelection())
+        {
+            int baseMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyDeployBaseEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                baseMagnitude > 0 ? baseMagnitude : 1,
+                allowBurstSource: false,
+                onComplete: () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+        {
+            ApplyDeployUnitEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ExileFromTrash)
+        {
+            bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
+            ApplyExileFromTrashEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                onComplete: () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone),
+                onSkipped: () =>
+                {
+                    if (abortRemainingOnSkip)
+                    {
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                    }
+                });
+            return;
+        }
+
+        if (effect.type == EffectType.AddFromTrashToHand)
+        {
+            ApplyAddFromTrashToHandEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            TryExecuteManualHandSelectionEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+        {
+            ApplyActivateObservedSpecialMoveCommandOnMain(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ActivateSelfOnMain)
+        {
+            ApplyActivateSelfOnMain(
+                sourceCard,
+                ownerType,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
+            // AllyOtherUnit 等で候補0（例: 95Sazabi 自身しかいない）なら UI を出さず終了
+            List<CardController> preCandidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+            if (preCandidates.Count == 0)
+            {
+                if (abortRemainingOnSkip)
+                {
+                    onDone?.Invoke();
+                }
+                else
+                {
+                    TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                }
+                return;
+            }
+
+            void RunManualSelection()
+            {
+                TryExecuteManualUnitSelectionEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    null,
+                    () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone),
+                    () =>
+                    {
+                        if (abortRemainingOnSkip)
+                        {
+                            onDone?.Invoke();
+                        }
+                        else
+                        {
+                            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                        }
+                    });
+            }
+
+            if (effect.optionalPlayerConfirm)
+            {
+                TryBeginOptionalConfirmedEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    onAccepted: RunManualSelection,
+                    onDeclined: () =>
+                    {
+                        if (abortRemainingOnSkip)
+                        {
+                            onDone?.Invoke();
+                        }
+                        else
+                        {
+                            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                        }
+                    });
+                return;
+            }
+
+            RunManualSelection();
+            return;
+        }
+
+        if (IsFieldWideUnitDamageEffect(effect))
+        {
+            TryApplyFieldWideDamageWithPreviewAsync(
+                sourceCard,
+                ownerType,
+                effect,
+                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        ApplyEffectRespectingLookAsync(
+            sourceCard,
+            ownerType,
+            effect,
+            () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+    }
+
+    private void ApplyUnitDamageAndTrackChain(CardController targetUnit, int damageAmount)
+    {
+        if (targetUnit == null)
+        {
+            return;
+        }
+
+        // 対象を選んでダメージ効果を解決した時点でフラグを立てる。
+        // 無効化・軽減で実ダメージ0でも、後続の自傷（鉄華団等）は「選択できれば」続行する。
+        MarkEffectChainDealtDamage();
+
+        if (damageAmount <= 0)
+        {
+            return;
+        }
+
+        targetUnit.ApplyDamage(damageAmount);
+    }
+
+    private void TryExecuteManualUnitSelectionEffect(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        CardController attackingUnitInAttackFlow,
+        System.Action onDone,
+        System.Action onSkipped = null)
+    {
+        if (effect == null)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        // オンライン相手ミラー等：AI 自動選択で EffectSync 誤送信しない。
+        // ローカル Player の防御誘発（Argama 等）は相手ターンでも選択 UI を出す。
+        if (_applyingRemoteBattleAction && ownerType != PlayerType.Player)
+        {
+            onSkipped?.Invoke();
+            return;
+        }
+
+        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+        var attackDestroyBlocked = new List<CardController>();
+        if (attackingUnitInAttackFlow != null)
+        {
+            CollectOnAttackDestroyBlockedUnits(
+                effect,
+                attackingUnitInAttackFlow,
+                attackedTarget: null,
+                attackDestroyBlocked);
+            RemoveUnitsFromList(candidates, attackDestroyBlocked);
+        }
+
+        if (candidates.Count == 0)
+        {
+            // Sazabi 等: 攻撃ユニット自身だけが候補のときはグレイ表示＋Cancel の UI を出す
+            if (attackingUnitInAttackFlow != null
+                && effect != null
+                && effect.type == EffectType.Destroy
+                && attackDestroyBlocked.Count > 0
+                && RequiresInteractiveManualUnitSelectionUi(ownerType))
+            {
+                OpenManualUnitTargetSelectionUI(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    candidates,
+                    attackingUnitInAttackFlow,
+                    picked =>
+                    {
+                        if (picked != null)
+                        {
+                            ApplyEffectToSpecificTargets(
+                                sourceCard,
+                                ownerType,
+                                effect,
+                                new List<CardController> { picked });
+                            onDone?.Invoke();
+                        }
+                        else
+                        {
+                            onSkipped?.Invoke();
+                        }
+                    });
+                return;
+            }
+
+            Debug.Log(
+                $"[Effect] 選択可能な対象がありません ({effect.FormatEffectSelectionSummary()})。");
+            onSkipped?.Invoke();
+            return;
+        }
+
+        if (ownerType == PlayerType.Enemy && !RequiresInteractiveManualUnitSelectionUi(ownerType))
+        {
+            EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+            if (effect.selectionMode.IsMultipleUnitPickMode())
+            {
+                List<CardController> aiPicks = PickEnemyAiEffectTargets(effect, pickCtx, candidates);
+                if (aiPicks.Count > 0)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, aiPicks);
+                    onDone?.Invoke();
+                }
+                else
+                {
+                    onSkipped?.Invoke();
+                }
+            }
+            else
+            {
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                    onDone?.Invoke();
+                }
+                else
+                {
+                    onSkipped?.Invoke();
+                }
+            }
+
+            return;
+        }
+
+        if (effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            OpenManualMultiUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                attackingUnitInAttackFlow,
+                selected =>
+                {
+                    if (selected != null && selected.Count > 0)
+                    {
+                        ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, selected);
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        onSkipped?.Invoke();
+                    }
+                });
+            return;
+        }
+
+        // 人間操作側は SelectSingle 系を常に UI 経由（候補1体の自動適用を禁止）
+        if (RequiresInteractiveManualUnitSelectionUi(ownerType) && effect.selectionMode.RequiresManualUnitPick())
+        {
+            OpenManualUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                attackingUnitInAttackFlow,
+                picked =>
+                {
+                    if (picked != null)
+                    {
+                        ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        onSkipped?.Invoke();
+                    }
+                });
+            return;
+        }
+
+        // 人間操作側は Debuff/Damage 等も常に UI（selectionMode 未設定でも）
+        if (RequiresInteractiveManualUnitSelectionUi(ownerType) && effect.type.RequiresManualUnitSelection())
+        {
+            OpenManualUnitTargetSelectionUI(
+                sourceCard,
+                ownerType,
+                effect,
+                candidates,
+                attackingUnitInAttackFlow,
+                picked =>
+                {
+                    if (picked != null)
+                    {
+                        ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        onSkipped?.Invoke();
+                    }
+                });
+            return;
+        }
+
+        // 「Choose 1 …」系は候補1体でも UI を出し、キャンセルで不発にできる
+        bool forceSelectionUi = effect.type == EffectType.GrantAttackFlag
+            || effect.type == EffectType.EffectBattle
+            || effect.IsAttackActiveEnemyAllyGrant()
+            || effect.type == EffectType.PreventNextStartPhaseActive
+            || effect.type == EffectType.Debuff
+            || effect.type == EffectType.Damage
+            || effect.type == EffectType.Bounce
+            || effect.type == EffectType.RecoverHp
+            || effect.abortRemainingChainOnSkip
+            || effect.optionalPlayerConfirm;
+        // 人間操作側は候補1体でも自動適用禁止（必ず UI で明示選択）
+        if (!forceSelectionUi && candidates.Count == 1 && !RequiresInteractiveManualUnitSelectionUi(ownerType))
+        {
+            ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, candidates);
+            onDone?.Invoke();
+            return;
+        }
+
+        OpenManualUnitTargetSelectionUI(
+            sourceCard,
+            ownerType,
+            effect,
+            candidates,
+            attackingUnitInAttackFlow,
+            picked =>
+            {
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
+                    onDone?.Invoke();
+                }
+                else
+                {
+                    onSkipped?.Invoke();
+                }
+            });
+    }
+
+    private static bool ShouldAbortRemainingOnPlayedEffectsWhenSkipped(CardController sourceCard, EffectData effect)
+    {
+        if (effect != null && effect.abortRemainingChainOnSkip)
+        {
+            return true;
+        }
+
+        return sourceCard != null
+            && sourceCard.Data != null
+            && sourceCard.Data.id == 95
+            && effect != null
+            && effect.type == EffectType.Destroy
+            && effect.target == TargetType.AllyOtherUnit;
+    }
+
+    /// <summary>
+    /// OnAttack 破壊選択で選択不可にするユニット（攻撃中の自分／攻撃対象）。
+    /// 候補から外しつつ UI ではグレイアウト表示する。
+    /// </summary>
+    private static void CollectOnAttackDestroyBlockedUnits(
+        EffectData effect,
+        CardController attackingUnit,
+        CardController attackedTarget,
+        List<CardController> blockedOut)
+    {
+        if (blockedOut == null || effect == null || effect.type != EffectType.Destroy)
+        {
+            return;
+        }
+
+        if (effect.target.IsAllyUnitPickTarget()
+            && attackingUnit != null
+            && attackingUnit.Data != null
+            && attackingUnit.Data.IsUnitLike()
+            && attackingUnit.CurrentHp > 0)
+        {
+            blockedOut.Add(attackingUnit);
+        }
+
+        if ((effect.opponentChoosesTarget || effect.target.IsOpponentUnitTarget())
+            && attackedTarget != null
+            && attackedTarget.Data != null
+            && attackedTarget.Data.IsUnitLike()
+            && attackedTarget.CurrentHp > 0)
+        {
+            blockedOut.Add(attackedTarget);
+        }
+    }
+
+    private static void RemoveUnitsFromList(List<CardController> list, List<CardController> remove)
+    {
+        if (list == null || remove == null || remove.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            CardController unit = list[i];
+            for (int j = 0; j < remove.Count; j++)
+            {
+                if (ReferenceEquals(unit, remove[j]))
+                {
+                    list.RemoveAt(i);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static List<CardController> BuildUnitPickDisplayList(
+        List<CardController> selectable,
+        List<CardController> blocked)
+    {
+        var display = new List<CardController>();
+        if (selectable != null)
+        {
+            for (int i = 0; i < selectable.Count; i++)
+            {
+                CardController unit = selectable[i];
+                if (unit != null && !display.Contains(unit))
+                {
+                    display.Add(unit);
+                }
+            }
+        }
+
+        if (blocked != null)
+        {
+            for (int i = 0; i < blocked.Count; i++)
+            {
+                CardController unit = blocked[i];
+                if (unit != null && !display.Contains(unit))
+                {
+                    display.Add(unit);
+                }
+            }
+        }
+
+        return display;
+    }
+
+    private static bool IsUnitInList(List<CardController> list, CardController unit)
+    {
+        if (list == null || unit == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (ReferenceEquals(list[i], unit))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ApplyUnitPickCardGrayedOut(GameObject cardGo, bool grayedOut)
+    {
+        ApplyTrashSelectionCardGrayedOut(cardGo, grayedOut);
+    }
+
+    private void OpenManualUnitTargetSelectionUI(
+        CardController source,
+        PlayerType ownerType,
+        EffectData effect,
+        List<CardController> candidates,
+        CardController attackingUnitInAttackFlow,
+        System.Action<CardController> onPicked)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onPicked?.Invoke(null);
+            return;
+        }
+
+        var blocked = new List<CardController>();
+        if (attackingUnitInAttackFlow != null)
+        {
+            CollectOnAttackDestroyBlockedUnits(
+                effect,
+                attackingUnitInAttackFlow,
+                attackedTarget: null,
+                blocked);
+        }
+
+        List<CardController> selectable = candidates != null
+            ? new List<CardController>(candidates)
+            : new List<CardController>();
+        RemoveUnitsFromList(selectable, blocked);
+        List<CardController> displayUnits = BuildUnitPickDisplayList(selectable, blocked);
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "ManualUnitTargetSelect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Canvas overlayCanvas = root.GetComponent<Canvas>();
+        if (overlayCanvas == null)
+        {
+            overlayCanvas = root.AddComponent<Canvas>();
+        }
+
+        overlayCanvas.overrideSorting = true;
+        overlayCanvas.sortingOrder = 520;
+        if (root.GetComponent<GraphicRaycaster>() == null)
+        {
+            root.AddComponent<GraphicRaycaster>();
+        }
+
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ManualUnitTargetTitle", UIAnchor.TopCenter, 720, 48);
+        title.text = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
+        title.color = Color.white;
+        title.fontSize = 24;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
+
+        if (effect != null)
+        {
+            TextMeshProUGUI summary = root.CreateChildTextCustom("ManualUnitTargetSummary", UIAnchor.TopCenter, 720, 32);
+            summary.text = effect.FormatEffectSelectionSummary();
+            summary.color = new Color(0.9f, 0.9f, 0.9f);
+            summary.fontSize = 18;
+            summary.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
+        }
+
+        if (CardImagePrefab != null && source != null && source.Data != null)
+        {
+            GameObject sourceCardGo = Instantiate(CardImagePrefab, root.transform);
+            RectTransform sourceRt = sourceCardGo.GetComponent<RectTransform>();
+            if (sourceRt != null)
+            {
+                sourceRt.anchorMin = new Vector2(0.5f, 1f);
+                sourceRt.anchorMax = new Vector2(0.5f, 1f);
+                sourceRt.pivot = new Vector2(0.5f, 1f);
+                sourceRt.sizeDelta = new Vector2(120f, 168f);
+                sourceRt.anchoredPosition = new Vector2(0f, -98f);
+            }
+
+            CardController preview = sourceCardGo.GetComponent<CardController>();
+            if (preview != null)
+            {
+                preview.SetUp(source.Data, _ => { });
+            }
+
+            Button sourceBlocker = sourceCardGo.GetComponent<Button>();
+            if (sourceBlocker != null)
+            {
+                sourceBlocker.interactable = false;
+            }
+        }
+
+        GameObject scrollGo = root.CreateGridScrollView(680, 360, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -290f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        bool resolved = false;
+        bool acceptPickInput = false;
+        List<Button> pickButtons = new List<Button>();
+        for (int i = 0; i < displayUnits.Count; i++)
+        {
+            CardController candidate = displayUnits[i];
+            if (content == null || candidate == null || candidate.Data == null || CardImagePrefab == null)
+            {
+                continue;
+            }
+
+            bool isBlocked = IsUnitInList(blocked, candidate);
+            GameObject go = Instantiate(CardImagePrefab, content);
+            CardController cc = go.GetComponent<CardController>();
+            if (cc != null)
+            {
+                cc.SetUp(candidate.Data, _ => { });
+            }
+
+            TextMeshProUGUI statLabel = go.CreateChildTextCustom(
+                "TargetStat",
+                UIAnchor.BottomCenter,
+                100,
+                28);
+            if (isBlocked)
+            {
+                statLabel.SetLocalizedText(
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + "（選択不可）",
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + " (Unavailable)");
+            }
+            else if (effect != null && effect.type == EffectType.GrantAttackFlag)
+            {
+                string atkJa = candidate.AttackFlgState == AttackFlg.True ? "可" : "不可";
+                string atkEn = candidate.AttackFlgState == AttackFlg.True ? "ON" : "OFF";
+                statLabel.SetLocalizedText(
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + " 攻撃:" + atkJa,
+                    "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp + " Atk:" + atkEn);
+            }
+            else
+            {
+                statLabel.text = "AP:" + candidate.CurrentPower + " HP:" + candidate.CurrentHp;
+            }
+
+            statLabel.fontSize = 14;
+            statLabel.color = Color.white;
+            statLabel.alignment = TextAlignmentOptions.Center;
+
+            Button btn = go.GetComponent<Button>();
+            if (btn == null)
+            {
+                btn = go.AddComponent<Button>();
+            }
+
+            btn.interactable = false;
+            ApplyUnitPickCardGrayedOut(go, isBlocked);
+            if (isBlocked)
+            {
+                continue;
+            }
+
+            pickButtons.Add(btn);
+
+            CardController pickedRef = candidate;
+            btn.onClick.AddListener(() =>
+            {
+                if (resolved || !acceptPickInput)
+                {
+                    return;
+                }
+
+                resolved = true;
+                Destroy(root);
+                activeOnActionPopupRoot = null;
+                isOnActionPopupOpen = false;
+                InvokePlayerManualUnitSelectionCallback(() => onPicked?.Invoke(pickedRef));
+            });
+        }
+
+        StartCoroutine(CoEnableManualUnitPickButtonsAfterOpen(pickButtons, () => acceptPickInput = true));
+
+        bool mandatoryUnitPick =
+            (source?.Data?.id == 1000666 && effect?.type == EffectType.EffectBattle)
+            || source?.Data?.id == 1000668
+            || source?.Data?.id == 1000669
+            || source?.Data?.id == 1000670
+            || (effect != null && effect.forbidSkipUnitPick && selectable.Count > 0);
+        if (!mandatoryUnitPick)
+        {
+            Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
+            RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+            cancelRt.sizeDelta = new Vector2(160f, 44f);
+            cancelRt.anchorMin = new Vector2(0.5f, 0f);
+            cancelRt.anchorMax = new Vector2(0.5f, 0f);
+            cancelRt.pivot = new Vector2(0.5f, 0f);
+            cancelRt.anchoredPosition = new Vector2(0f, 36f);
+            cancel.onClick.AddListener(() =>
+            {
+                if (resolved)
+                {
+                    return;
+                }
+
+                resolved = true;
+                Destroy(root);
+                activeOnActionPopupRoot = null;
+                isOnActionPopupOpen = false;
+                onPicked?.Invoke(null);
+            });
+        }
+    }
+
+    /// <summary>手動選択 UI 表示直後のクリック漏れ（搭乗ボタン等）を防ぐ。</summary>
+    private IEnumerator CoEnableManualUnitPickButtonsAfterOpen(List<Button> pickButtons, System.Action onReady)
+    {
+        yield return null;
+        yield return null;
+        yield return null;
+        onReady?.Invoke();
+        if (pickButtons == null)
+        {
+            yield break;
+        }
+
+        for (int i = 0; i < pickButtons.Count; i++)
+        {
+            Button btn = pickButtons[i];
+            if (btn != null)
+            {
+                btn.interactable = true;
+            }
+        }
+    }
+
+    private static readonly Color ManualMultiSelectHighlightColor = new Color(1f, 0.45f, 0.45f, 1f);
+
+    private void OpenManualMultiUnitTargetSelectionUI(
+        CardController source,
+        PlayerType ownerType,
+        EffectData effect,
+        List<CardController> candidates,
+        CardController attackingUnitInAttackFlow,
+        System.Action<List<CardController>> onConfirmed)
+    {
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            onConfirmed?.Invoke(new List<CardController>());
+            return;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject(
+            "ManualMultiUnitTargetSelect",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("ManualMultiUnitTargetTitle", UIAnchor.TopCenter, 720, 48);
+        title.text = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
+        title.color = Color.white;
+        title.fontSize = 24;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -20f);
+
+        if (effect != null)
+        {
+            TextMeshProUGUI summary = root.CreateChildTextCustom("ManualMultiUnitTargetSummary", UIAnchor.TopCenter, 720, 32);
+            string rangeLabel = effect.FormatSelectCountRangeLabel();
+            if (string.IsNullOrEmpty(rangeLabel))
+            {
+                summary.SetLocalizedText(
+                    "カードをタップで選択（赤＝対象）→ OK で確定",
+                    "Tap cards to select (red = selected) → OK to confirm");
+            }
+            else
+            {
+                summary.SetLocalizedText(
+                    $"カードをタップで選択（赤＝対象）{rangeLabel} → OK で確定",
+                    $"Tap cards to select (red = selected){rangeLabel} → OK to confirm");
+            }
+
+            summary.color = new Color(0.9f, 0.9f, 0.9f);
+            summary.fontSize = 18;
+            summary.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -58f);
+        }
+
+        if (CardImagePrefab != null && source != null && source.Data != null)
+        {
+            GameObject sourceCardGo = Instantiate(CardImagePrefab, root.transform);
+            RectTransform sourceRt = sourceCardGo.GetComponent<RectTransform>();
+            if (sourceRt != null)
+            {
+                sourceRt.anchorMin = new Vector2(0.5f, 1f);
+                sourceRt.anchorMax = new Vector2(0.5f, 1f);
+                sourceRt.pivot = new Vector2(0.5f, 1f);
+                sourceRt.sizeDelta = new Vector2(120f, 168f);
+                sourceRt.anchoredPosition = new Vector2(0f, -98f);
+            }
+
+            CardController preview = sourceCardGo.GetComponent<CardController>();
+            preview?.SetUp(source.Data, _ => { });
+            Button sourceBlocker = sourceCardGo.GetComponent<Button>();
+            if (sourceBlocker != null)
+            {
+                sourceBlocker.interactable = false;
+            }
+        }
+
+        GameObject scrollGo = root.CreateGridScrollView(680, 360, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -290f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+
+        List<CardController> selected = new List<CardController>();
+        bool resolved = false;
+        int selectMin = effect != null ? effect.GetSelectMinCount() : 1;
+        int selectMax = effect != null ? effect.GetSelectMaxCount(candidates.Count) : candidates.Count;
+        bool forbidSkip = effect != null
+            && effect.forbidSkipUnitPick
+            && candidates != null
+            && candidates.Count >= selectMin;
+        Button okBtn = null;
+        TextMeshProUGUI okLabel = null;
+
+        void RefreshOkButton()
+        {
+            if (okBtn == null)
+            {
+                return;
+            }
+
+            bool ready = selected.Count >= selectMin;
+            if (!forbidSkip)
+            {
+                okBtn.interactable = true;
+                return;
+            }
+
+            okBtn.interactable = ready;
+            if (okLabel != null)
+            {
+                okLabel.color = ready
+                    ? Color.white
+                    : new Color(0.55f, 0.55f, 0.55f, 1f);
+            }
+        }
+
+        void CloseWithSelection(List<CardController> picks)
+        {
+            if (resolved)
+            {
+                return;
+            }
+
+            resolved = true;
+            Destroy(root);
+            activeOnActionPopupRoot = null;
+            isOnActionPopupOpen = false;
+            List<CardController> confirmed = picks ?? new List<CardController>();
+            if (confirmed.Count > 0)
+            {
+                InvokePlayerManualUnitSelectionCallback(() => onConfirmed?.Invoke(confirmed));
+            }
+            else
+            {
+                onConfirmed?.Invoke(confirmed);
+            }
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            CardController candidate = candidates[i];
+            if (content == null || candidate == null || candidate.Data == null || CardImagePrefab == null)
+            {
+                continue;
+            }
+
+            GameObject go = Instantiate(CardImagePrefab, content);
+            CardController cc = go.GetComponent<CardController>();
+            cc?.SetUp(candidate.Data, _ => { });
+
+            TextMeshProUGUI statLabel = go.CreateChildTextCustom(
+                "TargetStat",
+                UIAnchor.BottomCenter,
+                100,
+                28);
+            statLabel.text = $"AP:{candidate.CurrentPower} HP:{candidate.CurrentHp}";
+            statLabel.fontSize = 14;
+            statLabel.color = Color.white;
+            statLabel.alignment = TextAlignmentOptions.Center;
+
+            Button btn = go.GetComponent<Button>() ?? go.AddComponent<Button>();
+            Image baseImage = go.GetComponent<Image>();
+            Color original = baseImage != null ? baseImage.color : Color.white;
+            CardController pickedRef = candidate;
+            btn.onClick.AddListener(() =>
+            {
+                if (resolved)
+                {
+                    return;
+                }
+
+                if (selected.Contains(pickedRef))
+                {
+                    selected.Remove(pickedRef);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = original;
+                    }
+                }
+                else
+                {
+                    if (selected.Count >= selectMax)
+                    {
+                        Debug.Log($"効果対象は最大{selectMax}体まで選択できます。");
+                        return;
+                    }
+
+                    selected.Add(pickedRef);
+                    if (baseImage != null)
+                    {
+                        baseImage.color = ManualMultiSelectHighlightColor;
+                    }
+                }
+
+                RefreshOkButton();
+            });
+        }
+
+        okBtn = root.CreateChildButton("OK");
+        RectTransform okRt = okBtn.GetComponent<RectTransform>();
+        okRt.sizeDelta = new Vector2(160f, 44f);
+        okRt.anchorMin = new Vector2(0.5f, 0f);
+        okRt.anchorMax = new Vector2(0.5f, 0f);
+        okRt.pivot = new Vector2(0.5f, 0f);
+        okRt.anchoredPosition = forbidSkip ? new Vector2(0f, 36f) : new Vector2(-90f, 36f);
+        okLabel = okBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (okLabel != null)
+        {
+            okLabel.text = "OK";
+        }
+
+        okBtn.onClick.AddListener(() =>
+        {
+            if (selected.Count < selectMin)
+            {
+                Debug.Log($"効果対象を{selectMin}体以上選択してください。");
+                return;
+            }
+
+            CloseWithSelection(new List<CardController>(selected));
+        });
+        RefreshOkButton();
+
+        if (forbidSkip)
+        {
+            return;
+        }
+
+        Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
+        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(160f, 44f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(90f, 36f);
+        cancel.onClick.AddListener(() => CloseWithSelection(new List<CardController>()));
+    }
+
+    private List<CardController> PickEnemyAiEffectTargets(
+        EffectData effect,
+        EnemyAiEffectPickContext pickCtx,
+        List<CardController> candidates)
+    {
+        List<CardController> picks = new List<CardController>();
+        if (candidates == null || candidates.Count == 0)
+        {
+            return picks;
+        }
+
+        if (effect != null && effect.type == EffectType.Damage)
+        {
+            if (effect.selectionMode.IsMultipleUnitPickMode()
+                && (effect.forbidSkipUnitPick || effect.selectMaxCount > 0))
+            {
+                int min = effect.GetSelectMinCount();
+                int max = effect.GetSelectMaxCount(candidates.Count);
+                List<CardController> ranked = new List<CardController>();
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    CardController candidate = candidates[i];
+                    if (candidate != null && candidate.CurrentHp > 0)
+                    {
+                        ranked.Add(candidate);
+                    }
+                }
+
+                ranked.Sort((a, b) => ComputeEnemyAiUnitThreatScore(b.CurrentPower, b.CurrentHp)
+                    .CompareTo(ComputeEnemyAiUnitThreatScore(a.CurrentPower, a.CurrentHp)));
+                if (ranked.Count < min)
+                {
+                    return picks;
+                }
+
+                int pickCount = Mathf.Clamp(ranked.Count, min, max);
+                for (int i = 0; i < pickCount; i++)
+                {
+                    picks.Add(ranked[i]);
+                }
+
+                return picks;
+            }
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                CardController candidate = candidates[i];
+                if (candidate != null && candidate.CurrentHp > 0)
+                {
+                    picks.Add(candidate);
+                }
+            }
+
+            return picks;
+        }
+
+        if (effect != null && effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            int min = effect.GetSelectMinCount();
+            int max = effect.GetSelectMaxCount(candidates.Count);
+            List<CardController> ranked = new List<CardController>(candidates);
+            ranked.Sort((a, b) => ComputeEnemyAiUnitThreatScore(b.CurrentPower, b.CurrentHp)
+                .CompareTo(ComputeEnemyAiUnitThreatScore(a.CurrentPower, a.CurrentHp)));
+            int pickCount = Mathf.Clamp(ranked.Count, min, max);
+            if (ranked.Count < min)
+            {
+                return picks;
+            }
+
+            for (int i = 0; i < pickCount; i++)
+            {
+                picks.Add(ranked[i]);
+            }
+
+            return picks;
+        }
+
+        CardController single = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+        if (single != null)
+        {
+            picks.Add(single);
+        }
+
+        return picks;
+    }
+
+    private void FilterOutUnitsPendingSendToTrash(List<CardController> candidates)
+    {
+        if (candidates == null || candidates.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = candidates.Count - 1; i >= 0; i--)
+        {
+            CardController c = candidates[i];
+            if (c == null || unitsPendingSendToTrash.Contains(c))
+            {
+                candidates.RemoveAt(i);
+            }
+        }
+    }
+
+    private static bool EffectRequiresManualUnitSelection(EffectData effect)
+    {
+        if (effect == null)
+        {
+            return false;
+        }
+
+        // 直前に選んだユニットへ自動適用（ST05-013 自傷後バフ等）。選択 UI は出さない。
+        if (effect.selectionMode.IsUsePriorChainPickedTargetMode())
+        {
+            return false;
+        }
+
+        // Self は選択 UI 不要（Gyunei の Activate Self / NotDirectAttack Self など）
+        if (effect.target == TargetType.Self)
+        {
+            return false;
+        }
+
+        // 全体対象は自動適用（Widespread Annihilation の Lv4以下すべて破壊など）
+        if (effect.target == TargetType.AllyAllUnits
+            || effect.target == TargetType.EnemyAllUnits)
+        {
+            return false;
+        }
+
+        if (effect.type.RequiresManualUnitSelection())
+        {
+            return true;
+        }
+
+        // AttackActiveEnemyUnit の味方付与は選択 UI 必須（自身含む AllyUnit）
+        if (effect.IsAttackActiveEnemyAllyGrant())
+        {
+            return true;
+        }
+
+        // 武力介入等：味方1体を選んでアタック先を変える（selectionMode 未設定でも UI 必須）
+        if (IsOnActionAttackTargetRedirectEffect(effect))
+        {
+            return true;
+        }
+
+        return IsEffectTargetRequiringUnitSelection(effect.target)
+            && effect.selectionMode.RequiresManualUnitPick();
+    }
+
+    private void FilterTargetsByUnitCondition(
+        List<CardController> targets,
+        EffectData effect,
+        CardController sourceCard = null,
+        PlayerType? effectOwnerType = null)
+    {
+        if (targets == null || effect == null || !effect.HasTargetUnitFilter())
+        {
+            return;
+        }
+
+        if (effect.autoSelectLowestUnitStat && effect.type == EffectType.ReturnUnitToDeckBottom)
+        {
+            return;
+        }
+
+        PlayerType sourceOwner = effectOwnerType
+            ?? (sourceCard != null ? ResolveCardOwner(sourceCard.transform) : currentPlayerType);
+        CardGameRule ownerRule = sourceOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        IReadOnlyList<int> ownerTrashIds = ownerRule != null ? ownerRule.GetTrashCardIds() : null;
+
+        // ST14-014: トラッシュのコマンドが4枚以上なら Lv 絞り込みを完全スキップ
+        if (IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect)
+            && ShouldRelaxUnitStatFilterByTrashCommands(sourceCard, effect, sourceOwner, ownerTrashIds))
+        {
+            Debug.Log(
+                $"[TrashQuery] ST14-014 skip Lv filter — owner:{sourceOwner} "
+                + $"commands:{CountOwnerTrashCommands(sourceOwner, ownerTrashIds)} "
+                + $"trashTotal:{ownerTrashIds?.Count ?? 0} candidates:{targets.Count}");
+            return;
+        }
+
+        IReadOnlyList<int> trashIdsForMatch = null;
+        if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies
+            || effect.relaxTargetUnitStatFilterWhenTrashHasCommands
+            || IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect))
+        {
+            trashIdsForMatch = ownerTrashIds;
+            if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies
+                && effect.ShouldRelaxTargetUnitStatFilter(sourceCard, ownerTrashIds)
+                && sourceCard?.Data != null)
+            {
+                Debug.Log(
+                    $"[TrashQuery] relax target Lv filter — trash has "
+                    + $"{TrashCardQuery.CountByCardId(ownerTrashIds, sourceCard.Data.id)} of "
+                    + $"{sourceCard.Data.cardName}(id:{sourceCard.Data.id})");
+            }
+        }
+
+        int? priorChainStatCompareValue = null;
+        if (effect.compareTargetStatToPriorChainPicked)
+        {
+            EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
+            if (statFilter == EffectTargetUnitFilterStat.Unset)
+            {
+                statFilter = EffectTargetUnitFilterStat.AP;
+            }
+
+            List<CardController> prior = GetAliveEffectChainLastPickedTargets();
+            if (prior.Count == 0)
+            {
+                targets.Clear();
+                return;
+            }
+
+            priorChainStatCompareValue = EffectDataExtensions.GetTargetUnitFilterStatValue(prior[0], statFilter);
+        }
+
+        bool ownerHasLinkedUnit = false;
+        if (effect.relaxTargetUnitStatFilterWhenOwnerHasLinkedUnit && sourceCard != null)
+        {
+            ownerHasLinkedUnit = EffectActivationEvaluator.OwnerHasAnyLinkedUnit(
+                BuildActivationContext(sourceOwner, sourceCard));
+        }
+
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            if (!effect.MatchesTargetUnitFilter(
+                    targets[i],
+                    sourceCard,
+                    trashIdsForMatch,
+                    priorChainStatCompareValue,
+                    ownerHasLinkedUnit,
+                    ResolveMountHostFallbackForPilotStatCompare(sourceCard)))
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// トラッシュのコマンド枚数で対象ユニットのステータス絞り込みを外すか。
+    /// ST14-014 はフラグ欠落時もカード ID で判定する。
+    /// </summary>
+    private bool ShouldRelaxUnitStatFilterByTrashCommands(
+        CardController sourceCard,
+        EffectData effect,
+        PlayerType ownerType,
+        IReadOnlyList<int> ownerTrashIds)
+    {
+        if (effect == null)
+        {
+            return false;
+        }
+
+        bool wantsRelax = effect.relaxTargetUnitStatFilterWhenTrashHasCommands
+            || IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect);
+        if (!wantsRelax)
+        {
+            return false;
+        }
+
+        int need = effect.trashRelaxFilterMinCopies > 0 ? effect.trashRelaxFilterMinCopies : 4;
+        // ST14-014 の名前付き効果で minCopies が欠落すると default 2 になるため、カード ID 時は最低 4
+        if (IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect) && need < 4)
+        {
+            need = 4;
+        }
+
+        int commandCount = CountOwnerTrashCommands(ownerType, ownerTrashIds);
+        bool ok = commandCount >= need;
+        Debug.Log(
+            $"[TrashQuery] trash-command relax — {commandCount}/{need} ok:{ok} owner:{ownerType} "
+            + $"flag:{effect.relaxTargetUnitStatFilterWhenTrashHasCommands} "
+            + $"source:{sourceCard?.Data?.cardName}(id:{sourceCard?.Data?.id})");
+        return ok;
+    }
+
+    /// <summary>効果オーナーのトラッシュ内コマンド枚数（詳細ログ付き）。</summary>
+    private int CountOwnerTrashCommands(PlayerType ownerType, IReadOnlyList<int> ownerTrashIds = null)
+    {
+        if (ownerTrashIds == null)
+        {
+            CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+            ownerTrashIds = ownerRule != null ? ownerRule.GetTrashCardIds() : null;
+        }
+
+        if (ownerTrashIds == null || ownerTrashIds.Count == 0)
+        {
+            return 0;
+        }
+
+        int count = TrashCardQuery.CountCommands(ownerTrashIds);
+        if (count > 0)
+        {
+            return count;
+        }
+
+        // TrashCardQuery が 0 のとき、DeckSettin / CardDatabase で再集計
+        int fallback = 0;
+        for (int i = 0; i < ownerTrashIds.Count; i++)
+        {
+            int id = ownerTrashIds[i];
+            CardData data = null;
+            if (DeckSettinObject.Instance != null)
+            {
+                data = DeckSettinObject.Instance.GetCardDataById(id);
+            }
+
+            if (data == null && CardDatabase.Instance != null)
+            {
+                data = CardDatabase.Instance.GetById(id);
+            }
+
+            bool isCmd = data != null && data.IsCommand();
+            if (isCmd)
+            {
+                fallback++;
+            }
+
+            Debug.Log(
+                $"[TrashQuery] trash[{i}] id:{id} name:{(data != null ? data.cardName : "?")} "
+                + $"type:{(data != null ? data.type.ToString() : "null")} isCommand:{isCmd}");
+        }
+
+        return fallback;
+    }
+
+    /// <summary>ST14-014 炎のモビルスーツ乗り：トラッシュコマンド4枚以上で Lv 制限解除対象。</summary>
+    private static bool IsBlazingMobileSuitRiderTrashRelaxEffect(CardController sourceCard, EffectData effect)
+    {
+        if (sourceCard?.Data == null || effect == null)
+        {
+            return false;
+        }
+
+        if (sourceCard.Data.id != 1000699
+            && !string.Equals(sourceCard.Data.gcgOfficialId, "ST14-014", System.StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return effect.type == EffectType.Debuff;
+    }
+
+    /// <summary>
+    /// パイロット効果の compareTargetStatToSource / MountHost 比較用に搭乗先を解決する。
+    /// MountedUnit が取れないタイミング向けのフォールバック。
+    /// </summary>
+    private CardController ResolveMountHostFallbackForPilotStatCompare(CardController sourceCard)
+    {
+        if (_allyUnitAttackStatCompareReference != null)
+        {
+            return _allyUnitAttackStatCompareReference;
+        }
+
+        if (sourceCard == null)
+        {
+            return null;
+        }
+
+        if (sourceCard.MountedUnit != null)
+        {
+            return sourceCard.MountedUnit;
+        }
+
+        if (sourceCard.Data == null || !sourceCard.Data.IsPilot())
+        {
+            return null;
+        }
+
+        if (_pilotMountEffectHostUnit != null
+            && _pilotMountEffectHostUnit.MountedPilot == sourceCard)
+        {
+            return _pilotMountEffectHostUnit;
+        }
+
+        if (_pendingOnAttackPreCombatResolvedAttacker != null
+            && _pendingOnAttackPreCombatResolvedAttacker.MountedPilot == sourceCard)
+        {
+            return _pendingOnAttackPreCombatResolvedAttacker;
+        }
+
+        if (pendingOnAttackEffectResolvedAttacker != null
+            && pendingOnAttackEffectResolvedAttacker.MountedPilot == sourceCard)
+        {
+            return pendingOnAttackEffectResolvedAttacker;
+        }
+
+        if (attackFlowAttackerUnit != null
+            && attackFlowAttackerUnit.MountedPilot == sourceCard)
+        {
+            return attackFlowAttackerUnit;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// AttackActiveEnemyUnit の味方付与候補を Lv 下限で絞る（valueCountMinUnitLevel）。
+    /// 攻撃できる敵の条件（targetUnitFilterStat）とは別用途。
+    /// </summary>
+    private static void FilterAttackActiveEnemyGrantTargetsByMinLevel(
+        List<CardController> targets,
+        int minLevel)
+    {
+        if (targets == null || minLevel <= 0)
+        {
+            return;
+        }
+
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+            {
+                targets.RemoveAt(i);
+                continue;
+            }
+
+            int level = unit.Data.IsUnitToken() ? 0 : unit.CurrentLevel;
+            if (level < minLevel)
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
+    private static void FilterSelectableEffectTargets(List<CardController> targets, EffectData effect)
+    {
+        if (targets == null || effect == null)
+        {
+            return;
+        }
+
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            if (!effect.MatchesSelectableBattleZoneTarget(targets[i]))
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+    // 効果を適用する
+    private void ApplyEffect(CardController sourceCard, PlayerType ownerType, EffectData effect)
+    {
+        if (effect != null && effect.type == EffectType.AttackActiveEnemyUnit)
+        {
+            if (effect.IsAttackActiveEnemyAllyGrant())
+            {
+                Debug.LogWarning(
+                    $"[Effect] Skipped auto-apply for AttackActiveEnemyUnit ally grant "
+                    + $"(cardId:{sourceCard?.Data?.id}). Use manual selection path.");
+                return;
+            }
+
+            TryApplyAttackActiveEnemyUnitMarker(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped auto-apply for manual unit selection (type:{effect.type} target:{effect.target} cardId:{sourceCard?.Data?.id}).");
+            return;
+        }
+
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped auto-apply for manual hand selection (type:{effect.type} cardId:{sourceCard?.Data?.id}).");
+            return;
+        }
+
+        if (ShouldRevealDrawnCards(effect, ownerType))
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped sync apply for reveal draw (cardId:{sourceCard?.Data?.id}). Use effect chain async path.");
+            return;
+        }
+
+        if (effect.type == EffectType.DeployBase && effect.RequiresDeployBaseFromTrashSelection())
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped sync apply for DeployBase from trash (cardId:{sourceCard?.Data?.id}). Use effect chain async path.");
+            return;
+        }
+
+        if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+        {
+            Debug.LogWarning(
+                $"[Effect] Skipped sync apply for DeployUnit zone selection (cardId:{sourceCard?.Data?.id}).");
+            return;
+        }
+
+        if (effect.type == EffectType.AddSelfToHand)
+        {
+            int addCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, addCount > 0 ? addCount : 1);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.DeploySelfAsBattleUnit)
+        {
+            TryApplyDeploySelfAsBattleUnit(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.AddShieldToHand)
+        {
+            int shieldToHandCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyAddShieldToHandEffect(sourceCard, ownerType, effect, shieldToHandCount > 0 ? shieldToHandCount : 1);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.DeployBase && burstDeployBasePreferSourceCard)
+        {
+            int deployMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyDeployBaseEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                deployMagnitude > 0 ? deployMagnitude : 1,
+                allowBurstSource: true);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.DeploySelfToShield)
+        {
+            int deployCount = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            ApplyDeploySelfToShieldEffect(sourceCard, ownerType, effect, deployCount > 0 ? deployCount : 1);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.AddExResource)
+        {
+            ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.RestResource)
+        {
+            ApplyRestResourceEffect(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.ActivateResource)
+        {
+            ApplyActivateResourceEffect(sourceCard, ownerType, effect);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.ArmOwnerEffectDestroyFlag)
+        {
+            if (sourceCard != null)
+            {
+                sourceCard.ArmOwnerEffectDestroyWatch();
+                Debug.Log(
+                    $"[Effect] ArmOwnerEffectDestroyFlag on {sourceCard.Data?.cardName}(id:{sourceCard.Data?.id})");
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.MarkObservedUnit)
+        {
+            Debug.LogWarning(
+                $"[Effect] MarkObservedUnit は手動選択後に適用してください (cardId:{sourceCard?.Data?.id})。");
+            return;
+        }
+
+        // Self / 自動解決の NotDirectAttack（Gyunei 等）。手動選択経路の ApplyEffectToSpecificTargets と同等。
+        if (effect.type == EffectType.NotDirectAttack)
+        {
+            int notDirectMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (notDirectMagnitude == 0 && !effect.type.UsesTargetCountValue())
+            {
+                return;
+            }
+
+            List<CardController> notDirectTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyNotDirectAttackMarker(effect, notDirectTargets))
+            {
+                SetEffectChainLastPickedTargets(notDirectTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.CannotBeChosenAsAttackTarget
+            && effect.duration != EffectDuration.Permanent)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            List<CardController> protectTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyCannotBeChosenAsAttackTargetMarker(effect, protectTargets))
+            {
+                SetEffectChainLastPickedTargets(protectTargets);
+            }
+
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.FirstStrike)
+        {
+            int firstStrikeMagnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (firstStrikeMagnitude == 0 && !effect.type.UsesTargetCountValue())
+            {
+                return;
+            }
+
+            List<CardController> firstStrikeTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyFirstStrikeMarker(effect, firstStrikeTargets))
+            {
+                SetEffectChainLastPickedTargets(firstStrikeTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.HighMobility)
+        {
+            List<CardController> highMobilityTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyHighMobilityMarker(effect, highMobilityTargets))
+            {
+                SetEffectChainLastPickedTargets(highMobilityTargets);
+                BeginOnlineEffectSyncBatch(ownerType);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                return;
+            }
+
+            // Permanent マーカーのみ（付与不要）ならここで終了。value=0 の UntilEOT 失敗時も後続の magnitude==0 return で落とさない。
+            if (effect.duration == EffectDuration.Permanent)
+            {
+                return;
+            }
+        }
+
+        if (effect.type == EffectType.BattleDamageImmunityFromLowApEnemy)
+        {
+            List<CardController> immunityTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, immunityTargets))
+            {
+                SetEffectChainLastPickedTargets(immunityTargets);
+                BeginOnlineEffectSyncBatch(ownerType);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                return;
+            }
+
+            if (effect.duration == EffectDuration.Permanent)
+            {
+                return;
+            }
+        }
+
+        if (effect.type == EffectType.GrantBreach)
+        {
+            List<CardController> breachTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyGrantBreachMarker(effect, breachTargets))
+            {
+                SetEffectChainLastPickedTargets(breachTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        // SelfPlayer 対象のため targets 空でも付与する（穏やかな音色等）
+        if (effect.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess)
+        {
+            int maxLevel = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (maxLevel <= 0)
+            {
+                maxLevel = effect.value > 0 ? effect.value : 4;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(ownerType, maxLevel);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction)
+        {
+            int reduction = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (reduction <= 0)
+            {
+                reduction = effect.value > 0 ? effect.value : 5;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        if (effect.type == EffectType.GrantTurnEndRepair)
+        {
+            List<CardController> repairTargets = ResolveEffectTargets(sourceCard, ownerType, effect);
+            if (TryApplyGrantTurnEndRepair(effect, repairTargets))
+            {
+                SetEffectChainLastPickedTargets(repairTargets);
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
+        int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+        if (magnitude == 0
+            && !effect.type.UsesTargetCountValue()
+            && effect.type != EffectType.DeployUnit
+            && effect.type != EffectType.GrantAttackFlag
+            && effect.type != EffectType.AddSelfToHand
+            && effect.type != EffectType.DeploySelfAsBattleUnit
+            && effect.type != EffectType.DeploySelfToShield
+            && effect.type != EffectType.MarkObservedUnit
+            && effect.type != EffectType.PreventAllyDestroyByEnemyEffect
+            && effect.type != EffectType.CopyKeywordsFromTrashUnit
+            && effect.type != EffectType.DeployExBase
+            && effect.type != EffectType.HighMobility)
+        {
+            return;
+        }
+
+        List<CardController> targets = ResolveEffectTargets(sourceCard, ownerType, effect);
+        bool nestedBatch = _onlineEffectSyncActive;
+        if (!nestedBatch)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            if (!_onlineEffectSyncActive)
+            {
+                Debug.LogWarning(
+                    $"[EffectSync] Batch did not start; remote effect sync will be skipped. owner:{ownerType}");
+            }
+        }
+
+        switch (effect.type)
+        {
+            case EffectType.Draw:
+                CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+                for (int i = 0; i < magnitude; i++)
+                {
+                    CardAddtoHand(rule, ownerType);
+                }
+                Debug.Log($"[Effect] Draw x{magnitude} by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.Look:
+                ApplyLookEffect(sourceCard, ownerType, effect, null);
+                break;
+
+            case EffectType.MillTopToTrash:
+                ApplyMillTopToTrashEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ExileFromDeck:
+                ApplyExileFromDeckEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ExileFromTrash:
+                ApplyExileFromTrashEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ReturnFromTrashToDeckAndShuffle:
+                Debug.LogWarning(
+                    $"[Effect] ReturnFromTrashToDeckAndShuffle は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.AddObservedToHandFromTrash:
+                ApplyAddObservedToHandFromTrashEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.AddToHandFromLooked:
+                Debug.LogWarning(
+                    $"[Effect] AddToHandFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.DeployUnitFromLooked:
+                Debug.LogWarning(
+                    $"[Effect] DeployUnitFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.ReturnLookedRemainderToDeckTop:
+            case EffectType.ShuffleLookedRemainderToDeckBottom:
+            case EffectType.ChooseLookedRemainderDisposition:
+            case EffectType.ChooseLookedToDeckTopThenTrashRemainder:
+            case EffectType.ChooseLookedToDeckTopThenBottomRemainder:
+                Debug.LogWarning(
+                    $"[Effect] {effect.type} は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.AddShieldToHand:
+                ApplyAddShieldToHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.AddSelfToHand:
+                ApplyAddSelfToHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.DeploySelfAsBattleUnit:
+                TryApplyDeploySelfAsBattleUnit(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.DeploySelfToShield:
+                ApplyDeploySelfToShieldEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.DeployShieldFromHand:
+                ApplyDeployShieldFromHandEffect(sourceCard, ownerType, effect, magnitude);
+                break;
+
+            case EffectType.DeployBase:
+                ApplyDeployBaseEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    magnitude,
+                    burstDeployBasePreferSourceCard);
+                break;
+
+            case EffectType.Damage:
+            {
+                List<CardController> pendingEffectDamageTrash = null;
+                // 効果ダメージによる破壊も「カード効果による破壊」として通知するため、適用前に確保する。
+                List<EffectDestroyWatcher> effectDamageDestroyWatchers = CollectEffectDestroyWatchers();
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    CardController targetUnit = targets[i];
+                    int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit, ownerType);
+                    int hpBefore = targetUnit.CurrentHp;
+                    bool isCloseCombat = IsCloseCombatCard(sourceCard);
+                    Debug.Log(
+                        $"[EffectDamage][LocalBefore] closeCombat:{isCloseCombat} owner:{ownerType} "
+                        + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
+                        + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)} "
+                        + $"rawMagnitude:{magnitude} resolvedDamage:{damageAmount}");
+                    ApplyUnitDamageAndTrackChain(targetUnit, damageAmount);
+                    Debug.Log(
+                        $"[EffectDamage][LocalAfter] closeCombat:{isCloseCombat} owner:{ownerType} "
+                        + $"source:{FormatEffectDamageSourceDebugSnap(sourceCard)} "
+                        + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)} "
+                        + $"HP:{hpBefore}->{targetUnit.CurrentHp} willTrash:{targetUnit.CurrentHp <= 0}");
+                    int effectDmgTakenRequestId = NotifyOpponentEffectDamageTakenIfNeeded(
+                        sourceCard,
+                        ownerType,
+                        targetUnit,
+                        hpBefore);
+                    QueueOnlineUnitDamage(
+                        targetUnit,
+                        ResolveUnitKillSourceForTrash(sourceCard, targetUnit),
+                        effectDmgTakenRequestId > 0 ? 1 : 0,
+                        effectDmgTakenRequestId);
+                    if (targetUnit.CurrentHp <= 0)
+                    {
+                        pendingEffectDamageTrash ??= new List<CardController>();
+                        pendingEffectDamageTrash.Add(targetUnit);
+                    }
+                }
+
+                FlushOnlineEffectSyncBatchAfterDamageQueue(nestedBatch);
+
+                if (pendingEffectDamageTrash != null)
+                {
+                    // 破壊されたユニットが場から外れる前に通知する（監視カード自身の破壊も対象にするため）
+                    NotifyOwnerEffectUnitsDestroyed(
+                        ownerType,
+                        sourceCard,
+                        effectDamageDestroyWatchers,
+                        pendingEffectDamageTrash);
+                    for (int i = 0; i < pendingEffectDamageTrash.Count; i++)
+                    {
+                        CardController targetUnit = pendingEffectDamageTrash[i];
+                        PlayerType targetOwner = ResolveCardOwner(targetUnit.transform);
+                        bool isCloseCombat = IsCloseCombatCard(sourceCard);
+                        Debug.Log(
+                            $"[EffectDamage][LocalDestroyQueue] closeCombat:{isCloseCombat} "
+                            + $"target:{FormatEffectDamageUnitDebugSnap(targetUnit)}");
+                        TryLogAttackBlockCloseCombatTrioDestroy("ApplyEffectSync_Damage", targetUnit, sourceCard);
+                        NotifyAttackFlowParticipantRemovedDuringOnAction(targetUnit);
+                        SendCardToTrash(
+                            targetUnit,
+                            targetOwner,
+                            ResolveUnitKillSourceForTrash(sourceCard, targetUnit),
+                            destroyedByEffectDamage: true);
+                    }
+                }
+
+                if (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)
+                {
+                    Gundam2024RuleScript.PlayerSide targetSide = effect.target == TargetType.EnemyPlayer
+                        ? ToRuleSide(ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player)
+                        : ToRuleSide(ownerType);
+                    CardController areaDamageSource = ResolveUnitSourceForShieldAreaDamage(sourceCard);
+                    ApplyEffectDamageToPlayerAreaAllowBattlingShield(targetSide, magnitude, areaDamageSource);
+                }
+
+                Debug.Log($"[Effect] Damage {magnitude} target:{effect.target} by cardId:{sourceCard.Data.id}");
+                break;
+            }
+
+            case EffectType.Buff:
+            case EffectType.Debuff:
+            {
+                int sign = effect.type == EffectType.Buff ? 1 : -1;
+                int signedValue = sign * magnitude;
+                string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
+                    int apReducedRequestId = 0;
+                    if (effect.type == EffectType.Debuff)
+                    {
+                        apReducedRequestId = NotifyApReducedByOpponentIfNeeded(
+                            sourceCard,
+                            ownerType,
+                            targets[i],
+                            effect,
+                            signedValue);
+                    }
+
+                    QueueOnlineUnitStat(
+                        targets[i],
+                        signedValue,
+                        effect.statTarget,
+                        effect.duration,
+                        modifierSourceKey,
+                        apReducedRequestId > 0 ? 1 : 0,
+                        apReducedRequestId);
+                }
+
+                TryRegisterPilotMountAllyFieldAura(sourceCard, ownerType, effect, signedValue);
+                if (effect.statTarget == EffectStatTarget.AP || effect.statTarget == EffectStatTarget.Both)
+                {
+                    RefreshConditionalBlockerAbilities();
+                    RefreshDuringLinkFeatureGrants();
+                    RefreshDuringLinkSelfStatPassives();
+                }
+
+                Debug.Log(
+                    $"[Effect] {effect.type} {magnitude} target:{effect.target} "
+                    + $"stat:{effect.statTarget} by cardId:{sourceCard.Data.id} targets:{targets.Count}");
+                break;
+            }
+
+            case EffectType.BlockRedirect:
+                // BlockRedirect は戦闘フロー分岐で解釈するため、ここでは何もしない。
+                Debug.Log($"[Effect] BlockRedirect marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.HighMobility:
+                if (TryApplyHighMobilityMarker(effect, targets))
+                {
+                    Debug.Log(
+                        $"[Effect] HighMobility UntilEndOfTurn granted by cardId:{sourceCard.Data.id} "
+                        + $"targets:{targets?.Count ?? 0}");
+                }
+                else
+                {
+                    // Permanent は攻撃フロー分岐で解釈するため、ここでは何もしない。
+                    Debug.Log($"[Effect] HighMobility marker by cardId:{sourceCard.Data.id}");
+                }
+
+                break;
+
+            case EffectType.BattleDamageImmunityFromLowApEnemy:
+                if (TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, targets))
+                {
+                    Debug.Log(
+                        $"[Effect] BattleDamageImmunity {effect.duration} granted by cardId:{sourceCard.Data.id} "
+                        + $"targets:{targets?.Count ?? 0}");
+                }
+                else
+                {
+                    Debug.Log($"[Effect] BattleDamageImmunity marker by cardId:{sourceCard.Data.id}");
+                }
+
+                break;
+
+            case EffectType.AttackActiveEnemyUnit:
+                // 付与処理は TryApplyAttackActiveEnemyUnitMarker で行う。
+                Debug.Log($"[Effect] AttackActiveEnemyUnit marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.ForceEnemyAttackTarget:
+                // ForceEnemyAttackTarget は攻撃対象判定で解釈するため、ここでは何もしない。
+                Debug.Log($"[Effect] ForceEnemyAttackTarget marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.CannotBeChosenAsAttackTarget:
+                // Permanent は攻撃対象判定のみ。UntilEndOfTurn 付与は TryApplyCannotBeChosenAsAttackTargetMarker。
+                if (effect.duration == EffectDuration.UntilEndOfTurn)
+                {
+                    TryApplyCannotBeChosenAsAttackTargetMarker(effect, targets);
+                }
+                else
+                {
+                    Debug.Log($"[Effect] CannotBeChosenAsAttackTarget marker by cardId:{sourceCard.Data.id}");
+                }
+
+                break;
+
+            case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
+            {
+                int reduction = magnitude > 0 ? magnitude : 5;
+                if (effect.duration == EffectDuration.UntilEndOfTurn || effect.duration == EffectDuration.Permanent)
+                {
+                    GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[Effect] GrantShieldAreaEnemyEffectDamageReduction は UntilEndOfTurn 想定 "
+                        + $"(cardId:{sourceCard?.Data?.id} duration:{effect.duration})");
+                    GrantShieldAreaEnemyEffectDamageReduction(ownerType, reduction);
+                }
+
+                break;
+            }
+
+            case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
+            {
+                int maxLevel = magnitude > 0 ? magnitude : 4;
+                if (effect.duration == EffectDuration.UntilEndOfBattle)
+                {
+                    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(ownerType, maxLevel);
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[Effect] GrantShieldAreaImmunityFromEnemyUnitLevelOrLess は UntilEndOfBattle 想定 "
+                        + $"(cardId:{sourceCard?.Data?.id} duration:{effect.duration})");
+                    GrantShieldAreaImmunityFromEnemyUnitLevelOrLess(ownerType, maxLevel);
+                }
+
+                break;
+            }
+
+            case EffectType.Suppress:
+                ApplyTimedSuppressGrant(sourceCard, ownerType, effect, targets);
+                break;
+
+            case EffectType.Breach:
+                // 突破は敵ユニット撃破時（SendCardToTrash）でのみ解決する。
+                break;
+
+            case EffectType.EffectDamageImmunityFromAmountOrLess:
+                // 配備ベース常時パッシブ。効果ダメージ量判定でのみ参照する。
+                break;
+
+            case EffectType.AllyEnemyEffectDamageImmunity:
+                // 場ユニット常時パッシブ。効果ダメージ判定でのみ参照する。
+                Debug.Log($"[Effect] AllyEnemyEffectDamageImmunity marker by cardId:{sourceCard.Data.id}");
+                break;
+
+            case EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess:
+                Debug.Log(
+                    $"[Effect] ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess marker "
+                    + $"by cardId:{sourceCard?.Data?.id}");
+                break;
+
+            case EffectType.ReturnFromHandToDeckBottom:
+                Debug.LogWarning(
+                    $"[Effect] ReturnFromHandToDeckBottom は手札選択経路専用です (cardId:{sourceCard?.Data?.id})");
+                break;
+
+            case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
+                // 場ユニット常時パッシブ。スタートフェイズのアクティブステップでのみ参照する。
+                Debug.Log(
+                    $"[Effect] PreventOpponentStartPhaseActiveLowestRestUnits marker "
+                    + $"by cardId:{sourceCard?.Data?.id}");
+                break;
+
+            case EffectType.PreventNextStartPhaseActive:
+                TryApplyPreventNextStartPhaseActiveMarker(effect, targets);
+                break;
+
+            case EffectType.Bounce:
+                ApplyBounceEffect(effect, targets);
+                break;
+            case EffectType.ReturnUnitToDeckBottom:
+                ApplyReturnUnitToDeckBottomEffect(effect, targets);
+                break;
+            case EffectType.Rest:
+                ApplyRestEffect(effect, targets);
+                break;
+            case EffectType.Activate:
+                ApplyActivateEffect(effect, ownerType, targets);
+                break;
+            case EffectType.Destroy:
+                ApplyDestroyEffect(sourceCard, ownerType, effect, targets);
+                break;
+
+            case EffectType.PreventAllyDestroyByEnemyEffect:
+                GrantPreventAllyDestroyByEnemyEffect(ownerType);
+                Debug.Log(
+                    $"[Effect] PreventAllyDestroyByEnemyEffect until EOT by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+                break;
+
+            case EffectType.CopyKeywordsFromTrashUnit:
+                Debug.LogWarning(
+                    $"[Effect] CopyKeywordsFromTrashUnit は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.ReturnMountedPilotToHand:
+                ApplyReturnMountedPilotToHandEffect(sourceCard, ownerType);
+                break;
+
+            case EffectType.DeployUnit:
+                ApplyDeployUnitEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.GrantAttackFlag:
+                ApplyGrantAttackFlagEffect(effect, ownerType, targets);
+                break;
+
+            case EffectType.RecoverHp:
+                ApplyRecoverHpEffect(targets, magnitude, sourceCard);
+                break;
+
+            case EffectType.SyncTurnEndRepairBonus:
+                ApplySyncTurnEndRepairBonusEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.AddExResource:
+                ApplyAddExResourceEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.DeployExBase:
+                ApplyDeployExBaseEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.RestResource:
+                ApplyRestResourceEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ActivateResource:
+                ApplyActivateResourceEffect(sourceCard, ownerType, effect);
+                break;
+
+            case EffectType.ChooseOne:
+                Debug.LogWarning(
+                    $"[Effect] ChooseOne は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.AddFromTrashToHand:
+                Debug.LogWarning(
+                    $"[Effect] AddFromTrashToHand は非同期チェーン経由で解決してください (cardId:{sourceCard?.Data?.id})。");
+                break;
+        }
+
+        if (!nestedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
+
+        SyncAllResourceViewsFromRule();
+    }
+    // ステータス変更の効果を適用する
+    private static void ApplyStatEffect(CardController target, int signedValue, EffectStatTarget statTarget, EffectDuration duration, string statModifierSourceKey = null)
+    {
+        int powerDelta = 0;
+        int hpDelta = 0;
+        int costDelta = 0;
+        int levelDelta = 0;
+        int effectDamageDelta = 0;
+        int effectDamageImmunityDelta = 0;
+        int incomingDamageReductionDelta = 0;
+        int battleDamageFromEnemyUnitReductionDelta = 0;
+        Debug.Log($"{signedValue}はなんの値？");
+        switch (statTarget)
+        {
+            case EffectStatTarget.AP:
+                powerDelta = signedValue;
+                break;
+            case EffectStatTarget.HP:
+                hpDelta = signedValue;
+                break;
+            case EffectStatTarget.Cost:
+                costDelta = signedValue;
+                break;
+            case EffectStatTarget.Level:
+                levelDelta = signedValue;
+                break;
+            case EffectStatTarget.EffectDamage:
+                effectDamageDelta = signedValue;
+                break;
+            case EffectStatTarget.EffectDamageImmunity:
+                effectDamageImmunityDelta = signedValue > 0 ? 1 : (signedValue < 0 ? -1 : 0);
+                break;
+            case EffectStatTarget.IncomingDamageReduction:
+                incomingDamageReductionDelta = signedValue;
+                break;
+            case EffectStatTarget.BattleDamageFromEnemyUnitReduction:
+                battleDamageFromEnemyUnitReductionDelta = signedValue;
+                break;
+            default:
+                powerDelta = signedValue;
+                hpDelta = signedValue;
+                costDelta = signedValue;
+                levelDelta = signedValue;
+                break;
+        }
+        target.AddEffectStatBonus(
+            powerDelta,
+            hpDelta,
+            costDelta,
+            levelDelta,
+            duration,
+            statModifierSourceKey,
+            effectDamageDelta,
+            effectDamageImmunityDelta,
+            incomingDamageReductionDelta,
+            battleDamageFromEnemyUnitReductionDelta);
+    }
+
+    /// <summary>
+    /// EffectDamage 修飾の実効値。
+    /// 負値（軽減）は「相手から効果ダメージを受けるとき」のみ適用する（シルヴァ・バレト等）。
+    /// </summary>
+    private static int ResolveEffectiveEffectDamageModifier(
+        int rawModifier,
+        PlayerType? damageTargetOwner,
+        PlayerType? effectSourceOwner)
+    {
+        if (rawModifier >= 0)
+        {
+            return rawModifier;
+        }
+
+        // 軽減は相手からの効果ダメージ限定。自傷・味方効果には適用しない。
+        if (!damageTargetOwner.HasValue || !effectSourceOwner.HasValue)
+        {
+            return 0;
+        }
+
+        if (damageTargetOwner.Value == effectSourceOwner.Value)
+        {
+            return 0;
+        }
+
+        return rawModifier;
+    }
+
+    /// <summary>
+    /// 効果ダメージ（EffectType.Damage 等）の実際の与ダメージ量。戦闘交換には使わない。
+    /// 無効化・修飾は effectDamageTarget 自身のレイヤーに加え、配備ベースのオーラも参照する。
+    /// EffectDamage の負修飾（軽減）は相手からのダメージにのみ適用する。
+    /// </summary>
+    private int ResolveEffectDamageAmount(
+        int baseMagnitude,
+        CardController effectDamageTarget = null,
+        PlayerType? effectSourceOwner = null)
+    {
+        if (effectDamageTarget != null && effectDamageTarget.HasEffectDamageImmunity)
+        {
+            return 0;
+        }
+
+        int rawModifier = effectDamageTarget != null ? effectDamageTarget.CurrentEffectDamageModifier : 0;
+        PlayerType? targetOwner = effectDamageTarget != null
+            ? ResolveBattleZoneUnitOwner(effectDamageTarget)
+            : (PlayerType?)null;
+        int modifier = ResolveEffectiveEffectDamageModifier(rawModifier, targetOwner, effectSourceOwner);
+        int amount = Mathf.Max(0, baseMagnitude + modifier);
+        if (amount <= 0 || effectDamageTarget == null || !effectSourceOwner.HasValue)
+        {
+            return amount;
+        }
+
+        if (ShouldIgnoreEnemyEffectDamageByDeployedBase(
+                effectDamageTarget,
+                effectSourceOwner.Value,
+                amount))
+        {
+            return 0;
+        }
+
+        if (ShouldIgnoreEnemyEffectDamageByAllyProtector(
+                effectDamageTarget,
+                effectSourceOwner.Value))
+        {
+            return 0;
+        }
+
+        return amount;
+    }
+
+    /// <summary>
+    /// Archangel 等：配備ベースの EffectDamageImmunityFromAmountOrLess で敵効果ダメージを無効化するか。
+    /// </summary>
+    private bool ShouldIgnoreEnemyEffectDamageByDeployedBase(
+        CardController effectDamageTarget,
+        PlayerType effectSourceOwner,
+        int resolvedAmount)
+    {
+        if (effectDamageTarget == null || effectDamageTarget.Data == null || !effectDamageTarget.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = ResolveBattleZoneUnitOwner(effectDamageTarget);
+        if (targetOwner == effectSourceOwner)
+        {
+            return false;
+        }
+
+        Gundam2024RuleScript.PlayerSide targetSide = targetOwner == PlayerType.Player
+            ? Gundam2024RuleScript.PlayerSide.Player
+            : Gundam2024RuleScript.PlayerSide.Enemy;
+        CardController protectingBase = GetDeployedBaseForRuleSide(targetSide);
+        if (protectingBase == null)
+        {
+            return false;
+        }
+
+        bool isTargetOwnerTurn = targetOwner == currentPlayerType;
+        return CardBaseAllyEffectDamageImmunityExtensions.ShouldIgnoreEnemyEffectDamageFromAmount(
+            effectDamageTarget,
+            protectingBase,
+            targetOwner,
+            effectSourceOwner,
+            isTargetOwnerTurn,
+            resolvedAmount);
+    }
+
+    /// <summary>
+    /// Acguy 等：味方場ユニットの AllyEnemyEffectDamageImmunity で敵効果ダメージを無効化するか。
+    /// </summary>
+    private bool ShouldIgnoreEnemyEffectDamageByAllyProtector(
+        CardController effectDamageTarget,
+        PlayerType effectSourceOwner)
+    {
+        if (effectDamageTarget == null || effectDamageTarget.Data == null || !effectDamageTarget.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = ResolveBattleZoneUnitOwner(effectDamageTarget);
+        if (targetOwner == effectSourceOwner)
+        {
+            return false;
+        }
+
+        List<CardController> allies = targetOwner == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        bool isTargetOwnerTurn = targetOwner == currentPlayerType;
+        return CardAllyEnemyEffectDamageImmunityExtensions.ShouldIgnoreEnemyEffectDamageByAllyProtector(
+            effectDamageTarget,
+            allies,
+            targetOwner,
+            effectSourceOwner,
+            isTargetOwnerTurn);
+    }
+
+    private int ResolveEffectDamageAmountForVirtualPlayerLog(
+        int baseMagnitude,
+        List<VirtualPlayerUnitSnap> workingPlayerOverrides,
+        CardController effectDamageTarget = null,
+        PlayerType? effectSourceOwner = null)
+    {
+        if (effectDamageTarget != null)
+        {
+            VirtualPlayerUnitSnap snap = workingPlayerOverrides != null
+                ? FindPlayerVirtualSnap(workingPlayerOverrides, effectDamageTarget)
+                : null;
+            if (snap != null ? snap.EffectDamageImmunityCount > 0 : effectDamageTarget.HasEffectDamageImmunity)
+            {
+                return 0;
+            }
+
+            int rawModifier = snap != null ? snap.EffectDamageMod : effectDamageTarget.CurrentEffectDamageModifier;
+            PlayerType? targetOwner = ResolveBattleZoneUnitOwner(effectDamageTarget);
+            int modifier = ResolveEffectiveEffectDamageModifier(rawModifier, targetOwner, effectSourceOwner);
+            int amount = Mathf.Max(0, baseMagnitude + modifier);
+            if (amount > 0
+                && effectSourceOwner.HasValue
+                && (ShouldIgnoreEnemyEffectDamageByDeployedBase(
+                        effectDamageTarget,
+                        effectSourceOwner.Value,
+                        amount)
+                    || ShouldIgnoreEnemyEffectDamageByAllyProtector(
+                        effectDamageTarget,
+                        effectSourceOwner.Value)))
+            {
+                return 0;
+            }
+
+            return amount;
+        }
+
+        return Mathf.Max(0, baseMagnitude);
+    }
+
+    private List<CardController> ResolveEffectTargets(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null)
+        {
+            return new List<CardController>();
+        }
+
+        IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
+        List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        List<CardController> enemies = ownerType == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
+        List<CardController> result = new List<CardController>();
+
+        // ST12-011 専用（他カードの selectionMode には一切干渉しない）
+        if (IsMilliardoPeacecraftCard(sourceCard) && effect.type == EffectType.Damage)
+        {
+            CardController milliardoTarget = ResolveMilliardoForcedDamageTarget(sourceCard);
+            if (milliardoTarget != null && milliardoTarget.CurrentHp > 0)
+            {
+                result.Add(milliardoTarget);
+            }
+
+            return result;
+        }
+
+        switch (effect.target)
+        {
+            case TargetType.Self:
+                // パイロット効果の「自身」は搭乗ユニット（公式：パイロット効果はユニット側として解決）
+                {
+                    CardController selfTarget = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+                    if (selfTarget != null)
+                    {
+                        result.Add(selfTarget);
+                    }
+                }
+                break;
+            case TargetType.AllyUnit:
+                AddFirstAliveUnit(allies, result, null, requiredFeatures);
+                break;
+            case TargetType.AllyOtherUnit:
+                AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
+                break;
+            case TargetType.TokenUnit:
+                AddAllAliveTokenUnits(allies, result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyTokenUnit:
+                AddAllAliveTokenUnits(enemies, result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyUnit:
+                
+                if (effect.autoSelectLowestUnitStat || effect.autoSelectHighestUnitStat)
+                {
+                    AddAllAliveUnits(enemies, result, null, requiredFeatures);
+                }
+                else
+                {
+                    AddFirstAliveUnit(enemies, result, null, requiredFeatures);
+                }
+                break;
+            case TargetType.RestEnemyUnit:
+                AddFirstAliveRestUnit(enemies, result, requiredFeatures);
+                break;
+            case TargetType.AllyAllUnits:
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyAllUnits:
+                AddAllAliveUnits(enemies, result, null, requiredFeatures);
+                break;
+            case TargetType.AnyUnit:
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
+                AddAllAliveUnits(enemies, result, null, requiredFeatures);
+                break;
+        }
+
+        // パイロットの【セット時】解決中は、搭乗先が一時的に盤面リストから外れる場合がある。
+        // 味方全体効果ではセット先も対象へ戻し、ST11-011等の対象数0を防ぐ。
+        if (effect.target == TargetType.AllyAllUnits
+            && _pilotMountEffectHostUnit != null
+            && _pilotMountEffectHostUnit.Data != null
+            && _pilotMountEffectHostUnit.Data.IsUnitLike()
+            && _pilotMountEffectHostUnit.CurrentHp > 0
+            && !result.Contains(_pilotMountEffectHostUnit)
+            && MatchesRequiredFeatures(_pilotMountEffectHostUnit.Data, requiredFeatures))
+        {
+            result.Add(_pilotMountEffectHostUnit);
+        }
+
+        FilterTargetsByUnitCondition(result, effect, sourceCard, ownerType);
+        FilterSelectableEffectTargets(result, effect);
+        if (effect.type == EffectType.Rest && !effect.allowAlreadyRestedTargets)
+        {
+            FilterOutAlreadyRestedUnits(result);
+        }
+
+        // Self の ACTIVE 化は既に ACTIVE でも「そうしたなら」後続へ進めるため、REST 絞り込みしない
+        if (effect.type == EffectType.Activate && effect.target != TargetType.Self)
+        {
+            FilterOutNonRestedUnits(result);
+        }
+
+        if (effect.requireTargetIsRest)
+        {
+            FilterOutNonRestedUnits(result);
+        }
+
+        FilterToLowestStatTiedUnitsIfNeeded(result, effect);
+        FilterToHighestStatTiedUnitsIfNeeded(result, effect);
+
+        return result;
+    }
+
+    private static void AddFirstAliveUnit(
+        List<CardController> source,
+        List<CardController> result,
+        CardController exclude = null,
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
+    {
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController c = source[i];
+            if (c == null || c == exclude || c.Data == null || !c.Data.IsUnitLike() || c.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
+            {
+                continue;
+            }
+
+            result.Add(c);
+            return;
+        }
+    }
+
+    private static void AddFirstAliveRestUnit(
+        List<CardController> source,
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
+    {
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController c = source[i];
+            if (c == null || c.Data == null || !c.Data.IsUnitLike() || c.CurrentHp <= 0 || !c.IsRestState)
+            {
+                continue;
+            }
+
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
+            {
+                continue;
+            }
+
+            result.Add(c);
+            return;
+        }
+    }
+
+    private static void AddAllAliveUnits(
+        List<CardController> source,
+        List<CardController> result,
+        CardController exclude = null,
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
+    {
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController c = source[i];
+            if (c == null || c == exclude || c.Data == null || !c.Data.IsUnitLike() || c.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
+            {
+                continue;
+            }
+
+            result.Add(c);
+        }
+    }
+
+    private static void AddAllAliveTokenUnits(
+        List<CardController> source,
+        List<CardController> result,
+        CardController exclude = null,
+        IReadOnlyList<CardFeatureData> requiredFeatures = null)
+    {
+        for (int i = 0; i < source.Count; i++)
+        {
+            CardController c = source[i];
+            if (c == null || c == exclude || c.Data == null || !c.Data.IsUnitToken() || c.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!MatchesRequiredFeatures(c, requiredFeatures))
+            {
+                continue;
+            }
+
+            result.Add(c);
+        }
+    }
+
+    private static bool MatchesRequiredFeatures(CardData card, IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (requiredFeatures == null || requiredFeatures.Count == 0)
+        {
+            return true;
+        }
+
+        if (card == null)
+        {
+            return false;
+        }
+
+        card.EnsureFeaturesResolved();
+        return card.HasAnyFeature(requiredFeatures);
+    }
+
+    private static bool MatchesRequiredFeatures(CardController unit, IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (requiredFeatures == null || requiredFeatures.Count == 0)
+        {
+            return true;
+        }
+
+        if (unit?.Data == null)
+        {
+            return false;
+        }
+
+        return unit.HasAnyFeature(requiredFeatures);
+    }
+
+    private void ClearTimedStatModifiersOnHand(PlayerType side, EffectDuration duration)
+    {
+        RectTransform hand = side == PlayerType.Player
+            ? cardGameRule.HandScrollContent
+            : enemyCardGameRule.HandScrollContent;
+        if (hand == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController c = hand.GetChild(i).GetComponent<CardController>();
+            if (c != null)
+            {
+                c.ClearTimedStatModifiersByDuration(duration);
+            }
+        }
+    }
+
+    private static void ClearTimedStatModifiersOnCardList(List<CardController> cards, EffectDuration duration)
+    {
+        if (cards == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cards.Count; i++)
+        {
+            CardController c = cards[i];
+            if (c != null)
+            {
+                c.ClearTimedStatModifiersByDuration(duration);
+            }
+        }
+    }
+
+    private void ClearTimedStatModifiersForSide(PlayerType side, EffectDuration duration)
+    {
+        List<CardController> zone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        ClearTimedStatModifiersOnCardList(zone, duration);
+        ClearTimedStatModifiersOnHand(side, duration);
+    }
+
+    private void ClearTimedStatModifiersForAllInPlayCards(EffectDuration duration)
+    {
+        ClearTimedStatModifiersForSide(PlayerType.Player, duration);
+        ClearTimedStatModifiersForSide(PlayerType.Enemy, duration);
+    }
+
+    /// <summary>AttackActiveEnemyUnit のランタイム付与を解除（UntilEndOfTurn / UntilEndOfBattle）。</summary>
+    private void ClearAttackActiveEnemyGrants(EffectDuration duration)
+    {
+        if (duration != EffectDuration.UntilEndOfTurn && duration != EffectDuration.UntilEndOfBattle)
+        {
+            return;
+        }
+
+        ClearAttackActiveEnemyGrantsOnZone(playerBattleZoneCards, duration);
+        ClearAttackActiveEnemyGrantsOnZone(enemyBattleZoneCards, duration);
+    }
+
+    private static void ClearAttackActiveEnemyGrantsOnZone(List<CardController> zone, EffectDuration duration)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null)
+            {
+                continue;
+            }
+
+            if (duration == EffectDuration.UntilEndOfTurn)
+            {
+                unit.ClearAttackActiveEnemyUntilEndOfTurnGrants();
+            }
+            else if (duration == EffectDuration.UntilEndOfBattle)
+            {
+                unit.ClearAttackActiveEnemyUntilEndOfBattleGrants();
+            }
+        }
+    }
+
+    /// <summary>AttackActiveEnemyUnit マーカーを解決（UntilEndOfTurn 等はここでランタイム付与）。
+    /// 味方選択付与（AllyUnit）は <see cref="ApplyAttackActiveEnemyGrantsToTargets"/> を使う。</summary>
+    private bool TryApplyAttackActiveEnemyUnitMarker(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null || effect.type != EffectType.AttackActiveEnemyUnit)
+        {
+            return false;
+        }
+
+        if (effect.IsAttackActiveEnemyAllyGrant())
+        {
+            return false;
+        }
+
+        if (effect.duration == EffectDuration.Permanent)
+        {
+            return true;
+        }
+
+        CardController grantHost = ResolveAttackActiveEnemyGrantHost(sourceCard);
+        if (grantHost == null || grantHost.Data == null || !grantHost.Data.IsUnitLike())
+        {
+            Debug.LogWarning(
+                $"[AttackActiveEnemyUnit] 付与先ユニットを解決できません source:{sourceCard?.Data?.cardName} owner:{ownerType}");
+            return true;
+        }
+
+        GrantAttackActiveEnemyToUnit(grantHost, effect, ownerType, sourceCard);
+        return true;
+    }
+
+    /// <summary>選択した味方ユニットへ AttackActiveEnemyUnit をランタイム付与する。</summary>
+    private void ApplyAttackActiveEnemyGrantsToTargets(
+        EffectData effect,
+        PlayerType ownerType,
+        List<CardController> targets)
+    {
+        if (effect == null || effect.type != EffectType.AttackActiveEnemyUnit || targets == null)
+        {
+            return;
+        }
+
+        if (effect.duration == EffectDuration.Permanent)
+        {
+            Debug.LogWarning(
+                "[AttackActiveEnemyUnit] 味方付与では Permanent は未対応です。UntilEndOfTurn / UntilEndOfBattle を指定してください。");
+            return;
+        }
+
+        int applied = 0;
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController target = targets[i];
+            if (target == null || target.Data == null || !target.Data.IsUnitLike() || target.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!IsCardOnBattleZone(target)
+                && !ReferenceEquals(target, _pilotMountEffectHostUnit))
+            {
+                continue;
+            }
+
+            GrantAttackActiveEnemyToUnit(target, effect, ownerType, sourceCard: null);
+            applied++;
+        }
+
+        Debug.Log(
+            $"[AttackActiveEnemyUnit] 味方付与 applied:{applied}/{targets.Count} "
+            + $"duration:{effect.duration} filter:{effect.FormatTargetUnitFilterDescription()} owner:{ownerType}");
+    }
+
+    private void GrantAttackActiveEnemyToUnit(
+        CardController grantHost,
+        EffectData effect,
+        PlayerType ownerType,
+        CardController sourceCard)
+    {
+        if (grantHost == null || grantHost.Data == null || effect == null)
+        {
+            return;
+        }
+
+        EffectData runtimeGrant = CloneAttackActiveEnemyRuntimeGrant(effect);
+        EffectDuration duration = runtimeGrant.duration;
+        if (duration == EffectDuration.UntilEndOfTurn)
+        {
+            grantHost.AddAttackActiveEnemyUntilEndOfTurnGrant(runtimeGrant);
+            Debug.Log(
+                $"[AttackActiveEnemyUnit] UntilEndOfTurn 付与: {grantHost.Data.cardName} "
+                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(runtimeGrant)} "
+                + $"(source:{sourceCard?.Data?.cardName} owner:{ownerType})");
+        }
+        else if (duration == EffectDuration.UntilEndOfBattle)
+        {
+            grantHost.AddAttackActiveEnemyUntilEndOfBattleGrant(runtimeGrant);
+            Debug.Log(
+                $"[AttackActiveEnemyUnit] UntilEndOfBattle 付与: {grantHost.Data.cardName} "
+                + $"attackFilter:{FormatAttackActiveEnemyAttackFilter(runtimeGrant)} "
+                + $"(source:{sourceCard?.Data?.cardName} owner:{ownerType})");
+        }
+        else
+        {
+            return;
+        }
+
+        QueueOnlineAttackActiveEnemyGrant(grantHost, runtimeGrant);
+    }
+
+    /// <summary>
+    /// 味方付与用の AttackActiveEnemyUnit を、攻撃判定用のランタイム定義にコピーする。
+    /// 付与先 Feature は落とす。Unset の stat に残った AP≤0 などは攻撃条件にしない。
+    /// </summary>
+    private static EffectData CloneAttackActiveEnemyRuntimeGrant(EffectData source)
+    {
+        EffectData clone = new EffectData
+        {
+            type = EffectType.AttackActiveEnemyUnit,
+            duration = source.duration == EffectDuration.Permanent
+                ? EffectDuration.UntilEndOfTurn
+                : source.duration,
+            target = TargetType.Self,
+            selectionMode = EffectSelectionMode.Unset,
+            requireTargetDamaged = source.requireTargetDamaged,
+            compareTargetStatToSource = source.compareTargetStatToSource
+        };
+
+        bool keepStatFilter = source.HasTargetUnitStatFilter()
+            && (source.compareTargetStatToSource || source.targetUnitStatCompareValue != 0);
+        if (keepStatFilter)
+        {
+            clone.targetUnitFilterStat = source.GetTargetUnitFilterStat();
+            clone.targetUnitStatCompareOp = source.targetUnitStatCompareOp;
+            clone.targetUnitStatCompareValue = source.targetUnitStatCompareValue;
+        }
+        else
+        {
+            clone.targetUnitFilterStat = EffectTargetUnitFilterStat.Unset;
+        }
+
+        return clone;
+    }
+
+    private static string FormatAttackActiveEnemyAttackFilter(EffectData effect)
+    {
+        if (effect == null || !effect.HasAttackActiveEnemyTargetStatFilter())
+        {
+            return "any ACTIVE";
+        }
+
+        return effect.FormatAttackActiveEnemyTargetStatDescription();
+    }
+
+    private CardController ResolveAttackActiveEnemyGrantHost(CardController sourceCard)
+    {
+        if (sourceCard == null || sourceCard.Data == null)
+        {
+            return null;
+        }
+
+        if (sourceCard.Data.IsUnitLike())
+        {
+            return sourceCard;
+        }
+
+        if (sourceCard.Data.IsPilot())
+        {
+            if (sourceCard.MountedUnit != null)
+            {
+                return sourceCard.MountedUnit;
+            }
+
+            if (_pilotMountEffectHostUnit != null
+                && _pilotMountEffectHostUnit.Data != null
+                && _pilotMountEffectHostUnit.Data.IsUnitLike()
+                && _pilotMountEffectHostUnit.MountedPilot == sourceCard)
+            {
+                return _pilotMountEffectHostUnit;
+            }
+        }
+
+        return sourceCard;
+    }
+
+    private bool LogHandOnActionCandidates(PlayerType ownerType, string context, System.Action onClose = null)
+    {
+        return LogHandOnActionCandidates(ownerType, context, true, onClose);
+    }
+
+    private bool LogHandOnActionCandidates(PlayerType ownerType, string context, bool showPopup, System.Action onClose = null)
+    {
+        RectTransform hand = ownerType == PlayerType.Player
+            ? cardGameRule.HandScrollContent
+            : enemyCardGameRule.HandScrollContent;
+        if (hand == null)
+        {
+            return false;
+        }
+
+        List<string> candidates = new List<string>();
+        List<CardData> cards = new List<CardData>();
+        for (int i = 0; i < hand.childCount; i++)
+        {
+            CardController cc = hand.GetChild(i).GetComponent<CardController>();
+            if (cc == null || cc.Data == null)
+            {
+                continue;
+            }
+
+            if (IsOnActionCommandSelectable(ownerType, cc))
+            {
+                candidates.Add($"{cc.Data.id}:{cc.Data.cardName}");
+                cards.Add(cc.Data);
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            Debug.Log($"[OnActionCandidates] context:{context} side:{ownerType} none");
+            return false;
+        }
+
+        Debug.Log($"[OnActionCandidates] context:{context} side:{ownerType} cards:{string.Join(", ", candidates)}");
+        if (showPopup)
+        {
+            ShowOnActionHandCandidatesPopup(ownerType, context, cards, onClose);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// エネミー OnAction：手札の利用可能なコマンドカードをログ出力し、一覧ポップアップを出す。候補があるとき true（Close まで攻撃フロー待機）。
+    /// </summary>
+    private bool TryShowEnemyOnActionCommandCandidatesPopup(
+        string context,
+        System.Action onStepDone,
+        CardController attackingUnitInAttackFlow = null)
+    {
+        RectTransform hand = enemyCardGameRule != null ? enemyCardGameRule.HandScrollContent : null;
+        List<CardData> commandCards = new List<CardData>();
+        List<CardController> eligibleEnemyHandCommands = new List<CardController>();
+        List<string> logLines = new List<string>();
+        if (hand != null)
+        {
+            for (int i = 0; i < hand.childCount; i++)
+            {
+                CardController cc = hand.GetChild(i).GetComponent<CardController>();
+                if (cc == null || cc.Data == null || !cc.Data.IsCommand())
+                {
+                    continue;
+                }
+
+                if (!IsOnActionCommandSelectable(PlayerType.Enemy, cc))
+                {
+                    continue;
+                }
+
+                eligibleEnemyHandCommands.Add(cc);
+                commandCards.Add(cc.Data);
+                logLines.Add($"{cc.Data.cardName} (id:{cc.Data.id}, cost:{cc.CurrentCost}, lv:{cc.CurrentLevel})");
+            }
+        }
+
+        if (commandCards.Count == 0)
+        {
+            Debug.Log($"[EnemyOnActionCommands] context:{context} (none)");
+            return false;
+        }
+
+        Debug.Log(
+            $"[EnemyOnActionCommands] context:{context} count:{commandCards.Count} → {string.Join(" | ", logLines)}");
+
+        LogFullBoardSnapshotForCommandTiming(context, PlayerType.Enemy, attackingUnitInAttackFlow);
+        LogEnemyAiOnActionHypotheticalSearchSpace(context, eligibleEnemyHandCommands, attackingUnitInAttackFlow);
+
+        if (hand != null)
+        {
+            for (int vi = 0; vi < hand.childCount; vi++)
+            {
+                CardController cc = hand.GetChild(vi).GetComponent<CardController>();
+                if (cc == null || cc.Data == null || !cc.Data.IsCommand())
+                {
+                    continue;
+                }
+
+                if (!IsOnActionCommandSelectable(PlayerType.Enemy, cc))
+                {
+                    continue;
+                }
+
+                LogVirtualOnActionCommandOutcomeForPlayerUnits(cc, PlayerType.Enemy, context);
+                if (attackFlowBlockRedirectUnit != null)
+                {
+                    LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(cc, PlayerType.Enemy, attackFlowBlockRedirectUnit, context);
+                }
+            }
+        }
+
+        if (CardImagePrefab == null || ResolveBattleCanvas() == null)
+        {
+            Debug.LogWarning("[EnemyOnActionCommands] CardImagePrefab or canvas missing — skip popup.");
+            onStepDone?.Invoke();
+            return false;
+        }
+
+        ShowOnActionHandCandidatesPopup(PlayerType.Enemy, $"{context} [commands]", commandCards, onStepDone);
+        return true;
+    }
+
+
+    private bool TryRunAttackBlockSteps(PlayerType defenderSide, PlayerType attackerSide, System.Action onComplete, CardController attackingUnitInAttackFlow = null)
+    {
+        return TryRunAttackActionSteps(defenderSide, attackerSide, onComplete, attackingUnitInAttackFlow);
+    }
+
+    /// <summary>
+    /// ターン終了時の OnAction。非ターンプレイヤー→ターンプレイヤー→交互。両者 ActionEnd で終了。
+    /// </summary>
+    private bool TryRunTurnEndOnActionPhases(PlayerType endingTurnSide, System.Action onComplete)
+    {
+        if (IsTestPlayBattle())
+        {
+            onComplete?.Invoke();
+            return false;
+        }
+
+        PlayerType nonTurnSide = OpponentSide(endingTurnSide);
+        BeginActionStepSession(
+            endingTurnSide,
+            nonTurnSide,
+            isAttackContext: false,
+            defenderContext: "turn end:enemy-action",
+            attackerContext: "turn end:player-action",
+            attackingUnit: null,
+            onComplete);
+        return true;
+    }
+
+    /// <summary>
+    /// 攻撃フロー後半：ブロック応答後の OnAction（防御側→攻撃側）。
+    /// 【起動・アクション】はアクション一覧から条件付きで選択する。
+    /// </summary>
+    private bool TryRunAttackOnActionPhasesAfterBlock(
+        PlayerType defenderSide,
+        PlayerType attackerSide,
+        System.Action onComplete,
+        CardController attackingUnitInAttackFlow = null,
+        CardController defendingUnitInAttackFlow = null)
+    {
+        string defenderContext = defenderSide == PlayerType.Player
+            ? "attack:player-action"
+            : "attack:enemy-action";
+        string attackerContext = attackerSide == PlayerType.Player
+            ? "attack:player-action"
+            : "attack:enemy-action";
+
+        CardController defendingUnitForSession = defendingUnitInAttackFlow;
+        if (defendingUnitForSession == null || defendingUnitForSession.CurrentHp <= 0)
+        {
+            defendingUnitForSession = attackFlowBlockRedirectUnit != null
+                ? attackFlowBlockRedirectUnit
+                : attackFlowDeclaredDefenderUnit;
+        }
+
+        if (attackingUnitInAttackFlow != null)
+        {
+            attackFlowAttackerUnit = attackingUnitInAttackFlow;
+            pendingUnitAttackAttacker = attackingUnitInAttackFlow;
+            AssignBattleInstanceIdIfNeeded(attackingUnitInAttackFlow);
+        }
+
+        if (defendingUnitForSession != null)
+        {
+            if (attackFlowBlockRedirectUnit == null
+                || !IsSameBattleUnit(attackFlowBlockRedirectUnit, defendingUnitForSession))
+            {
+                attackFlowDeclaredDefenderUnit = defendingUnitForSession;
+            }
+
+            AssignBattleInstanceIdIfNeeded(defendingUnitForSession);
+        }
+
+        BeginActionStepSession(
+            attackerSide,
+            defenderSide,
+            isAttackContext: true,
+            defenderContext,
+            attackerContext,
+            attackingUnitInAttackFlow,
+            onComplete,
+            defendingUnitForSession);
+        return true;
+    }
+
+    private bool TryRunAttackActionSteps(
+        PlayerType defenderSide,
+        PlayerType attackerSide,
+        System.Action onComplete,
+        CardController attackingUnitInAttackFlow = null,
+        CardController defendingUnitInAttackFlow = null)
+    {
+        if (enableShieldAttackFlowDebugLog)
+        {
+            Debug.Log(
+                $"[AttackFlow] OnAction order: defender action step → attacker action step "
+                + $"(defender:{defenderSide} attacker:{attackerSide})");
+        }
+
+        return TryRunAttackOnActionPhasesAfterBlock(
+            defenderSide,
+            attackerSide,
+            onComplete,
+            attackingUnitInAttackFlow,
+            defendingUnitInAttackFlow);
+    }
+
+    /// <summary>プレイヤー盤面ユニットの仮想 HP/AP（本番の CardController は変更しない）。</summary>
+    private sealed class VirtualPlayerUnitSnap
+    {
+        public CardController Controller;
+        public int Slot;
+        public string Name;
+        public int Id;
+        public int Hp;
+        public int Ap;
+        public int EffectDamageMod;
+        public int EffectDamageImmunityCount;
+    }
+
+    /// <summary>味方・敵バトルゾーン両方の仮想ユニット（アタック時 OnAction の A/B 仮想ログ用）。</summary>
+    private sealed class VirtualBattleUnitSnap
+    {
+        public CardController Controller;
+        public PlayerType FieldOwner;
+        public int Slot;
+        public string Name;
+        public int Id;
+        public int Hp;
+        public int Ap;
+        public bool IsRest;
+        public int EffectDamageMod;
+        public int EffectDamageImmunityCount;
+        public bool FirstStrike;
+    }
+
+    private List<VirtualBattleUnitSnap> BuildFullBattleVirtualSnapshot()
+    {
+        List<VirtualBattleUnitSnap> list = new List<VirtualBattleUnitSnap>();
+        if (playerBattleZoneCards != null)
+        {
+            for (int i = 0; i < playerBattleZoneCards.Count; i++)
+            {
+                CardController c = playerBattleZoneCards[i];
+                if (c == null || c.Data == null || !c.Data.IsUnitLike())
+                {
+                    continue;
+                }
+
+                list.Add(new VirtualBattleUnitSnap
+                {
+                    Controller = c,
+                    FieldOwner = PlayerType.Player,
+                    Slot = i,
+                    Name = c.Data.cardName,
+                    Id = c.Data.id,
+                    Hp = c.CurrentHp,
+                    Ap = c.CurrentPower,
+                    IsRest = c.IsRestState,
+                    EffectDamageMod = c.CurrentEffectDamageModifier,
+                    EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
+                    FirstStrike = c.HasFirstStrike(),
+                });
+            }
+        }
+
+        if (enemyBattleZoneCards != null)
+        {
+            for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+            {
+                CardController c = enemyBattleZoneCards[i];
+                if (c == null || c.Data == null || !c.Data.IsUnitLike())
+                {
+                    continue;
+                }
+
+                list.Add(new VirtualBattleUnitSnap
+                {
+                    Controller = c,
+                    FieldOwner = PlayerType.Enemy,
+                    Slot = i,
+                    Name = c.Data.cardName,
+                    Id = c.Data.id,
+                    Hp = c.CurrentHp,
+                    Ap = c.CurrentPower,
+                    IsRest = c.IsRestState,
+                    EffectDamageMod = c.CurrentEffectDamageModifier,
+                    EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
+                    FirstStrike = c.HasFirstStrike(),
+                });
+            }
+        }
+
+        return list;
+    }
+
+    private List<VirtualPlayerUnitSnap> BuildVirtualPlayerZoneSnapshot()
+    {
+        List<VirtualPlayerUnitSnap> list = new List<VirtualPlayerUnitSnap>();
+        if (playerBattleZoneCards == null)
+        {
+            return list;
+        }
+
+        for (int i = 0; i < playerBattleZoneCards.Count; i++)
+        {
+            CardController c = playerBattleZoneCards[i];
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            list.Add(new VirtualPlayerUnitSnap
+            {
+                Controller = c,
+                Slot = i,
+                Name = c.Data.cardName,
+                Id = c.Data.id,
+                Hp = c.CurrentHp,
+                Ap = c.CurrentPower,
+                EffectDamageMod = c.CurrentEffectDamageModifier,
+                EffectDamageImmunityCount = c.CurrentEffectDamageImmunityCount,
+            });
+        }
+
+        return list;
+    }
+
+    private static List<VirtualPlayerUnitSnap> CloneVirtualPlayerSnaps(List<VirtualPlayerUnitSnap> source)
+    {
+        List<VirtualPlayerUnitSnap> dst = new List<VirtualPlayerUnitSnap>(source.Count);
+        for (int i = 0; i < source.Count; i++)
+        {
+            VirtualPlayerUnitSnap s = source[i];
+            dst.Add(new VirtualPlayerUnitSnap
+            {
+                Controller = s.Controller,
+                Slot = s.Slot,
+                Name = s.Name,
+                Id = s.Id,
+                Hp = s.Hp,
+                Ap = s.Ap,
+                EffectDamageMod = s.EffectDamageMod,
+                EffectDamageImmunityCount = s.EffectDamageImmunityCount,
+            });
+        }
+
+        return dst;
+    }
+
+    private static VirtualPlayerUnitSnap FindPlayerVirtualSnap(List<VirtualPlayerUnitSnap> list, CardController unit)
+    {
+        if (unit == null || list == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].Controller == unit)
+            {
+                return list[i];
+            }
+        }
+
+        return null;
+    }
+
+    private static void ApplyVirtualStatToSnap(VirtualPlayerUnitSnap snap, int signedValue, EffectStatTarget statTarget)
+    {
+        switch (statTarget)
+        {
+            case EffectStatTarget.AP:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                break;
+            case EffectStatTarget.HP:
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+            case EffectStatTarget.EffectDamage:
+                snap.EffectDamageMod += signedValue;
+                break;
+            case EffectStatTarget.EffectDamageImmunity:
+                snap.EffectDamageImmunityCount = Mathf.Max(0, snap.EffectDamageImmunityCount + (signedValue > 0 ? 1 : signedValue < 0 ? -1 : 0));
+                break;
+            case EffectStatTarget.IncomingDamageReduction:
+            case EffectStatTarget.BattleDamageFromEnemyUnitReduction:
+                // 仮想評価では HP/AP を変えず、実戦闘側の軽減レイヤーに委ねる
+                break;
+            default:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+        }
+    }
+
+    private static string FormatVirtualPlayerUnitsLine(List<VirtualPlayerUnitSnap> snaps)
+    {
+        if (snaps == null || snaps.Count == 0)
+        {
+            return "(no player units on field)";
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        for (int i = 0; i < snaps.Count; i++)
+        {
+            VirtualPlayerUnitSnap s = snaps[i];
+            if (i > 0)
+            {
+                sb.Append("  |  ");
+            }
+
+            sb.Append('#').Append(s.Slot).Append(':').Append(s.Name).Append("(id:").Append(s.Id).Append(") AP=").Append(s.Ap).Append(" HP=").Append(s.Hp);
+        }
+
+        return sb.ToString();
+    }
+
+    private static List<VirtualBattleUnitSnap> CloneVirtualBattleSnaps(List<VirtualBattleUnitSnap> source)
+    {
+        if (source == null)
+        {
+            return new List<VirtualBattleUnitSnap>();
+        }
+
+        List<VirtualBattleUnitSnap> dst = new List<VirtualBattleUnitSnap>(source.Count);
+        for (int i = 0; i < source.Count; i++)
+        {
+            VirtualBattleUnitSnap s = source[i];
+            dst.Add(new VirtualBattleUnitSnap
+            {
+                Controller = s.Controller,
+                FieldOwner = s.FieldOwner,
+                Slot = s.Slot,
+                Name = s.Name,
+                Id = s.Id,
+                Hp = s.Hp,
+                Ap = s.Ap,
+                IsRest = s.IsRest,
+                EffectDamageMod = s.EffectDamageMod,
+                EffectDamageImmunityCount = s.EffectDamageImmunityCount,
+                FirstStrike = s.FirstStrike,
+            });
+        }
+
+        return dst;
+    }
+
+    private static VirtualBattleUnitSnap FindBattleVirtualSnap(List<VirtualBattleUnitSnap> list, CardController unit)
+    {
+        if (unit == null || list == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].Controller == unit)
+            {
+                return list[i];
+            }
+        }
+
+        return null;
+    }
+
+    private static void ApplyVirtualStatToBattleSnap(VirtualBattleUnitSnap snap, int signedValue, EffectStatTarget statTarget)
+    {
+        switch (statTarget)
+        {
+            case EffectStatTarget.AP:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                break;
+            case EffectStatTarget.HP:
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+            case EffectStatTarget.EffectDamage:
+                snap.EffectDamageMod += signedValue;
+                break;
+            case EffectStatTarget.EffectDamageImmunity:
+                snap.EffectDamageImmunityCount = Mathf.Max(0, snap.EffectDamageImmunityCount + (signedValue > 0 ? 1 : signedValue < 0 ? -1 : 0));
+                break;
+            case EffectStatTarget.IncomingDamageReduction:
+            case EffectStatTarget.BattleDamageFromEnemyUnitReduction:
+                break;
+            default:
+                snap.Ap = Mathf.Max(0, snap.Ap + signedValue);
+                snap.Hp = Mathf.Max(0, snap.Hp + signedValue);
+                break;
+        }
+    }
+
+    private static int ResolveVirtualEffectDamageAmount(
+        int baseMagnitude,
+        List<VirtualBattleUnitSnap> working,
+        VirtualBattleUnitSnap effectDamageTarget = null,
+        PlayerType? effectSourceOwner = null)
+    {
+        if (effectDamageTarget != null && effectDamageTarget.EffectDamageImmunityCount > 0)
+        {
+            return 0;
+        }
+
+        if (effectDamageTarget == null)
+        {
+            return Mathf.Max(0, baseMagnitude);
+        }
+
+        int modifier = ResolveEffectiveEffectDamageModifier(
+            effectDamageTarget.EffectDamageMod,
+            effectDamageTarget.FieldOwner,
+            effectSourceOwner);
+        return Mathf.Max(0, baseMagnitude + modifier);
+    }
+
+    private static void ApplyVirtualBattleEffectToTargetsOnSnaps(
+        List<VirtualBattleUnitSnap> working,
+        EffectData effect,
+        List<CardController> targets,
+        int magnitude,
+        CardController sourceCard = null,
+        PlayerType? effectSourceOwner = null)
+    {
+        if (working == null || effect == null || targets == null)
+        {
+            return;
+        }
+
+        if (!effectSourceOwner.HasValue && sourceCard != null && working != null)
+        {
+            VirtualBattleUnitSnap sourceSnap = FindBattleVirtualSnap(working, sourceCard);
+            if (sourceSnap != null)
+            {
+                effectSourceOwner = sourceSnap.FieldOwner;
+            }
+        }
+
+        if (magnitude == 0 && !effect.type.UsesTargetCountValue())
+        {
+            return;
+        }
+
+        if (effect.type == EffectType.Draw || effect.type == EffectType.Look || effect.type == EffectType.AddToHandFromLooked
+            || effect.type == EffectType.DeployUnitFromLooked
+            || effect.type == EffectType.ReturnLookedRemainderToDeckTop
+            || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
+            || effect.type == EffectType.ChooseLookedRemainderDisposition
+            || effect.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
+            || effect.type == EffectType.ChooseLookedToDeckTopThenBottomRemainder
+            || effect.type == EffectType.MillTopToTrash
+            || effect.type == EffectType.ExileFromDeck
+            || effect.type == EffectType.ExileFromTrash
+            || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
+            || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
+            || effect.type == EffectType.BlockRedirect || effect.type == EffectType.HighMobility
+            || effect.type == EffectType.BattleDamageImmunityFromLowApEnemy
+            || effect.type == EffectType.AttackActiveEnemyUnit
+            || effect.type == EffectType.PreventNextStartPhaseActive
+            || effect.type == EffectType.AddShieldToHand || effect.type == EffectType.AddSelfToHand
+            || effect.type == EffectType.DeploySelfToShield || effect.type == EffectType.DeployShieldFromHand
+            || effect.type == EffectType.DeployBase
+            || effect.type == EffectType.DeploySelfAsBattleUnit
+            || effect.type == EffectType.Suppress
+            || effect.type == EffectType.Breach
+            || effect.type == EffectType.EffectBattle
+            || effect.type == EffectType.RecoverHp
+            || effect.type == EffectType.ChooseOne
+            || effect.type == EffectType.RestResource
+            || effect.type == EffectType.ActivateResource
+            || effect.type == EffectType.AddFromTrashToHand
+            || effect.type == EffectType.AddObservedToHandFromTrash
+            || effect.type == EffectType.MountSelfFromTrashAsPilot
+            || effect.type == EffectType.ActivateMountedCardOnMain
+            || effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
+            || effect.type == EffectType.ActivateSelfOnMain)
+        {
+            return;
+        }
+
+        if (effect.type == EffectType.Bounce)
+        {
+            int limit = effect.value > 0 ? effect.value : targets.Count;
+            int removed = 0;
+            for (int i = 0; i < targets.Count && removed < limit; i++)
+            {
+                CardController t = targets[i];
+                if (t == null)
+                {
+                    continue;
+                }
+
+                VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, t);
+                if (snap != null && working.Remove(snap))
+                {
+                    removed++;
+                }
+            }
+
+            return;
+        }
+
+        if (effect.type == EffectType.Rest)
+        {
+            int limit = ResolveRestEffectApplyLimit(effect, targets.Count);
+            int rested = 0;
+            for (int i = 0; i < targets.Count && rested < limit; i++)
+            {
+                CardController t = targets[i];
+                if (t == null)
+                {
+                    continue;
+                }
+
+                VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, t);
+                if (snap == null || snap.IsRest)
+                {
+                    continue;
+                }
+
+                snap.IsRest = true;
+                rested++;
+            }
+
+            return;
+        }
+
+        if (effect.type == EffectType.Destroy)
+        {
+            int limit = effect.value > 0 ? effect.value : targets.Count;
+            int removed = 0;
+            for (int i = 0; i < targets.Count && removed < limit; i++)
+            {
+                CardController t = targets[i];
+                if (t == null)
+                {
+                    continue;
+                }
+
+                VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, t);
+                if (snap != null && working.Remove(snap))
+                {
+                    removed++;
+                }
+            }
+
+            return;
+        }
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController t = targets[i];
+            if (t == null || t.Data == null)
+            {
+                continue;
+            }
+
+            VirtualBattleUnitSnap snap = FindBattleVirtualSnap(working, t);
+            if (snap == null)
+            {
+                continue;
+            }
+
+            switch (effect.type)
+            {
+                case EffectType.Damage:
+                {
+                    int damageAmount = ResolveVirtualEffectDamageAmount(
+                        magnitude,
+                        working,
+                        snap,
+                        effectSourceOwner);
+                    snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
+                    break;
+                }
+                case EffectType.Buff:
+                    ApplyVirtualStatToBattleSnap(snap, magnitude, effect.statTarget);
+                    break;
+                case EffectType.Debuff:
+                    ApplyVirtualStatToBattleSnap(snap, -magnitude, effect.statTarget);
+                    break;
+            }
+        }
+    }
+
+    private static string FormatVirtualBattleFieldLine(List<VirtualBattleUnitSnap> snaps)
+    {
+        if (snaps == null || snaps.Count == 0)
+        {
+            return "(empty)";
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(snaps.Count * 48);
+        sb.Append("味方 ");
+        AppendVirtualBattleSideSlice(sb, snaps, PlayerType.Player);
+        sb.Append(" | 敵 ");
+        AppendVirtualBattleSideSlice(sb, snaps, PlayerType.Enemy);
+        return sb.ToString();
+    }
+
+    private static void AppendVirtualBattleSideSlice(
+        System.Text.StringBuilder sb,
+        List<VirtualBattleUnitSnap> snaps,
+        PlayerType owner)
+    {
+        List<int> indices = new List<int>();
+        for (int i = 0; i < snaps.Count; i++)
+        {
+            if (snaps[i].FieldOwner == owner)
+            {
+                indices.Add(i);
+            }
+        }
+
+        indices.Sort((a, b) => snaps[a].Slot.CompareTo(snaps[b].Slot));
+        if (indices.Count == 0)
+        {
+            sb.Append("(none)");
+            return;
+        }
+
+        for (int k = 0; k < indices.Count; k++)
+        {
+            if (k > 0)
+            {
+                sb.Append("  |  ");
+            }
+
+            VirtualBattleUnitSnap s = snaps[indices[k]];
+            sb.Append('#').Append(s.Slot).Append(':').Append(s.Name).Append("(id:").Append(s.Id).Append(") AP=").Append(s.Ap).Append(" HP=").Append(s.Hp);
+        }
+    }
+
+    /// <summary>仮想枝の見出し用。0→PatternA, 1→PatternB …（26 超は Pattern27 形式）。</summary>
+    private static string FormatHypothesisPatternLetterLabel(int zeroBasedIndex)
+    {
+        if (zeroBasedIndex < 0)
+        {
+            zeroBasedIndex = 0;
+        }
+
+        if (zeroBasedIndex < 26)
+        {
+            return "Pattern" + (char)('A' + zeroBasedIndex);
+        }
+
+        return "Pattern" + (zeroBasedIndex + 1);
+    }
+
+    /// <summary>ユニットが座っているバトルゾーンのスロット番号（見つからなければ -1）。</summary>
+    private int TryGetUnitBattleZoneSlotIndex(CardController unit)
+    {
+        if (unit == null)
+        {
+            return -1;
+        }
+
+        if (playerBattleZoneCards != null)
+        {
+            for (int i = 0; i < playerBattleZoneCards.Count; i++)
+            {
+                if (playerBattleZoneCards[i] == unit)
+                {
+                    return i;
+                }
+            }
+        }
+
+        if (enemyBattleZoneCards != null)
+        {
+            for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+            {
+                if (enemyBattleZoneCards[i] == unit)
+                {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// OnAction 仮想適用後の盤面スナップ上で、攻撃中ユニット vs 宣言／ブロック防御ユニットの 1 交換を簡易計算してログする（本番は変更しない）。
+    /// 計算式は <see cref="TryUnitVsUnitAttack"/> の相互 ApplyDamage に合わせ AP をダメージ量とする（OnAttack 連鎖は未再現）。
+    /// </summary>
+    private void LogVirtualHypotheticalBattleExchangeAfterOnActionCommand(
+        List<VirtualBattleUnitSnap> snapsAfterOnActionCommand,
+        CardController hypotheticalCommandTarget,
+        string patternLabel,
+        int pickIndex,
+        CardController command,
+        PlayerType commandOwnerSide,
+        CardController attackingUnitInAttackFlow,
+        string relatedHypotheticalLogTag)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (snapsAfterOnActionCommand == null || hypotheticalCommandTarget?.Data == null || command?.Data == null
+            || attackingUnitInAttackFlow == null || attackingUnitInAttackFlow.Data == null)
+        {
+            return;
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            return;
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield)
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " hypotheticalCommandPick:" + hypotheticalCommandTarget.Data.cardName + "(id:" + hypotheticalCommandTarget.Data.id
+                + ") cmdId:" + command.Data.id + " note:strike:Shield — unitVsUnit exchange sim skipped.");
+            return;
+        }
+
+        if (attackFlowStrikeKind != AttackFlowStrikeKind.UnitVsUnit)
+        {
+            return;
+        }
+
+        CardController combatDefender = attackFlowBlockRedirectUnit != null ? attackFlowBlockRedirectUnit : attackFlowDeclaredDefenderUnit;
+        if (combatDefender == null || combatDefender.Data == null || !combatDefender.Data.IsUnitLike())
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " note:UnitVsUnit but no combat defender in AttackContext — exchange sim skipped.");
+            return;
+        }
+
+        List<VirtualBattleUnitSnap> battle = CloneVirtualBattleSnaps(snapsAfterOnActionCommand);
+        VirtualBattleUnitSnap atkSnap = FindBattleVirtualSnap(battle, attackingUnitInAttackFlow);
+        VirtualBattleUnitSnap defSnap = FindBattleVirtualSnap(battle, combatDefender);
+        if (atkSnap == null || defSnap == null)
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " note:attacker or defender not in virtual snapshot — exchange sim skipped.");
+            return;
+        }
+
+        int atkPower = atkSnap.Ap;
+        int defPower = defSnap.Ap;
+        int atkHpBefore = atkSnap.Hp;
+        int defHpBefore = defSnap.Hp;
+        if (atkHpBefore <= 0)
+        {
+            Debug.Log(
+                "[OnActionHypotheticalBattleSim] relatedTag:" + relatedHypotheticalLogTag + " patternLabel:" + patternLabel + " pickIndex:"
+                + pickIndex + " note:virtual attacker HP<=0 after command — exchange sim skipped.");
+            return;
+        }
+
+        defSnap.Hp = Mathf.Max(0, defSnap.Hp - atkPower);
+        atkSnap.Hp = Mathf.Max(0, atkSnap.Hp - defPower);
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(900);
+        sb.Append("[OnActionHypotheticalBattleSim] relatedTag:").Append(relatedHypotheticalLogTag).Append(" patternLabel:").Append(patternLabel)
+            .Append(" pickIndex:").Append(pickIndex).Append(" hypotheticalCommandPick:").Append(hypotheticalCommandTarget.Data.cardName).Append("(id:")
+            .Append(hypotheticalCommandTarget.Data.id).Append(") cmd:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(") side:")
+            .Append(commandOwnerSide).AppendLine();
+        sb.AppendLine(
+            "  note:Virtual 1-exchange after OnAction on field: defender.HP -= attacker.AP; attacker.HP -= defender.AP (AP from virtual snap post-command). OnAttack-timing modifiers not re-applied.");
+        sb.Append("  combatAttacker:").Append(attackingUnitInAttackFlow.Data.cardName).Append("(id:").Append(attackingUnitInAttackFlow.Data.id)
+            .Append(") virtualAP=").Append(atkPower).Append(" virtualHP_beforeExchange=").Append(atkHpBefore).AppendLine();
+        sb.Append("  combatDefender:").Append(combatDefender.Data.cardName).Append("(id:").Append(combatDefender.Data.id).Append(") virtualAP=")
+            .Append(defPower).Append(" virtualHP_beforeExchange=").Append(defHpBefore);
+        if (attackFlowBlockRedirectUnit != null && combatDefender == attackFlowBlockRedirectUnit)
+        {
+            sb.Append(" [defenderIsBlockRedirectUnit]");
+        }
+
+        sb.AppendLine();
+        sb.Append("  exchangeCalc: defenderHP ").Append(defHpBefore).Append(" - attackerAP ").Append(atkPower).Append(" -> ").Append(defSnap.Hp)
+            .Append("; attackerHP ").Append(atkHpBefore).Append(" - defenderAP ").Append(defPower).Append(" -> ").Append(atkSnap.Hp).AppendLine();
+        sb.Append("  virtualFieldOneLineAfterCommandAndCombat: ").Append(FormatVirtualBattleFieldLine(battle)).AppendLine();
+        sb.AppendLine("  === VirtualField_AP_HP_by_side_afterCommandAndCombat (攻撃中=[ユニットナウ] / ブロック中=[ブロックナウ]) ===");
+        AppendCompactVirtualSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, battle, PlayerType.Player, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        AppendCompactVirtualSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, battle, PlayerType.Enemy, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        if (attackingUnitInAttackFlow != null && attackFlowBlockRedirectUnit != null)
+        {
+            AppendAttackBlockNowVsAttackNowCalcLines(sb, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit, battle);
+        }
+
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// OnAction で敵ユニット候補ごとに「そのユニットを選んだ場合の仮想盤面」を、本番スナップショットと同型でログする（ゲーム状態は変更しない）。
+    /// </summary>
+    /// <param name="logTagPrimary">先頭 1 行のタグ（敵 AI 探索用は <c>[EnemyAiOnActionHypothetical]</c> など）。</param>
+    /// <param name="logTagDetail">詳細盤面ログのタグ。</param>
+    /// <param name="searchRole">ログ上の発生源（AI 向けに区別）。</param>
+    private void LogOnActionHypotheticalBoardForEnemyPick(
+        CardController command,
+        PlayerType commandOwnerSide,
+        EffectData effect,
+        CardController hypotheticalEnemyTarget,
+        int candidateIndex,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        string logTagPrimary = "[OnActionHypotheticalBoard]",
+        string logTagDetail = "[OnActionHypotheticalBoardDetail]",
+        string searchRole = "OnActionTargetPicker")
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (command == null || command.Data == null || effect == null || hypotheticalEnemyTarget == null
+            || hypotheticalEnemyTarget.Data == null)
+        {
+            return;
+        }
+
+        string patternLabel = FormatHypothesisPatternLetterLabel(candidateIndex);
+        int targetSlot = TryGetUnitBattleZoneSlotIndex(hypotheticalEnemyTarget);
+
+        List<VirtualBattleUnitSnap> before = BuildFullBattleVirtualSnapshot();
+        List<VirtualBattleUnitSnap> after = CloneVirtualBattleSnaps(before);
+        int hypotheticalMagnitude = ResolveEffectMagnitude(effect, commandOwnerSide, command);
+        ApplyVirtualBattleEffectToTargetsOnSnaps(
+            after,
+            effect,
+            new List<CardController> { hypotheticalEnemyTarget },
+            hypotheticalMagnitude,
+            command,
+            commandOwnerSide);
+        LogVirtualHypotheticalBattleExchangeAfterOnActionCommand(
+            after,
+            hypotheticalEnemyTarget,
+            patternLabel,
+            candidateIndex,
+            command,
+            commandOwnerSide,
+            attackingUnitInAttackFlow,
+            logTagPrimary);
+        System.Text.StringBuilder header = new System.Text.StringBuilder(512);
+        header.AppendLine(
+            logTagPrimary + " patternRow:" + patternLabel + " pickIndex:" + candidateIndex + " targetUnit:"
+            + hypotheticalEnemyTarget.Data.cardName + "(id:" + hypotheticalEnemyTarget.Data.id + ") zoneSlotIndex:#" + targetSlot
+            + " cmdId:" + command.Data.id);
+        header.Append(logTagPrimary).Append(" searchRole:").Append(searchRole).Append(" patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:PickEnemyIndex_").Append(candidateIndex).Append("_IfPick_")
+            .Append(hypotheticalEnemyTarget.Data.cardName).Append("(id:").Append(hypotheticalEnemyTarget.Data.id).Append(")")
+            .Append(" command:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(")")
+            .Append(" effect:").Append(effect.type).Append(" value:").Append(effect.value).Append(" stat:").Append(effect.statTarget)
+            .Append(" side:").Append(commandOwnerSide).Append(" zoneSlotIndex:#").Append(targetSlot);
+        if (commandQueueIndex >= 0 && commandQueueCount > 0)
+        {
+            header.Append(" queue:").Append(commandQueueIndex + 1).Append("/").Append(commandQueueCount);
+        }
+
+        header.Append(' ').Append(FormatBlockRedirectProbeInline(commandOwnerSide));
+        Debug.Log(header.ToString());
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(4096);
+        sb.Append(logTagDetail).Append(" searchRole:").Append(searchRole).Append(" patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:PickEnemyIndex_").Append(candidateIndex).Append(" (same pick as previous line)")
+            .AppendLine();
+        sb.Append("  -------- ").Append(patternLabel).Append(" / target:").Append(hypotheticalEnemyTarget.Data.cardName).Append("(id:")
+            .Append(hypotheticalEnemyTarget.Data.id).Append(") zoneSlotIndex:#").Append(targetSlot).Append(" --------").AppendLine();
+        sb.AppendLine(
+            "  note:Virtual field AP/HP below = if this command's EnemyUnit effect resolves on hypotheticalPick only (Damage/Buff/Debuff). Draw/trash/resource unchanged vs live.");
+        sb.Append("  summaryOneLine:before ").Append(FormatVirtualBattleFieldLine(before)).AppendLine();
+        sb.Append("  summaryOneLine:after  ").Append(FormatVirtualBattleFieldLine(after)).AppendLine();
+
+        System.Text.StringBuilder ctx = new System.Text.StringBuilder(192);
+        ctx.Append("onActionHypothetical|").Append(searchRole).Append("|").Append(patternLabel).Append("|PickEnemyIndex_").Append(candidateIndex)
+            .Append("|ifPickId:").Append(hypotheticalEnemyTarget.Data.id).Append("|cmdId:").Append(command.Data.id).Append("|side:")
+            .Append(commandOwnerSide);
+        if (commandQueueIndex >= 0 && commandQueueCount > 0)
+        {
+            ctx.Append("|queue:").Append(commandQueueIndex + 1).Append('/').Append(commandQueueCount);
+        }
+
+        AppendHypotheticalOnActionBoardSnapshotLines(sb, ctx.ToString(), commandOwnerSide, attackingUnitInAttackFlow, after);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// エネミー手札の OnAction コマンドごとに、対プレイヤー（<see cref="TargetType.EnemyUnit"/>）の仮想枝と盤面を列挙する。評価関数・後続 AI 用。
+    /// </summary>
+    private void LogEnemyAiOnActionHypotheticalSearchSpace(
+        string flowContext,
+        List<CardController> eligibleEnemyHandCommands,
+        CardController attackingUnitInAttackFlow)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (eligibleEnemyHandCommands == null || eligibleEnemyHandCommands.Count == 0)
+        {
+            return;
+        }
+
+        int approxBranchRows = 0;
+        for (int i = 0; i < eligibleEnemyHandCommands.Count; i++)
+        {
+            CardController c = eligibleEnemyHandCommands[i];
+            if (c?.Data == null)
+            {
+                continue;
+            }
+
+            List<EffectData> fx = GetEffectsByTiming(c.Data, EffectTiming.OnAction);
+            EffectData enemyPick = fx.Find(e => e != null && EffectRequiresManualUnitSelection(e));
+            approxBranchRows += enemyPick != null
+                ? ResolveSelectableEffectTargets(c, PlayerType.Enemy, enemyPick).Count
+                : 1;
+        }
+
+        Debug.Log(
+            "[EnemyAiOnActionSearch] phase:HypotheticalSpaceOpening flowContext:" + flowContext + " eligibleHandCommands:"
+            + eligibleEnemyHandCommands.Count + " approxHypotheticalLogs:" + approxBranchRows
+            + " tags:[EnemyAiOnActionHypothetical] one-line + [EnemyAiOnActionHypotheticalDetail] board "
+            + FormatBlockRedirectProbeInline(PlayerType.Enemy));
+
+        int nCmd = eligibleEnemyHandCommands.Count;
+        for (int ci = 0; ci < nCmd; ci++)
+        {
+            CardController cmd = eligibleEnemyHandCommands[ci];
+            if (cmd?.Data == null)
+            {
+                continue;
+            }
+
+            List<EffectData> onActionEffects = GetEffectsByTiming(cmd.Data, EffectTiming.OnAction);
+            if (onActionEffects == null || onActionEffects.Count == 0)
+            {
+                Debug.Log(
+                    "[EnemyAiOnActionSearch] commandSkip cmdId:" + cmd.Data.id + " reason:noOnActionEffects flowContext:" + flowContext);
+                continue;
+            }
+
+            EffectData enemyTargetEffect = onActionEffects.Find(e => e != null && EffectRequiresManualUnitSelection(e));
+            if (enemyTargetEffect != null)
+            {
+                List<CardController> playerSideTargets = ResolveSelectableEffectTargets(
+                    cmd,
+                    PlayerType.Enemy,
+                    enemyTargetEffect);
+                Debug.Log(
+                    "[EnemyAiOnActionSearch] commandBranch source:Hand cmdIndex:" + ci + "/" + nCmd + " cmdId:" + cmd.Data.id
+                    + " name:" + cmd.Data.cardName + " playerSideUnitBranches:" + playerSideTargets.Count + " cost:" + cmd.CurrentCost
+                    + " flowContext:" + flowContext);
+                System.Text.StringBuilder patternTable = new System.Text.StringBuilder(256);
+                patternTable.Append("[EnemyAiOnActionSearch] patternTable cmdQueue:").Append(ci + 1).Append('/').Append(nCmd).Append(" cmdId:")
+                    .Append(cmd.Data.id).Append(' ').Append(FormatBlockRedirectProbeInline(PlayerType.Enemy)).AppendLine();
+                for (int pi = 0; pi < playerSideTargets.Count; pi++)
+                {
+                    CardController pt = playerSideTargets[pi];
+                    if (pt?.Data == null)
+                    {
+                        continue;
+                    }
+
+                    int ps = TryGetUnitBattleZoneSlotIndex(pt);
+                    patternTable.Append("  patternRow:").Append(FormatHypothesisPatternLetterLabel(pi)).Append(" → target:")
+                        .Append(pt.Data.cardName).Append("(id:").Append(pt.Data.id).Append(") zoneSlotIndex:#").Append(ps).AppendLine();
+                }
+
+                Debug.Log(patternTable.ToString());
+                for (int ti = 0; ti < playerSideTargets.Count; ti++)
+                {
+                    LogOnActionHypotheticalBoardForEnemyPick(
+                        cmd,
+                        PlayerType.Enemy,
+                        enemyTargetEffect,
+                        playerSideTargets[ti],
+                        ti,
+                        attackingUnitInAttackFlow,
+                        ci,
+                        Mathf.Max(1, nCmd),
+                        "[EnemyAiOnActionHypothetical]",
+                        "[EnemyAiOnActionHypotheticalDetail]",
+                        "EnemyAiHandCommandSearch");
+                }
+            }
+            else
+            {
+                Debug.Log(
+                    "[EnemyAiOnActionSearch] commandBranch source:Hand cmdIndex:" + ci + "/" + nCmd + " cmdId:" + cmd.Data.id
+                    + " name:" + cmd.Data.cardName + " noEnemyUnitPickerEffect flowContext:" + flowContext);
+                LogEnemyAiHypotheticalDirectOnActionEffectChain(
+                    cmd,
+                    PlayerType.Enemy,
+                    onActionEffects,
+                    attackingUnitInAttackFlow,
+                    ci,
+                    Mathf.Max(1, nCmd),
+                    flowContext);
+            }
+        }
+    }
+
+    /// <summary>
+    /// EnemyUnit 選択を伴わない OnAction の連鎖を、仮想盤面として 1 枝ログする（Draw/BlockRedirect はスキップ）。
+    /// </summary>
+    private void LogEnemyAiHypotheticalDirectOnActionEffectChain(
+        CardController command,
+        PlayerType commandOwnerSide,
+        List<EffectData> onActionEffects,
+        CardController attackingUnitInAttackFlow,
+        int commandIndex,
+        int commandCount,
+        string flowContext)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (command?.Data == null || onActionEffects == null)
+        {
+            return;
+        }
+
+        List<VirtualBattleUnitSnap> before = BuildFullBattleVirtualSnapshot();
+        List<VirtualBattleUnitSnap> working = CloneVirtualBattleSnaps(before);
+        System.Text.StringBuilder trace = new System.Text.StringBuilder(128);
+        for (int ei = 0; ei < onActionEffects.Count; ei++)
+        {
+            EffectData eff = onActionEffects[ei];
+            if (eff == null)
+            {
+                continue;
+            }
+
+            if (eff.type == EffectType.Draw || eff.type == EffectType.Look || eff.type == EffectType.AddToHandFromLooked
+                || eff.type == EffectType.DeployUnitFromLooked
+                || eff.type == EffectType.ReturnLookedRemainderToDeckTop
+                || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
+                || eff.type == EffectType.ChooseLookedRemainderDisposition
+                || eff.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
+                || eff.type == EffectType.ChooseLookedToDeckTopThenBottomRemainder
+                || eff.type == EffectType.MillTopToTrash
+                || eff.type == EffectType.ExileFromDeck
+                || eff.type == EffectType.ExileFromTrash
+                || eff.type == EffectType.ReturnFromTrashToDeckAndShuffle
+                || eff.type == EffectType.BlockRedirect || eff.type == EffectType.HighMobility
+                || eff.type == EffectType.AttackActiveEnemyUnit)
+            {
+                trace.Append('[').Append(ei).Append(':').Append(eff.type).Append(" skip] ");
+                continue;
+            }
+
+            int magnitude = ResolveEffectMagnitude(eff, commandOwnerSide, command);
+            if (magnitude == 0 && !eff.type.UsesTargetCountValue())
+            {
+                continue;
+            }
+
+            List<CardController> targets = ResolveEffectTargets(command, commandOwnerSide, eff);
+            if (targets == null || targets.Count == 0)
+            {
+                trace.Append('[').Append(ei).Append(":noTargets] ");
+                continue;
+            }
+
+            ApplyVirtualBattleEffectToTargetsOnSnaps(working, eff, targets, magnitude, command, commandOwnerSide);
+            trace.Append('[').Append(ei).Append(':').Append(eff.type).Append('x').Append(targets.Count).Append("] ");
+        }
+
+        System.Text.StringBuilder header = new System.Text.StringBuilder(384);
+        string patternLabel = "PatternCmd_" + FormatHypothesisPatternLetterLabel(commandIndex);
+        header.AppendLine(
+            "[EnemyAiOnActionHypothetical] patternRow:" + patternLabel + " cmdQueueIndex:" + commandIndex + " cmdId:" + command.Data.id
+            + " flowContext:" + flowContext);
+        header.Append("[EnemyAiOnActionHypothetical] searchRole:EnemyAiHandCommandSearch patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:DirectChain_cmdIdx_")
+            .Append(commandIndex).Append("_cmdId_").Append(command.Data.id).Append(" command:").Append(command.Data.cardName)
+            .Append(" side:").Append(commandOwnerSide).Append(" queue:").Append(commandIndex + 1).Append("/").Append(commandCount)
+            .Append(" flowContext:").Append(flowContext).Append(" virtualTrace:").Append(trace.Length > 0 ? trace.ToString() : "(none)")
+            .Append(' ').Append(FormatBlockRedirectProbeInline(commandOwnerSide));
+        Debug.Log(header.ToString());
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(4096);
+        sb.Append("[EnemyAiOnActionHypotheticalDetail] patternLabel:").Append(patternLabel)
+            .Append(" hypothesisPattern:DirectChain_cmdIdx_").Append(commandIndex).Append(" (same branch as previous line)")
+            .AppendLine();
+        sb.Append("  -------- ").Append(patternLabel).Append(" / DirectOnActionEffectChain cmdId:").Append(command.Data.id).Append(" --------")
+            .AppendLine();
+        sb.AppendLine(
+            "  note:Virtual field = sequential Damage/Buff/Debuff from ResolveEffectTargets per effect; Draw/BlockRedirect skipped. Rules unchanged vs live.");
+        sb.Append("  summaryOneLine:before ").Append(FormatVirtualBattleFieldLine(before)).AppendLine();
+        sb.Append("  summaryOneLine:after  ").Append(FormatVirtualBattleFieldLine(working)).AppendLine();
+        System.Text.StringBuilder ctx = new System.Text.StringBuilder(192);
+        ctx.Append("enemyAiOnActionHypothetical|DirectChain|").Append(patternLabel).Append("|cmdIdx_").Append(commandIndex).Append("|cmdId:")
+            .Append(command.Data.id).Append("|side:").Append(commandOwnerSide).Append("|flow:").Append(flowContext);
+        AppendHypotheticalOnActionBoardSnapshotLines(sb, ctx.ToString(), commandOwnerSide, attackingUnitInAttackFlow, working);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// アタック系 OnAction でコマンドを使わず閉じたときの盤面スナップショット。
+    /// </summary>
+    private void LogAttackOnActionDecisionWithBoard(
+        string pattern,
+        string flowContext,
+        PlayerType side,
+        CardController attackingUnitInAttackFlow)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(flowContext) || !flowContext.Contains("attack"))
+        {
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(1400);
+        sb.Append("[AttackOnActionDecision] pattern:").Append(pattern).Append(" flowContext:").Append(flowContext).Append(" side:")
+            .Append(side).AppendLine();
+        AppendBoardStateSnapshotLines(sb, "attackOnActionDecision|" + pattern + "|" + flowContext, side, attackingUnitInAttackFlow);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// OnAction の効果を、プレイヤー盤面ユニットへの影響だけ数値シミュレーションしてログする（ゲーム状態は変更しない）。
+    /// </summary>
+    private void LogVirtualOnActionCommandOutcomeForPlayerUnits(CardController commandCard, PlayerType commandOwner, string contextTag)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (commandCard == null || commandCard.Data == null)
+        {
+            return;
+        }
+
+        List<EffectData> effects = GetEffectsByTiming(commandCard.Data, EffectTiming.OnAction);
+        if (effects == null || effects.Count == 0)
+        {
+            return;
+        }
+
+        List<VirtualPlayerUnitSnap> before = BuildVirtualPlayerZoneSnapshot();
+        List<VirtualPlayerUnitSnap> working = CloneVirtualPlayerSnaps(before);
+        System.Text.StringBuilder notes = new System.Text.StringBuilder();
+
+        for (int ei = 0; ei < effects.Count; ei++)
+        {
+            EffectData effect = effects[ei];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            int magnitude = ResolveEffectMagnitude(effect, commandOwner, commandCard);
+            switch (effect.type)
+            {
+                case EffectType.BlockRedirect:
+                    notes.Append("[BlockRedirect] ");
+                    continue;
+                case EffectType.HighMobility:
+                    notes.Append("[HighMobility] ");
+                    continue;
+                case EffectType.BattleDamageImmunityFromLowApEnemy:
+                    notes.Append("[BattleDamageImmunity] ");
+                    continue;
+                case EffectType.AttackActiveEnemyUnit:
+                    notes.Append("[AttackActiveEnemyUnit] ");
+                    continue;
+                case EffectType.ForceEnemyAttackTarget:
+                    notes.Append("[ForceEnemyAttackTarget] ");
+                    continue;
+                case EffectType.CannotBeChosenAsAttackTarget:
+                    notes.Append("[CannotBeChosenAsAttackTarget] ");
+                    continue;
+                case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
+                    notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
+                    notes.Append("[ShieldAreaUnitDmgImmunity Lv≤").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
+                    notes.Append("[PreventStartPhaseActiveLowestRest] ");
+                    continue;
+                case EffectType.PreventNextStartPhaseActive:
+                    notes.Append("[PreventNextStartPhaseActive] ");
+                    continue;
+                case EffectType.Draw:
+                    notes.Append("[Draw ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.AddShieldToHand:
+                    notes.Append("[AddShieldToHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.AddSelfToHand:
+                    notes.Append("[AddSelfToHand] ");
+                    continue;
+                case EffectType.DeploySelfToShield:
+                    notes.Append("[DeploySelfToShield] ");
+                    continue;
+                case EffectType.DeployShieldFromHand:
+                    notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.DeployBase:
+                    notes.Append("[DeployBase ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.Suppress:
+                    notes.Append("[Suppress] ");
+                    continue;
+            }
+
+            if (magnitude == 0)
+            {
+                continue;
+            }
+
+            switch (effect.type)
+            {
+                case EffectType.Damage:
+                {
+                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
+                    for (int ti = 0; ti < dmgTargets.Count; ti++)
+                    {
+                        CardController dmgTarget = dmgTargets[ti];
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, dmgTarget);
+                        if (snap != null)
+                        {
+                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(
+                                magnitude,
+                                working,
+                                dmgTarget,
+                                commandOwner);
+                            snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
+                        }
+                    }
+
+                    if (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)
+                    {
+                        notes.Append("[AreaDamage mag=").Append(magnitude).Append(" target=").Append(effect.target).Append(" → unit HP/AP には未反映] ");
+                    }
+
+                    break;
+                }
+                case EffectType.Buff:
+                case EffectType.Debuff:
+                {
+                    int sign = effect.type == EffectType.Buff ? 1 : -1;
+                    int signedValue = sign * magnitude;
+                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
+                    for (int ti = 0; ti < statTargets.Count; ti++)
+                    {
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, statTargets[ti]);
+                        if (snap != null)
+                        {
+                            ApplyVirtualStatToSnap(snap, signedValue, effect.statTarget);
+                        }
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        string beforeLine = FormatVirtualPlayerUnitsLine(before);
+        string afterLine = FormatVirtualPlayerUnitsLine(working);
+        Debug.Log(
+            $"[VirtualOnAction→PlayerUnits] ctx:{contextTag} commandOwner:{commandOwner} card:{commandCard.Data.cardName}(id:{commandCard.Data.id})\n"
+            + $"  before: {beforeLine}\n"
+            + $"  after:  {afterLine}\n"
+            + $"  notes: {(notes.Length > 0 ? notes.ToString() : "(none)")}");
+    }
+
+    /// <summary>
+    /// ブロック／リダイレクトしたユニット 1 体にだけ、OnAction コマンドが当たった場合の仮想 HP/AP（ログのみ）。
+    /// </summary>
+    private void LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(
+        CardController commandCard,
+        PlayerType commandOwner,
+        CardController focusUnit,
+        string contextTag)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (commandCard == null
+            || commandCard.Data == null
+            || focusUnit == null
+            || focusUnit.Data == null
+            || !focusUnit.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(contextTag) || !contextTag.Contains("attack"))
+        {
+            return;
+        }
+
+        List<EffectData> effects = GetEffectsByTiming(commandCard.Data, EffectTiming.OnAction);
+        if (effects == null || effects.Count == 0)
+        {
+            return;
+        }
+
+        List<VirtualPlayerUnitSnap> before = new List<VirtualPlayerUnitSnap>
+        {
+            new VirtualPlayerUnitSnap
+            {
+                Controller = focusUnit,
+                Slot = -1,
+                Name = focusUnit.Data.cardName,
+                Id = focusUnit.Data.id,
+                Hp = focusUnit.CurrentHp,
+                Ap = focusUnit.CurrentPower,
+                EffectDamageMod = focusUnit.CurrentEffectDamageModifier,
+                EffectDamageImmunityCount = focusUnit.CurrentEffectDamageImmunityCount,
+            },
+        };
+        List<VirtualPlayerUnitSnap> working = CloneVirtualPlayerSnaps(before);
+        System.Text.StringBuilder notes = new System.Text.StringBuilder();
+
+        for (int ei = 0; ei < effects.Count; ei++)
+        {
+            EffectData effect = effects[ei];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            int magnitude = ResolveEffectMagnitude(effect, commandOwner, commandCard);
+            switch (effect.type)
+            {
+                case EffectType.BlockRedirect:
+                    notes.Append("[BlockRedirect] ");
+                    continue;
+                case EffectType.HighMobility:
+                    notes.Append("[HighMobility] ");
+                    continue;
+                case EffectType.BattleDamageImmunityFromLowApEnemy:
+                    notes.Append("[BattleDamageImmunity] ");
+                    continue;
+                case EffectType.AttackActiveEnemyUnit:
+                    notes.Append("[AttackActiveEnemyUnit] ");
+                    continue;
+                case EffectType.ForceEnemyAttackTarget:
+                    notes.Append("[ForceEnemyAttackTarget] ");
+                    continue;
+                case EffectType.CannotBeChosenAsAttackTarget:
+                    notes.Append("[CannotBeChosenAsAttackTarget] ");
+                    continue;
+                case EffectType.GrantShieldAreaEnemyEffectDamageReduction:
+                    notes.Append("[ShieldAreaDmgReduction ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
+                    notes.Append("[ShieldAreaUnitDmgImmunity Lv≤").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
+                    notes.Append("[PreventStartPhaseActiveLowestRest] ");
+                    continue;
+                case EffectType.PreventNextStartPhaseActive:
+                    notes.Append("[PreventNextStartPhaseActive] ");
+                    continue;
+                case EffectType.Draw:
+                    notes.Append("[Draw ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.AddShieldToHand:
+                    notes.Append("[AddShieldToHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.AddSelfToHand:
+                    notes.Append("[AddSelfToHand] ");
+                    continue;
+                case EffectType.DeploySelfToShield:
+                    notes.Append("[DeploySelfToShield] ");
+                    continue;
+                case EffectType.DeployShieldFromHand:
+                    notes.Append("[DeployShieldFromHand ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.DeployBase:
+                    notes.Append("[DeployBase ").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.Suppress:
+                    notes.Append("[Suppress] ");
+                    continue;
+            }
+
+            if (magnitude == 0)
+            {
+                continue;
+            }
+
+            switch (effect.type)
+            {
+                case EffectType.Damage:
+                {
+                    List<CardController> dmgTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
+                    bool hitsFocus = false;
+                    for (int ti = 0; ti < dmgTargets.Count; ti++)
+                    {
+                        if (dmgTargets[ti] == focusUnit)
+                        {
+                            hitsFocus = true;
+                            break;
+                        }
+                    }
+
+                    if (hitsFocus)
+                    {
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, focusUnit);
+                        if (snap != null)
+                        {
+                            int damageAmount = ResolveEffectDamageAmountForVirtualPlayerLog(
+                                magnitude,
+                                working,
+                                focusUnit,
+                                commandOwner);
+                            snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
+                        }
+                    }
+                    else if (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)
+                    {
+                        notes.Append("[AreaDamage → blocker unit には未反映] ");
+                    }
+
+                    break;
+                }
+                case EffectType.Buff:
+                case EffectType.Debuff:
+                {
+                    int sign = effect.type == EffectType.Buff ? 1 : -1;
+                    int signedValue = sign * magnitude;
+                    List<CardController> statTargets = ResolveEffectTargets(commandCard, commandOwner, effect);
+                    bool hitsFocus = false;
+                    for (int ti = 0; ti < statTargets.Count; ti++)
+                    {
+                        if (statTargets[ti] == focusUnit)
+                        {
+                            hitsFocus = true;
+                            break;
+                        }
+                    }
+
+                    if (hitsFocus)
+                    {
+                        VirtualPlayerUnitSnap snap = FindPlayerVirtualSnap(working, focusUnit);
+                        if (snap != null)
+                        {
+                            ApplyVirtualStatToSnap(snap, signedValue, effect.statTarget);
+                        }
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        string beforeLine = FormatVirtualPlayerUnitsLine(before);
+        string afterLine = FormatVirtualPlayerUnitsLine(working);
+        Debug.Log(
+            $"[VirtualOnAction→BlockerUnit] ctx:{contextTag} commandOwner:{commandOwner} card:{commandCard.Data.cardName}(id:{commandCard.Data.id}) focus:{focusUnit.Data.cardName}(id:{focusUnit.Data.id})\n"
+            + $"  before: {beforeLine}\n"
+            + $"  after:  {afterLine}\n"
+            + $"  notes: {(notes.Length > 0 ? notes.ToString() : "(none)")}");
+    }
+
+    /// <summary>盤面（Rule / AttackContext / ゾーン / AttackingUnit）を StringBuilder に追記。先頭の [タグ] 行は呼び出し側。</summary>
+    private void AppendBoardStateSnapshotLines(
+        System.Text.StringBuilder sb,
+        string context,
+        PlayerType activeSide,
+        CardController attackingUnitInAttackFlow)
+    {
+        sb.Append("  context:").Append(context).Append(" activeSide:").Append(activeSide)
+            .Append(" battlePhase:").Append(currentPhase).Append(" currentPlayerType:").Append(currentPlayerType).AppendLine();
+
+        Gundam2024RuleScript.PlayerState p = gundamRule.Player;
+        Gundam2024RuleScript.PlayerState e = gundamRule.Enemy;
+        sb.Append("  Rule_Player: level:").Append(p.level).Append(" exResource:").Append(p.exResource).Append(" TotalLevel:").Append(p.TotalLevel)
+            .Append(" resource:").Append(p.resource).Append(" shield:").Append(p.shield).Append(" exBase:").Append(p.exBase)
+            .Append(" handCount:").Append(p.handCount).Append(" deckCount:").Append(p.deckCount).AppendLine();
+        sb.Append("  Rule_Enemy: level:").Append(e.level).Append(" exResource:").Append(e.exResource).Append(" TotalLevel:").Append(e.TotalLevel)
+            .Append(" resource:").Append(e.resource).Append(" shield:").Append(e.shield).Append(" exBase:").Append(e.exBase)
+            .Append(" handCount:").Append(e.handCount).Append(" deckCount:").Append(e.deckCount).AppendLine();
+
+        AppendAttackFlowContextToSnapshot(sb, activeSide);
+
+        sb.AppendLine("  === Field: AP/HP (味方・敵 同時) ===");
+        AppendCompactSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        AppendCompactSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        if (attackingUnitInAttackFlow != null && attackFlowBlockRedirectUnit != null)
+        {
+            AppendAttackBlockNowVsAttackNowCalcLines(sb, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit, null);
+        }
+
+        AppendBattleZoneDetailSnapshotLines(sb, "詳細 PlayerBattleZone", playerBattleZoneCards, PlayerType.Player);
+        AppendBattleZoneDetailSnapshotLines(sb, "詳細 EnemyBattleZone", enemyBattleZoneCards, PlayerType.Enemy);
+
+        if (attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null)
+        {
+            PlayerType atkOwner = ResolveCardOwner(attackingUnitInAttackFlow.transform);
+            sb.Append("  AttackingUnit: ").Append(attackingUnitInAttackFlow.Data.cardName).Append("(id:").Append(attackingUnitInAttackFlow.Data.id)
+                .Append(") AP=").Append(attackingUnitInAttackFlow.CurrentPower).Append(" HP=").Append(attackingUnitInAttackFlow.CurrentHp)
+                .Append(" REST:").Append(attackingUnitInAttackFlow.IsRestState).Append(" AtkFlg:").Append(attackingUnitInAttackFlow.AttackFlgState)
+                .Append(" owner:").Append(atkOwner).AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("  AttackingUnit: (none)");
+        }
+    }
+
+    /// <summary>
+    /// OnAction で「敵ユニット X を選んだ場合」の仮想盤面を、<see cref="AppendBoardStateSnapshotLines"/> と同じ構成で追記（フィールド AP/HP のみ仮想値）。
+    /// </summary>
+    private void AppendHypotheticalOnActionBoardSnapshotLines(
+        System.Text.StringBuilder sb,
+        string context,
+        PlayerType activeSide,
+        CardController attackingUnitInAttackFlow,
+        List<VirtualBattleUnitSnap> virtualSnaps)
+    {
+        sb.Append("  context:").Append(context).Append(" activeSide:").Append(activeSide)
+            .Append(" battlePhase:").Append(currentPhase).Append(" currentPlayerType:").Append(currentPlayerType).AppendLine();
+
+        Gundam2024RuleScript.PlayerState p = gundamRule.Player;
+        Gundam2024RuleScript.PlayerState e = gundamRule.Enemy;
+        sb.Append("  Rule_Player: level:").Append(p.level).Append(" exResource:").Append(p.exResource).Append(" TotalLevel:").Append(p.TotalLevel)
+            .Append(" resource:").Append(p.resource).Append(" shield:").Append(p.shield).Append(" exBase:").Append(p.exBase)
+            .Append(" handCount:").Append(p.handCount).Append(" deckCount:").Append(p.deckCount).AppendLine();
+        sb.Append("  Rule_Enemy: level:").Append(e.level).Append(" exResource:").Append(e.exResource).Append(" TotalLevel:").Append(e.TotalLevel)
+            .Append(" resource:").Append(e.resource).Append(" shield:").Append(e.shield).Append(" exBase:").Append(e.exBase)
+            .Append(" handCount:").Append(e.handCount).Append(" deckCount:").Append(e.deckCount).AppendLine();
+
+        AppendAttackFlowContextToSnapshot(sb, activeSide);
+
+        sb.AppendLine("  === Virtual Field: if command resolves against hypothetical pick (unit AP/HP only) ===");
+        AppendCompactVirtualSideUnitsApHpLine(sb, "味方", playerBattleZoneCards, virtualSnaps, PlayerType.Player, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        AppendCompactVirtualSideUnitsApHpLine(sb, "敵", enemyBattleZoneCards, virtualSnaps, PlayerType.Enemy, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit);
+        if (attackingUnitInAttackFlow != null && attackFlowBlockRedirectUnit != null)
+        {
+            AppendAttackBlockNowVsAttackNowCalcLines(sb, attackingUnitInAttackFlow, attackFlowBlockRedirectUnit, virtualSnaps);
+        }
+
+        AppendVirtualBattleZoneDetailSnapshotLines(sb, "詳細 PlayerBattleZone", playerBattleZoneCards, virtualSnaps, PlayerType.Player);
+        AppendVirtualBattleZoneDetailSnapshotLines(sb, "詳細 EnemyBattleZone", enemyBattleZoneCards, virtualSnaps, PlayerType.Enemy);
+
+        if (attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null)
+        {
+            int ap = attackingUnitInAttackFlow.CurrentPower;
+            int hp = attackingUnitInAttackFlow.CurrentHp;
+            VirtualBattleUnitSnap vs = FindBattleVirtualSnap(virtualSnaps, attackingUnitInAttackFlow);
+            if (vs != null)
+            {
+                ap = vs.Ap;
+                hp = vs.Hp;
+            }
+
+            PlayerType atkOwner = ResolveCardOwner(attackingUnitInAttackFlow.transform);
+            sb.Append("  AttackingUnit: ").Append(attackingUnitInAttackFlow.Data.cardName).Append("(id:").Append(attackingUnitInAttackFlow.Data.id)
+                .Append(") AP=").Append(ap).Append(" HP=").Append(hp).Append(" REST:").Append(attackingUnitInAttackFlow.IsRestState)
+                .Append(" AtkFlg:").Append(attackingUnitInAttackFlow.AttackFlgState).Append(" owner:").Append(atkOwner).AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("  AttackingUnit: (none)");
+        }
+    }
+
+    private void AppendAttackBlockNowVsAttackNowCalcLines(
+        System.Text.StringBuilder sb,
+        CardController attackNow,
+        CardController blockNow,
+        List<VirtualBattleUnitSnap> virtualSnapsOrNull)
+    {
+        if (attackNow == null || attackNow.gameObject == null || attackNow.Data == null
+            || blockNow == null || blockNow.gameObject == null || blockNow.Data == null)
+        {
+            return;
+        }
+
+        if (!attackNow.Data.IsUnitLike() || !blockNow.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        int atkAp;
+        int atkHp;
+        int blkAp;
+        int blkHp;
+        if (virtualSnapsOrNull != null)
+        {
+            VirtualBattleUnitSnap a = FindBattleVirtualSnap(virtualSnapsOrNull, attackNow);
+            VirtualBattleUnitSnap b = FindBattleVirtualSnap(virtualSnapsOrNull, blockNow);
+            if (a == null || b == null)
+            {
+                return;
+            }
+
+            atkAp = a.Ap;
+            atkHp = a.Hp;
+            blkAp = b.Ap;
+            blkHp = b.Hp;
+        }
+        else
+        {
+            atkAp = attackNow.CurrentPower;
+            atkHp = attackNow.CurrentHp;
+            blkAp = blockNow.CurrentPower;
+            blkHp = blockNow.CurrentHp;
+        }
+
+        int blockHpMinusAttackAp = blkHp - atkAp;
+        int attackHpMinusBlockAp = atkHp - blkAp;
+        sb.AppendLine("  [BlockNowVsAttackNow] ブロックナウHP-アタックナウAP: " + blkHp + "-" + atkAp + "=" + blockHpMinusAttackAp);
+        sb.AppendLine("  [BlockNowVsAttackNow] アタックナウHP-ブロックナウAP: " + atkHp + "-" + blkAp + "=" + attackHpMinusBlockAp);
+    }
+
+    private static void AppendCompactVirtualSideUnitsApHpLine(
+        System.Text.StringBuilder sb,
+        string sideLabel,
+        List<CardController> zone,
+        List<VirtualBattleUnitSnap> virtualSnaps,
+        PlayerType fieldOwner,
+        CardController attackHighlightUnit = null,
+        CardController blockHighlightUnit = null)
+    {
+        sb.Append("  [").Append(sideLabel).Append("] ");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':');
+            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.IsUnitLike())
+            {
+                sb.Append("[ユニットナウ]");
+            }
+
+            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.IsUnitLike())
+            {
+                sb.Append("[ブロックナウ]");
+            }
+
+            int ap = c.CurrentPower;
+            int hp = c.CurrentHp;
+            if (c.Data.IsUnitLike() && virtualSnaps != null)
+            {
+                VirtualBattleUnitSnap s = FindBattleVirtualSnap(virtualSnaps, c);
+                if (s != null && s.FieldOwner == fieldOwner)
+                {
+                    ap = s.Ap;
+                    hp = s.Hp;
+                }
+            }
+
+            sb.Append(c.Data.cardName).Append(" AP=").Append(ap).Append(" HP=").Append(hp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(empty)");
+        }
+
+        sb.AppendLine();
+    }
+
+    private static void AppendVirtualBattleZoneDetailSnapshotLines(
+        System.Text.StringBuilder sb,
+        string zoneLabel,
+        List<CardController> zone,
+        List<VirtualBattleUnitSnap> virtualSnaps,
+        PlayerType fieldOwner)
+    {
+        sb.Append("  ").Append(zoneLabel).AppendLine(":");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("    (empty)");
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                sb.Append("    [").Append(i).AppendLine("] (null)");
+                continue;
+            }
+
+            int ap = c.CurrentPower;
+            int hp = c.CurrentHp;
+            if (c.Data.IsUnitLike() && virtualSnaps != null)
+            {
+                VirtualBattleUnitSnap s = FindBattleVirtualSnap(virtualSnaps, c);
+                if (s != null && s.FieldOwner == fieldOwner)
+                {
+                    ap = s.Ap;
+                    hp = s.Hp;
+                }
+            }
+
+            sb.Append("    [").Append(i).Append("] ").Append(c.Data.type).Append(' ').Append(c.Data.cardName).Append("(id:").Append(c.Data.id)
+                .Append(") AP=").Append(ap).Append(" HP=").Append(hp).Append(" REST:").Append(c.IsRestState).Append(" AtkFlg:")
+                .Append(c.AttackFlgState).Append(" zoneOwner:").Append(fieldOwner).AppendLine();
+        }
+    }
+
+    /// <summary>OnAction コマンド実行後など、パターン付きで盤面スナップショットを 1 本のログに残す。</summary>
+    /// <param name="onActionResolvedUnitTargetsAfterApplyOrNull">
+    /// 適用後に参照が残るユニット（敵単体選択の対象や ResolveEffectTargets の結果）。ブロック文脈の評価ログ用。
+    /// </param>
+    private void LogCommandUseResultWithBoard(
+        string pattern,
+        PlayerType ownerSide,
+        CardController command,
+        CardController attackingUnitInAttackFlow,
+        int queueIndex,
+        int queueCount,
+        string detail,
+        List<CardController> onActionResolvedUnitTargetsAfterApplyOrNull = null)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(1200);
+        sb.Append("[CommandResult] pattern:").Append(pattern);
+        if (command != null && command.Data != null)
+        {
+            sb.Append(" card:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(')');
+        }
+
+        sb.Append(" ownerSide:").Append(ownerSide);
+        if (queueIndex >= 0 && queueCount > 0)
+        {
+            sb.Append(" queue:").Append(queueIndex + 1).Append('/').Append(queueCount);
+        }
+
+        if (!string.IsNullOrEmpty(detail))
+        {
+            sb.Append(" | ").Append(detail);
+        }
+
+        sb.AppendLine();
+        string boardCtx = "commandResult|" + pattern + "|side:" + ownerSide;
+        AppendBoardStateSnapshotLines(sb, boardCtx, ownerSide, attackingUnitInAttackFlow);
+        if (ShouldAppendMutualUnitsApHpAfterBlockedOnActionCommand(pattern))
+        {
+            AppendMutualZoneUnitsApHpAfterBlockedOnActionCommand(sb);
+        }
+
+        Debug.Log(sb.ToString());
+        LogEvalBlockContextPostCommandBattleBoardIfApplicable(
+            pattern,
+            ownerSide,
+            attackingUnitInAttackFlow,
+            onActionResolvedUnitTargetsAfterApplyOrNull);
+    }
+
+    /// <summary>
+    /// ユニット・ブロック中に OnAction が成功したあとの盤面を、評価関数向けに <c>[EvalBlockContextPostCommand]</c> で別ログする。
+    /// </summary>
+    private void LogEvalBlockContextPostCommandBattleBoardIfApplicable(
+        string pattern,
+        PlayerType commandOwnerSide,
+        CardController attackingUnitInAttackFlow,
+        List<CardController> onActionResolvedUnitTargetsAfterApplyOrNull)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (!ShouldAppendMutualUnitsApHpAfterBlockedOnActionCommand(pattern))
+        {
+            return;
+        }
+
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None
+            || attackFlowBlockRedirectUnit == null
+            || attackFlowBlockRedirectUnit.Data == null)
+        {
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(4096);
+        sb.Append("[EvalBlockContextPostCommand] pattern:").Append(pattern).Append(" commandOwnerSide:").Append(commandOwnerSide).Append(' ')
+            .Append(FormatBlockRedirectProbeInline(commandOwnerSide)).AppendLine();
+        sb.AppendLine(
+            "  note:blockedAttackFlow + OnAction command applied; full board below is state AFTER command (for eval / value function).");
+
+        CardController br = attackFlowBlockRedirectUnit;
+        PlayerType bro = ResolveCardOwner(br.transform);
+        sb.Append("  blockRedirectTargetAfterCommand: ").Append(br.Data.cardName).Append("(id:").Append(br.Data.id).Append(") AP=").Append(br.CurrentPower)
+            .Append(" HP=").Append(br.CurrentHp).Append(" REST:").Append(br.IsRestState).Append(" owner:").Append(bro).Append(" zoneSlotIndex:#")
+            .Append(TryGetUnitBattleZoneSlotIndex(br)).AppendLine();
+
+        if (onActionResolvedUnitTargetsAfterApplyOrNull != null && onActionResolvedUnitTargetsAfterApplyOrNull.Count > 0)
+        {
+            sb.AppendLine("  onActionEffectUnitTargetsAfterCommand:");
+            for (int i = 0; i < onActionResolvedUnitTargetsAfterApplyOrNull.Count; i++)
+            {
+                CardController t = onActionResolvedUnitTargetsAfterApplyOrNull[i];
+                if (t == null || t.Data == null || !t.Data.IsUnitLike())
+                {
+                    continue;
+                }
+
+                PlayerType to = ResolveCardOwner(t.transform);
+                bool sameAsBlock = t == attackFlowBlockRedirectUnit;
+                sb.Append("    - ").Append(t.Data.cardName).Append("(id:").Append(t.Data.id).Append(") AP=").Append(t.CurrentPower).Append(" HP=")
+                    .Append(t.CurrentHp).Append(" owner:").Append(to).Append(" zoneSlotIndex:#").Append(TryGetUnitBattleZoneSlotIndex(t));
+                if (sameAsBlock)
+                {
+                    sb.Append(" [sameAsBlockRedirectTarget]");
+                }
+
+                sb.AppendLine();
+            }
+        }
+
+        sb.AppendLine("  === fullBoardAfterCommand (eval snapshot) ===");
+        AppendBoardStateSnapshotLines(
+            sb,
+            "evalBlockContextPostCommand|" + pattern + "|side:" + commandOwnerSide,
+            commandOwnerSide,
+            attackingUnitInAttackFlow);
+        sb.AppendLine("  === allFieldUnitsAfterCommand (units only) ===");
+        sb.Append("  PlayerUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  EnemyUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, enemyBattleZoneCards);
+        sb.AppendLine();
+        Debug.Log(sb.ToString());
+    }
+
+    private static List<CardController> BuildOnActionUnitTargetListAfterApply(List<CardController> resolvedBeforeApply)
+    {
+        if (resolvedBeforeApply == null || resolvedBeforeApply.Count == 0)
+        {
+            return null;
+        }
+
+        List<CardController> list = new List<CardController>();
+        for (int i = 0; i < resolvedBeforeApply.Count; i++)
+        {
+            CardController c = resolvedBeforeApply[i];
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            list.Add(c);
+        }
+
+        return list.Count > 0 ? list : null;
+    }
+
+    private static bool ShouldAppendMutualUnitsApHpAfterBlockedOnActionCommand(string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern))
+        {
+            return false;
+        }
+
+        return pattern == "OnAction_AfterApplyEnemyUnitTarget" || pattern == "OnAction_AfterApplyDirectEffect";
+    }
+
+    /// <summary>
+    /// ユニット・ブロック／リダイレクトが有効な攻撃フローで OnAction コマンドを適用した直後、プレイヤー／エネミー双方のフィールド・ユニット AP/HP を 1 本にまとめて追記。
+    /// </summary>
+    private void AppendMutualZoneUnitsApHpAfterBlockedOnActionCommand(System.Text.StringBuilder sb)
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.None
+            || attackFlowBlockRedirectUnit == null
+            || attackFlowBlockRedirectUnit.Data == null)
+        {
+            return;
+        }
+
+        sb.AppendLine("  === AfterBlock+OnActionCommand: mutual field units AP/HP (Player vs Enemy) ===");
+        sb.Append("  PlayerUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  EnemyUnits: ");
+        AppendBattleZoneUnitApHpInline(sb, enemyBattleZoneCards);
+        sb.AppendLine();
+
+        CardController br = attackFlowBlockRedirectUnit;
+        PlayerType bo = ResolveCardOwner(br.transform);
+        int brSlot = TryGetUnitBattleZoneSlotIndex(br);
+        sb.Append("  BlockRedirectUnit: ").Append(br.Data.cardName).Append("(id:").Append(br.Data.id).Append(") AP=").Append(br.CurrentPower)
+            .Append(" HP=").Append(br.CurrentHp).Append(" REST:").Append(br.IsRestState).Append(" owner:").Append(bo).Append(" zoneSlotIndex:#")
+            .Append(brSlot).AppendLine();
+    }
+
+    private static void AppendBattleZoneUnitApHpInline(System.Text.StringBuilder sb, List<CardController> zone)
+    {
+        if (zone == null || zone.Count == 0)
+        {
+            sb.Append("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':').Append(c.Data.cardName).Append("(id:").Append(c.Data.id).Append(") AP=").Append(c.CurrentPower)
+                .Append(" HP=").Append(c.CurrentHp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(no units)");
+        }
+    }
+
+    private static void AppendBattleZoneUnitHpOnlyInline(System.Text.StringBuilder sb, List<CardController> zone)
+    {
+        if (zone == null || zone.Count == 0)
+        {
+            sb.Append("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':').Append(c.Data.cardName).Append("(id:").Append(c.Data.id).Append(") HP=").Append(c.CurrentHp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(no units)");
+        }
+    }
+
+    private struct UnitStatSnapForCommandLog
+    {
+        public int Id;
+        public string Name;
+        public PlayerType Owner;
+        public int Slot;
+        public int Ap;
+        public int Hp;
+    }
+
+    private List<UnitStatSnapForCommandLog> SnapUnitStatsForOnActionCommandLog(List<CardController> targets)
+    {
+        if (targets == null || targets.Count == 0)
+        {
+            return null;
+        }
+
+        List<UnitStatSnapForCommandLog> list = new List<UnitStatSnapForCommandLog>();
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController c = targets[i];
+            if (c == null || c.Data == null || !c.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            list.Add(new UnitStatSnapForCommandLog
+            {
+                Id = c.Data.id,
+                Name = c.Data.cardName,
+                Owner = ResolveCardOwner(c.transform),
+                Slot = TryGetUnitBattleZoneSlotIndex(c),
+                Ap = c.CurrentPower,
+                Hp = c.CurrentHp,
+            });
+        }
+
+        return list.Count > 0 ? list : null;
+    }
+
+    private CardController FindBattleZoneUnitByCardId(int cardId)
+    {
+        if (playerBattleZoneCards != null)
+        {
+            for (int i = 0; i < playerBattleZoneCards.Count; i++)
+            {
+                CardController c = playerBattleZoneCards[i];
+                if (c != null && c.Data != null && c.Data.IsUnitLike() && c.Data.id == cardId)
+                {
+                    return c;
+                }
+            }
+        }
+
+        if (enemyBattleZoneCards != null)
+        {
+            for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+            {
+                CardController c = enemyBattleZoneCards[i];
+                if (c != null && c.Data != null && c.Data.IsUnitLike() && c.Data.id == cardId)
+                {
+                    return c;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// OnAction コマンドをユニットに適用した直後: 対象の適用前→適用後 AP/HP と、フィールド上の味方・敵ユニットの AP/HP（および HP のみ要約）。
+    /// </summary>
+    private void LogOnActionCommandAppliedToUnitsBattleOutcome(
+        CardController command,
+        PlayerType commandOwner,
+        EffectData effect,
+        string patternTag,
+        List<UnitStatSnapForCommandLog> beforeSnaps)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            return;
+        }
+
+        if (command == null || command.Data == null)
+        {
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(1400);
+        sb.Append("[OnActionCommandAppliedToUnits] patternTag:").Append(patternTag).Append(" commandOwner:").Append(commandOwner)
+            .Append(" cmd:").Append(command.Data.cardName).Append("(id:").Append(command.Data.id).Append(')');
+        if (effect != null)
+        {
+            sb.Append(" effect:").Append(effect.type).Append(" target:").Append(effect.target).Append(" value:").Append(effect.value);
+        }
+
+        sb.AppendLine();
+
+        if (beforeSnaps != null && beforeSnaps.Count > 0)
+        {
+            sb.AppendLine("  affectedUnits before->after (AP/HP; missing from field = likely trashed):");
+            for (int i = 0; i < beforeSnaps.Count; i++)
+            {
+                UnitStatSnapForCommandLog b = beforeSnaps[i];
+                CardController aft = FindBattleZoneUnitByCardId(b.Id);
+                sb.Append("    ").Append(b.Name).Append("(id:").Append(b.Id).Append(") owner:").Append(b.Owner).Append(" slotBefore:#").Append(b.Slot)
+                    .Append(" before:AP=").Append(b.Ap).Append(" HP=").Append(b.Hp).Append(" -> ");
+                if (aft == null || aft.Data == null || !aft.Data.IsUnitLike())
+                {
+                    sb.AppendLine("after:(not on field — trashed or invalid)");
+                }
+                else
+                {
+                    sb.Append("after:AP=").Append(aft.CurrentPower).Append(" HP=").Append(aft.CurrentHp).Append(" slotAfter:#")
+                        .Append(TryGetUnitBattleZoneSlotIndex(aft)).AppendLine();
+                }
+            }
+        }
+        else
+        {
+            sb.AppendLine("  affectedUnits: (no unit targets in snapshot — e.g. Draw / non-unit target)");
+        }
+
+        sb.Append("  afterApply_allFieldUnits_Player_AP_HP: ");
+        AppendBattleZoneUnitApHpInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  afterApply_allFieldUnits_Enemy_AP_HP: ");
+        AppendBattleZoneUnitApHpInline(sb, enemyBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  afterApply_playerUnits_hpOnly: ");
+        AppendBattleZoneUnitHpOnlyInline(sb, playerBattleZoneCards);
+        sb.AppendLine();
+        sb.Append("  afterApply_enemyUnits_hpOnly: ");
+        AppendBattleZoneUnitHpOnlyInline(sb, enemyBattleZoneCards);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>OnAction コマンド系 UI を出す直前の盤面スナップショット。アタック中に渡されたユニットも 1 行で出す。</summary>
+    private void LogFullBoardSnapshotForCommandTiming(string context, PlayerType activeSide, CardController attackingUnitInAttackFlow)
+    {
+        if (!EnableVerboseBattleDebugLogs)
+        {
+            Debug.Log(
+                $"[BoardCompact] ctx:{context} side:{activeSide} turn:{currentPlayerType} "
+                + $"P:{CountAliveUnitsOnZone(playerBattleZoneCards)} E:{CountAliveUnitsOnZone(enemyBattleZoneCards)}");
+            return;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(768);
+        sb.AppendLine("[BoardSnapshot]");
+        AppendBoardStateSnapshotLines(sb, context, activeSide, attackingUnitInAttackFlow);
+        Debug.Log(sb.ToString());
+    }
+
+    private static int CountAliveUnitsOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c != null && c.Data != null && c.Data.IsUnitLike() && c.CurrentHp > 0)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>味方・敵それぞれ 1 行に、ゾーン内カードの AP/HP を並べて出す（同時比較用）。攻撃中に <c>[ユニットナウ]</c>、ブロック誘導ユニットに <c>[ブロックナウ]</c> を付与。</summary>
+    private static void AppendCompactSideUnitsApHpLine(
+        System.Text.StringBuilder sb,
+        string sideLabel,
+        List<CardController> zone,
+        CardController attackHighlightUnit = null,
+        CardController blockHighlightUnit = null)
+    {
+        sb.Append("  [").Append(sideLabel).Append("] ");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("(empty)");
+            return;
+        }
+
+        bool any = false;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                continue;
+            }
+
+            if (any)
+            {
+                sb.Append("  |  ");
+            }
+
+            any = true;
+            sb.Append('#').Append(i).Append(':');
+            if (attackHighlightUnit != null && c == attackHighlightUnit && c.Data.IsUnitLike())
+            {
+                sb.Append("[ユニットナウ]");
+            }
+
+            if (blockHighlightUnit != null && c == blockHighlightUnit && c.Data.IsUnitLike())
+            {
+                sb.Append("[ブロックナウ]");
+            }
+
+            sb.Append(c.Data.cardName)
+                .Append(" AP=").Append(c.CurrentPower).Append(" HP=").Append(c.CurrentHp);
+        }
+
+        if (!any)
+        {
+            sb.Append("(empty)");
+        }
+
+        sb.AppendLine();
+    }
+
+    private static void AppendBattleZoneDetailSnapshotLines(
+        System.Text.StringBuilder sb,
+        string zoneLabel,
+        List<CardController> zone,
+        PlayerType zoneOwner)
+    {
+        sb.Append("  ").Append(zoneLabel).AppendLine(":");
+        if (zone == null || zone.Count == 0)
+        {
+            sb.AppendLine("    (empty)");
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController c = zone[i];
+            if (c == null || c.Data == null)
+            {
+                sb.Append("    [").Append(i).AppendLine("] (null)");
+                continue;
+            }
+
+            sb.Append("    [").Append(i).Append("] ").Append(c.Data.type).Append(' ').Append(c.Data.cardName).Append("(id:").Append(c.Data.id)
+                .Append(") AP=").Append(c.CurrentPower).Append(" HP=").Append(c.CurrentHp).Append(" REST:").Append(c.IsRestState)
+                .Append(" AtkFlg:").Append(c.AttackFlgState).Append(" zoneOwner:").Append(zoneOwner).AppendLine();
+        }
+    }
+
+    // アクションステップ時に利用できるコマンドカードを一覧にUI表示するメソッド
+    /// <summary>
+    /// アクションステップで発動可能なソースを収集する。
+    /// 場のユニット／搭乗パイロット／配備ベース／手札コマンドを含む。
+    /// </summary>
+    private List<CardController> CollectOnActionSelectableSources(PlayerType side)
+    {
+        SyncActionStepCombatPairToAttackFlow();
+
+        List<CardController> sources = new List<CardController>();
+        List<CardController> ownBattleZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (ownBattleZone != null)
+        {
+            for (int fi = 0; fi < ownBattleZone.Count; fi++)
+            {
+                CardController uc = ownBattleZone[fi];
+                if (uc == null || uc.Data == null || !uc.Data.IsUnitLike())
+                {
+                    continue;
+                }
+
+                if (uc.CurrentHp <= 0)
+                {
+                    continue;
+                }
+
+                if (HasEffectTiming(uc.Data, EffectTiming.OnAction) && CanExecuteOnActionCardNow(side, uc))
+                {
+                    sources.Add(uc);
+                }
+
+                // 搭乗パイロットの【起動・アクション】
+                CardController pilot = uc.MountedPilot;
+                if (pilot != null
+                    && pilot.Data != null
+                    && pilot.Data.IsPilot()
+                    && HasEffectTiming(pilot.Data, EffectTiming.OnAction)
+                    && CanExecuteOnActionCardNow(side, pilot))
+                {
+                    sources.Add(pilot);
+                    Debug.Log(
+                        $"[OnAction] field pilot eligible: {pilot.Data.cardName}(id:{pilot.Data.id}) "
+                        + $"host:{uc.Data.cardName} side:{side}");
+                }
+            }
+        }
+
+        // 配備ベースの【起動・アクション】（ガモフ等）
+        CardController deployedBase = GetDeployedBaseForRuleSide(ToRuleSide(side));
+        if (deployedBase != null
+            && deployedBase.Data != null
+            && deployedBase.Data.type == Type.Base
+            && deployedBase.CurrentHp > 0
+            && HasEffectTiming(deployedBase.Data, EffectTiming.OnAction)
+            && CanExecuteOnActionCardNow(side, deployedBase))
+        {
+            sources.Add(deployedBase);
+        }
+
+        RectTransform hand = side == PlayerType.Player
+            ? cardGameRule?.HandScrollContent
+            : enemyCardGameRule?.HandScrollContent;
+        if (hand != null)
+        {
+            for (int i = 0; i < hand.childCount; i++)
+            {
+                CardController cc = hand.GetChild(i).GetComponent<CardController>();
+                if (cc == null || cc.Data == null)
+                {
+                    continue;
+                }
+
+                if (!IsOnActionCommandSelectable(side, cc))
+                {
+                    continue;
+                }
+
+                sources.Add(cc);
+            }
+        }
+
+        AppendArmedInterventionFromAnyHand(side, sources);
+
+        return sources;
+    }
+
+    private bool TryOpenOnActionCommandSelection(
+        PlayerType side,
+        string context,
+        System.Action onStepDone,
+        CardController attackingUnitInAttackFlow = null)
+    {
+        if (CardImagePrefab == null)
+        {
+            return false;
+        }
+
+        // UI オープン直前に交戦ペアを確定（被攻撃側アクションでも他カードと同様に条件判定できるようにする）
+        PrepareOnActionCombatContextForUi(attackingUnitInAttackFlow);
+
+        List<CardController> onActionSelectableSources = CollectOnActionSelectableSources(side);
+
+        if (_isActionStepCommandResolving || _activeResourcePaymentOverlay != null)
+        {
+            Debug.Log("[ActionStep] Skip card-select UI — command resolve / resource pay is in progress.");
+            return true;
+        }
+
+        if (onActionSelectableSources.Count == 0)
+        {
+            Debug.Log($"[OnActionCandidates] context:{context} side:{side} none");
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return false;
+        }
+
+        LogFullBoardSnapshotForCommandTiming(context, side, attackingUnitInAttackFlow);
+        _onlineOnActionActiveContext = context;
+
+        for (int vci = 0; vci < onActionSelectableSources.Count; vci++)
+        {
+            CardController source = onActionSelectableSources[vci];
+            if (source?.Data == null || !source.Data.IsCommand())
+            {
+                continue;
+            }
+
+            LogVirtualOnActionCommandOutcomeForPlayerUnits(source, side, context);
+            if (attackFlowBlockRedirectUnit != null)
+            {
+                LogVirtualOnActionCommandOutcomeForFocusBlockerUnit(source, side, attackFlowBlockRedirectUnit, context);
+            }
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject("OnActionCommandSelect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        bool hasSelectableCards = onActionSelectableSources.Count > 0;
+        bool hasPendingForced = HasPendingForcedOnAction(side);
+        bool useAlternatingActionStepUi = IsActionStepSessionActive
+            || IsOnlineBattle();
+        string roleLabel = GetActionStepThinkSubtitle(side, context);
+        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionCommandTitle", UIAnchor.TopCenter, AttackFlowPopupContentWidth, 48);
+        if (hasPendingForced)
+        {
+            title.text = hasSelectableCards
+                ? $"Action Step — {roleLabel} (Forced)"
+                : $"Action Step — {roleLabel} (Forced required)";
+        }
+        else
+        {
+            title.text = hasSelectableCards
+                ? $"Action Step — {roleLabel}"
+                : $"Action Step — {roleLabel} (no playable cards)";
+        }
+        title.color = Color.white;
+        title.fontSize = 22;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        HashSet<CardController> selectedSet = new HashSet<CardController>();
+        List<CardController> selectedCommands = new List<CardController>();
+
+        // 強制 OnAction は最初から選択済みにして、Confirm で発動できるようにする
+        if (hasPendingForced)
+        {
+            List<CardController> pendingForced = CollectPendingForcedOnActionSources(side);
+            for (int fi = 0; fi < pendingForced.Count; fi++)
+            {
+                if (pendingForced[fi] != null)
+                {
+                    selectedSet.Add(pendingForced[fi]);
+                }
+            }
+        }
+
+        if (hasSelectableCards)
+        {
+            bool showAttackHighlight = attackingUnitInAttackFlow != null
+                && attackingUnitInAttackFlow.Data != null
+                && !string.IsNullOrEmpty(context)
+                && context.Contains("attack");
+
+            CardController matchupAttacker = attackingUnitInAttackFlow != null
+                ? attackingUnitInAttackFlow
+                : attackFlowAttackerUnit;
+            CardController matchupDefender = ResolveAttackFlowDefenderForPreview();
+            bool showMatchup = showAttackHighlight
+                && matchupAttacker != null
+                && matchupAttacker.Data != null
+                && (matchupDefender != null
+                    || attackFlowStrikeKind == AttackFlowStrikeKind.Shield);
+
+            // マッチアップ表示分、カード一覧を少し上寄せ・低めにする
+            int scrollHeight = showMatchup ? 280 : 410;
+            float scrollY = showMatchup ? -86f : (showAttackHighlight ? -98f : -86f);
+            GameObject scrollGo = root.CreateGridScrollView(AttackFlowPopupContentWidth, scrollHeight, UIAnchor.TopCenter);
+            RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+            scrollRt.anchoredPosition = new Vector2(0f, scrollY);
+            scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+            ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+            RectTransform content = sr != null ? sr.content : null;
+
+            for (int i = 0; i < onActionSelectableSources.Count; i++)
+            {
+                CardController command = onActionSelectableSources[i];
+                if (content == null || command == null || command.Data == null)
+                {
+                    continue;
+                }
+
+                string typeLabel = CardTypeExtensions.GetDisplayName(command.Data.type);
+                bool alreadyUsedInActionStep = useAlternatingActionStepUi
+                    && IsActionStepCardUsedForSide(side, command);
+                AppendSelectableCommandCardToGrid(
+                    content,
+                    command,
+                    typeLabel,
+                    selectedSet,
+                    alreadyUsedInActionStep);
+            }
+
+            if (showMatchup)
+            {
+                // グリッド下・Confirm ボタン上に攻撃元 → 攻撃先
+                float matchupY = -(86f + scrollHeight + 36f);
+                AppendAttackMatchupPreview(
+                    root,
+                    matchupAttacker,
+                    matchupDefender,
+                    matchupY,
+                    GameLocale.T("バトル予定", "Battle Preview"),
+                    attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+                        ? GameLocale.T("シールド", "Shield")
+                        : null);
+            }
+        }
+        else if (attackingUnitInAttackFlow != null
+            && attackingUnitInAttackFlow.Data != null
+            && !string.IsNullOrEmpty(context)
+            && context.Contains("attack"))
+        {
+            // 使えるカードが無くても攻撃対象は見せる
+            AppendAttackMatchupPreview(
+                root,
+                attackingUnitInAttackFlow,
+                ResolveAttackFlowDefenderForPreview(),
+                -120f,
+                GameLocale.T("バトル予定", "Battle Preview"),
+                attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+                    ? GameLocale.T("シールド", "Shield")
+                    : null);
+        }
+
+        void finishUi(ActionStepPassKind passKind)
+        {
+            if (ShouldBlockActionStepPassOrEnd(side, passKind, selectedCommands))
+            {
+                Debug.Log(
+                    $"[ForcedOnAction] Block {passKind} — pending forced OnAction "
+                    + $"count:{CollectPendingForcedOnActionSources(side).Count} side:{side}");
+                return;
+            }
+
+            if (!IsOnlineBattle())
+            {
+                LogAttackOnActionDecisionWithBoard(
+                    passKind == ActionStepPassKind.ActionEnd ? "ActionEnd" : "Pass",
+                    context,
+                    side,
+                    attackingUnitInAttackFlow);
+            }
+
+            if (useAlternatingActionStepUi)
+            {
+                if (IsActionStepSessionActive)
+                {
+                    if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
+                    {
+                        BeginActionStepCommandResolve(root);
+                        ExecuteOnActionCommandQueue(
+                            side,
+                            selectedCommands,
+                            0,
+                            () =>
+                            {
+                                EndActionStepCommandResolve();
+                                _actionStepHiddenSelectionRoot = null;
+                                ResolveActionStepUi(side, passKind, root);
+                            },
+                            attackingUnitInAttackFlow);
+                        return;
+                    }
+
+                    ResolveActionStepUi(side, passKind, root);
+                    return;
+                }
+
+                int requestId = _pendingOnlineOnActionRequestId > 0
+                    ? _pendingOnlineOnActionRequestId
+                    : _onlineOnActionResponseRequestId;
+
+                if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
+                {
+                    BeginActionStepCommandResolve(root);
+                    ExecuteOnActionCommandQueue(
+                        side,
+                        selectedCommands,
+                        0,
+                        () =>
+                        {
+                            EndActionStepCommandResolve();
+                            _actionStepHiddenSelectionRoot = null;
+                            _onlineOnActionActiveContext = null;
+                            isOnActionPopupOpen = false;
+                            activeOnActionPopupRoot = null;
+                            Destroy(root);
+                            SendOnlineActionStepResolution(requestId, side, passKind);
+                            onStepDone?.Invoke();
+                        },
+                        attackingUnitInAttackFlow);
+                    return;
+                }
+
+                _onlineOnActionActiveContext = null;
+                isOnActionPopupOpen = false;
+                activeOnActionPopupRoot = null;
+                Destroy(root);
+                SendOnlineActionStepResolution(requestId, side, passKind);
+                onStepDone?.Invoke();
+                return;
+            }
+
+            if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
+            {
+                BeginActionStepCommandResolve(root);
+                ExecuteOnActionCommandQueue(
+                    side,
+                    selectedCommands,
+                    0,
+                    () =>
+                    {
+                        EndActionStepCommandResolve();
+                        _actionStepHiddenSelectionRoot = null;
+                        _onlineOnActionActiveContext = null;
+                        isOnActionPopupOpen = false;
+                        activeOnActionPopupRoot = null;
+                        Destroy(root);
+                        onStepDone?.Invoke();
+                    },
+                    attackingUnitInAttackFlow);
+                return;
+            }
+
+            _onlineOnActionActiveContext = null;
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+            onStepDone?.Invoke();
+        }
+
+        Button confirmBtn = root.CreateChildButton("Confirm");
+        RectTransform confirmRt = confirmBtn.GetComponent<RectTransform>();
+        confirmRt.sizeDelta = new Vector2(140f, 48f);
+        confirmRt.anchorMin = new Vector2(0.5f, 0f);
+        confirmRt.anchorMax = new Vector2(0.5f, 0f);
+        confirmRt.pivot = new Vector2(0.5f, 0f);
+        confirmRt.anchoredPosition = new Vector2(-150f, 36f);
+        TextMeshProUGUI confirmLabel = confirmBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (confirmLabel != null)
+        {
+            confirmLabel.text = hasPendingForced ? "OK" : "Confirm";
+        }
+
+        SetActionStepButtonInteractable(confirmBtn, hasSelectableCards);
+        confirmBtn.onClick.AddListener(() =>
+        {
+            if (!hasSelectableCards)
+            {
+                return;
+            }
+
+            selectedCommands.Clear();
+            selectedCommands.AddRange(selectedSet);
+            // 選択可能カードが1枚だけのときは、カード画像の Button が
+            // Prefab 上の Raycast 設定で選択を取りこぼしても Confirm で確定できるようにする。
+            if (selectedCommands.Count == 0 && onActionSelectableSources.Count == 1)
+            {
+                CardController sole = onActionSelectableSources[0];
+                if (!IsActionStepCardUsedForSide(side, sole))
+                {
+                    selectedCommands.Add(sole);
+                }
+            }
+
+            if (selectedCommands.Count == 0)
+            {
+                Debug.Log("OnAction: Select at least one card.");
+                return;
+            }
+
+            if (hasPendingForced && !SelectedCommandsIncludeAllPendingForced(side, selectedCommands))
+            {
+                Debug.Log("OnAction: Forced action must be confirmed before OK.");
+                return;
+            }
+
+            finishUi(ActionStepPassKind.Pass);
+        });
+
+        Button cancelBtn = root.CreateChildButton("Cancel");
+        RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(140f, 48f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(0f, 36f);
+        TextMeshProUGUI cancelLabel = cancelBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (cancelLabel != null)
+        {
+            cancelLabel.text = "Cancel";
+        }
+
+        // 強制アクション未消化時は Cancel / ActionEnd 不可（Confirm/OK のみ）
+        SetActionStepButtonInteractable(cancelBtn, hasSelectableCards && !hasPendingForced);
+        cancelBtn.onClick.AddListener(() =>
+        {
+            if (!hasSelectableCards || hasPendingForced)
+            {
+                return;
+            }
+
+            selectedCommands.Clear();
+            finishUi(ActionStepPassKind.Pass);
+        });
+
+        Button actionEndBtn = root.CreateChildButton("ActionEnd");
+        RectTransform actionEndRt = actionEndBtn.GetComponent<RectTransform>();
+        actionEndRt.sizeDelta = new Vector2(140f, 48f);
+        actionEndRt.anchorMin = new Vector2(0.5f, 0f);
+        actionEndRt.anchorMax = new Vector2(0.5f, 0f);
+        actionEndRt.pivot = new Vector2(0.5f, 0f);
+        actionEndRt.anchoredPosition = new Vector2(150f, 36f);
+        TextMeshProUGUI actionEndLabel = actionEndBtn.GetComponentInChildren<TextMeshProUGUI>();
+        if (actionEndLabel != null)
+        {
+            actionEndLabel.text = "ActionEnd";
+        }
+
+        SetActionStepButtonInteractable(actionEndBtn, !hasPendingForced);
+        actionEndBtn.onClick.AddListener(() =>
+        {
+            if (hasPendingForced)
+            {
+                return;
+            }
+
+            selectedCommands.Clear();
+            finishUi(ActionStepPassKind.ActionEnd);
+        });
+
+        return true;
+    }
+
+    private void ExecuteOnActionCommandQueue(
+        PlayerType side,
+        List<CardController> queue,
+        int index,
+        System.Action onAllDone,
+        CardController attackingUnitInAttackFlow = null)
+    {
+        if (queue == null || index >= queue.Count)
+        {
+            onAllDone?.Invoke();
+            return;
+        }
+
+        CardController command = queue[index];
+        if (command == null || command.Data == null)
+        {
+            ExecuteOnActionCommandQueue(side, queue, index + 1, onAllDone, attackingUnitInAttackFlow);
+            return;
+        }
+
+        TryExecuteOnActionCommand(
+            side,
+            command,
+            () => ExecuteOnActionCommandQueue(side, queue, index + 1, onAllDone, attackingUnitInAttackFlow),
+            attackingUnitInAttackFlow,
+            index,
+            queue != null ? queue.Count : 0);
+    }
+
+    private void TryExecuteOnActionCommand(
+        PlayerType side,
+        CardController command,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow = null,
+        int commandQueueIndex = -1,
+        int commandQueueCount = -1)
+    {
+        if (command == null || command.Data == null)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        if (IsMagicBulletOfDuskCard(command.Data))
+        {
+            OpenOnActionUnitTargetSelection(
+                side,
+                command,
+                CreateMagicBulletOfDuskPickEffect(),
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
+            return;
+        }
+
+        if (IsTheBlueGiantCard(command.Data))
+        {
+            OpenOnActionUnitTargetSelection(
+                side,
+                command,
+                CreateTheBlueGiantPickEffect(),
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
+            return;
+        }
+
+        if (IsArmedInterventionCard(command.Data))
+        {
+            OpenOnActionUnitTargetSelection(
+                side,
+                command,
+                CreateArmedInterventionPickEffect(),
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
+            return;
+        }
+
+        if (onActionEffects.Count == 0)
+        {
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoOnActionEffects",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:no OnAction timed effects on card");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            return;
+        }
+
+        // トラッシュ除外が手動ユニット選択より先にある場合（ソロモン迎撃等）は除外完了まで待ってから続行する
+        if (TryBeginOnActionExileFromTrashPrefixChain(
+                side,
+                command,
+                onActionEffects,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount))
+        {
+            return;
+        }
+
+        EffectData manualTargetEffect = null;
+        for (int i = 0; i < onActionEffects.Count; i++)
+        {
+            EffectData e = onActionEffects[i];
+            if (e == null)
+            {
+                continue;
+            }
+
+            // ST12-011 は対象自動確定のため手動選択 UI を開かない
+            if (IsMilliardoPeacecraftCard(command))
+            {
+                continue;
+            }
+
+            if (EffectRequiresManualUnitSelection(e))
+            {
+                manualTargetEffect = e;
+                break;
+            }
+        }
+
+        if (manualTargetEffect != null)
+        {
+            if (manualTargetEffect.selectionMode.IsMultipleUnitPickMode())
+            {
+                OpenOnActionMultiUnitTargetSelection(
+                    side,
+                    command,
+                    manualTargetEffect,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+            }
+            else
+            {
+                OpenOnActionUnitTargetSelection(
+                    side,
+                    command,
+                    manualTargetEffect,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+            }
+
+            return;
+        }
+
+        EffectData applied = onActionEffects[0];
+        List<CardController> resolvedBeforeApply = IsMilliardoPeacecraftCard(command)
+            ? (ResolveMilliardoForcedDamageTarget(command) is CardController mt
+                ? new List<CardController> { mt }
+                : new List<CardController>())
+            : ResolveEffectTargets(command, side, applied);
+        if (IsMilliardoPeacecraftCard(command)
+            && (resolvedBeforeApply == null || resolvedBeforeApply.Count == 0))
+        {
+            Debug.Log("[ST12-011] OnAction skip — no damaged battling enemy.");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoMilliardoTarget",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:ST12-011 ResolveMilliardoForcedDamageTarget empty");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            return;
+        }
+
+        if (applied != null
+            && applied.selectionMode.IsAttackedTargetOnlyMode()
+            && !IsMilliardoPeacecraftCard(command)
+            && (resolvedBeforeApply == null || resolvedBeforeApply.Count == 0))
+        {
+            Debug.Log(
+                $"[OnAction] AttackedTargetOnly 対象なし — skip "
+                + $"{command.Data.cardName}(id:{command.Data.id})");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoAttackedTarget",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:AttackedTargetOnly ResolveEffectTargets empty");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            return;
+        }
+
+        StartCoroutine(ExecuteOnActionDirectEffectAfterPreview(
+            side,
+            command,
+            applied,
+            onActionEffects,
+            resolvedBeforeApply,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            onDone));
+    }
+
+    /// <summary>
+    /// OnAction で ExileFromTrash が手動ユニット選択より先にあるとき true（除外 UI 完了後にダメージ等へ進む）。
+    /// </summary>
+    private bool TryBeginOnActionExileFromTrashPrefixChain(
+        PlayerType side,
+        CardController command,
+        List<EffectData> onActionEffects,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount)
+    {
+        if (command == null || onActionEffects == null || onActionEffects.Count == 0)
+        {
+            return false;
+        }
+
+        int exileIndex = -1;
+        int manualIndex = -1;
+        for (int i = 0; i < onActionEffects.Count; i++)
+        {
+            EffectData e = onActionEffects[i];
+            if (e == null)
+            {
+                continue;
+            }
+
+            if (exileIndex < 0 && e.type == EffectType.ExileFromTrash)
+            {
+                exileIndex = i;
+            }
+
+            if (manualIndex < 0 && EffectRequiresManualUnitSelection(e))
+            {
+                manualIndex = i;
+            }
+        }
+
+        if (exileIndex < 0)
+        {
+            return false;
+        }
+
+        // 手動選択が除外より先なら従来の選択 UI 経路へ任せる
+        if (manualIndex >= 0 && manualIndex < exileIndex)
+        {
+            return false;
+        }
+
+        StartCoroutine(CoExecuteOnActionExileFromTrashPrefixChain(
+            side,
+            command,
+            onActionEffects,
+            exileIndex,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            onDone));
+        return true;
+    }
+
+    private IEnumerator CoExecuteOnActionExileFromTrashPrefixChain(
+        PlayerType side,
+        CardController command,
+        List<EffectData> onActionEffects,
+        int startIndex,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (command == null || command.Data == null || onActionEffects == null)
+        {
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        BeginOnDestroyedLatencyHold();
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            null,
+            GameLocale.T("コマンド発動", "Command activated"));
+
+        bool paymentOk = false;
+        int exToUse = 0;
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForAfford(command, side);
+        yield return WaitForResourcePaymentCoroutine(
+            side,
+            onActionCost,
+            onActionRequiredLevel,
+            (ok, chosenEx) =>
+            {
+                paymentOk = ok;
+                exToUse = chosenEx;
+            });
+        if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
+        {
+            EndOnDestroyedLatencyHold();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            command,
+            "OnAction",
+            null);
+
+        TryApplyOnActionRestSelfCostIfPresent(command, side);
+
+        for (int i = startIndex; i < onActionEffects.Count; i++)
+        {
+            EffectData effect = onActionEffects[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type == EffectType.ExileFromTrash)
+            {
+                bool exileFinished = false;
+                bool exileSucceeded = false;
+                ApplyExileFromTrashEffect(
+                    command,
+                    side,
+                    effect,
+                    onComplete: () =>
+                    {
+                        exileSucceeded = true;
+                        exileFinished = true;
+                    },
+                    onSkipped: () => exileFinished = true);
+                yield return new WaitUntil(() => exileFinished);
+
+                if (!exileSucceeded && effect.abortRemainingChainOnSkip)
+                {
+                    Debug.Log(
+                        "[OnAction] ExileFromTrash skipped — abort remaining "
+                        + $"(cardId:{command.Data.id})");
+                    EndOnDestroyedLatencyHold();
+                    // 支払い済みでも除外未成立ならコスト返却し、手札に残す
+                    if (command.Data != null && gundamRule != null)
+                    {
+                        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
+                        if (gundamRule.TryRefundLastResourceUsageForCard(ruleSide, command.Data.id))
+                        {
+                            AfterLocalResourceChanged(ruleSide);
+                        }
+                    }
+
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                    yield break;
+                }
+
+                continue;
+            }
+
+            if (EffectRequiresManualUnitSelection(effect))
+            {
+                EndOnDestroyedLatencyHold();
+                // 除外は成立済み。以降の対象選択へ渡す前に使用済みを確定
+                MarkActionStepCardUsed(side, command);
+                MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+                OpenOnActionFollowUpUnitTargetSelection(
+                    side,
+                    command,
+                    effect,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+                yield break;
+            }
+
+            if (EffectRequiresManualHandSelection(effect))
+            {
+                Debug.LogWarning(
+                    $"[OnAction] Exile prefix chain stopped at hand selection ({effect.type}) "
+                    + $"cardId:{command.Data.id}");
+                break;
+            }
+
+            ApplyEffect(command, side, effect);
+        }
+
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
+        // 除外〜後続が成立してから使用済み／ターン1回を消費
+        MarkActionStepCardUsed(side, command);
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+        FinalizeOnActionSourceCard(command, side);
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+    }
+
+    private IEnumerator ExecuteOnActionDirectEffectAfterPreview(
+        PlayerType side,
+        CardController command,
+        EffectData applied,
+        IReadOnlyList<EffectData> allOnActionEffects,
+        List<CardController> resolvedBeforeApply,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        // 了承表示〜効果適用まで破壊時効果を保留し、OK 後の適用直後に Look／回収をフラッシュ
+        BeginOnDestroyedLatencyHold();
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            resolvedBeforeApply,
+            GameLocale.T("コマンド発動", "Command activated"));
+
+        bool paymentOk = false;
+        int exToUse = 0;
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForAfford(command, side);
+        yield return WaitForResourcePaymentCoroutine(
+            side,
+            onActionCost,
+            onActionRequiredLevel,
+            (ok, chosenEx) =>
+            {
+                paymentOk = ok;
+                exToUse = chosenEx;
+            });
+        if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
+        {
+            EndOnDestroyedLatencyHold();
+            LogCommandUseResultWithBoard(
+                "OnAction_Failed_InsufficientResource",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "phase:before_apply_direct cost not consumed");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            command,
+            "OnAction",
+            null);
+
+        bool actionChainResolved = false;
+        if (command.Data.id == 1000659)
+        {
+            EffectData exileEffect = null;
+            EffectData suppressEffect = null;
+            for (int i = 0; i < allOnActionEffects.Count; i++)
+            {
+                EffectData candidate = allOnActionEffects[i];
+                if (candidate?.type == EffectType.ExileFromTrash && exileEffect == null)
+                {
+                    exileEffect = candidate;
+                }
+                else if (candidate?.type == EffectType.Suppress && suppressEffect == null)
+                {
+                    suppressEffect = candidate;
+                }
+            }
+
+            bool exileSelectionFinished = false;
+            bool exileSucceeded = false;
+            if (exileEffect != null && suppressEffect != null)
+            {
+                ApplyExileFromTrashEffect(
+                    command,
+                    side,
+                    exileEffect,
+                    onComplete: () =>
+                    {
+                        exileSucceeded = true;
+                        exileSelectionFinished = true;
+                    },
+                    onSkipped: () => exileSelectionFinished = true);
+                yield return new WaitUntil(() => exileSelectionFinished);
+            }
+
+            if (!exileSucceeded)
+            {
+                EndOnDestroyedLatencyHold();
+                FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                yield break;
+            }
+
+            ApplyEffect(command, side, suppressEffect);
+            actionChainResolved = true;
+        }
+        else if (command.Data.id == 1000668)
+        {
+            EffectData chooseEffect = null;
+            for (int i = 0; i < allOnActionEffects.Count; i++)
+            {
+                if (allOnActionEffects[i]?.type == EffectType.ChooseOne)
+                {
+                    chooseEffect = allOnActionEffects[i];
+                    break;
+                }
+            }
+
+            if (chooseEffect != null)
+            {
+                bool choiceResolved = false;
+                ApplyChooseOneEffect(
+                    command,
+                    side,
+                    chooseEffect,
+                    () => choiceResolved = true);
+                yield return new WaitUntil(() => choiceResolved);
+                actionChainResolved = true;
+            }
+        }
+
+        // ST12-011: 適用成功後にだけターン1回／使用済みを消費（失敗で消費しない）
+        if (!actionChainResolved && IsMilliardoPeacecraftCard(command))
+        {
+            List<UnitStatSnapForCommandLog> milliardoBeforeSnaps =
+                SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
+            if (!TryApplyMilliardoPeacecraftOnActionDamage(command, side, applied))
+            {
+                EndOnDestroyedLatencyHold();
+                FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                yield break;
+            }
+
+            MarkActionStepCardUsed(side, command);
+            MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+            TryApplyOnActionRestSelfCostIfPresent(command, side);
+            actionChainResolved = true;
+            EndOnDestroyedLatencyHold();
+            yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+            yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
+            LogOnActionCommandAppliedToUnitsBattleOutcome(
+                command,
+                side,
+                applied,
+                "OnAction_AfterApplyDirectEffect",
+                milliardoBeforeSnaps);
+            FinalizeOnActionSourceCard(command, side);
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            yield break;
+        }
+
+        MarkActionStepCardUsed(side, command);
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+        string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
+        string effectDetail =
+            $"consumed:{consumedSummary}|firstEffect:{applied.type} target:{applied.target} value:{applied.value}";
+        List<UnitStatSnapForCommandLog> beforeSnaps = SnapUnitStatsForOnActionCommandLog(resolvedBeforeApply);
+        TryApplyOnActionRestSelfCostIfPresent(command, side);
+
+        // Kindhearted 等：OnAction の全効果を順に適用（先頭だけだと Destroy 防止後のドローが落ちる）
+        IReadOnlyList<EffectData> chain = allOnActionEffects != null && allOnActionEffects.Count > 0
+            ? allOnActionEffects
+            : new[] { applied };
+        for (int ei = 0; !actionChainResolved && ei < chain.Count; ei++)
+        {
+            EffectData effect = chain[ei];
+            if (effect == null || EffectRequiresManualHandSelection(effect))
+            {
+                continue;
+            }
+
+            // 手動選択が必要な効果はここではスキップ（別 UI 経路）
+            if (EffectRequiresManualUnitSelection(effect))
+            {
+                continue;
+            }
+
+            ApplyEffect(command, side, effect);
+        }
+
+        // OK 後: 保留していた破壊時 Look／手札回収を実行
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        // EX 支払い後のキャリバーン等は、コマンド効果解決後に出す
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
+        LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
+        FinalizeOnActionSourceCard(command, side);
+        List<CardController> unitTargetsForEvalLog = BuildOnActionUnitTargetListAfterApply(resolvedBeforeApply);
+        LogCommandUseResultWithBoard(
+            "OnAction_AfterApplyDirectEffect",
+            side,
+            null,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            effectDetail,
+            unitTargetsForEvalLog);
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+    }
+
+    private void OpenOnActionMultiUnitTargetSelection(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow = null,
+        int commandQueueIndex = -1,
+        int commandQueueCount = -1)
+    {
+        List<CardController> candidates = ResolveSelectableEffectTargets(command, side, effect);
+        int selectMin = effect != null ? effect.GetSelectMinCount() : 1;
+        if (candidates.Count < selectMin)
+        {
+            Debug.Log($"OnAction: 選択可能な対象ユニットが足りません ({effect?.FormatEffectSelectionSummary()}).");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoUnitTargets",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:ResolveSelectableEffectTargets empty (multi)");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            return;
+        }
+
+        OpenManualMultiUnitTargetSelectionUI(
+            command,
+            side,
+            effect,
+            candidates,
+            attackingUnitInAttackFlow,
+            selected =>
+            {
+                if (selected == null || selected.Count < selectMin)
+                {
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                    return;
+                }
+
+                StartCoroutine(CoApplyOnActionUnitTargetsAfterAcknowledgement(
+                    side,
+                    command,
+                    effect,
+                    selected,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount,
+                    onDone));
+            });
+    }
+
+    private void OpenOnActionUnitTargetSelection(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow = null,
+        int commandQueueIndex = -1,
+        int commandQueueCount = -1)
+    {
+        List<CardController> candidates = IsMagicBulletOfDuskCard(command != null ? command.Data : null)
+            ? CollectMagicBulletOfDuskTargets(side)
+            : (IsOnActionAttackTargetRedirectEffect(effect)
+                ? CollectRestedCbAllyUnitsForAttackRedirect(side)
+                : ResolveSelectableEffectTargets(command, side, effect));
+        if (candidates.Count == 0)
+        {
+            Debug.Log($"OnAction: 選択可能な対象ユニットがいません ({effect?.FormatEffectSelectionSummary()}).");
+            LogCommandUseResultWithBoard(
+                "OnAction_Skipped_NoUnitTargets",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "reason:ResolveSelectableEffectTargets empty");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            return;
+        }
+
+        if (command != null && command.Data != null && effect != null)
+        {
+            System.Text.StringBuilder openPatternTable = new System.Text.StringBuilder(320);
+            openPatternTable.Append("[OnActionHypotheticalBoard] phase:EnumerateHypotheticalPicks candidates:").Append(candidates.Count)
+                .Append(" cmdId:").Append(command.Data.id).Append(" effect:").Append(effect.type).Append(" target:").Append(effect.target)
+                .Append(' ').Append(FormatBlockRedirectProbeInline(side)).AppendLine();
+            for (int pi = 0; pi < candidates.Count; pi++)
+            {
+                CardController eu = candidates[pi];
+                if (eu?.Data == null)
+                {
+                    continue;
+                }
+
+                int es = TryGetUnitBattleZoneSlotIndex(eu);
+                openPatternTable.Append("  patternRow:").Append(FormatHypothesisPatternLetterLabel(pi)).Append(" → target:")
+                    .Append(eu.Data.cardName).Append("(id:").Append(eu.Data.id).Append(") zoneSlotIndex:#").Append(es).AppendLine();
+            }
+
+            Debug.Log(openPatternTable.ToString());
+            for (int hi = 0; hi < candidates.Count; hi++)
+            {
+                LogOnActionHypotheticalBoardForEnemyPick(
+                    command,
+                    side,
+                    effect,
+                    candidates[hi],
+                    hi,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+            }
+        }
+
+        bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
+        string title = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
+        string effectSummary = effect != null ? effect.FormatEffectSelectionSummary() : string.Empty;
+        CardController blockRedirectUnit = isAttackContext
+            && attackFlowBlockRedirectEngaged
+            && IsCardControllerInstanceValid(attackFlowBlockRedirectUnit)
+            ? attackFlowBlockRedirectUnit
+            : null;
+
+        OpenCommandWithTargetsSelectionUI(
+            title,
+            effectSummary,
+            command,
+            candidates,
+            attackingUnitInAttackFlow,
+            picked =>
+            {
+                if (picked == null)
+                {
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+                    return;
+                }
+
+                StartCoroutine(CoApplyOnActionUnitTargetAfterAcknowledgement(
+                    side,
+                    command,
+                    effect,
+                    picked,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount,
+                    onDone));
+            },
+            () => FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false),
+            blockRedirectUnit);
+    }
+
+    /// <summary>
+    /// 対象選択後: コマンド確認 OK → 効果適用 → 破壊時 Look／回収（レイテンシー解除）→ UI 完了待ち。
+    /// </summary>
+    private IEnumerator CoApplyOnActionUnitTargetAfterAcknowledgement(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        CardController picked,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (picked == null)
+        {
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        yield return CoApplyOnActionUnitTargetsAfterAcknowledgement(
+            side,
+            command,
+            effect,
+            new List<CardController> { picked },
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            onDone);
+    }
+
+    private IEnumerator CoApplyOnActionUnitTargetsAfterAcknowledgement(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        List<CardController> pickedTargets,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (pickedTargets == null || pickedTargets.Count == 0 || command == null || command.Data == null || effect == null)
+        {
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        CardController revealTarget = pickedTargets[0];
+
+        // 了承表示〜効果適用まで破壊時効果を保留し、OK 後の適用直後に Look／回収をフラッシュ
+        BeginOnDestroyedLatencyHold();
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            pickedTargets,
+            GameLocale.T("コマンド発動", "Command activated"));
+
+        bool paymentOk = false;
+        int exToUse = 0;
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForAfford(command, side);
+        yield return WaitForResourcePaymentCoroutine(
+            side,
+            onActionCost,
+            onActionRequiredLevel,
+            (ok, chosenEx) =>
+            {
+                paymentOk = ok;
+                exToUse = chosenEx;
+            });
+        if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
+        {
+            EndOnDestroyedLatencyHold();
+            LogCommandUseResultWithBoard(
+                "OnAction_Failed_InsufficientResource",
+                side,
+                command,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                "phase:unit_target_ui cost not consumed");
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            command,
+            "OnAction",
+            revealTarget);
+        MarkActionStepCardUsed(side, command);
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+        string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
+        string pickedSummary = FormatOnActionPickedTargetsSummary(pickedTargets);
+        string detail =
+            $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{pickedSummary}";
+        List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(pickedTargets);
+
+        if (IsCloseCombatCard(command) && attackFlowBlockRedirectFromShieldStrike)
+        {
+            LogArgamaShieldBlockCloseCombatDebug(
+                "CloseCombatOnActionPick",
+                $"side:{side} {detail} redirectBlocker:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)} "
+                + $"pickedContainsBlocker:{pickedTargets.Contains(attackFlowBlockRedirectUnit)}",
+                attackFlowAttackerUnit,
+                attackFlowBlockRedirectUnit,
+                command);
+        }
+
+        TryApplyOnActionRestSelfCostIfPresent(command, side);
+        if (IsMagicBulletOfDuskCard(command.Data))
+        {
+            System.Action applyMagicBullet = () =>
+            {
+                GrantMagicBulletOfDuskFirstStrikeToTargets(pickedTargets);
+                SetEffectChainLastPickedTargets(pickedTargets);
+                BeginOnlineEffectSyncBatch(side);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyMagicBullet);
+            }
+            else
+            {
+                applyMagicBullet();
+            }
+        }
+        else if (IsTheBlueGiantCard(command.Data))
+        {
+            System.Action applyBlueGiant = () =>
+            {
+                GrantTheBlueGiantImmunityToTargets(pickedTargets);
+                SetEffectChainLastPickedTargets(pickedTargets);
+                BeginOnlineEffectSyncBatch(side);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyBlueGiant);
+            }
+            else
+            {
+                applyBlueGiant();
+            }
+        }
+        else if (effect.type == EffectType.BattleDamageImmunityFromLowApEnemy)
+        {
+            System.Action applyImmunity = () =>
+            {
+                BeginOnlineEffectSyncBatch(side);
+                bool applied = TryApplyBattleDamageImmunityFromLowApEnemyMarker(effect, pickedTargets);
+                if (!applied)
+                {
+                    int maxAp = effect.value > 0 ? effect.value : 2;
+                    bool untilBattle = effect.duration != EffectDuration.UntilEndOfTurn;
+                    for (int pi = 0; pi < pickedTargets.Count; pi++)
+                    {
+                        CardController unit = pickedTargets[pi];
+                        if (unit != null && unit.Data != null && unit.Data.IsPilot())
+                        {
+                            unit = ResolveEffectSourceBattleHost(unit) ?? unit;
+                        }
+
+                        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+                        {
+                            continue;
+                        }
+
+                        unit.GrantBattleDamageImmunityFromEnemyAp(maxAp, untilBattle);
+                        applied = true;
+                    }
+                }
+
+                if (applied)
+                {
+                    SetEffectChainLastPickedTargets(pickedTargets);
+                }
+
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                Debug.Log(
+                    $"[OnAction] BattleDamageImmunity applied:{applied} "
+                    + $"picked:{FormatOnActionPickedTargetsSummary(pickedTargets)} "
+                    + $"value:{effect.value} duration:{effect.duration}");
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyImmunity);
+            }
+            else
+            {
+                applyImmunity();
+            }
+        }
+        else if (IsOnActionAttackTargetRedirectEffect(effect))
+        {
+            System.Action applyRedirect = () =>
+            {
+                bool applied = TryApplyOnActionAttackTargetRedirect(side, pickedTargets);
+                if (applied)
+                {
+                    SetEffectChainLastPickedTargets(pickedTargets);
+                }
+
+                BeginOnlineEffectSyncBatch(side);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                Debug.Log(
+                    $"[OnAction] AttackTargetRedirect applied:{applied} "
+                    + $"picked:{FormatOnActionPickedTargetsSummary(pickedTargets)} "
+                    + $"attacker:{attackFlowAttackerUnit?.Data?.cardName}");
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyRedirect);
+            }
+            else
+            {
+                applyRedirect();
+            }
+        }
+        else if (effect.type == EffectType.CannotBeChosenAsAttackTarget)
+        {
+            // 手動選択結果を直接付与（ApplyEffectToSpecificTargets のブロック経路を避ける）
+            System.Action applyProtect = () =>
+            {
+                BeginOnlineEffectSyncBatch(side);
+                bool applied = TryApplyCannotBeChosenAsAttackTargetMarker(effect, pickedTargets);
+                if (!applied)
+                {
+                    // duration 不一致等でも、選んだ対象には必ず付与する
+                    for (int pi = 0; pi < pickedTargets.Count; pi++)
+                    {
+                        GrantCannotBeChosenAsAttackUntilEndOfTurn(pickedTargets[pi]);
+                    }
+
+                    applied = pickedTargets.Count > 0;
+                }
+
+                if (applied)
+                {
+                    SetEffectChainLastPickedTargets(pickedTargets);
+                }
+
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                Debug.Log(
+                    $"[OnAction] CannotBeChosenAsAttackTarget applied:{applied} "
+                    + $"picked:{FormatOnActionPickedTargetsSummary(pickedTargets)}");
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyProtect);
+            }
+            else
+            {
+                applyProtect();
+            }
+        }
+        else if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
+        {
+            InvokePlayerManualUnitSelectionCallback(() =>
+                ApplyEffectToSpecificTargets(command, side, effect, pickedTargets));
+        }
+        else
+        {
+            ApplyEffectToSpecificTargets(command, side, effect, pickedTargets);
+        }
+        if (attackingUnitInAttackFlow != null && pickedTargets.Contains(attackingUnitInAttackFlow))
+        {
+            Debug.Log(
+                $"[OnActionUnitTarget] effect applied to attacking unit — strikeAP after command:{GetUnitStrikeDamagePower(attackingUnitInAttackFlow)} "
+                + $"(card:{attackingUnitInAttackFlow.Data.cardName})");
+        }
+
+        // 手動選択効果の後続（例: Rest 味方 → Damage 敵 / Bounce → Draw）を同じ OnAction チェーンで解決する
+        if (TryContinueOnActionManualEffectsAfterApply(
+                command,
+                side,
+                effect,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                paymentAndOnceAlreadyConsumed: true))
+        {
+            // 次の手動選択 UI を開いたので、ここでは Finish しない
+            yield break;
+        }
+
+        // OK 後: 保留していた破壊時 Look／手札回収を実行し、完了まで待機
+        EndOnDestroyedLatencyHold();
+        // Action ステップ完了を無限待ちで止めない（Look 等が残っても攻撃／Action 進行を優先）
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
+
+        LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
+        FinalizeOnActionSourceCard(command, side);
+        List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(pickedTargets);
+        LogCommandUseResultWithBoard(
+            "OnAction_AfterApplyUnitTarget",
+            side,
+            null,
+            attackingUnitInAttackFlow,
+            commandQueueIndex,
+            commandQueueCount,
+            detail,
+            pickedForEval);
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+    }
+    private void ApplyRemainingOnActionEffectsAfterManualTarget(
+        CardController command,
+        PlayerType side,
+        EffectData appliedManualEffect)
+    {
+        TryContinueOnActionManualEffectsAfterApply(
+            command,
+            side,
+            appliedManualEffect,
+            onDone: null,
+            attackingUnitInAttackFlow: null,
+            commandQueueIndex: -1,
+            commandQueueCount: -1,
+            paymentAndOnceAlreadyConsumed: false);
+    }
+
+    /// <summary>
+    /// 手動選択効果の後続を解決する。次が手動ユニット選択なら UI を開き true を返す（呼び出し側は Finish しない）。
+    /// </summary>
+    private bool TryContinueOnActionManualEffectsAfterApply(
+        CardController command,
+        PlayerType side,
+        EffectData appliedManualEffect,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        bool paymentAndOnceAlreadyConsumed)
+    {
+        if (command?.Data == null || appliedManualEffect == null)
+        {
+            return false;
+        }
+
+        List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        int startIndex = -1;
+        for (int i = 0; i < onActionEffects.Count; i++)
+        {
+            if (onActionEffects[i] == appliedManualEffect)
+            {
+                startIndex = i + 1;
+                break;
+            }
+        }
+
+        if (startIndex < 0)
+        {
+            // 参照一致しない場合は「最初の手動選択効果」の次から
+            for (int i = 0; i < onActionEffects.Count; i++)
+            {
+                EffectData e = onActionEffects[i];
+                if (e != null && EffectRequiresManualUnitSelection(e))
+                {
+                    startIndex = i + 1;
+                    break;
+                }
+            }
+        }
+
+        if (startIndex < 0)
+        {
+            return false;
+        }
+
+        // 「そうしたなら」：Bounce が1体も戻せていなければ後続（Draw 等）を打ち切る
+        if (ShouldAbortRemainingChainAfterManualUnitEffect(appliedManualEffect))
+        {
+            return false;
+        }
+
+        for (int i = startIndex; i < onActionEffects.Count; i++)
+        {
+            EffectData next = onActionEffects[i];
+            if (next == null)
+            {
+                continue;
+            }
+
+            if (next.selectionMode.IsUsePriorChainPickedTargetMode())
+            {
+                TryExecutePriorChainPickedTargetEffect(command, side, next, () => { });
+                continue;
+            }
+
+            if (EffectRequiresManualHandSelection(next))
+            {
+                Debug.LogWarning(
+                    $"[OnAction] Remaining chain stopped at further manual hand effect ({next.type}) "
+                    + $"cardId:{command.Data.id}");
+                return false;
+            }
+
+            if (EffectRequiresManualUnitSelection(next))
+            {
+                if (!paymentAndOnceAlreadyConsumed || onDone == null)
+                {
+                    Debug.LogWarning(
+                        $"[OnAction] Remaining chain stopped at further manual effect ({next.type}) "
+                        + $"cardId:{command.Data.id}");
+                    return false;
+                }
+
+                Debug.Log(
+                    $"[OnAction] Continuing manual chain → {next.type} target:{next.target} "
+                    + $"cardId:{command.Data.id}");
+                OpenOnActionFollowUpUnitTargetSelection(
+                    side,
+                    command,
+                    next,
+                    onDone,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount);
+                return true;
+            }
+
+            ApplyEffect(command, side, next);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// OnAction チェーン内の 2 回目以降のユニット選択（Rest コスト後の Damage 等）。
+    /// リソース消費・ターン1回マークは初回で済んでいる前提。
+    /// </summary>
+    private void OpenOnActionFollowUpUnitTargetSelection(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount)
+    {
+        List<CardController> candidates = ResolveSelectableEffectTargets(command, side, effect);
+        if (candidates.Count == 0)
+        {
+            Debug.Log($"OnAction follow-up: 選択可能な対象ユニットがいません ({effect?.FormatEffectSelectionSummary()}).");
+            EndOnDestroyedLatencyHold();
+            FinalizeOnActionSourceCard(command, side);
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            return;
+        }
+
+        bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
+        string title = FormatManualUnitSelectionTitle(effect, attackingUnitInAttackFlow);
+        string effectSummary = effect != null ? effect.FormatEffectSelectionSummary() : string.Empty;
+        CardController blockRedirectUnit = isAttackContext
+            && attackFlowBlockRedirectEngaged
+            && IsCardControllerInstanceValid(attackFlowBlockRedirectUnit)
+            ? attackFlowBlockRedirectUnit
+            : null;
+
+        OpenCommandWithTargetsSelectionUI(
+            title,
+            effectSummary,
+            command,
+            candidates,
+            attackingUnitInAttackFlow,
+            picked =>
+            {
+                if (picked == null)
+                {
+                    EndOnDestroyedLatencyHold();
+                    FinalizeOnActionSourceCard(command, side);
+                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+                    return;
+                }
+
+                StartCoroutine(CoApplyOnActionFollowUpUnitTarget(
+                    side,
+                    command,
+                    effect,
+                    picked,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount,
+                    onDone));
+            },
+            () =>
+            {
+                EndOnDestroyedLatencyHold();
+                FinalizeOnActionSourceCard(command, side);
+                FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            },
+            blockRedirectUnit);
+    }
+
+    private IEnumerator CoApplyOnActionFollowUpUnitTarget(
+        PlayerType side,
+        CardController command,
+        EffectData effect,
+        CardController picked,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount,
+        System.Action onDone)
+    {
+        if (picked == null || command == null || effect == null)
+        {
+            EndOnDestroyedLatencyHold();
+            FinalizeOnActionSourceCard(command, side);
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            yield break;
+        }
+
+        List<CardController> pickedTargets = new List<CardController> { picked };
+        List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(pickedTargets);
+
+        if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
+        {
+            InvokePlayerManualUnitSelectionCallback(() =>
+                ApplyEffectToSpecificTargets(command, side, effect, pickedTargets));
+        }
+        else
+        {
+            ApplyEffectToSpecificTargets(command, side, effect, pickedTargets);
+        }
+
+        if (TryContinueOnActionManualEffectsAfterApply(
+                command,
+                side,
+                effect,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount,
+                paymentAndOnceAlreadyConsumed: true))
+        {
+            yield break;
+        }
+
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
+
+        LogOnActionCommandAppliedToUnitsBattleOutcome(
+            command, side, effect, "OnAction_AfterApplyFollowUpUnitTarget", beforeSnapsPick);
+        FinalizeOnActionSourceCard(command, side);
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+    }
+
+    private static string FormatOnActionPickedTargetsSummary(List<CardController> pickedTargets)
+    {
+        if (pickedTargets == null || pickedTargets.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(128);
+        for (int i = 0; i < pickedTargets.Count; i++)
+        {
+            CardController picked = pickedTargets[i];
+            if (picked?.Data == null)
+            {
+                continue;
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append(';');
+            }
+
+            sb.Append(picked.Data.cardName).Append("(id:").Append(picked.Data.id).Append(')');
+        }
+
+        return sb.ToString();
+    }
+
+    private bool TryAddOnMainEffectApplyButton(
+        GameObject filterPanel,
+        CardController cardController,
+        PlayerType ownerType,
+        float anchoredY)
+    {
+        if (filterPanel == null || cardController == null || cardController.Data == null)
+        {
+            return false;
+        }
+
+        if (!HasEffectTiming(cardController.Data, EffectTiming.OnMain)
+            || !CanExecuteOnMainCardNow(ownerType, cardController))
+        {
+            return false;
+        }
+
+        Button mainBtn = filterPanel.CreateChildButton(FormatOnMainActivationButtonLabel(cardController, ownerType));
+        RectTransform mainRt = mainBtn.GetComponent<RectTransform>();
+        mainRt.sizeDelta = new Vector2(280f, 50f);
+        mainRt.anchoredPosition = new Vector2(0f, anchoredY);
+        CardController source = cardController;
+        mainBtn.onClick.AddListener(() =>
+        {
+            DestroyCardFilterOverlay(filterPanel);
+            TryExecuteOnMainCard(ownerType, source, null);
+        });
+        return true;
+    }
+
+    private bool TryAddOnRestSelfActivateButton(
+        GameObject filterPanel,
+        CardController cardController,
+        PlayerType ownerType,
+        float anchoredY)
+    {
+        if (filterPanel == null || cardController == null || cardController.Data == null)
+        {
+            return false;
+        }
+
+        if (!CanActivateOnRestBySelf(ownerType, cardController))
+        {
+            return false;
+        }
+
+        Button restBtn = filterPanel.CreateChildButton(
+            GameLocale.T("レストして効果発動", "Rest to activate effect"));
+        RectTransform restRt = restBtn.GetComponent<RectTransform>();
+        restRt.sizeDelta = new Vector2(320f, 50f);
+        restRt.anchoredPosition = new Vector2(0f, anchoredY);
+        CardController source = cardController;
+        restBtn.onClick.AddListener(() =>
+        {
+            TryActivateOnRestBySelf(ownerType, source);
+            DestroyCardFilterOverlay(filterPanel);
+        });
+        return true;
+    }
+
+    private void TryExecuteOnMainCard(PlayerType side, CardController source, System.Action onDone)
+    {
+        if (source == null || source.Data == null)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        if (!CanExecuteOnMainCardNow(side, source))
+        {
+            Debug.Log("OnMain: 現在は発動できません（ターン/フェイズ/リソース/条件/使用回数）。");
+            onDone?.Invoke();
+            return;
+        }
+
+        List<OnMainExecutableBlock> blocks = CollectExecutableOnMainBlocks(side, source);
+        if (blocks.Count == 0)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        // オンライン：自分がコマンドを出したとき相手へ公開し、OK まで待ってから効果解決
+        if (IsOnlineBattle()
+            && !_applyingRemoteBattleAction
+            && side == PlayerType.Player
+            && source.Data.IsCommand())
+        {
+            StartCoroutine(ExecuteOnMainCardWithOpponentRevealCoroutine(side, source, blocks, onDone));
+            return;
+        }
+
+        TryExecuteOnMainBlocks(side, source, blocks, 0, onDone);
+    }
+
+    private IEnumerator ExecuteOnMainCardWithOpponentRevealCoroutine(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        System.Action onDone)
+    {
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            source,
+            null,
+            null,
+            GameLocale.T("コマンド発動", "Command activated"));
+
+        yield return WaitForOpponentCommandPlayRevealAcknowledgedCoroutine(
+            source,
+            "OnMain",
+            null);
+
+        TryExecuteOnMainBlocks(side, source, blocks, 0, onDone);
+    }
+
+    private void TryExecuteOnMainBlocks(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        int blockIndex,
+        System.Action onDone)
+    {
+        StartCoroutine(CoTryExecuteOnMainBlocks(side, source, blocks, blockIndex, onDone));
+    }
+
+    private IEnumerator CoTryExecuteOnMainBlocks(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        int blockIndex,
+        System.Action onDone)
+    {
+        if (blocks == null || blockIndex >= blocks.Count)
+        {
+            onDone?.Invoke();
+            yield break;
+        }
+
+        OnMainExecutableBlock entry = blocks[blockIndex];
+        TimedEffectData timed = entry.Timed;
+        bool deferPayment = NeedsDeferredOnMainPayment(timed, side, source);
+        if (!deferPayment)
+        {
+            bool finalized = false;
+            yield return CoTryFinalizeOnMainPaidActivationWithUi(
+                new PaidActivationBlockContext(side, source, timed, entry.BlockIndex),
+                ok => finalized = ok);
+            if (!finalized)
+            {
+                TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
+                yield break;
+            }
+        }
+        else
+        {
+            BeginOnMainPaidBlock(side, source, timed, entry.BlockIndex);
+        }
+
+        bool trashHandCardAfter = IsOnMainActivatedFromHand(source, side);
+        bool costWasPaid = !deferPayment;
+        _chooseOneCancelled = false;
+        BeginEffectChainObservationScope();
+        EffectActivationContext chainActivationContext = BuildOnMainChainActivationContext(side, source);
+        TryApplyOnMainRestSelfCostIfPresent(source, side, timed);
+        IReadOnlyList<EffectData> resolvedMainEffects = timed.GetResolvedEffects();
+        int mainEffectStartIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
+        TryExecuteOnMainEffectChain(
+            side,
+            source,
+            resolvedMainEffects,
+            mainEffectStartIndex,
+            !deferPayment,
+            chainActivationContext,
+            () =>
+            {
+                EndEffectChainObservationScope();
+                bool cancelled = _chooseOneCancelled;
+                _chooseOneCancelled = false;
+                ClearOnMainPaidBlock();
+
+                if (cancelled)
+                {
+                    ClearPendingExResourceRemovedForSide(side);
+                    if (costWasPaid && source?.Data != null && gundamRule != null)
+                    {
+                        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(side);
+                        if (gundamRule.TryRefundLastResourceUsageForCard(ruleSide, source.Data.id))
+                        {
+                            AfterLocalResourceChanged(ruleSide);
+                        }
+                    }
+
+                    if (timed != null && timed.oncePerTurn)
+                    {
+                        ClearPaidActivationUseThisTurn(side, source, entry.BlockIndex);
+                    }
+
+                    Debug.Log($"[OnMain] ChooseOne cancelled — card kept in hand (cardId:{source?.Data?.id})");
+                    onDone?.Invoke();
+                    return;
+                }
+
+                StartCoroutine(CoFinishOnMainBlockAfterExRemovedWatch(
+                    side,
+                    source,
+                    blocks,
+                    blockIndex,
+                    trashHandCardAfter,
+                    timed,
+                    onDone));
+            });
+    }
+
+    private IEnumerator CoFinishOnMainBlockAfterExRemovedWatch(
+        PlayerType side,
+        CardController source,
+        List<OnMainExecutableBlock> blocks,
+        int blockIndex,
+        bool trashHandCardAfter,
+        TimedEffectData timed,
+        System.Action onDone)
+    {
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
+
+        if (trashHandCardAfter)
+        {
+            int sourceCardId = source != null && source.Data != null ? source.Data.id : 0;
+            CardData sourceData = source != null ? source.Data : null;
+            List<EffectData> deferredMountEffects = CollectMountSelfFromTrashAsPilotEffects(
+                timed != null ? timed.GetResolvedEffects() : null);
+            // 必殺技監視 UI と搭乗 UI が同時に開くと DestroyActiveOnActionPopupIfAny で潰れる。
+            yield return CoFinalizeOnMainSourceCardAndWaitSpecialMoveWatch(source, side);
+            if (deferredMountEffects.Count > 0 && sourceCardId > 0)
+            {
+                TryExecuteDeferredMountSelfFromTrashChain(
+                    side,
+                    sourceCardId,
+                    sourceData,
+                    deferredMountEffects,
+                    0,
+                    () => TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone));
+                yield break;
+            }
+        }
+
+        TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
+    }
+
+    private EffectActivationContext BuildOnMainChainActivationContext(PlayerType side, CardController source)
+    {
+        EffectActivationContext context = BuildActivationContext(side, source);
+        IReadOnlyList<CardController> ownerZone = side == PlayerType.Player
+            ? context.PlayerBattleZone
+            : context.EnemyBattleZone;
+        int ownerAliveUnits = EffectActivationEvaluator.CountAliveUnitsInZone(ownerZone);
+        return context.WithFrozenOwnerBattleAliveUnitCount(ownerAliveUnits);
+    }
+
+    private void TryExecuteOnMainEffectChain(
+        PlayerType side,
+        CardController source,
+        IReadOnlyList<EffectData> effects,
+        int index,
+        bool activationCostAlreadyPaid,
+        EffectActivationContext chainActivationContext,
+        System.Action onDone)
+    {
+        if (effects == null || index >= effects.Count)
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        EffectData effect = effects[index];
+        if (effect == null)
+        {
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+            return;
+        }
+
+        EffectActivationContext activationContext = chainActivationContext ?? BuildActivationContext(side, source);
+        if (ShouldSkipChainedEffectOncePerTurn(side, source, effect, index))
+        {
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+            return;
+        }
+
+        if (!ShouldApplyChainedEffect(effect, activationContext, "OnMain"))
+        {
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+            return;
+        }
+
+        // 条件を満たして実行する oncePerTurn 効果は、ここで消費（スキップ時は消費しない）
+        TryMarkChainedEffectOncePerTurn(side, source, effect, index);
+
+        // トラッシュ送付後に解決（コマンド自身が搭乗元になるため）。
+        if (effect.type == EffectType.MountSelfFromTrashAsPilot)
+        {
+            TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+            return;
+        }
+
+        if (TryExecutePriorChainPickedTargetEffect(
+            source,
+            side,
+            effect,
+            () => TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone)))
+        {
+            return;
+        }
+
+        if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
+        {
+            ApplyDeployUnitEffect(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
+            return;
+        }
+
+        // トラッシュ除外（ソロモン迎撃等）：「そうしたなら」は abortRemainingChainOnSkip で後続を打ち切る
+        if (effect.type == EffectType.ExileFromTrash)
+        {
+            bool abortRemainingOnSkip = effect.abortRemainingChainOnSkip;
+            ApplyExileFromTrashEffect(
+                source,
+                side,
+                effect,
+                // 除外 UI 内で支払い済み。後続ダメージ選択で再課金しない
+                onComplete: () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, true, chainActivationContext, onDone),
+                onSkipped: () =>
+                {
+                    if (abortRemainingOnSkip)
+                    {
+                        Debug.Log(
+                            "[OnMain] ExileFromTrash skipped — abort remaining chain "
+                            + $"(cardId:{source?.Data?.id})");
+                        // 除外未成立＋コスト未払いのままトラッシュしない（手札に残す）
+                        _chooseOneCancelled = true;
+                        onDone?.Invoke();
+                    }
+                    else
+                    {
+                        TryExecuteOnMainEffectChain(
+                            side,
+                            source,
+                            effects,
+                            index + 1,
+                            activationCostAlreadyPaid,
+                            chainActivationContext,
+                            onDone);
+                    }
+                });
+            return;
+        }
+
+        if (EffectRequiresManualHandSelection(effect))
+        {
+            List<CardController> handCandidates = CollectSelectableHandCards(
+                ResolveHandDiscardOwner(side, effect),
+                excludeSource: source);
+            FilterHandCandidatesByEffect(handCandidates, effect);
+            if (handCandidates.Count == 0)
+            {
+                Debug.Log("OnMain: 捨てる手札がありません (DiscardFromHand)。");
+                // 「そうしたなら」：捨てられなかったら後続（ドロー等）は打ち切り
+                if (effect.abortRemainingChainOnSkip)
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
+                TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+                return;
+            }
+
+            TryExecuteManualHandSelectionEffect(
+                source,
+                side,
+                effect,
+                succeeded =>
+                {
+                    if (!succeeded && effect.abortRemainingChainOnSkip)
+                    {
+                        Debug.Log(
+                            "OnMain: DiscardFromHand 未完了（Skip または枚数不足）。"
+                            + " abortRemainingChainOnSkip のため後続効果を打ち切り。");
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnMainEffectChain(
+                        side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+                });
+            return;
+        }
+
+        if (effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
+        {
+            ApplyActivateObservedSpecialMoveCommandOnMain(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
+            return;
+        }
+
+        if (source?.Data?.id == 1000666 && effect.type == EffectType.EffectBattle)
+        {
+            if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+            {
+                onDone?.Invoke();
+                return;
+            }
+
+            TryResolveFinalVictorEffectBattle(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side,
+                    source,
+                    effects,
+                    index + 1,
+                    true,
+                    chainActivationContext,
+                    onDone));
+            return;
+        }
+
+        if (source?.Data?.id == 1000670 && effect.type == EffectType.EffectBattle)
+        {
+            if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+            {
+                onDone?.Invoke();
+                return;
+            }
+
+            TryResolveQubeleyTokenEffectBattle(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side,
+                    source,
+                    effects,
+                    index + 1,
+                    true,
+                    chainActivationContext,
+                    onDone));
+            return;
+        }
+
+        if (EffectRequiresManualUnitSelection(effect))
+        {
+            List<CardController> candidates = IsMagicBulletOfDuskCard(source != null ? source.Data : null)
+                ? CollectMagicBulletOfDuskTargets(side)
+                : ResolveSelectableEffectTargets(source, side, effect);
+            int selectMin = effect.GetSelectMinCount();
+            if (candidates.Count < selectMin)
+            {
+                Debug.Log(
+                    $"OnMain: 選択可能な対象が足りません (target:{effect.target} need:{selectMin} have:{candidates.Count})。");
+                // 「そうしたなら」：対象が無ければ後続（ドロー等）を打ち切る
+                if (effect.abortRemainingChainOnSkip)
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
+                // 「選んでもよい」は候補0でも後続へ進む（シャイニングフィンガーの先制付与等）
+                if (effect.optionalPlayerConfirm)
+                {
+                    TryExecuteOnMainEffectChain(
+                        side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+                    return;
+                }
+
+                if (!activationCostAlreadyPaid)
+                {
+                    // 「選んで REST／破壊する」が発動条件。対象が無ければ以降は解決しない。
+                    onDone?.Invoke();
+                    return;
+                }
+
+                TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone);
+                return;
+            }
+
+            if (side == PlayerType.Enemy)
+            {
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(side, source, null, null);
+                if (effect.selectionMode.IsMultipleUnitPickMode())
+                {
+                    List<CardController> aiPicks = PickEnemyAiEffectTargets(effect, pickCtx, candidates);
+                    if (aiPicks != null && aiPicks.Count >= selectMin)
+                    {
+                        if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                        {
+                            onDone?.Invoke();
+                            return;
+                        }
+
+                        ApplyEffectToSpecificTargets(source, side, effect, aiPicks);
+                        TryExecuteOnMainEffectChain(
+                            side, source, effects, index + 1, true, chainActivationContext, onDone);
+                        return;
+                    }
+
+                    if (!activationCostAlreadyPaid)
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnMainEffectChain(
+                        side, source, effects, index + 1, true, chainActivationContext, onDone);
+                    return;
+                }
+
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
+                {
+                    if (!activationCostAlreadyPaid && !TryFinalizeOnMainPaidActivation(_activeOnMainPaidBlock))
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
+                }
+                else if (!activationCostAlreadyPaid)
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
+                TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, true, chainActivationContext, onDone);
+                return;
+            }
+
+            if (effect.selectionMode.IsMultipleUnitPickMode())
+            {
+                OpenManualMultiUnitTargetSelectionUI(
+                    source,
+                    side,
+                    effect,
+                    candidates,
+                    null,
+                    selected =>
+                    {
+                        if (selected == null || selected.Count < selectMin)
+                        {
+                            onDone?.Invoke();
+                            return;
+                        }
+
+                        if (!activationCostAlreadyPaid)
+                        {
+                            StartCoroutine(CoDeferredOnMainPayThenApplyTargets(
+                                source,
+                                side,
+                                effect,
+                                selected,
+                                effects,
+                                index,
+                                chainActivationContext,
+                                onDone));
+                            return;
+                        }
+
+                        ApplyEffectToSpecificTargets(source, side, effect, selected);
+                        TryExecuteOnMainEffectChain(
+                            side,
+                            source,
+                            effects,
+                            index + 1,
+                            true,
+                            chainActivationContext,
+                            onDone);
+                    });
+                return;
+            }
+
+            OpenOnMainTargetSelectionUI(
+                side,
+                source,
+                effect,
+                candidates,
+                effects,
+                index,
+                activationCostAlreadyPaid,
+                chainActivationContext,
+                onDone);
+            return;
+        }
+
+        ApplyEffectRespectingLookAsync(
+            source,
+            side,
+            effect,
+            () => TryExecuteOnMainEffectChain(
+                side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
+    }
+
+    private static bool IsEffectTargetRequiringUnitSelection(TargetType targetType)
+    {
+        return targetType == TargetType.EnemyUnit
+            || targetType == TargetType.RestEnemyUnit
+            || targetType == TargetType.AllyUnit
+            || targetType == TargetType.AllyOtherUnit
+            || targetType == TargetType.TokenUnit
+            || targetType == TargetType.EnemyTokenUnit
+            || targetType == TargetType.AnyUnit;
+    }
+
+    private List<CardController> ResolveSelectableEffectTargets(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (effect == null)
+        {
+            return new List<CardController>();
+        }
+
+        IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
+        List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        List<CardController> result = new List<CardController>();
+
+        // ST12-011 専用（他カードの selectionMode には一切干渉しない）
+        if (IsMilliardoPeacecraftCard(sourceCard) && effect.type == EffectType.Damage)
+        {
+            CardController milliardoTarget = ResolveMilliardoForcedDamageTarget(sourceCard);
+            if (milliardoTarget != null && milliardoTarget.CurrentHp > 0)
+            {
+                result.Add(milliardoTarget);
+            }
+
+            return result;
+        }
+
+        if (IsOnActionAttackTargetRedirectEffect(effect))
+        {
+            return CollectRestedCbAllyUnitsForAttackRedirect(ownerType);
+        }
+
+        switch (effect.target)
+        {
+            case TargetType.Self:
+                {
+                    CardController selfUnit = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+                    if (selfUnit != null
+                        && selfUnit.Data != null
+                        && selfUnit.Data.IsUnitLike()
+                        && selfUnit.CurrentHp > 0
+                        && (IsCardOnBattleZone(selfUnit)
+                            || ReferenceEquals(selfUnit, _pilotMountEffectHostUnit))
+                        && MatchesRequiredFeatures(selfUnit.Data, requiredFeatures))
+                    {
+                        result.Add(selfUnit);
+                    }
+                }
+                break;
+            case TargetType.AllyUnit:
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
+                EnsureAllyUnitSelfInCandidateList(sourceCard, result, requiredFeatures);
+                EnsurePilotMountHostInAllyCandidateList(result, requiredFeatures);
+                break;
+            case TargetType.AllyOtherUnit:
+                {
+                    CardController excludeSelf = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+                    AddAllAliveUnits(allies, result, excludeSelf, requiredFeatures);
+                }
+                break;
+            case TargetType.TokenUnit:
+                AddAllAliveTokenUnits(allies, result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyTokenUnit:
+                AddAllAliveTokenUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
+                break;
+            case TargetType.EnemyUnit:
+                AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
+                break;
+            case TargetType.RestEnemyUnit:
+                AddAllAliveUnits(GetAliveRestEnemyUnitsForOwner(ownerType), result, null, requiredFeatures);
+                break;
+            case TargetType.AnyUnit:
+                AddAllAliveUnits(allies, result, null, requiredFeatures);
+                AddAllAliveUnits(GetAliveEnemyUnits(ownerType), result, null, requiredFeatures);
+                EnsureAllyUnitSelfInCandidateList(sourceCard, result, requiredFeatures);
+                EnsurePilotMountHostInAllyCandidateList(result, requiredFeatures);
+                break;
+        }
+
+        FilterSelectableEffectTargets(result, effect);
+        // AttackActiveEnemyUnit のステータス条件は「攻撃できる敵」用。
+        // 付与候補は Feature に加え、valueCountMinUnitLevel>0 なら Lv 下限で絞る。
+        if (effect.type != EffectType.AttackActiveEnemyUnit)
+        {
+            FilterTargetsByUnitCondition(result, effect, sourceCard, ownerType);
+        }
+        else if (effect.IsAttackActiveEnemyAllyGrant() && effect.valueCountMinUnitLevel > 0)
+        {
+            FilterAttackActiveEnemyGrantTargetsByMinLevel(result, effect.valueCountMinUnitLevel);
+        }
+
+        if (effect.type == EffectType.Rest && !effect.allowAlreadyRestedTargets)
+        {
+            FilterOutAlreadyRestedUnits(result);
+        }
+
+        // Self の ACTIVE 化は既に ACTIVE でも後続効果を解決するため、REST 絞り込みしない。
+        // denyAttackThisTurn は既に ACTIVE の対象にも AttackFlg False を付けるため REST 限定しない。
+        if (effect.type == EffectType.Activate
+            && effect.target != TargetType.Self
+            && !effect.denyAttackThisTurn)
+        {
+            FilterOutNonRestedUnits(result);
+        }
+
+        if (effect.requireTargetIsRest)
+        {
+            FilterOutNonRestedUnits(result);
+        }
+
+        if (effect.HasEffectActivationConditions())
+        {
+            for (int i = result.Count - 1; i >= 0; i--)
+            {
+                CardController candidate = result[i];
+                if (candidate == null)
+                {
+                    result.RemoveAt(i);
+                    continue;
+                }
+
+                EffectActivationContext candidateContext = BuildActivationContext(ownerType, candidate);
+                if (!EffectActivationEvaluator.AreAllConditionsMet(
+                        effect.effectActivationConditions,
+                        candidateContext))
+                {
+                    result.RemoveAt(i);
+                }
+            }
+        }
+
+        if (sourceCard?.Data?.id == PoorlyPlannedOffensiveCardId
+            && effect.type == EffectType.Bounce)
+        {
+            for (int i = result.Count - 1; i >= 0; i--)
+            {
+                if (!IsPoorlyPlannedOffensiveTarget(result[i], ownerType))
+                {
+                    result.RemoveAt(i);
+                }
+            }
+        }
+
+        FilterToLowestStatTiedUnitsIfNeeded(result, effect);
+        FilterToHighestStatTiedUnitsIfNeeded(result, effect);
+
+        return result;
+    }
+
+    private bool IsPoorlyPlannedOffensiveTarget(CardController target, PlayerType effectOwner)
+    {
+        return target != null
+            && target.Data != null
+            && target.Data.IsUnitLike()
+            && target.CurrentHp > 0
+            && target.CurrentHp <= 3
+            && target.IsRestState
+            && IsCardOnBattleZone(target)
+            && ResolveCardOwner(target.transform) != effectOwner;
+    }
+
+    private static string FormatManualUnitSelectionTitle(EffectData effect, CardController attackingUnitInAttackFlow)
+    {
+        if (effect == null)
+        {
+            return GameLocale.T("対象を選択", "Select a target");
+        }
+
+        bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
+        string attackName = isAttackContext ? attackingUnitInAttackFlow.Data.cardName : string.Empty;
+        if (effect.type == EffectType.Bounce)
+        {
+            return isAttackContext
+                ? GameLocale.T(
+                    $"バウンス — 手札に戻すユニットを選択（{attackName} 攻撃中）",
+                    $"Bounce — Choose a Unit to return to hand ({attackName} attacking)")
+                : GameLocale.T(
+                    "バウンス — 手札に戻すユニットを選択",
+                    "Bounce — Choose a Unit to return to hand");
+        }
+
+        if (effect.type == EffectType.Rest)
+        {
+            return isAttackContext
+                ? GameLocale.T(
+                    $"REST — 対象ユニットを選択（{attackName} 攻撃中）",
+                    $"REST — Choose a Unit ({attackName} attacking)")
+                : GameLocale.T("REST — 対象ユニットを選択", "REST — Choose a Unit");
+        }
+
+        if (effect.type == EffectType.PreventNextStartPhaseActive)
+        {
+            string lvHintJa = effect.HasTargetUnitStatFilter()
+                ? effect.FormatTargetUnitFilterDescription()
+                : string.Empty;
+            string lvHintEn = effect.HasTargetUnitStatFilter()
+                ? effect.FormatTargetUnitFilterDescription()
+                : string.Empty;
+            return GameLocale.T(
+                $"次のスタートフェイズでアクティブにしない — レストの相手ユニットを選択{lvHintJa}",
+                $"Does not become Active next Start Phase — Choose a rested enemy Unit{lvHintEn}");
+        }
+
+        if (effect.type == EffectType.Activate)
+        {
+            string blockerHintJa = effect.filterTargetIsBlocker ? "（ブロッカー・RESTのみ）" : "（RESTのみ）";
+            string blockerHintEn = effect.filterTargetIsBlocker ? " (Blocker, REST only)" : " (REST only)";
+            return isAttackContext
+                ? GameLocale.T(
+                    $"ACTIVE化 — 対象ユニットを選択{blockerHintJa}（{attackName} 攻撃中）",
+                    $"Activate — Choose a Unit{blockerHintEn} ({attackName} attacking)")
+                : GameLocale.T(
+                    $"ACTIVE化 — 対象ユニットを選択{blockerHintJa}",
+                    $"Activate — Choose a Unit{blockerHintEn}");
+        }
+
+        if (effect.type == EffectType.MarkObservedUnit)
+        {
+            return GameLocale.T(
+                $"監視対象ユニットを選択{effect.FormatSelectCountRangeLabel()}",
+                $"Choose unit(s) to observe{effect.FormatSelectCountRangeLabel()}");
+        }
+
+        if (effect.type == EffectType.EffectBattle)
+        {
+            if (effect.target == TargetType.TokenUnit)
+            {
+                return GameLocale.T(
+                    "キュベレイ — バトルを行う味方ユニットトークンを選択",
+                    "Qubeley — Choose an allied Unit Token for battle");
+            }
+
+            if (effect.target == TargetType.AllyUnit)
+            {
+                return GameLocale.T(
+                    "最後の勝利者 — バトルを行う自分のユニットを選択",
+                    "The Final Victor — Choose your Unit for battle");
+            }
+
+            return isAttackContext
+                ? $"Effect Battle — Choose an enemy Unit ({attackName})"
+                : "Effect Battle — Choose an enemy Unit (No Rest)";
+        }
+
+        if (effect.type == EffectType.BlockRedirect)
+        {
+            return isAttackContext
+                ? GameLocale.T(
+                    $"アタック先変更 — RESTの〔CB〕味方ユニットを選択（{attackName} 攻撃中）",
+                    $"Change attack target — Choose a rested (CB) ally Unit ({attackName} attacking)")
+                : GameLocale.T(
+                    "アタック先変更 — RESTの〔CB〕味方ユニットを選択",
+                    "Change attack target — Choose a rested (CB) ally Unit");
+        }
+
+        if (effect.type == EffectType.FirstStrike)
+        {
+            string nameHint = string.IsNullOrWhiteSpace(effect.targetCardNameContains)
+                ? string.Empty
+                : GameLocale.T(
+                    $"（名前に「{effect.targetCardNameContains.Trim()}」）",
+                    $" (name contains \"{effect.targetCardNameContains.Trim()}\")");
+            return GameLocale.T(
+                $"《先制攻撃》付与 — 味方ユニットを選択{nameHint}",
+                $"Grant <First Strike> — Choose an ally Unit{nameHint}");
+        }
+
+        if (effect.type == EffectType.CannotBeChosenAsAttackTarget)
+        {
+            return GameLocale.T(
+                "アタック先に選べなくする — 味方〔水中〕ユニットを選択",
+                "Cannot be chosen as attack target — Choose a friendly (Marine) Unit");
+        }
+
+        if (effect.type == EffectType.GrantBreach)
+        {
+            int amount = effect.value > 0 ? effect.value : 0;
+            string lackHint = effect.requireTargetLacksBreach
+                ? GameLocale.T("（《突破》持ち不可）", " (cannot already have Breach)")
+                : string.Empty;
+            string linkedHint = effect.requireTargetIsLinked
+                ? GameLocale.T("（リンクユニット）", " (Linked Unit)")
+                : string.Empty;
+            return GameLocale.T(
+                $"《突破{amount}》付与 — 味方ユニットを選択{linkedHint}{lackHint}",
+                $"Grant <Breach {amount}> — Choose an ally Unit{linkedHint}{lackHint}");
+        }
+
+        if (effect.type == EffectType.BattleDamageImmunityFromLowApEnemy)
+        {
+            int threshold = effect.value > 0 ? effect.value : 3;
+            string statJa = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+            string statEn = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+            string whenJa = effect.duration == EffectDuration.UntilEndOfTurn
+                ? "このターン中"
+                : "このバトル中";
+            string whenEn = effect.duration == EffectDuration.UntilEndOfTurn
+                ? "This turn"
+                : "This battle";
+            return GameLocale.T(
+                $"{whenJa}、{statJa}{threshold}以下の相手ユニットからのバトルダメージを受けない — 味方ユニットを選択",
+                $"{whenEn}, no battle damage from enemy Units with {statEn} {threshold} or less — Choose an ally Unit");
+        }
+
+        if (effect.type == EffectType.GrantTurnEndRepair)
+        {
+            int amount = effect.value > 0 ? effect.value : 1;
+            return GameLocale.T(
+                $"ターン終了時《リペア{amount}》付与 — 味方ユニットを選択",
+                $"Grant <Repair {amount}> at turn end — Choose an ally Unit");
+        }
+
+        if (effect.type == EffectType.GrantAttackFlag)
+        {
+            string featureLabel = effect.FormatTargetFeaturesLabel("/");
+            string typeLabel = effect.filterByTargetCardType ? effect.targetCardType.ToString() : string.Empty;
+            string filterHintJa;
+            string filterHintEn;
+            if (string.IsNullOrEmpty(featureLabel) && string.IsNullOrEmpty(typeLabel))
+            {
+                filterHintJa = "（AttackFlg=OFF のユニットのみ）";
+                filterHintEn = " (AttackFlg=OFF units only)";
+            }
+            else
+            {
+                string mid = featureLabel;
+                if (!string.IsNullOrEmpty(typeLabel))
+                {
+                    mid = string.IsNullOrEmpty(mid) ? typeLabel : $"{mid}・{typeLabel}";
+                }
+
+                filterHintJa = $"（{mid}・AttackFlg=OFF のみ）";
+                filterHintEn = $" ({mid}, AttackFlg=OFF only)";
+            }
+
+            return isAttackContext
+                ? GameLocale.T(
+                    $"アタック可能にする味方ユニットを選択{filterHintJa}（{attackName} 攻撃中）",
+                    $"Choose an ally Unit to enable Attack{filterHintEn} ({attackName} attacking)")
+                : GameLocale.T(
+                    $"アタック可能にする味方ユニットを選択{filterHintJa}",
+                    $"Choose an ally Unit to enable Attack{filterHintEn}");
+        }
+
+        if (effect.IsAttackActiveEnemyAllyGrant())
+        {
+            string featureLabel = effect.FormatTargetFeaturesLabel("/");
+            string attackFilterJa = effect.HasAttackActiveEnemyTargetStatFilter()
+                ? effect.FormatAttackActiveEnemyTargetStatDescription()
+                : "ACTIVE敵";
+            string attackFilterEn = effect.HasAttackActiveEnemyTargetStatFilter()
+                ? effect.FormatAttackActiveEnemyTargetStatDescription()
+                : "ACTIVE enemy";
+            string midJa = featureLabel ?? string.Empty;
+            string midEn = featureLabel ?? string.Empty;
+            if (effect.valueCountMinUnitLevel > 0)
+            {
+                string lvJa = $"Lv.{effect.valueCountMinUnitLevel}以上";
+                string lvEn = $"Lv.{effect.valueCountMinUnitLevel}+";
+                midJa = string.IsNullOrEmpty(midJa) ? lvJa : $"{midJa}・{lvJa}";
+                midEn = string.IsNullOrEmpty(midEn) ? lvEn : $"{midEn}, {lvEn}";
+            }
+
+            string filterHintJa = string.IsNullOrEmpty(midJa) ? string.Empty : $"（{midJa}）";
+            string filterHintEn = string.IsNullOrEmpty(midEn) ? string.Empty : $" ({midEn})";
+            return isAttackContext
+                ? GameLocale.T(
+                    $"アクティブ攻撃（{attackFilterJa}）を付与する味方を選択{filterHintJa}（{attackName} 攻撃中）",
+                    $"Choose an ally to grant Active Attack ({attackFilterEn}){filterHintEn} ({attackName} attacking)")
+                : GameLocale.T(
+                    $"アクティブ攻撃（{attackFilterJa}）を付与する味方を選択{filterHintJa}",
+                    $"Choose an ally to grant Active Attack ({attackFilterEn}){filterHintEn}");
+        }
+
+        if (effect.type == EffectType.Damage && effect.selectionMode.IsMultipleUnitPickMode())
+        {
+            if (effect.target.IsOpponentUnitTarget())
+            {
+                return GameLocale.T("相手ユニットを選択（1ダメージ）", "Choose an opponent Unit (1 damage)");
+            }
+
+            if (effect.target.IsAllyUnitPickTarget())
+            {
+                return GameLocale.T("自分のユニットを選択（1ダメージ）", "Choose one of your Units (1 damage)");
+            }
+        }
+
+        if (effect.target == TargetType.AllyUnit)
+        {
+            if (isAttackContext
+                && effect.type == EffectType.Destroy)
+            {
+                return GameLocale.T(
+                    $"味方ユニット1体を破壊（攻撃中の {attackName} は選択不可）",
+                    $"Destroy 1 ally Unit ({attackName} attacking — unavailable)");
+            }
+
+            return isAttackContext
+                ? GameLocale.T(
+                    $"味方ユニット1体を選択（自身または他ユニット・{attackName} 攻撃中）",
+                    $"Choose 1 ally Unit (self or another · {attackName} attacking)")
+                : GameLocale.T(
+                    "味方ユニット1体を選択（自身または他ユニット）",
+                    "Choose 1 ally Unit (self or another)");
+        }
+
+        if (effect.target == TargetType.AllyOtherUnit)
+        {
+            return isAttackContext
+                ? GameLocale.T(
+                    $"味方ユニット1体を選択（自身以外・{attackName} 攻撃中）",
+                    $"Choose 1 ally Unit (not self · {attackName} attacking)")
+                : GameLocale.T(
+                    "味方ユニット1体を選択（自身以外）",
+                    "Choose 1 ally Unit (not self)");
+        }
+
+        if (effect.target == TargetType.TokenUnit)
+        {
+            if (effect.type == EffectType.Destroy)
+            {
+                return GameLocale.T(
+                    "破壊する味方ユニットトークンを選択",
+                    "Choose an allied Unit Token to destroy");
+            }
+
+            return GameLocale.T(
+                "味方ユニットトークンを選択",
+                "Choose an allied Unit Token");
+        }
+
+        if (effect.target == TargetType.AnyUnit)
+        {
+            return GameLocale.T(
+                "ユニット1体を選択（味方または相手）",
+                "Choose 1 Unit (friendly or enemy)");
+        }
+
+        if (effect.type == EffectType.Damage)
+        {
+            return GameLocale.T("ダメージを与えるユニットを選択", "Choose a Unit to damage");
+        }
+
+        return isAttackContext
+            ? GameLocale.T(
+                $"OnAction — 対象を選択（攻撃中: {attackName}）",
+                $"OnAction — Select a target (attacking: {attackName})")
+            : GameLocale.T("OnAction — 対象を選択", "OnAction — Select a target");
+    }
+
+    private static bool IsValidAllyUnitSelfTarget(
+        CardController sourceCard,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        return sourceCard != null
+            && sourceCard.Data != null
+            && sourceCard.Data.IsUnitLike()
+            && sourceCard.CurrentHp > 0
+            && MatchesRequiredFeatures(sourceCard.Data, requiredFeatures);
+    }
+
+    private void EnsureAllyUnitSelfInCandidateList(
+        CardController sourceCard,
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        // パイロット効果は搭乗ユニットを「自身」として扱う
+        CardController selfUnit = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+        if (result == null
+            || selfUnit == null
+            || result.Contains(selfUnit)
+            || !IsValidAllyUnitSelfTarget(selfUnit, requiredFeatures))
+        {
+            return;
+        }
+
+        // セット時は搭乗先が一時的に盤面リスト外でも候補に含める
+        bool onZoneOrMounting =
+            IsCardOnBattleZone(selfUnit)
+            || ReferenceEquals(selfUnit, _pilotMountEffectHostUnit);
+        if (!onZoneOrMounting)
+        {
+            return;
+        }
+
+        result.Insert(0, selfUnit);
+    }
+
+    /// <summary>
+    /// パイロット【セット時】解決中、搭乗先が一時的に盤面リストから外れる場合がある。
+    /// AllyUnit / AnyUnit の選択候補へ搭乗先を戻す（ST14-012 バナージ等）。
+    /// </summary>
+    private void EnsurePilotMountHostInAllyCandidateList(
+        List<CardController> result,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (result == null
+            || _pilotMountEffectHostUnit == null
+            || _pilotMountEffectHostUnit.Data == null
+            || !_pilotMountEffectHostUnit.Data.IsUnitLike()
+            || _pilotMountEffectHostUnit.CurrentHp <= 0
+            || result.Contains(_pilotMountEffectHostUnit)
+            || !MatchesRequiredFeatures(_pilotMountEffectHostUnit.Data, requiredFeatures))
+        {
+            return;
+        }
+
+        result.Insert(0, _pilotMountEffectHostUnit);
+    }
+
+    private bool IsCardOnBattleZone(CardController card)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        List<CardController> allies = playerBattleZoneCards;
+        for (int i = 0; i < allies.Count; i++)
+        {
+            if (allies[i] == card)
+            {
+                return true;
+            }
+        }
+
+        for (int i = 0; i < enemyBattleZoneCards.Count; i++)
+        {
+            if (enemyBattleZoneCards[i] == card)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void OpenOnPlayedTargetSelectionUI(
+        CardController source,
+        PlayerType ownerType,
+        EffectData effect,
+        List<CardController> candidates,
+        IReadOnlyList<EffectData> allEffects,
+        int effectIndex,
+        System.Action onDone)
+    {
+        OpenManualUnitTargetSelectionUI(
+            source,
+            ownerType,
+            effect,
+            candidates,
+            null,
+            picked =>
+            {
+                if (picked != null)
+                {
+                    ApplyEffectToSpecificTargets(source, ownerType, effect, new List<CardController> { picked });
+                }
+
+                TryExecuteOnPlayedEffectChain(source, ownerType, allEffects, effectIndex + 1, onDone);
+            });
+    }
+
+    private void OpenOnMainTargetSelectionUI(
+        PlayerType side,
+        CardController source,
+        EffectData effect,
+        List<CardController> candidates,
+        IReadOnlyList<EffectData> allEffects,
+        int effectIndex,
+        bool activationCostAlreadyPaid,
+        EffectActivationContext chainActivationContext,
+        System.Action onDone)
+    {
+        string effectSummary = effect != null
+            ? $"OnMain {effect.type} / {effect.target} / 値:{effect.value}"
+            : "OnMain";
+        OpenCommandWithTargetsSelectionUI(
+            FormatManualUnitSelectionTitle(effect, null),
+            effectSummary,
+            source,
+            candidates,
+            null,
+            picked =>
+            {
+                if (picked == null)
+                {
+                    _chooseOneCancelled = true;
+                    onDone?.Invoke();
+                    return;
+                }
+
+                if (!activationCostAlreadyPaid)
+                {
+                    StartCoroutine(CoDeferredOnMainPayThenApplyTargets(
+                        source,
+                        side,
+                        effect,
+                        new List<CardController> { picked },
+                        allEffects,
+                        effectIndex,
+                        chainActivationContext,
+                        onDone));
+                    return;
+                }
+
+                System.Action applyPick = () =>
+                    ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
+                if (side == PlayerType.Player)
+                {
+                    InvokePlayerManualUnitSelectionCallback(applyPick);
+                }
+                else
+                {
+                    applyPick();
+                }
+
+                if (ShouldAbortRemainingChainAfterManualUnitEffect(effect))
+                {
+                    onDone?.Invoke();
+                    return;
+                }
+
+                TryExecuteOnMainEffectChain(
+                    side,
+                    source,
+                    allEffects,
+                    effectIndex + 1,
+                    true,
+                    chainActivationContext,
+                    onDone);
+            },
+            () =>
+            {
+                _chooseOneCancelled = true;
+                onDone?.Invoke();
+            });
+    }
+
+    /// <summary>
+    /// 手動ユニット効果の直後に「そうしたなら」で後続を打ち切るか。
+    /// Bounce 未成功 + abortRemainingChainOnSkip など。
+    /// </summary>
+    private bool ShouldAbortRemainingChainAfterManualUnitEffect(EffectData effect)
+    {
+        if (effect == null || !effect.abortRemainingChainOnSkip)
+        {
+            return false;
+        }
+
+        if (effect.type == EffectType.Bounce && _lastBounceAppliedCount <= 0)
+        {
+            Debug.Log(
+                $"[EffectChain] Bounce 未成功のため後続を打ち切り (abortRemainingChainOnSkip) type:{effect.type}");
+            return true;
+        }
+
+        return false;
+    }
+
+    private IEnumerator CoDeferredOnMainPayThenApplyTargets(
+        CardController source,
+        PlayerType side,
+        EffectData effect,
+        List<CardController> targets,
+        IReadOnlyList<EffectData> allEffects,
+        int effectIndex,
+        EffectActivationContext chainActivationContext,
+        System.Action onDone)
+    {
+        bool finalized = false;
+        yield return CoTryFinalizeOnMainPaidActivationWithUi(
+            _activeOnMainPaidBlock,
+            ok => finalized = ok);
+        if (!finalized)
+        {
+            onDone?.Invoke();
+            yield break;
+        }
+
+        if (side == PlayerType.Player && ShouldBlockPlayerManualEffectWithoutSelectionUi(effect))
+        {
+            InvokePlayerManualUnitSelectionCallback(() =>
+                ApplyEffectToSpecificTargets(source, side, effect, targets));
+        }
+        else
+        {
+            ApplyEffectToSpecificTargets(source, side, effect, targets);
+        }
+
+        if (ShouldAbortRemainingChainAfterManualUnitEffect(effect))
+        {
+            onDone?.Invoke();
+            yield break;
+        }
+
+        TryExecuteOnMainEffectChain(
+            side,
+            source,
+            allEffects,
+            effectIndex + 1,
+            true,
+            chainActivationContext,
+            onDone);
+    }
+
+    private void CloseOnMainTargetSelectionRoot(GameObject root)
+    {
+        if (root != null)
+        {
+            Destroy(root);
+        }
+
+        if (activeOnActionPopupRoot == root)
+        {
+            activeOnActionPopupRoot = null;
+        }
+
+        isOnActionPopupOpen = false;
+    }
+
+    private void FinalizeOnMainSourceCard(CardController source, PlayerType side)
+    {
+        FinalizeOnActionSourceCard(source, side);
+    }
+
+    private bool CanExecuteOnMainCardNow(PlayerType ownerType, CardController card)
+    {
+        if (card == null || card.Data == null || !IsActingSideForUi(ownerType) || currentPhase != BattlePhase.MainPhase)
+        {
+            return false;
+        }
+
+        return CollectExecutableOnMainBlocks(ownerType, card).Count > 0;
+    }
+
+    private static List<EffectData> GetEffectsByTiming(CardData data, EffectTiming timing)
+    {
+        return TimedEffectResolver.CollectEffectsByTiming(data, timing);
+    }
+
+    private void SendUsedCommandToTrash(CardController command, PlayerType ownerType)
+    {
+        if (command == null || command.Data == null)
+        {
+            return;
+        }
+
+        CardGameRule ownerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        ownerRule.AddCardToTrash(command.Data.id);
+        playerHandCards.Remove(command.Data);
+        enemyHandCards.Remove(command.Data);
+        Destroy(command.gameObject);
+        ownerRule.RefreshHandCountDisplay();
+        if (ownerType == PlayerType.Player)
+        {
+            NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
+        }
+    }
+
+    private void FinalizeOnActionSourceCard(CardController source, PlayerType side)
+    {
+        if (source == null || source.Data == null)
+        {
+            return;
+        }
+
+        if (source.Data.IsCommand())
+        {
+            CardData commandData = source.Data;
+            if (side == PlayerType.Player)
+            {
+                string playKind = HasEffectTiming(commandData, EffectTiming.OnMain) ? "CommandOnMain" : "CommandOnAction";
+                RecordEnemyAiObservedPlayerCardPlay(source, playKind);
+            }
+
+            // トラッシュ前に通知（カード実体は破棄される）
+            NotifyOwnerSpecialMoveCommandActivated(side, commandData);
+            SendUsedCommandToTrash(source, side);
+        }
+    }
+
+    /// <summary>
+    /// OnAction 先頭が「自身を REST」のコストなら、本効果適用前にソースをレストする（ガモフ等）。
+    /// </summary>
+    /// <summary>
+    /// OnMain 先頭が「自身を REST」のコストなら、本効果適用前にソースをレストする（サイド7等）。
+    /// </summary>
+    private void TryApplyOnMainRestSelfCostIfPresent(
+        CardController source,
+        PlayerType side,
+        TimedEffectData timed)
+    {
+        if (source == null || timed == null)
+        {
+            return;
+        }
+
+        if (!TimedStartsWithRestSelf(timed) || source.IsRestState)
+        {
+            return;
+        }
+
+        if (TryApplyRestToUnit(source))
+        {
+            bool ownedBatch = !_onlineEffectSyncActive;
+            QueueOnlineUnitRest(source);
+            if (ownedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
+            if (source.Data?.id == 1000669)
+            {
+                ArmLibraAfterRest(source, side);
+            }
+            Debug.Log(
+                $"[OnMain] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+        }
+    }
+
+    private void TryApplyOnActionRestSelfCostIfPresent(CardController source, PlayerType side)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        TimedEffectData timed = FindFirstOnActionTimedBlock(source, out _);
+        if (!TimedStartsWithRestSelf(timed) || source.IsRestState)
+        {
+            return;
+        }
+
+        if (TryApplyRestToUnit(source))
+        {
+            bool ownedBatch = !_onlineEffectSyncActive;
+            QueueOnlineUnitRest(source);
+            if (ownedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
+            Debug.Log(
+                $"[OnAction] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+        }
+    }
+
+    /// <summary>
+    /// 【アクション】で「バトルしている相手ユニットのアタック先」を味方1体へ変える効果か。
+    /// ブロッカー確定（ACTIVE＋Blocker）とは別経路。
+    /// </summary>
+    private static bool IsOnActionAttackTargetRedirectEffect(EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.BlockRedirect
+            && effect.target.IsAllyUnitPickTarget();
+    }
+
+    private CardController ResolveBattlingOpponentAttackerForRedirect(PlayerType side)
+    {
+        if (!IsArmedInterventionAttackActionWindow())
+        {
+            return null;
+        }
+
+        return ResolveCurrentAttackFlowAttackerUnit();
+    }
+
+    private bool IsShieldOrBaseAttackRedirectContext()
+    {
+        if (attackFlowStrikeKind == AttackFlowStrikeKind.Shield
+            || isShieldAttackResolving
+            || blockShieldFlowDuringShieldAttack)
+        {
+            return true;
+        }
+
+        return _actionStepSession != null
+            && _actionStepSession.IsAttackContext
+            && _actionStepSession.DefendingUnit == null
+            && attackFlowDeclaredDefenderUnit == null
+            && !attackFlowBlockRedirectEngaged;
+    }
+
+    /// <summary>
+    /// 選んだ REST 味方を、バトル中の相手ユニットのアタック先にする。
+    /// CommitBlockRedirectSelection（ACTIVE ブロッカー）は使わない。
+    /// </summary>
+    private bool TryApplyOnActionAttackTargetRedirect(PlayerType side, List<CardController> pickedTargets)
+    {
+        if (pickedTargets == null || pickedTargets.Count == 0
+            || !IsArmedInterventionAttackActionWindow())
+        {
+            return false;
+        }
+
+        CardController picked = pickedTargets[0];
+        if (picked == null
+            || picked.Data == null
+            || !picked.Data.IsUnitLike()
+            || picked.CurrentHp <= 0
+            || !UnitLooksRested(picked)
+            || !UnitHasCbFeature(picked)
+            || (!IsOnDeployPanel(picked, side) && !IsUnitInSideBattleZoneList(picked, side)))
+        {
+            return false;
+        }
+
+        if (!IsUnitAvailableForAttackExchange(picked))
+        {
+            return false;
+        }
+
+        return TryResolveArmedInterventionChosenUnitBattle(picked, requireAttackWindow: true);
+    }
+
+    private bool CanExecuteOnActionCardNow(PlayerType ownerType, CardController card)
+    {
+        if (card == null || card.Data == null)
+        {
+            return false;
+        }
+
+        return FindFirstAvailableOnActionTimedBlock(ownerType, card, out _) != null;
+    }
+
+    private static bool HasEffectTiming(CardData data, EffectTiming timing)
+    {
+        return TimedEffectResolver.HasEffectTiming(data, timing);
+    }
+
+    private void ShowOnActionHandCandidatesPopup(PlayerType ownerType, string context, List<CardData> cards, System.Action onClose = null)
+    {
+        if (cards == null || cards.Count == 0 || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveBattleCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        DestroyActiveOnActionPopupIfAny();
+        GameObject root = new GameObject("OnActionCandidatesPopup", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        activeOnActionPopupRoot = root;
+        isOnActionPopupOpen = true;
+        root.transform.SetParent(canvas.transform, false);
+        root.transform.SetAsLastSibling();
+        root.SetFullSize();
+        Image dim = root.GetComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.raycastTarget = true;
+
+        TextMeshProUGUI title = root.CreateChildTextCustom("OnActionTitle", UIAnchor.TopCenter, 640, 48);
+        title.text = $"OnAction candidates ({ownerType}) [{context}]";
+        title.fontSize = 24;
+        title.color = Color.white;
+        title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+
+        GameObject scrollGo = root.CreateGridScrollView(640, 400, UIAnchor.TopCenter);
+        RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        scrollRt.anchoredPosition = new Vector2(0f, -88f);
+        scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
+
+        ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
+        RectTransform content = sr != null ? sr.content : null;
+        if (content != null)
+        {
+            for (int i = 0; i < cards.Count; i++)
+            {
+                CardData data = cards[i];
+                if (data == null)
+                {
+                    continue;
+                }
+
+                GameObject go = Instantiate(CardImagePrefab, content);
+                CardController cc = go.GetComponent<CardController>();
+                if (cc != null)
+                {
+                    cc.SetUp(data, _ => { });
+                }
+
+                TextMeshProUGUI info = go.CreateChildTextCustom("OnActionCardInfo", UIAnchor.BottomCenter, 120, 24);
+                info.text = $"ID:{data.id}";
+                info.fontSize = 14;
+                info.color = Color.white;
+                info.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 2f);
+            }
+        }
+
+        Button closeBtn = root.CreateChildButton("Close");
+        RectTransform closeRt = closeBtn.GetComponent<RectTransform>();
+        closeRt.sizeDelta = new Vector2(180f, 48f);
+        closeRt.anchorMin = new Vector2(0.5f, 0f);
+        closeRt.anchorMax = new Vector2(0.5f, 0f);
+        closeRt.pivot = new Vector2(0.5f, 0f);
+        closeRt.anchoredPosition = new Vector2(0f, 36f);
+        closeBtn.onClick.AddListener(() =>
+        {
+            LogAttackOnActionDecisionWithBoard("NoCommandUsed_CloseEnemyHandPreview", context, ownerType, null);
+            isOnActionPopupOpen = false;
+            activeOnActionPopupRoot = null;
+            Destroy(root);
+            onClose?.Invoke();
+        });
+    }
+
+    /// <summary>
+    /// 支払い overlay（sortingOrder 520）より前面に出し、クリックが奥の Canvas に吸われないようにする。
+    /// </summary>
+    private static void EnsureOnActionPopupOverlayCanvas(GameObject root, int sortingOrder = 530)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        Canvas overlayCanvas = root.GetComponent<Canvas>();
+        if (overlayCanvas == null)
+        {
+            overlayCanvas = root.AddComponent<Canvas>();
+        }
+
+        overlayCanvas.overrideSorting = true;
+        overlayCanvas.sortingOrder = sortingOrder;
+        overlayCanvas.additionalShaderChannels = AdditionalCanvasShaderChannels.TexCoord1
+            | AdditionalCanvasShaderChannels.Normal
+            | AdditionalCanvasShaderChannels.Tangent;
+
+        if (root.GetComponent<GraphicRaycaster>() == null)
+        {
+            root.AddComponent<GraphicRaycaster>();
+        }
+    }
+
+    private void DestroyActiveOnActionPopupIfAny()
+    {
+        if (activeOnActionPopupRoot != null)
+        {
+            // ActionStep Confirm 後に隠している一覧は、対象選択 UI を開くときに壊さない
+            if (_actionStepHiddenSelectionRoot != null
+                && activeOnActionPopupRoot == _actionStepHiddenSelectionRoot)
+            {
+                activeOnActionPopupRoot = null;
+                isOnActionPopupOpen = _activeLookDeckPopupRoot != null
+                    || _isActionStepCommandResolving
+                    || _activeResourcePaymentOverlay != null;
+                return;
+            }
+
+            // シールド破壊パネル構築時など、攻撃フロー（ブロック）パネルが巻き込まれたとき残フラグを落とす。
+            if (activeOnActionPopupRoot == activeAttackFlowDebugPanelRoot)
+            {
+                activeAttackFlowDebugPanelRoot = null;
+                isAttackedSidePanelOpen = false;
+            }
+
+            Destroy(activeOnActionPopupRoot);
+            activeOnActionPopupRoot = null;
+        }
+
+        _unitPilotEffectOrderUiOpen = false;
+        _effectChoiceUiOpen = false;
+        isOnActionPopupOpen = activeOnActionPopupRoot != null
+            || _activeLookDeckPopupRoot != null
+            || _isActionStepCommandResolving
+            || _activeResourcePaymentOverlay != null;
+    }
+
+    private void ShowResultOverlay(string resultText)
+    {
+        // TestPlay は開発用のため広告を出さない
+        if (!IsTestPlayBattle())
+        {
+            AdMobAdsService.TryShowOnMatchEnd();
+        }
+
+        ShowGoHomeConfirmDialog(resultText);
+    }
+
+    private void ConfigureEndTurnButtonInHandPanel()
+    {
+        if (EndTurnButton == null)
+        {
+            return;
+        }
+
+        RectTransform handPanel = cardGameRule.PlayerHandPanel;
+        if (handPanel == null)
+        {
+            return;
+        }
+
+        RectTransform btnRect = EndTurnButton.GetComponent<RectTransform>();
+        if (btnRect == null)
+        {
+            return;
+        }
+
+        EndTurnButton.transform.SetParent(handPanel, false);
+        EndTurnButton.transform.SetAsLastSibling();
+
+        Canvas.ForceUpdateCanvases();
+        float handWidth = handPanel.rect.width;
+        float minWidthForFiveCards = cardGameRule.GetHandMinimumWidthForVisibleCards(5);
+        float extraWidth = Mathf.Max(0f, handWidth - minWidthForFiveCards);
+        float endTurnAreaWidth = Mathf.Clamp(extraWidth, MinEndTurnAreaWidth, MaxEndTurnAreaWidth);
+        if (extraWidth < MinEndTurnAreaWidth)
+        {
+            endTurnAreaWidth = Mathf.Max(70f, extraWidth);
+        }
+
+        btnRect.anchorMin = new Vector2(1f, 0f);
+        btnRect.anchorMax = new Vector2(1f, 0f);
+        btnRect.pivot = new Vector2(1f, 0f);
+        btnRect.anchoredPosition = new Vector2(-10f, 10f);
+        btnRect.sizeDelta = new Vector2(Mathf.Max(68f, endTurnAreaWidth - 16f), 44f);
+
+        // 5枚が最低並ぶ幅を優先し、余剰幅ぶんだけ右側をボタン領域として確保する。
+        cardGameRule.SetHandScrollRightMargin(endTurnAreaWidth);
+    }
+
+    private void UpdateEndTurnButtonVisibility()
+    {
+        if (EndTurnButton == null)
+        {
+            return;
+        }
+
+        bool isMyTurn = IsTestPlayBattle()
+            || currentPlayerType == PlayerType.Player;
+        EndTurnButton.gameObject.SetActive(true);
+        EndTurnButton.interactable = isMyTurn;
+
+        if (IsTestPlayBattle())
+        {
+            RefreshTestPlayDeckDrawButtonStates();
+        }
+
+        Image buttonImage = EndTurnButton.GetComponent<Image>();
+        if (buttonImage != null)
+        {
+            buttonImage.color = isMyTurn
+                ? new Color32(255, 255, 255, 255)
+                : new Color32(150, 150, 150, 255);
+        }
+
+        TextMeshProUGUI label = EndTurnButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+        {
+            label.color = isMyTurn
+                ? new Color32(20, 20, 20, 255)
+                : new Color32(90, 90, 90, 255);
+        }
+    }
+}
