@@ -46,7 +46,8 @@ public partial class BattleGameMain
         enemyHandCards.Remove(cardController.Data);
         unitsPendingSendToTrash.Remove(cardController);
 
-        if (cardController.Data.IsUnitLike() && cardController.BattleInstanceId > 0)
+        if (sendToTrashZone
+            || (cardController.Data.IsUnitLike() && cardController.BattleInstanceId > 0))
         {
             RefreshAllFieldOwnerTurnPassives();
         }

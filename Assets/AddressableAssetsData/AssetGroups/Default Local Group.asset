@@ -4962,6 +4962,36 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0606d06000000000000000000000027
+    m_Address: Data/Images/GD06-060_Zaku II F2 Type
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0566d06000000000000000000000028
+    m_Address: Data/Images/GD06-056_Xamel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1046d06000000000000000000000029
+    m_Address: Data/Images/GD06-104_Steady Support
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0156d0600000000000000000000002a
+    m_Address: Data/Images/GD06-015_Waldfeld's Aile Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1076d0600000000000000000000002b
+    m_Address: Data/Images/GD06-107_Wheel Spoke Formation
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0266d0600000000000000000000002c
+    m_Address: Data/Images/GD06-026_Stero's Mahiroo
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

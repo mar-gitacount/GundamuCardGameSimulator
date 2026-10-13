@@ -839,6 +839,18 @@
             "pilotKey": "Judau_Ashta",
             "displayName": "ジュドー・アーシタ",
             "description": ""
+        },
+        {
+            "id": 141,
+            "pilotKey": "Chuck_Keith",
+            "displayName": "チャック・キース",
+            "description": ""
+        },
+        {
+            "id": 142,
+            "pilotKey": "Sweatson_Stero",
+            "displayName": "スエッソン・ステロ",
+            "description": ""
         }
     ]
 }

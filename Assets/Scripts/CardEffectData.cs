@@ -1168,6 +1168,12 @@ public class EffectActivationCondition
 
     [Tooltip("OwnerBattleUnitNameContains: カード名に含む文字列（部分一致・大小無視）。")]
     public string cardNameContains;
+
+    [Tooltip("HasFeature: true なら効果源ユニット自身を枚数に含めない（「このユニット以外」）。")]
+    public bool excludeSourceCard;
+
+    [Tooltip("TrashHasFeature: true なら observedCardType で種類を絞る（ジオンのユニットカード等）。")]
+    public bool filterTrashByCardType;
 }
 
 /// <summary>カード名部分一致（英日別名の相互許容付き）。</summary>
@@ -2711,7 +2717,7 @@ public static class EffectDataExtensions
             return false;
         }
 
-        if (effect.filterTargetIsBlocker && !unit.HasBlockerAbility)
+        if (effect.filterTargetIsBlocker && !unit.HasBlockerKeywordForEffectTarget())
         {
             return false;
         }
@@ -3081,6 +3087,25 @@ public static class TimedEffectDataExtensions
         return true;
     }
 
+    public static bool HasTrashHasFeatureActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.TrashHasFeature)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool HasOwnerTotalLevelActivationRequirement(this TimedEffectData timed)
     {
         if (timed?.activationConditions == null)
@@ -3157,7 +3182,8 @@ public static class TimedEffectDataExtensions
             && timed.HasActivationConditions()
             && (timed.HasSourceUnitIsLinkedActivationRequirement()
                 || timed.HasOwnerTotalLevelActivationRequirement()
-                || timed.HasMountedPilotActivationRequirement()))
+                || timed.HasMountedPilotActivationRequirement()
+                || timed.HasTrashHasFeatureActivationRequirement()))
         {
             return false;
         }

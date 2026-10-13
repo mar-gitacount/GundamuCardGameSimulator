@@ -12,6 +12,31 @@ public static class CardBlockerExtensions
     }
 
     /// <summary>
+    /// 効果対象の《ブロッカー》判定（メインフェイズ含む）。
+    /// ランタイムの「今ブロックできる」ではなく、印刷／付与のブロッカーを見る。
+    /// </summary>
+    public static bool HasBlockerKeywordForEffectTarget(this CardController unit)
+    {
+        if (unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (unit.HasBlockerAbility || unit.HasCopiedBlockerUntilEndOfTurn)
+        {
+            return true;
+        }
+
+        if (unit.Data.IsBlockerUnit())
+        {
+            return true;
+        }
+
+        CardData mountedPilot = unit.MountedPilot != null ? unit.MountedPilot.Data : null;
+        return mountedPilot.IsBlockerGrantingPilot();
+    }
+
+    /// <summary>
     /// パイロットが搭乗ホストへ《ブロッカー》を付与する定義か（パイロットの isBlocker）。
     /// </summary>
     public static bool IsBlockerGrantingPilot(this CardData pilot)

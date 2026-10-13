@@ -631,7 +631,7 @@ public static class EffectActivationEvaluator
         switch (c.checkKind)
         {
             case EffectActivationCheckKind.HasFeature:
-                return CountCardsWithFeature(zone, c) >= Mathf.Max(1, c.minimumCount);
+                return CountCardsWithFeature(zone, c, ctx) >= Mathf.Max(1, c.minimumCount);
             case EffectActivationCheckKind.UnitCountAtLeast:
                 return CountAliveUnits(zone) >= Mathf.Max(0, c.minimumCount);
             case EffectActivationCheckKind.RestedUnitCountAtLeast:
@@ -806,7 +806,9 @@ public static class EffectActivationEvaluator
         }
 
         IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
-        int count = TrashCardQuery.CountByAnyFeature(trashIds, required);
+        int count = c.filterTrashByCardType
+            ? CountTrashByAnyFeatureAndCardType(trashIds, required, c.observedCardType)
+            : TrashCardQuery.CountByAnyFeature(trashIds, required);
 
         // Less / LessOrEqual は「N枚未満／以下」（刹那の「かわりに」用）。既存カードは AtLeast + minimumCount。
         if (c.unitCountCompareOp == EffectCompareOperator.Less
@@ -2132,10 +2134,15 @@ public static class EffectActivationEvaluator
             && c.CurrentHp > 0;
     }
 
-    private static int CountCardsWithFeature(IReadOnlyList<CardController> cards, EffectActivationCondition c)
+    private static int CountCardsWithFeature(
+        IReadOnlyList<CardController> cards,
+        EffectActivationCondition c,
+        EffectActivationContext ctx)
     {
-        IReadOnlyList<CardFeatureData> requiredFeatures = c.GetActivationFeatures();
-        if (requiredFeatures.Count == 0)
+        IReadOnlyList<CardFeatureData> requiredFeatures = c != null
+            ? c.GetActivationFeatures()
+            : System.Array.Empty<CardFeatureData>();
+        if (requiredFeatures.Count == 0 && (c == null || c.featureId <= 0))
         {
             return 0;
         }
@@ -2149,10 +2156,83 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
-            if (card.HasAnyFeature(requiredFeatures))
+            if (c.excludeSourceCard && ctx != null && ctx.SourceCard != null
+                && ReferenceEquals(card, ctx.SourceCard))
+            {
+                continue;
+            }
+
+            if (CardMatchesActivationFeature(card, c, requiredFeatures))
             {
                 n++;
             }
+        }
+
+        return n;
+    }
+
+    private static bool CardMatchesActivationFeature(
+        CardController card,
+        EffectActivationCondition c,
+        IReadOnlyList<CardFeatureData> requiredFeatures)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        if (requiredFeatures != null && requiredFeatures.Count > 0 && card.HasAnyFeature(requiredFeatures))
+        {
+            return true;
+        }
+
+        if (c != null && c.featureId > 0 && card.HasFeatureId(c.featureId))
+        {
+            return true;
+        }
+
+        if (requiredFeatures == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < requiredFeatures.Count; i++)
+        {
+            CardFeatureData required = requiredFeatures[i];
+            if (required != null && card.Data.HasFeatureKey(required.featureKey))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountTrashByAnyFeatureAndCardType(
+        IReadOnlyList<int> trashIds,
+        IReadOnlyList<CardFeatureData> required,
+        Type cardType)
+    {
+        if (trashIds == null || trashIds.Count == 0 || required == null || required.Count == 0)
+        {
+            return 0;
+        }
+
+        int n = 0;
+        for (int i = 0; i < trashIds.Count; i++)
+        {
+            CardData data = TrashCardQuery.GetCardData(trashIds[i]);
+            if (data == null || !data.HasAnyFeature(required))
+            {
+                continue;
+            }
+
+            if (!CardTypeExtensions.MatchesTypeFilter(cardType, data.type))
+            {
+                continue;
+            }
+
+            n++;
         }
 
         return n;

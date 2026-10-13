@@ -47,7 +47,9 @@ public static class CardFeatureExtensions
                 continue;
             }
 
-            if (card.HasFeature(required) || card.HasFeatureId(required.id))
+            if (card.HasFeature(required)
+                || card.HasFeatureId(required.id)
+                || card.HasFeatureKey(required.featureKey))
             {
                 return true;
             }
@@ -121,7 +123,13 @@ public static class CardFeatureExtensions
         for (int i = 0; i < features.Count; i++)
         {
             CardFeatureData required = features[i];
-            if (required != null && unit.HasRuntimeFeatureId(required.id))
+            if (required == null)
+            {
+                continue;
+            }
+
+            if (unit.HasRuntimeFeatureId(required.id)
+                || unit.Data.HasFeatureKey(required.featureKey))
             {
                 return true;
             }
@@ -132,7 +140,13 @@ public static class CardFeatureExtensions
 
     public static bool HasFeatureKey(this CardData card, string featureKey)
     {
-        if (card == null || string.IsNullOrWhiteSpace(featureKey) || card.features == null)
+        if (card == null || string.IsNullOrWhiteSpace(featureKey))
+        {
+            return false;
+        }
+
+        card.EnsureFeaturesResolved();
+        if (card.features == null)
         {
             return false;
         }

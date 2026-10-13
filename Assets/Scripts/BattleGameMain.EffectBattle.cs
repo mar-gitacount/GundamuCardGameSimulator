@@ -351,6 +351,12 @@ public partial class BattleGameMain
                 "【バースト】このカードをユニットとして配備しますか？",
                 "[Burst] Deploy this card as a Unit?");
         }
+        else if (effect != null
+            && !string.IsNullOrEmpty(effect.choicePromptJa)
+            && !string.IsNullOrEmpty(effect.choicePromptEn))
+        {
+            title.SetLocalizedText(effect.choicePromptJa, effect.choicePromptEn);
+        }
         else
         {
             title.SetLocalizedText("この効果を発動しますか？", "Activate this effect?");

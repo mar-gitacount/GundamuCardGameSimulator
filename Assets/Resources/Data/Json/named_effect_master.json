@@ -1683,7 +1683,9 @@
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0,
                     "targetFeatureId": 6,
-                    "targetFeatureIds": [6],
+                    "targetFeatureIds": [
+                        6
+                    ],
                     "targetUnitFilterStat": 3,
                     "targetUnitStatCompareOp": 3,
                     "targetUnitStatCompareValue": 3,
@@ -1860,7 +1862,10 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0,
-                    "targetFeatureIds": [9, 37],
+                    "targetFeatureIds": [
+                        9,
+                        37
+                    ],
                     "filterTargetAsUnitOrPilot": true,
                     "revealDiscardedToOpponent": true
                 }
@@ -3598,7 +3603,10 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0,
-                    "targetFeatureIds": [28, 27],
+                    "targetFeatureIds": [
+                        28,
+                        27
+                    ],
                     "filterByTargetCardType": true,
                     "targetCardType": 0,
                     "requireExactExileCount": true,
@@ -5728,7 +5736,10 @@
                     "value": 0,
                     "target": 3,
                     "selectionMode": -1,
-                    "targetFeatureIds": [79, 24],
+                    "targetFeatureIds": [
+                        79,
+                        24
+                    ],
                     "filterTargetIsBlocker": true,
                     "activateWithoutGrantingAttack": true,
                     "denyAttackThisTurn": true
@@ -5764,7 +5775,10 @@
                     "filterByTargetCardType": true,
                     "targetCardType": 0,
                     "filterDeployCandidateByFeature": true,
-                    "targetFeatureIds": [43, 28],
+                    "targetFeatureIds": [
+                        43,
+                        28
+                    ],
                     "targetUnitFilterStat": 3,
                     "targetUnitStatCompareOp": 3,
                     "targetUnitStatCompareValue": 6,
@@ -5917,7 +5931,10 @@
                     "valueMode": 1,
                     "valueCountBoardSide": 0,
                     "valueCountKind": 0,
-                    "valueCountFeatureIds": [6, 77]
+                    "valueCountFeatureIds": [
+                        6,
+                        77
+                    ]
                 }
             ]
         },
@@ -5985,7 +6002,10 @@
                     "target": 8,
                     "selectionMode": 1,
                     "duration": 2,
-                    "targetFeatureIds": [6, 77],
+                    "targetFeatureIds": [
+                        6,
+                        77
+                    ],
                     "forbidSkipUnitPick": true
                 }
             ]
@@ -6066,6 +6086,84 @@
                     "statTarget": 0,
                     "duration": 0,
                     "targetFeatureId": 41
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelfAp1_WhileTrashHas4ZeonUnits",
+            "displayName": "自分のトラッシュに〔ジオン〕ユニットカードが4枚以上ある間、このユニットをAP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAttack_BuffAp1AndRepair2_AllyUnit",
+            "displayName": "自ユニット1つを選び、このターン中 AP+1 と《リペア2》",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 55,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 4,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyBlockerAp3OrLess_SelectSingle",
+            "displayName": "《ブロッカー》かつ AP3以下の相手ユニット1つを破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3,
+                    "filterTargetIsBlocker": true
                 }
             ]
         }

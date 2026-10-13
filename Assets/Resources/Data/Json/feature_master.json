@@ -493,6 +493,12 @@
             "description": ""
         },
         {
+            "id": 83,
+            "featureKey": "Ghingnham_Fleet",
+            "displayName": "ギンガナム艦隊",
+            "description": ""
+        },
+        {
             "id": 10000,
             "featureKey": "test",
             "displayName": "test",
