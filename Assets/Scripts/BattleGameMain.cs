@@ -1953,8 +1953,8 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        // 純コマンドはレベル／コスト不足でもユニット配備 UI へ落とさない
-        if (cardController.Data.type == Type.Command)
+        // コマンド／コマンドパイロットはレベル不足でもユニット配備 UI へ落とさない
+        if (cardController.Data.IsCommand() && !cardController.Data.IsPilot())
         {
             if (!hasOnMainActivateButton)
             {
@@ -1969,6 +1969,14 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             return;
+        }
+
+        if (cardController.Data.IsCommand()
+            && cardController.Data.IsPilot()
+            && !hasOnMainActivateButton
+            && HasEffectTiming(cardController.Data, EffectTiming.OnMain))
+        {
+            Debug.Log("OnMain: 現在は発動できません（ターン/フェイズ/リソース/条件/使用回数）。");
         }
 
         if (currentLevel < cardController.CurrentLevel)
@@ -6857,6 +6865,11 @@ public partial class BattleGameMain : MonoBehaviour
         {
             return new OnAttackEnemyEffectCursor(SourceIndex, TimedIndex, EffectIndex + 1);
         }
+
+        public OnAttackEnemyEffectCursor AfterCurrentTimed()
+        {
+            return new OnAttackEnemyEffectCursor(SourceIndex, TimedIndex + 1, 0);
+        }
     }
 
     /// <summary>搭乗パイロットとユニット双方に敵対象 OnAttack がある場合の解決順（選択結果）。</summary>
@@ -6883,6 +6896,41 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         return effectSources;
+    }
+
+    /// <summary>【アタック時】任意コスト付きブロックに、支払後に選べる相手ユニットがいるか。</summary>
+    private bool TimedOnAttackEnemyBlockHasSelectableTarget(
+        CardController sourceCard,
+        PlayerType ownerType,
+        TimedEffectData timed)
+    {
+        if (timed == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null || effect.resolveAfterDealtBattleDamage)
+            {
+                continue;
+            }
+
+            if (!effect.target.IsOpponentUnitTarget() && !effect.type.UsesTargetCountValue())
+            {
+                continue;
+            }
+
+            List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+            if (candidates != null && candidates.Count > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private List<TimedEffectData> CollectOnAttackEnemyTargetBlocksForSource(
@@ -7080,6 +7128,58 @@ public partial class BattleGameMain : MonoBehaviour
                 if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
                 {
                     continue;
+                }
+
+                if (timed.activationCost > 0)
+                {
+                    string payKey = MakeOnAttackOptionalActivationCostKey(sourceCard, i);
+                    if (_onAttackOptionalActivationCostDeclined.Contains(payKey))
+                    {
+                        continue;
+                    }
+
+                    if (!_onAttackOptionalActivationCostPaid.Contains(payKey))
+                    {
+                        if (!CanAffordOnAttackOptionalActivationCost(attackerOwner, timed.activationCost)
+                            || !TimedOnAttackEnemyBlockHasSelectableTarget(
+                                sourceCard, attackerOwner, timed))
+                        {
+                            continue;
+                        }
+
+                        int resumeEffectIndex =
+                            sourceIndex == cursor.SourceIndex && i == timedStart
+                                ? cursor.EffectIndex
+                                : 0;
+                        OnAttackEnemyEffectCursor resumeCursor =
+                            new OnAttackEnemyEffectCursor(sourceIndex, i, resumeEffectIndex);
+                        OnAttackEnemyEffectCursor skipCursor = resumeCursor.AfterCurrentTimed();
+                        TryPayOptionalOnAttackActivationCost(
+                            sourceCard,
+                            attackerOwner,
+                            timed.activationCost,
+                            () =>
+                            {
+                                _onAttackOptionalActivationCostPaid.Add(payKey);
+                                ContinueOnAttackEnemyEffectResolution(
+                                    attacker,
+                                    attackerOwner,
+                                    attackedTarget,
+                                    onResolved,
+                                    resumeCursor);
+                            },
+                            () =>
+                            {
+                                _onAttackOptionalActivationCostDeclined.Add(payKey);
+                                ContinueOnAttackEnemyEffectResolution(
+                                    attacker,
+                                    attackerOwner,
+                                    attackedTarget,
+                                    onResolved,
+                                    skipCursor);
+                            });
+                        return true;
+                    }
                 }
 
                 IReadOnlyList<EffectData> resolvedOnAttack = timed.GetResolvedEffects();

@@ -183,6 +183,17 @@ public partial class BattleGameMain
             && !timed.HasOwnerTurnActivationRequirement();
     }
 
+    /// <summary>トラッシュ特徴枚数条件の Self AP（ザクⅡF2型等）。自ターン限定ではない。</summary>
+    private static bool IsFieldUnitTrashFeatureSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasTrashHasFeatureActivationRequirement();
+    }
+
     /// <summary>プレイヤー Lv 条件の Self AP（AGE-1 タイタス C 等）。</summary>
     private static bool IsFieldUnitOwnerLevelSelfStatPassive(TimedEffectData timed, bool isPilotSource)
     {
@@ -213,7 +224,8 @@ public partial class BattleGameMain
                 && !IsFieldUnitOnEnemyAttackSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOwnerTurnSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitMountedPilotSelfStatPassive(timed, isPilotSource)
-                && !IsFieldUnitOwnerLevelSelfStatPassive(timed, isPilotSource))
+                && !IsFieldUnitOwnerLevelSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitTrashFeatureSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }

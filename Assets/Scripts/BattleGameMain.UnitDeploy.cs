@@ -38,6 +38,12 @@ public partial class BattleGameMain
     /// <summary>同一攻撃セッションでトラッシュ返却 Activate を1回だけ（ClearAttackFlowContext 複数回対策）。</summary>
     private bool _onAttackTrashReturnActivateConsumed;
 
+    /// <summary>【アタック時】任意コストを支払済みの timed キー。</summary>
+    private readonly HashSet<string> _onAttackOptionalActivationCostPaid = new HashSet<string>();
+
+    /// <summary>【アタック時】任意コストを辞退した timed キー。</summary>
+    private readonly HashSet<string> _onAttackOptionalActivationCostDeclined = new HashSet<string>();
+
     private void BeginOnAttackTrashReturnAttackTracking(CardController attacker)
     {
         if (attacker == null)
@@ -149,6 +155,8 @@ public partial class BattleGameMain
         ResetOnAttackPreCombatEffectsAppliedGuard();
         ClearOnAttackPreCombatCompletedForNewAttack();
         ClearOnAttackPreCombatResolvedState();
+        _onAttackOptionalActivationCostPaid.Clear();
+        _onAttackOptionalActivationCostDeclined.Clear();
     }
 
     private bool IsOnAttackTrashReturnChainSelfActivateBlocked(CardController unit, EffectData effect)
@@ -1753,15 +1761,22 @@ public partial class BattleGameMain
         // 戦闘中の AP/HP 修飾:
         // - UntilEndOfBattle Self → ストライク加算のみ（ComputeOnAttackSelfApBonus）
         // - UntilEndOfTurn Self → 盤面付与（プレコンバット）。このターン中の AP+1 等。
+        // - UntilEndOfTurn AllyUnit → 選択 UI 付き盤面付与（GD06-026 等）。
         if (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
         {
             if (effect.duration == EffectDuration.UntilEndOfTurn
-                && effect.target == TargetType.Self)
+                && (effect.target == TargetType.Self || effect.target.IsAllyUnitPickTarget()))
             {
                 return true;
             }
 
             return false;
+        }
+
+        // 《リペア》付与は戦闘交換ではなく攻撃前に解決する。
+        if (effect.type == EffectType.GrantTurnEndRepair)
+        {
+            return true;
         }
 
         if (effect.type == EffectType.DeployUnit
@@ -2079,12 +2094,119 @@ public partial class BattleGameMain
             }
         }
 
-        TryExecuteOnAttackPreCombatEffectChain(
+        System.Action runChain = () => TryExecuteOnAttackPreCombatEffectChain(
             source,
             attackerOwner,
             block.GetResolvedEffects(),
             0,
             () => RunOnAttackPreCombatTimedBlocks(attacker, attackerOwner, blocks, blockIndex + 1, onComplete));
+
+        if (block.activationCost > 0)
+        {
+            TryPayOptionalOnAttackActivationCost(
+                source,
+                attackerOwner,
+                block.activationCost,
+                runChain,
+                () => RunOnAttackPreCombatTimedBlocks(
+                    attacker, attackerOwner, blocks, blockIndex + 1, onComplete));
+            return;
+        }
+
+        runChain.Invoke();
+    }
+
+    private static string MakeOnAttackOptionalActivationCostKey(CardController source, int timedIndex)
+    {
+        if (source == null)
+        {
+            return string.Empty;
+        }
+
+        return source.GetEntityId() + ":" + timedIndex;
+    }
+
+    private bool CanAffordOnAttackOptionalActivationCost(PlayerType ownerType, int cost)
+    {
+        if (cost <= 0)
+        {
+            return true;
+        }
+
+        if (gundamRule == null)
+        {
+            return false;
+        }
+
+        return gundamRule.CanPlayCardWithAnyEx(ToRuleSide(ownerType), 0, cost);
+    }
+
+    /// <summary>【アタック時】②支払ってもよい。支払わなければ後続をスキップする。</summary>
+    private void TryPayOptionalOnAttackActivationCost(
+        CardController source,
+        PlayerType ownerType,
+        int cost,
+        System.Action onPaid,
+        System.Action onSkipped)
+    {
+        if (cost <= 0)
+        {
+            onPaid?.Invoke();
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+        if (!CanAffordOnAttackOptionalActivationCost(ownerType, cost))
+        {
+            onSkipped?.Invoke();
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerState resourceState = ownerType == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int exToUse = Gundam2024RuleScript.GetExNeededForCost(resourceState, cost);
+        int cardId = source != null && source.Data != null ? source.Data.id : -1;
+
+        if (ownerType == PlayerType.Enemy)
+        {
+            if (!gundamRule.TryConsumeResource(ruleSide, cost, exToUse, cardId, -1))
+            {
+                onSkipped?.Invoke();
+                return;
+            }
+
+            AfterLocalResourceConsumed(ruleSide, exToUse, source != null ? source.Data : null);
+            onPaid?.Invoke();
+            return;
+        }
+
+        EffectData prompt = new EffectData
+        {
+            type = EffectType.Destroy,
+            optionalPlayerConfirm = true,
+            value = cost,
+            choicePromptJa = $"{cost}支払って効果を発動しますか？",
+            choicePromptEn = $"Pay {cost} to activate this effect?"
+        };
+        TryBeginOptionalConfirmedEffect(
+            source,
+            ownerType,
+            prompt,
+            () =>
+            {
+                Gundam2024RuleScript.PlayerState paidState = gundamRule.Player;
+                int paidEx = Gundam2024RuleScript.GetExNeededForCost(paidState, cost);
+                if (!gundamRule.TryConsumeResource(ruleSide, cost, paidEx, cardId, -1))
+                {
+                    onSkipped?.Invoke();
+                    return;
+                }
+
+                AfterLocalResourceConsumed(ruleSide, paidEx, source != null ? source.Data : null);
+                onPaid?.Invoke();
+            },
+            onSkipped);
     }
 
     private static int IndexOfTimedEffectOnCard(CardController source, TimedEffectData block)
@@ -2198,6 +2320,15 @@ public partial class BattleGameMain
         if (!ShouldApplyChainedEffect(effect, activationContext, "OnAttackPreCombat"))
         {
             TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
+        if (TryExecutePriorChainPickedTargetEffect(
+            sourceCard,
+            ownerType,
+            effect,
+            () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone)))
+        {
             return;
         }
 
@@ -2486,6 +2617,19 @@ public partial class BattleGameMain
 
                     if (EffectRequiresManualUnitSelection(effect))
                     {
+                        continue;
+                    }
+
+                    // 直前選択なしの UsePrior は全味方へ誤適用しない（GD06-026 リペア2 等）。
+                    if (effect.selectionMode.IsUsePriorChainPickedTargetMode())
+                    {
+                        List<CardController> priorTargets = GetAliveEffectChainLastPickedTargets();
+                        if (priorTargets.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        ApplyEffectToSpecificTargets(source, attackerOwner, effect, priorTargets);
                         continue;
                     }
 
