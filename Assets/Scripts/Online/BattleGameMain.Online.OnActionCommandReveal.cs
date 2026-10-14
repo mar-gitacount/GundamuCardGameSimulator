@@ -99,6 +99,12 @@ public partial class BattleGameMain
                 action.levelAfter);
         }
 
+        if (action.includeIncomingRedirectBind)
+        {
+            ApplyRemoteIncomingBattleDamageRedirectBind(action);
+            return;
+        }
+
         CardData commandData = DeckSettinObject.Instance != null
             ? DeckSettinObject.Instance.GetCardDataById(action.cardId)
             : null;
@@ -135,6 +141,99 @@ public partial class BattleGameMain
         }
 
         StartCoroutine(HandleRemoteCommandPlayRevealCoroutine(action, commandData, commandName, targetUnit));
+    }
+
+    /// <summary>防御側 GD06-018 の受け替えを攻撃側クライアントへ先に結ぶ。</summary>
+    private void SendOnlineIncomingBattleDamageRedirectBind(
+        CardController host,
+        CardController picked,
+        PlayerType side)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || host == null || host.Data == null
+            || picked == null || picked.Data == null)
+        {
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(host);
+        AssignBattleInstanceIdIfNeeded(picked);
+        bool toBase = picked.Data.type == Type.Base || IsCardInBaseSlot(picked);
+        string json = OnlineBattleActionPayload.CreateOnActionCommandUsed(
+            host.Data.id,
+            (int)side,
+            "OnAction:IncomingRedirectBind",
+            host.CurrentCost,
+            host.CurrentLevel,
+            picked.Data.id,
+            includeResourceSnapshot: false,
+            requestId: 0,
+            hostInstanceId: host.BattleInstanceId,
+            targetInstanceId: toBase ? 0 : picked.BattleInstanceId,
+            redirectIsBase: toBase ? 1 : 0,
+            includeIncomingRedirectBind: true);
+        SendOnlineBattleMessage(EosOnlineBattleMessage.CreateOnActionCommandUsed(json));
+        Debug.Log(
+            $"[RedirectBattleDmg][Online] bind sent host:{host.Data.cardName} inst:{host.BattleInstanceId} "
+            + $"→ {picked.Data.cardName} inst:{picked.BattleInstanceId} base:{toBase} side:{side}");
+    }
+
+    private void ApplyRemoteIncomingBattleDamageRedirectBind(OnlineBattleActionPayload action)
+    {
+        if (action == null)
+        {
+            return;
+        }
+
+        PlayerType senderZone = action.actingZoneSide == (int)PlayerType.Enemy
+            ? PlayerType.Enemy
+            : PlayerType.Player;
+        PlayerType localOwner = MirrorOnlineZoneOwner(senderZone);
+        CardController host = action.hostInstanceId > 0
+            ? FindBattleZoneUnitByInstanceId(action.hostInstanceId, localOwner)
+            : null;
+        if (host == null && action.cardId > 0)
+        {
+            host = FindOwnerFieldUnitByCardId(localOwner, action.cardId);
+        }
+
+        CardController picked = null;
+        if (action.redirectIsBase != 0)
+        {
+            picked = FindOwnerBaseForIncomingRedirect(localOwner, action.targetCardId);
+        }
+        else if (action.targetInstanceId > 0)
+        {
+            picked = FindBattleZoneUnitByInstanceId(action.targetInstanceId, localOwner);
+        }
+
+        if (picked == null && action.targetCardId > 0)
+        {
+            picked = FindOwnerFieldUnitByCardId(localOwner, action.targetCardId)
+                ?? FindOwnerBaseForIncomingRedirect(localOwner, action.targetCardId);
+        }
+
+        if (host == null || picked == null)
+        {
+            Debug.LogWarning(
+                $"[RedirectBattleDmg][Online] remote bind failed hostInst:{action.hostInstanceId} "
+                + $"card:{action.cardId} pickedInst:{action.targetInstanceId} pickedCard:{action.targetCardId} "
+                + $"owner:{localOwner}");
+            return;
+        }
+
+        bool prevApplyingRemote = _applyingRemoteBattleAction;
+        _applyingRemoteBattleAction = true;
+        try
+        {
+            ForceBindIncomingBattleDamageRedirect(host, picked, localOwner);
+        }
+        finally
+        {
+            _applyingRemoteBattleAction = prevApplyingRemote;
+        }
+
+        Debug.Log(
+            $"[RedirectBattleDmg][Online] remote bind {host.Data?.cardName} → {picked.Data?.cardName} owner:{localOwner}");
     }
 
     private IEnumerator HandleRemoteCommandPlayRevealCoroutine(

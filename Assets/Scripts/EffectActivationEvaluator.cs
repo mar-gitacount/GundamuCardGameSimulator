@@ -612,12 +612,10 @@ public static class EffectActivationEvaluator
 
         if (c.checkKind == EffectActivationCheckKind.CompareFieldUnitTokenCount)
         {
-            if (c.boardSide == EffectBoardSide.Unset)
-            {
-                return false;
-            }
-
-            int tokenCount = CountAliveUnitTokensMatchingFeature(ResolveZone(ctx, c.boardSide), c);
+            EffectBoardSide tokenSide = c.boardSide == EffectBoardSide.Unset
+                ? EffectBoardSide.OwnerBattleZone
+                : c.boardSide;
+            int tokenCount = CountAliveUnitTokensMatchingFeature(ResolveZone(ctx, tokenSide), c);
             return CompareInts(tokenCount, c.unitCountThreshold, c.unitCountCompareOp);
         }
 

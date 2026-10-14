@@ -1388,6 +1388,33 @@ public partial class BattleGameMain
 
         MarkActionStepCardUsed(side, command);
 
+        if (IsSt13001Qubeley(command))
+        {
+            EffectData battleEffect = new EffectData
+            {
+                type = EffectType.EffectBattle,
+                value = 1,
+                target = TargetType.EnemyUnit,
+                selectionMode = EffectSelectionMode.SelectSingle
+            };
+            List<EffectData> qubeleyOnAction = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+            for (int qi = 0; qi < qubeleyOnAction.Count; qi++)
+            {
+                if (qubeleyOnAction[qi] != null && qubeleyOnAction[qi].type == EffectType.EffectBattle)
+                {
+                    battleEffect = qubeleyOnAction[qi];
+                    break;
+                }
+            }
+
+            bool battleDone = false;
+            TryResolveQubeleyTokenEffectBattle(command, side, battleEffect, () => battleDone = true);
+            yield return new WaitUntil(() => battleDone);
+            EndOnDestroyedLatencyHold();
+            StartCoroutine(CoFinishEnemyOnActionAfterTrashUi(command, side, onDone));
+            yield break;
+        }
+
         if (IsArmedInterventionCard(command.Data))
         {
             List<CardController> candidates = CollectRestedCbAllyUnitsForAttackRedirect(side);

@@ -750,6 +750,12 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         IncomingBattleDamageRedirectOwnerValue = 0;
     }
 
+    public void RestoreHpAfterRedirectAbsorb(int hp)
+    {
+        CurrentHp = Mathf.Max(0, hp);
+        RefreshBattleStatOverlay(force: true);
+    }
+
     public void AddNotDirectAttackUntilEndOfTurnGrant()
     {
         _notDirectAttackUntilEndOfTurnDepth++;
@@ -1119,6 +1125,14 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     {
         if (amount <= 0)
         {
+            return;
+        }
+
+        // GD06-018: このバトル中の受け替え中は本体へ戦闘ダメージを入れない。
+        if (HasIncomingBattleDamageRedirectThisBattle)
+        {
+            Debug.Log(
+                $"[RedirectBattleDmg] absorb self ApplyDamage {Data?.cardName}(id:{Data?.id}) amount:{amount}");
             return;
         }
 

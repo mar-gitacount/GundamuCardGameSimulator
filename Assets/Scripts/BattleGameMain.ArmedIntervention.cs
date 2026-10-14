@@ -127,6 +127,11 @@ public partial class BattleGameMain
             return true;
         }
 
+        if (IsRemoteOnActionAttackContext(_onlineOnActionActiveContext))
+        {
+            return true;
+        }
+
         return isShieldAttackResolving || blockShieldFlowDuringShieldAttack || deferredShieldBlockRedirectWait;
     }
 

@@ -286,6 +286,7 @@ public partial class BattleGameMain
         }
         if (side == PlayerType.Enemy)
         {
+            // 相手ターン中でも、相手ゾーンのアクションは相手デバイスで解決する
             if (currentPlayerType != PlayerType.Player)
             {
                 if (IsActionStepSessionActive)
@@ -315,23 +316,31 @@ public partial class BattleGameMain
             }
             return;
         }
-        if (currentPlayerType != PlayerType.Player)
-        {
-            if (IsActionStepSessionActive)
-            {
-                AdvanceActionStepSession(PlayerType.Player, ActionStepPassKind.Pass);
-            }
-            else
-            {
-                onStepDone?.Invoke();
-            }
-            return;
-        }
+        // 自分のアクションステップは手番に関係なく開く（相手アタック時の防御側など）
         int requestId = ++_onlineOnActionRequestIdCounter;
         _pendingOnlineOnActionRequestId = requestId;
-        bool sendAttackPair = _actionStepSession != null && _actionStepSession.IsAttackContext;
-        int attackerInstanceId = sendAttackPair && attackingUnitInAttackFlow != null
-            ? attackingUnitInAttackFlow.BattleInstanceId
+        CardController sendAttacker = attackingUnitInAttackFlow != null
+            ? attackingUnitInAttackFlow
+            : attackFlowAttackerUnit;
+        if (sendAttacker != null)
+        {
+            AssignBattleInstanceIdIfNeeded(sendAttacker);
+        }
+
+        CardController sendDefender = attackFlowBlockRedirectUnit != null
+            ? attackFlowBlockRedirectUnit
+            : attackFlowDeclaredDefenderUnit;
+        if (sendDefender != null)
+        {
+            AssignBattleInstanceIdIfNeeded(sendDefender);
+        }
+
+        bool sendAttackPair = (_actionStepSession != null && _actionStepSession.IsAttackContext)
+            || IsRemoteOnActionAttackContext(context)
+            || attackFlowStrikeKind != AttackFlowStrikeKind.None
+            || sendAttacker != null;
+        int attackerInstanceId = sendAttackPair && sendAttacker != null
+            ? sendAttacker.BattleInstanceId
             : 0;
         int defenderInstanceId = sendAttackPair ? ResolveOnActionDefenderInstanceIdForSend() : 0;
         string beginMessage = EosOnlineBattleMessage.CreateOnActionBegin(
@@ -489,6 +498,10 @@ public partial class BattleGameMain
             return;
         }
         _onlineOnActionResponseRequestId = action.requestId;
+        string context = string.IsNullOrWhiteSpace(action.onActionContext)
+            ? "attack:remote-enemy-action"
+            : action.onActionContext;
+        _onlineOnActionActiveContext = context;
         CardController attackingUnit = null;
         if (action.attackerInstanceId > 0)
         {
@@ -499,20 +512,25 @@ public partial class BattleGameMain
             }
         }
 
-        bool isAttackOnAction = IsRemoteOnActionAttackContext(action.onActionContext);
+        bool isAttackOnAction = IsRemoteOnActionAttackContext(context);
         if (isAttackOnAction)
         {
-            // 被攻撃側クライアントでも交戦ペアを復元（ST12-011 等のバトル中判定用）
+            AbsorbDeployedFieldUnitsIntoBattleZoneLists();
+            // 被攻撃側クライアントでも交戦ペアを復元（ST12-011 / GD06-018 / ST13-001 等）
             PrepareOnActionCombatContextFromIds(
                 action.attackerInstanceId,
                 action.defenderInstanceId,
                 attackingUnit);
+            if (attackFlowStrikeKind == AttackFlowStrikeKind.None)
+            {
+                attackFlowStrikeKind = attackFlowDeclaredDefenderUnit != null
+                    || attackFlowBlockRedirectUnit != null
+                    ? AttackFlowStrikeKind.UnitVsUnit
+                    : AttackFlowStrikeKind.Shield;
+            }
+
             TryResolveWhenAttackedDrawsAtActionStep(PlayerType.Player, treatAsAttackContext: true);
         }
-
-        string context = string.IsNullOrWhiteSpace(action.onActionContext)
-            ? "attack:remote-enemy-action"
-            : action.onActionContext;
         System.Action completeAndNotify = () =>
         {
             _onlineOnActionResponseRequestId = 0;

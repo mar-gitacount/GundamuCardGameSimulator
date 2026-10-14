@@ -502,7 +502,7 @@ public partial class BattleGameMain : MonoBehaviour
             attacker,
             defender,
             attackerOwner,
-            ResolveCardOwner(defender.transform),
+            ResolveAttackDefenderSide(attacker, defender, attackerOwner),
             AttackFlowStrikeKind.UnitVsUnit);
     }
 
@@ -669,9 +669,10 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        PlayerType defenderOwner = declaredDefenderOrNull != null
-            ? ResolveCardOwner(declaredDefenderOrNull.transform)
-            : defenderSideForOnAction;
+        PlayerType defenderOwner = ResolveAttackDefenderSide(
+            attacker,
+            declaredDefenderOrNull,
+            attackerOwner);
         ExecuteUnitVsUnitDeclaredCombat(attacker, declaredDefenderOrNull, attackerOwner, defenderOwner);
     }
 
@@ -2579,6 +2580,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearPilotSetBattleDamageKillThisTurn();
         // 前ターンの効果ドロー記録を切る（オンライン相手ターン終了スキップ時の残留防止）。
         ClearAllOwnerDrewWithEffectThisTurn();
+        ClearAllQubeleyOncePerTurnBecauseTurnChanged();
         RefreshAllFieldOwnerTurnPassives();
 
         if(currentPlayerType == PlayerType.Player)
@@ -2691,6 +2693,13 @@ public partial class BattleGameMain : MonoBehaviour
                 if (isAttackedSidePanelOpen)
                 {
                     yield return new WaitUntil(() => !isAttackedSidePanelOpen);
+                    yield return new WaitForSeconds(0.1f);
+                    continue;
+                }
+
+                if (isOnActionPopupOpen)
+                {
+                    yield return new WaitUntil(() => !isOnActionPopupOpen);
                     yield return new WaitForSeconds(0.1f);
                     continue;
                 }
@@ -6266,12 +6275,12 @@ public partial class BattleGameMain : MonoBehaviour
             attackerHpAfterExchange,
             defenderHpAfterExchange);
 
-        if (defender.CurrentHp <= 0)
+        if (defender.CurrentHp <= 0 && !ShouldSuppressBattleTrashDueToIncomingRedirect(defender))
         {
             SendCardToTrash(defender, defenderOwner, attacker, destroyedByBattleDamage: true);
         }
 
-        if (attacker.CurrentHp <= 0)
+        if (attacker.CurrentHp <= 0 && !ShouldSuppressBattleTrashDueToIncomingRedirect(attacker))
         {
             SendCardToTrash(attacker, attackerOwner);
         }
@@ -8545,6 +8554,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (attacker != null
+            && attacker.AttackFlgState == AttackFlg.True
+            && !skipOnAttackSelection)
+        {
+            ResetAttackFlowBlockPassFlagsForNewDeclaration();
+        }
+
         if (enableShieldAttackFlowDebugLog)
         {
             string attackerName = attacker != null && attacker.Data != null ? attacker.Data.cardName : "null";
@@ -9637,6 +9653,14 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // 新規攻撃宣言。前回攻撃の BlockResolved / OnActionDone が残るとアクションが飛ばされる
+        if (attacker != null
+            && attacker.AttackFlgState == AttackFlg.True
+            && !resumeAfterPreCombatOnAttack)
+        {
+            ResetAttackFlowBlockPassFlagsForNewDeclaration();
+        }
+
         if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
         {
             Debug.Log("[UnitAttack] Paused — attacked-side block panel is still open.");
@@ -10285,12 +10309,12 @@ public partial class BattleGameMain : MonoBehaviour
 
         RestBlockerThenNotifyActivated(blocker, syncOnlineRest: true);
 
-        if (blocker.CurrentHp <= 0)
+        if (blocker.CurrentHp <= 0 && !ShouldSuppressBattleTrashDueToIncomingRedirect(blocker))
         {
             SendCardToTrash(blocker, blockerOwner, attacker, destroyedByBattleDamage: true);
         }
 
-        if (attacker.CurrentHp <= 0)
+        if (attacker.CurrentHp <= 0 && !ShouldSuppressBattleTrashDueToIncomingRedirect(attacker))
         {
             SendCardToTrash(attacker, attackerOwner);
         }
@@ -10414,6 +10438,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearSuppressUntilEndOfBattleGrantsForAllInPlayUnits();
         ClearShieldAreaImmunityFromEnemyUnitLevelOrLess();
         ClearObservedUnitWatchesAtEndOfBattle();
+        ClearIncomingBattleDamageRedirectUntilEndOfBattleForAllInPlayUnits();
         // ゾーンリスト漏れ対策: 配備パネル直下も走査
         ClearTimedStatModifiersOnDeployPanels(EffectDuration.UntilEndOfBattle);
         if (!string.IsNullOrEmpty(reason))
@@ -11885,7 +11910,38 @@ public partial class BattleGameMain : MonoBehaviour
             return BuildOnAttackActivationContext(ownerType, host);
         }
 
-        return BuildActivationContext(ownerType, sourceCard);
+        Gundam2024RuleScript.PlayerState ownerState = ownerType == PlayerType.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        CardController mountHost = host != null && host.Data != null && host.Data.IsUnitLike()
+            ? host
+            : null;
+        CardController mountedPilot = mountHost != null
+            ? mountHost.MountedPilot
+            : sourceCard != null ? sourceCard.MountedPilot : null;
+        return new EffectActivationContext(
+            ownerType,
+            sourceCard,
+            playerBattleZoneCards,
+            enemyBattleZoneCards,
+            CollectHandControllers(cardGameRule),
+            CollectHandControllers(enemyCardGameRule),
+            isOwnerTurn: ownerType == currentPlayerType,
+            mountHostUnit: mountHost,
+            mountedPilot: mountedPilot,
+            observedCards: GetActiveObservedCardsForActivation(),
+            ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
+            opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
+            priorChainDealtDamage: GetEffectChainDealtDamage(),
+            ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(mountHost),
+            sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(mountHost),
+            battlingEnemyUnit: ResolveBattlingEnemyUnitFor(mountHost),
+            ownerTotalLevel: ownerState != null ? ownerState.TotalLevel : -1,
+            ownerExResource: ownerState != null ? ownerState.exResource : -1,
+            ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -18829,6 +18885,7 @@ public partial class BattleGameMain : MonoBehaviour
     private List<CardController> CollectOnActionSelectableSources(PlayerType side)
     {
         SyncActionStepCombatPairToAttackFlow();
+        AbsorbDeployedFieldUnitsIntoBattleZoneLists();
 
         List<CardController> sources = new List<CardController>();
         List<CardController> ownBattleZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
@@ -18842,7 +18899,18 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 }
 
-                if (uc.CurrentHp <= 0)
+                if (uc.CurrentHp <= 0 || IsNestedUnderAnotherFieldUnit(uc))
+                {
+                    continue;
+                }
+
+                if (IsQubeleyOnActionFieldUnit(uc))
+                {
+                    TryAddQubeleyOnActionSource(side, sources, uc, null);
+                    continue;
+                }
+
+                if (!IsUnitOnSideBattleField(uc, side))
                 {
                     continue;
                 }
@@ -18903,8 +18971,641 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         AppendArmedInterventionFromAnyHand(side, sources);
+        AppendOnActionFieldSourcesFromDeployPanel(side, sources);
+        EnsureCombatPairOnActionSources(side, sources);
+        AppendQubeleyOnActionSources(side, sources);
+        InjectDefenderQubeleyOnActionSources(side, sources);
+        DeduplicateOnActionQubeleySources(sources);
 
         return sources;
+    }
+
+    private const int Gd06018QubeleyMkIiCardId = 1000824;
+
+    private static bool IsQubeleyOnActionFieldUnit(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return false;
+        }
+
+        if (unit.Data.id == St13001QubeleyCardId || unit.Data.id == Gd06018QubeleyMkIiCardId)
+        {
+            return true;
+        }
+
+        string name = unit.Data.cardName;
+        return !string.IsNullOrEmpty(name)
+            && name.IndexOf("Qubeley", System.StringComparison.OrdinalIgnoreCase) >= 0
+            && HasEffectTiming(unit.Data, EffectTiming.OnAction);
+    }
+
+    /// <summary>攻撃ユニットの反対側を防御側とする。親子付けや currentPlayerType に依存しない。</summary>
+    private PlayerType ResolveAttackDefenderSide(
+        CardController attacker,
+        CardController defender,
+        PlayerType attackerOwner)
+    {
+        List<CardController> playerZone = playerBattleZoneCards;
+        List<CardController> enemyZone = enemyBattleZoneCards;
+        if (defender != null)
+        {
+            if (playerZone != null && playerZone.Contains(defender))
+            {
+                return PlayerType.Player;
+            }
+
+            if (enemyZone != null && enemyZone.Contains(defender))
+            {
+                return PlayerType.Enemy;
+            }
+        }
+
+        if (attacker != null)
+        {
+            if (playerZone != null && playerZone.Contains(attacker))
+            {
+                return PlayerType.Enemy;
+            }
+
+            if (enemyZone != null && enemyZone.Contains(attacker))
+            {
+                return PlayerType.Player;
+            }
+
+            if (IsUnitOnSideBattleField(attacker, PlayerType.Player))
+            {
+                return PlayerType.Enemy;
+            }
+
+            if (IsUnitOnSideBattleField(attacker, PlayerType.Enemy))
+            {
+                return PlayerType.Player;
+            }
+        }
+
+        return attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+    }
+
+    /// <summary>アクション時：自軍にトークンがあればキュベレイを選択 UI へ出す。</summary>
+    private void InjectDefenderQubeleyOnActionSources(PlayerType side, List<CardController> sources)
+    {
+        if (sources == null
+            || HasUsedQubeleyAttackActionThisTurn(side)
+            || !OwnerHasBitFunnelOrUnitTokenNow(side))
+        {
+            return;
+        }
+
+        List<CardController> ownZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        CardController attacker = attackFlowAttackerUnit != null
+            ? attackFlowAttackerUnit
+            : pendingUnitAttackAttacker;
+        bool thisSideIsAttacker = attacker != null
+            && ((ownZone != null && ownZone.Contains(attacker))
+                || IsUnitOnSideBattleField(attacker, side));
+
+        if (!thisSideIsAttacker)
+        {
+            TryAddQubeleyOnActionSourceIgnoringNest(side, sources, attackFlowDeclaredDefenderUnit);
+            TryAddQubeleyOnActionSourceIgnoringNest(side, sources, attackFlowBlockRedirectUnit);
+            if (_actionStepSession != null)
+            {
+                TryAddQubeleyOnActionSourceIgnoringNest(side, sources, _actionStepSession.DefendingUnit);
+            }
+        }
+
+        if (ownZone != null)
+        {
+            for (int i = 0; i < ownZone.Count; i++)
+            {
+                TryAddQubeleyOnActionSourceIgnoringNest(side, sources, ownZone[i]);
+            }
+        }
+
+        CardGameRule ownRule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (ownRule != null && ownRule.PlayerDeployPanel != null)
+        {
+            CardController[] nested = ownRule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+            for (int i = 0; nested != null && i < nested.Length; i++)
+            {
+                if (IsQubeleyOnActionFieldUnit(nested[i]))
+                {
+                    TryAddQubeleyOnActionSourceIgnoringNest(side, sources, nested[i]);
+                }
+            }
+        }
+    }
+
+    private void TryAddQubeleyOnActionSourceIgnoringNest(
+        PlayerType side,
+        List<CardController> sources,
+        CardController unit)
+    {
+        if (unit == null
+            || !IsQubeleyOnActionFieldUnit(unit)
+            || unit.CurrentHp <= 0
+            || sources == null
+            || sources.Contains(unit)
+            || IsCardInAnyHandOrShield(unit)
+            || HasUsedQubeleyAttackActionThisTurn(side))
+        {
+            return;
+        }
+
+        for (int i = 0; i < sources.Count; i++)
+        {
+            if (IsDuplicateQubeleyOnActionSource(sources[i], unit))
+            {
+                return;
+            }
+        }
+
+        sources.Add(unit);
+        Debug.Log(
+            $"[OnAction] 防御側キュベレイを一覧へ追加 {unit.Data?.cardName}(id:{unit.Data?.id}) side:{side}");
+    }
+
+    /// <summary>
+    /// 自軍盤面のキュベレイ系のみ載せる。相手一覧・使用済みは除外する。
+    /// </summary>
+    private void AppendQubeleyOnActionSources(PlayerType side, List<CardController> sources)
+    {
+        if (sources == null)
+        {
+            return;
+        }
+
+        AbsorbDeployedFieldUnitsIntoBattleZoneLists();
+        HashSet<CardController> seen = new HashSet<CardController>();
+        List<CardController> ownZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (ownZone != null)
+        {
+            for (int i = 0; i < ownZone.Count; i++)
+            {
+                TryAddQubeleyOnActionSource(side, sources, ownZone[i], seen);
+            }
+        }
+
+        CardGameRule ownRule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (ownRule != null && ownRule.PlayerDeployPanel != null)
+        {
+            CardController[] nested = ownRule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+            for (int i = 0; nested != null && i < nested.Length; i++)
+            {
+                if (IsNestedUnderAnotherFieldUnit(nested[i]))
+                {
+                    continue;
+                }
+
+                TryAddQubeleyOnActionSource(side, sources, nested[i], seen);
+            }
+        }
+
+        TryAddQubeleyOnActionSource(side, sources, attackFlowDeclaredDefenderUnit, seen);
+        TryAddQubeleyOnActionSource(side, sources, attackFlowBlockRedirectUnit, seen);
+    }
+
+    /// <summary>他ユニットの子にあるプレビュー／搭乗表示は場の実体ではない。</summary>
+    private static bool IsNestedUnderAnotherFieldUnit(CardController unit)
+    {
+        if (unit == null || unit.transform == null || unit.transform.parent == null)
+        {
+            return false;
+        }
+
+        CardController ancestor = unit.transform.parent.GetComponentInParent<CardController>();
+        return ancestor != null && ancestor != unit;
+    }
+
+    private void DeduplicateOnActionQubeleySources(List<CardController> sources)
+    {
+        if (sources == null)
+        {
+            return;
+        }
+
+        for (int i = sources.Count - 1; i >= 0; i--)
+        {
+            CardController later = sources[i];
+            if (!IsQubeleyOnActionFieldUnit(later))
+            {
+                continue;
+            }
+
+            for (int j = 0; j < i; j++)
+            {
+                if (!IsDuplicateQubeleyOnActionSource(sources[j], later))
+                {
+                    continue;
+                }
+
+                // プレビュー子を残して実体を消さない。被攻撃中の実体を優先する。
+                if (PreferQubeleyOnActionSource(later, sources[j]))
+                {
+                    sources[j] = later;
+                }
+
+                sources.RemoveAt(i);
+                break;
+            }
+        }
+    }
+
+    private bool PreferQubeleyOnActionSource(CardController keep, CardController drop)
+    {
+        int keepScore = ScoreQubeleyOnActionSource(keep);
+        int dropScore = ScoreQubeleyOnActionSource(drop);
+        return keepScore > dropScore;
+    }
+
+    private int ScoreQubeleyOnActionSource(CardController unit)
+    {
+        if (unit == null)
+        {
+            return 0;
+        }
+
+        int score = 0;
+        if (IsCombatDeclaredDefenderUnit(unit))
+        {
+            score += 8;
+        }
+
+        if (!IsNestedUnderAnotherFieldUnit(unit))
+        {
+            score += 4;
+        }
+
+        if (unit.BattleInstanceId > 0)
+        {
+            score += 2;
+        }
+
+        if (unit.CurrentHp > 0)
+        {
+            score += 1;
+        }
+
+        return score;
+    }
+
+    private static bool IsDuplicateQubeleyOnActionSource(CardController a, CardController b)
+    {
+        if (a == null || b == null || a.Data == null || b.Data == null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(a, b) || IsSameBattleUnit(a, b))
+        {
+            return true;
+        }
+
+        return a.Data.id == b.Data.id
+            && a.Data.id > 0
+            && (a.BattleInstanceId <= 0 || b.BattleInstanceId <= 0 || a.BattleInstanceId == b.BattleInstanceId);
+    }
+
+    private bool IsCardInAnyHandOrShield(CardController unit)
+    {
+        if (unit == null || unit.transform == null)
+        {
+            return false;
+        }
+
+        return IsUnderRuleHandOrShield(cardGameRule, unit.transform)
+            || IsUnderRuleHandOrShield(enemyCardGameRule, unit.transform);
+    }
+
+    private static bool IsUnderRuleHandOrShield(CardGameRule rule, Transform t)
+    {
+        if (rule == null || t == null)
+        {
+            return false;
+        }
+
+        return (rule.HandScrollContent != null && t.IsChildOf(rule.HandScrollContent))
+            || (rule.ShieldCardsContent != null && t.IsChildOf(rule.ShieldCardsContent));
+    }
+
+    private bool IsUnitOnSideBattleField(CardController unit, PlayerType side)
+    {
+        if (unit == null || unit.transform == null)
+        {
+            return false;
+        }
+
+        if (IsNestedUnderAnotherFieldUnit(unit))
+        {
+            return false;
+        }
+
+        CardGameRule ownRule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        CardGameRule otherRule = side == PlayerType.Player ? enemyCardGameRule : cardGameRule;
+        bool underOwn = ownRule != null
+            && ownRule.PlayerDeployPanel != null
+            && unit.transform.IsChildOf(ownRule.PlayerDeployPanel);
+        bool underOther = otherRule != null
+            && otherRule.PlayerDeployPanel != null
+            && unit.transform.IsChildOf(otherRule.PlayerDeployPanel);
+        if (underOwn)
+        {
+            return true;
+        }
+
+        if (underOther)
+        {
+            return false;
+        }
+
+        List<CardController> ownZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        return ownZone != null && ownZone.Contains(unit);
+    }
+
+    private bool IsAttackActionStepNow()
+    {
+        if (_actionStepSession != null && _actionStepSession.IsAttackContext)
+        {
+            return true;
+        }
+
+        if (attackFlowStrikeKind != AttackFlowStrikeKind.None
+            || attackFlowAttackerUnit != null
+            || pendingUnitAttackAttacker != null)
+        {
+            return true;
+        }
+
+        return IsRemoteOnActionAttackContext(_onlineOnActionActiveContext);
+    }
+
+    private PlayerType ResolveAttackerFieldSideForOnAction()
+    {
+        CardController attacker = attackFlowAttackerUnit != null
+            ? attackFlowAttackerUnit
+            : pendingUnitAttackAttacker;
+        if (attacker == null && _actionStepSession != null)
+        {
+            attacker = _actionStepSession.AttackingUnit;
+        }
+
+        if (IsUnitOnSideBattleField(attacker, PlayerType.Player))
+        {
+            return PlayerType.Player;
+        }
+
+        if (IsUnitOnSideBattleField(attacker, PlayerType.Enemy))
+        {
+            return PlayerType.Enemy;
+        }
+
+        if (_actionStepSession != null && _actionStepSession.IsAttackContext)
+        {
+            return _actionStepSession.TurnPlayerSide;
+        }
+
+        return attackFlowAttackerOwner;
+    }
+
+    private bool IsCombatDeclaredDefenderUnit(CardController unit)
+    {
+        return IsSameBattleUnit(unit, attackFlowDeclaredDefenderUnit)
+            || IsSameBattleUnit(unit, attackFlowBlockRedirectUnit)
+            || (_actionStepSession != null && IsSameBattleUnit(unit, _actionStepSession.DefendingUnit));
+    }
+
+    private bool IsCombatDeclaredAttackerUnit(CardController unit)
+    {
+        return IsSameBattleUnit(unit, attackFlowAttackerUnit)
+            || IsSameBattleUnit(unit, pendingUnitAttackAttacker)
+            || (_actionStepSession != null && IsSameBattleUnit(unit, _actionStepSession.AttackingUnit));
+    }
+
+    /// <summary>盤面位置を優先。攻撃側ターン情報で自軍防御キュベレイを落とさない。</summary>
+    private bool IsOwnSideQubeleyForOnAction(CardController unit, PlayerType side)
+    {
+        if (unit == null || !IsQubeleyOnActionFieldUnit(unit) || IsCardInAnyHandOrShield(unit))
+        {
+            return false;
+        }
+
+        if (IsNestedUnderAnotherFieldUnit(unit))
+        {
+            return false;
+        }
+
+        if (IsUnitOnSideBattleField(unit, side))
+        {
+            return true;
+        }
+
+        PlayerType other = OpponentSide(side);
+        if (IsUnitOnSideBattleField(unit, other))
+        {
+            return false;
+        }
+
+        PlayerType attackerSide = ResolveAttackerFieldSideForOnAction();
+        if (IsCombatDeclaredAttackerUnit(unit))
+        {
+            return side == attackerSide;
+        }
+
+        if (IsCombatDeclaredDefenderUnit(unit))
+        {
+            return side != attackerSide;
+        }
+
+        return false;
+    }
+
+    private void TryAddQubeleyOnActionSource(
+        PlayerType side,
+        List<CardController> sources,
+        CardController unit,
+        HashSet<CardController> seen)
+    {
+        if (unit == null
+            || !IsQubeleyOnActionFieldUnit(unit)
+            || unit.CurrentHp <= 0
+            || (IsNestedUnderAnotherFieldUnit(unit) && !IsCombatDeclaredDefenderUnit(unit))
+            || sources.Contains(unit)
+            || (seen != null && !seen.Add(unit))
+            || IsCardInAnyHandOrShield(unit)
+            || !IsOwnSideQubeleyForOnAction(unit, side)
+            || HasUsedQubeleyFieldActionThisTurn(side, unit)
+            || HasUsedSt13001TokenBattleThisTurn(side, unit))
+        {
+            return;
+        }
+
+        for (int i = 0; i < sources.Count; i++)
+        {
+            if (IsDuplicateQubeleyOnActionSource(sources[i], unit))
+            {
+                return;
+            }
+        }
+
+        sources.Add(unit);
+    }
+
+    /// <summary>被攻撃中のキュベレイ等がゾーン一覧から外れてもアクション候補へ戻す。</summary>
+    private void EnsureCombatPairOnActionSources(PlayerType side, List<CardController> sources)
+    {
+        TryAddOnActionSourceIfEligible(side, sources, attackFlowDeclaredDefenderUnit);
+        TryAddOnActionSourceIfEligible(side, sources, attackFlowBlockRedirectUnit);
+        TryAddOnActionSourceIfEligible(side, sources, attackFlowAttackerUnit);
+        TryAddOnActionSourceIfEligible(side, sources, pendingUnitAttackAttacker);
+    }
+
+    private void TryAddOnActionSourceIfEligible(
+        PlayerType side,
+        List<CardController> sources,
+        CardController unit)
+    {
+        if (sources == null
+            || unit == null
+            || unit.Data == null
+            || unit.CurrentHp <= 0
+            || (IsQubeleyOnActionFieldUnit(unit)
+                ? !IsOwnSideQubeleyForOnAction(unit, side)
+                : !IsUnitOnSideBattleField(unit, side)))
+        {
+            return;
+        }
+
+        if (unit.Data.IsUnitLike()
+            && HasEffectTiming(unit.Data, EffectTiming.OnAction)
+            && CanExecuteOnActionCardNow(side, unit)
+            && !sources.Contains(unit))
+        {
+            sources.Add(unit);
+        }
+
+        CardController pilot = unit.MountedPilot;
+        if (pilot != null
+            && pilot.Data != null
+            && pilot.Data.IsPilot()
+            && HasEffectTiming(pilot.Data, EffectTiming.OnAction)
+            && CanExecuteOnActionCardNow(side, pilot)
+            && !sources.Contains(pilot))
+        {
+            sources.Add(pilot);
+        }
+    }
+
+    /// <summary>ゾーン一覧から漏れた枠上ユニット／搭乗パイロットの【起動・アクション】を拾う。</summary>
+    private void AppendOnActionFieldSourcesFromDeployPanel(PlayerType side, List<CardController> sources)
+    {
+        if (sources == null)
+        {
+            return;
+        }
+
+        CardGameRule rule = side == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (rule == null || rule.PlayerDeployPanel == null)
+        {
+            return;
+        }
+
+        CardController[] nested = rule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+        if (nested == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < nested.Length; i++)
+        {
+            CardController uc = nested[i];
+            if (uc == null
+                || uc.Data == null
+                || !uc.Data.IsUnitLike()
+                || uc.CurrentHp <= 0
+                || IsNestedUnderAnotherFieldUnit(uc))
+            {
+                continue;
+            }
+
+            if (IsQubeleyOnActionFieldUnit(uc))
+            {
+                TryAddQubeleyOnActionSource(side, sources, uc, null);
+                continue;
+            }
+
+            if (!IsUnitOnSideBattleField(uc, side))
+            {
+                continue;
+            }
+
+            if (HasEffectTiming(uc.Data, EffectTiming.OnAction)
+                && CanExecuteOnActionCardNow(side, uc)
+                && !sources.Contains(uc))
+            {
+                sources.Add(uc);
+            }
+
+            CardController pilot = uc.MountedPilot;
+            if (pilot != null
+                && pilot.Data != null
+                && pilot.Data.IsPilot()
+                && HasEffectTiming(pilot.Data, EffectTiming.OnAction)
+                && CanExecuteOnActionCardNow(side, pilot)
+                && !sources.Contains(pilot))
+            {
+                sources.Add(pilot);
+            }
+        }
+    }
+
+    /// <summary>
+    /// バトル枠にいるユニット／トークンをゾーン一覧へ戻す。
+    /// トークン配備直後やオンライン同期ずれで一覧から漏れると、アクション候補・対象選択から消える。
+    /// </summary>
+    private void AbsorbDeployedFieldUnitsIntoBattleZoneLists()
+    {
+        AbsorbDeployedFieldUnitsIntoBattleZoneList(PlayerType.Player);
+        AbsorbDeployedFieldUnitsIntoBattleZoneList(PlayerType.Enemy);
+    }
+
+    private void AbsorbDeployedFieldUnitsIntoBattleZoneList(PlayerType owner)
+    {
+        List<CardController> zone = owner == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        CardGameRule rule = owner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (zone == null || rule == null || rule.PlayerDeployPanel == null)
+        {
+            return;
+        }
+
+        CardController[] nested = rule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+        if (nested == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < nested.Length; i++)
+        {
+            CardController unit = nested[i];
+            if (unit == null
+                || unit.Data == null
+                || !unit.Data.IsUnitLike()
+                || unit.CurrentHp <= 0
+                || IsNestedUnderAnotherFieldUnit(unit))
+            {
+                continue;
+            }
+
+            if (!zone.Contains(unit))
+            {
+                zone.Add(unit);
+                Debug.Log(
+                    $"[BattleZone] 枠上のユニットを一覧へ復帰 {unit.Data.cardName}(id:{unit.Data.id} "
+                    + $"token:{unit.Data.IsUnitToken()}) owner:{owner}");
+            }
+        }
     }
 
     private bool TryOpenOnActionCommandSelection(
@@ -18918,10 +19619,24 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        // 候補収集より先にコンテキストを載せる（被攻撃側の攻撃ウィンドウ判定用）
+        if (!string.IsNullOrWhiteSpace(context))
+        {
+            _onlineOnActionActiveContext = context;
+        }
+
         // UI オープン直前に交戦ペアを確定（被攻撃側アクションでも他カードと同様に条件判定できるようにする）
         PrepareOnActionCombatContextForUi(attackingUnitInAttackFlow);
 
         List<CardController> onActionSelectableSources = CollectOnActionSelectableSources(side);
+        InjectDefenderQubeleyOnActionSources(side, onActionSelectableSources);
+
+        if (_isActionStepCommandResolving
+            && !string.IsNullOrEmpty(context)
+            && context.IndexOf("attack", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            EndActionStepCommandResolve();
+        }
 
         if (_isActionStepCommandResolving || _activeResourcePaymentOverlay != null)
         {
@@ -19375,6 +20090,18 @@ public partial class BattleGameMain : MonoBehaviour
                 attackingUnitInAttackFlow,
                 commandQueueIndex,
                 commandQueueCount);
+            return;
+        }
+
+        if (IsSt13001Qubeley(command))
+        {
+            StartCoroutine(CoExecuteQubeleyTokenEffectBattleOnAction(
+                side,
+                command,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount));
             return;
         }
 
@@ -20105,6 +20832,12 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         CardController revealTarget = pickedTargets[0];
+        if (IsGd06018QubeleyMkII(command)
+            || command.Data.id == Gd06018QubeleyMkIICardId
+            || (effect != null && effect.type == EffectType.RedirectIncomingBattleDamage))
+        {
+            ForceBindIncomingBattleDamageRedirect(command, revealTarget, side);
+        }
 
         // 了承表示〜効果適用まで破壊時効果を保留し、OK 後の適用直後に Look／回収をフラッシュ
         BeginOnDestroyedLatencyHold();
@@ -20146,6 +20879,13 @@ public partial class BattleGameMain : MonoBehaviour
             command,
             "OnAction",
             revealTarget);
+        if (IsGd06018QubeleyMkII(command)
+            || (effect != null && effect.type == EffectType.RedirectIncomingBattleDamage))
+        {
+            CardController bindHost = MatchIncomingRedirectHostInAttackFlow(command.Data.id) ?? command;
+            SendOnlineIncomingBattleDamageRedirectBind(bindHost, revealTarget, side);
+        }
+
         MarkActionStepCardUsed(side, command);
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
@@ -20254,6 +20994,26 @@ public partial class BattleGameMain : MonoBehaviour
             else
             {
                 applyImmunity();
+            }
+        }
+        else if (effect.type == EffectType.RedirectIncomingBattleDamage)
+        {
+            System.Action applyIncomingRedirect = () =>
+            {
+                BeginOnlineEffectSyncBatch(side);
+                TryApplyIncomingBattleDamageRedirectMarker(effect, command, pickedTargets, side);
+                SetEffectChainLastPickedTargets(pickedTargets);
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+            };
+
+            if (side == PlayerType.Player)
+            {
+                InvokePlayerManualUnitSelectionCallback(applyIncomingRedirect);
+            }
+            else
+            {
+                applyIncomingRedirect();
             }
         }
         else if (IsOnActionAttackTargetRedirectEffect(effect))
@@ -21283,6 +22043,8 @@ public partial class BattleGameMain : MonoBehaviour
             return new List<CardController>();
         }
 
+        AbsorbDeployedFieldUnitsIntoBattleZoneLists();
+
         IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> result = new List<CardController>();
@@ -21302,6 +22064,11 @@ public partial class BattleGameMain : MonoBehaviour
         if (IsOnActionAttackTargetRedirectEffect(effect))
         {
             return CollectRestedCbAllyUnitsForAttackRedirect(ownerType);
+        }
+
+        if (effect.type == EffectType.RedirectIncomingBattleDamage)
+        {
+            return CollectIncomingBattleDamageRedirectCandidates(sourceCard, ownerType);
         }
 
         switch (effect.target)

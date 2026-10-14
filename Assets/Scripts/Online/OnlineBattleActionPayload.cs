@@ -16,6 +16,16 @@ public class OnlineBattleActionPayload
     public int blockerInstanceId;
     public int attackerHp;
     public int defenderHp;
+    /// <summary>戦闘ダメージ受け替え先（GD06-018 等）を同梱したとき true。</summary>
+    public bool includeRedirectSnapshot;
+    /// <summary>戦闘ダメージ受け替え先。0=なし（ベース受け替え時も 0）。</summary>
+    public int redirectInstanceId;
+    /// <summary>受け替え先の交換後 HP。0=破壊。</summary>
+    public int redirectHpAfter;
+    /// <summary>送信側視点の受け替え先ゾーン。0=Player, 1=Enemy。</summary>
+    public int redirectZoneSide;
+    /// <summary>受け替え先が配備ベースなら 1。</summary>
+    public int redirectIsBase;
     public int defenderShieldAfter;
     public int defenderExBaseAfter;
     public bool directAttackWin;
@@ -54,6 +64,10 @@ public class OnlineBattleActionPayload
     public int[] shieldZoneCardIds;
     /// <summary>OnActionCommandUsed 用。効果対象ユニットの cardId。-1 は未指定。</summary>
     public int targetCardId = -1;
+    /// <summary>GD06-018 受け替え同期: ホスト／対象インスタンス。</summary>
+    public int hostInstanceId;
+    public int targetInstanceId;
+    public bool includeIncomingRedirectBind;
     /// <summary>OnActionCommandUsed 用。使用時点のコスト／レベル（UI 表示用）。</summary>
     public int cardCost;
     public int cardLevel;
@@ -385,7 +399,12 @@ public class OnlineBattleActionPayload
         int defenderShieldAfter = -1,
         int defenderExBaseAfter = -1,
         int defenderDeployedBaseHpAfter = -1,
-        int defenderOnDestroyedRequestId = 0)
+        int defenderOnDestroyedRequestId = 0,
+        int redirectInstanceId = 0,
+        int redirectHpAfter = 0,
+        int redirectZoneSide = 0,
+        int redirectIsBase = 0,
+        bool includeRedirectSnapshot = false)
     {
         // requestId を防御側 OnDestroyed 待機 ID に流用
         return JsonUtility.ToJson(new OnlineUnitAttackDto
@@ -401,7 +420,12 @@ public class OnlineBattleActionPayload
             defenderShieldAfter = defenderShieldAfter,
             defenderExBaseAfter = defenderExBaseAfter,
             defenderDeployedBaseHpAfter = defenderDeployedBaseHpAfter,
-            requestId = defenderOnDestroyedRequestId
+            requestId = defenderOnDestroyedRequestId,
+            includeRedirectSnapshot = includeRedirectSnapshot,
+            redirectInstanceId = redirectInstanceId,
+            redirectHpAfter = redirectHpAfter,
+            redirectZoneSide = redirectZoneSide,
+            redirectIsBase = redirectIsBase
         });
     }
 
@@ -463,7 +487,11 @@ public class OnlineBattleActionPayload
         int resourceAfter = 0,
         int exResourceAfter = 0,
         int levelAfter = 0,
-        int requestId = 0)
+        int requestId = 0,
+        int hostInstanceId = 0,
+        int targetInstanceId = 0,
+        int redirectIsBase = 0,
+        bool includeIncomingRedirectBind = false)
     {
         return JsonUtility.ToJson(new OnlineOnActionCommandUsedDto
         {
@@ -478,7 +506,11 @@ public class OnlineBattleActionPayload
             resourceAfter = resourceAfter,
             exResourceAfter = exResourceAfter,
             levelAfter = levelAfter,
-            requestId = requestId
+            requestId = requestId,
+            hostInstanceId = hostInstanceId,
+            targetInstanceId = targetInstanceId,
+            redirectIsBase = redirectIsBase,
+            includeIncomingRedirectBind = includeIncomingRedirectBind
         });
     }
 
@@ -670,6 +702,11 @@ public class OnlineUnitAttackDto
     public int defenderDeployedBaseHpAfter;
     /// <summary>防御側 OnDestroyed 待機 requestId（0=なし）。</summary>
     public int requestId;
+    public bool includeRedirectSnapshot;
+    public int redirectInstanceId;
+    public int redirectHpAfter;
+    public int redirectZoneSide;
+    public int redirectIsBase;
 }
 
 /// <summary>DeployBase 送信用 lean DTO。</summary>
@@ -738,6 +775,10 @@ public class OnlineOnActionCommandUsedDto
     public int exResourceAfter;
     public int levelAfter;
     public int requestId;
+    public int hostInstanceId;
+    public int targetInstanceId;
+    public int redirectIsBase;
+    public bool includeIncomingRedirectBind;
 }
 
 /// <summary>CommandPlayRevealComplete 送信用 lean DTO。</summary>

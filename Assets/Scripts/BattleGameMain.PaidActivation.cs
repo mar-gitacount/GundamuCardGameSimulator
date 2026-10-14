@@ -171,7 +171,14 @@ public partial class BattleGameMain
 
         if (context.Timed.oncePerTurn)
         {
-            MarkPaidActivationUsedThisTurn(context.Side, context.Source, context.BlockIndex);
+            if (IsSt13001Qubeley(context.Source) && TimedHasEffectBattle(context.Timed))
+            {
+                MarkSt13001TokenBattleUsedThisTurn(context.Side, context.Source);
+            }
+            else
+            {
+                MarkPaidActivationUsedThisTurn(context.Side, context.Source, context.BlockIndex);
+            }
         }
 
         return true;
@@ -212,6 +219,8 @@ public partial class BattleGameMain
         {
             _paidActivationUsesThisTurn.Remove(remove[i]);
         }
+
+        ClearQubeleyFieldActionUsesForSide(side);
     }
 
     private bool HasUsedPaidActivationThisTurn(PlayerType side, CardController card, int blockIndex)
@@ -312,7 +321,9 @@ public partial class BattleGameMain
         }
 
         // 場のユニット／ベース【メイン】は手札コスト・レベル要件を課さない
-        if (card.Data.IsUnitLike() && host.IsCardOnBattleZone(card))
+        // 手札リストに同名 CardData があるだけでは手札扱いしない（別コピーが場にいる）
+        if (card.Data.IsUnitLike()
+            && (host.IsCardOnBattleZone(card) || host.IsUnitAliveOnAnyDeployField(card)))
         {
             return false;
         }
@@ -365,6 +376,20 @@ public partial class BattleGameMain
         return GetOnMainActivationCost(source, timed, ownerType, this);
     }
 
+    /// <summary>手札スクロール上の実体か（同名カードの Data 比較は使わない）。</summary>
+    private bool IsCardInOwnerHandScroll(CardController card, PlayerType ownerType)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        RectTransform hand = ownerType == PlayerType.Player
+            ? cardGameRule?.HandScrollContent
+            : enemyCardGameRule?.HandScrollContent;
+        return hand != null && card.transform != null && card.transform.IsChildOf(hand);
+    }
+
     /// <summary>場のユニット／ベース等から OnAction を起動しているか（手札コマンドではない）。</summary>
     private bool IsOnActionActivatedFromField(CardController card, PlayerType ownerType)
     {
@@ -374,6 +399,11 @@ public partial class BattleGameMain
         }
 
         if (card.Data.IsCommand())
+        {
+            return false;
+        }
+
+        if (IsCardInOwnerHandScroll(card, ownerType))
         {
             return false;
         }
@@ -388,19 +418,24 @@ public partial class BattleGameMain
                 && hostUnit.Data != null
                 && hostUnit.Data.IsUnitLike()
                 && hostUnit.CurrentHp > 0
-                && IsCardOnBattleZone(hostUnit))
+                && (IsCardOnBattleZone(hostUnit) || IsUnitAliveOnAnyDeployField(hostUnit)))
             {
                 return true;
             }
         }
 
-        // バトルゾーン上のユニット、またはベーススロット上のベース、または手札に無い実体
-        if (IsCardOnBattleZone(card) || IsCardInBaseSlot(card))
+        if (IsCardOnBattleZone(card)
+            || IsCardInBaseSlot(card)
+            || (card.Data.IsUnitLike() && IsUnitAliveOnAnyDeployField(card))
+            || ReferenceEquals(card, attackFlowDeclaredDefenderUnit)
+            || ReferenceEquals(card, attackFlowBlockRedirectUnit)
+            || ReferenceEquals(card, attackFlowAttackerUnit))
         {
             return true;
         }
 
-        return !IsOnMainActivatedFromHand(card, ownerType);
+        // 手札実体でなければ場起動（手札の同名 Data では判定しない）
+        return true;
     }
 
     /// <summary>OnAction 用コスト。activationCost 優先。場起動で未設定なら 0、手札コマンドはカードコスト。</summary>
@@ -514,6 +549,17 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (IsQubeleyOnActionFieldUnit(source))
+        {
+            if (HasUsedQubeleyFieldActionThisTurn(side, source)
+                || HasUsedSt13001TokenBattleThisTurn(side, source))
+            {
+                return false;
+            }
+
+            return OwnerHasBitFunnelOrUnitTokenNow(side) || OwnerHasNeoZeonBaseNow(side);
+        }
+
         if (timed.oncePerTurn)
         {
             CardController onceKeyCard = source?.Data?.id == 1000664
@@ -597,6 +643,7 @@ public partial class BattleGameMain
 
                 // ST12-011 は CanActivateMilliardo で可否判定済み。汎用 AttackedTargetOnly ゲートは使わない
                 bool needsTargetGate = source?.Data?.id != 1000664
+                    && source?.Data?.id != St13001QubeleyCardId
                     && (effectData.selectionMode.IsAttackedTargetOnlyMode()
                         || EffectRequiresManualUnitSelection(effectData));
                 if (!needsTargetGate)
@@ -626,10 +673,20 @@ public partial class BattleGameMain
 
     private bool IsOnActionOncePerTurnAvailable(PlayerType side, CardController source)
     {
+        if (IsQubeleyOnActionFieldUnit(source) && HasUsedQubeleyFieldActionThisTurn(side, source))
+        {
+            return false;
+        }
+
         TimedEffectData timed = FindFirstOnActionTimedBlock(source, out int blockIndex);
         if (timed == null || !timed.oncePerTurn || blockIndex < 0)
         {
             return true;
+        }
+
+        if (IsSt13001Qubeley(source) && TimedHasEffectBattle(timed))
+        {
+            return !HasUsedSt13001TokenBattleThisTurn(side, source);
         }
 
         CardController onceKeyCard = source?.Data?.id == 1000664
@@ -640,8 +697,24 @@ public partial class BattleGameMain
 
     private void MarkOnActionOncePerTurnUsedIfNeeded(PlayerType side, CardController source)
     {
+        if (IsQubeleyOnActionFieldUnit(source))
+        {
+            MarkQubeleyFieldActionUsedThisTurn(side, source);
+        }
+
         TimedEffectData timed = FindFirstOnActionTimedBlock(source, out int blockIndex);
-        if (timed == null || !timed.oncePerTurn || blockIndex < 0)
+        if (timed == null || blockIndex < 0)
+        {
+            return;
+        }
+
+        if (IsSt13001Qubeley(source) && TimedHasEffectBattle(timed))
+        {
+            MarkSt13001TokenBattleUsedThisTurn(side, source);
+            return;
+        }
+
+        if (!timed.oncePerTurn)
         {
             return;
         }
@@ -755,7 +828,15 @@ public partial class BattleGameMain
         // 配備前破壊の履歴があれば、判定直前にアーム（ResetRuntime 後でも復旧）
         TryArmCardFromOwnEffectDestroyHistory(source, side);
 
-        if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(side, source, blockIndex))
+        if (IsSt13001Qubeley(source) && TimedHasEffectBattle(timed))
+        {
+            if (HasUsedSt13001TokenBattleThisTurn(side, source)
+                || !HasQubeleyTokenBattleTargetsNow(side))
+            {
+                return false;
+            }
+        }
+        else if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(side, source, blockIndex))
         {
             return false;
         }
@@ -771,17 +852,6 @@ public partial class BattleGameMain
                     side == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player).Count == 0))
         {
             return false;
-        }
-
-        if (source?.Data?.id == 1000670)
-        {
-            List<CardController> ownerUnits = GetAliveUnitsForEffectBattle(side);
-            bool hasToken = ownerUnits.Exists(unit => unit?.Data != null && unit.Data.IsUnitToken());
-            PlayerType opponent = side == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
-            if (!hasToken || GetAliveUnitsForEffectBattle(opponent).Count == 0)
-            {
-                return false;
-            }
         }
 
         if (IsDeferredOnMainDestroyCost(timed))
