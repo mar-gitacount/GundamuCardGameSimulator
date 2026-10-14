@@ -10,6 +10,8 @@ public partial class BattleGameMain
     private bool _gd06018Active;
     private CardController _gd06018PickedLive;
     private PlayerType _gd06018Owner;
+    private int _gd06018RecipientCardId;
+    private bool _gd06018RecipientIsBase;
 
     private void ArmGd06018ReplacementDamageStep(
         CardController source,
@@ -21,20 +23,34 @@ public partial class BattleGameMain
             return;
         }
 
-        if (!IsGd06018QubeleyMkII(source)
-            && !IsGd06018QubeleyMkII(attackFlowAttackerUnit)
-            && !IsGd06018QubeleyMkII(attackFlowDeclaredDefenderUnit)
-            && !IsGd06018QubeleyMkII(attackFlowBlockRedirectUnit))
+        CardController livePicked = ResolveLiveIncomingRedirectPicked(picked, owner) ?? picked;
+        _gd06018Active = true;
+        _gd06018PickedLive = livePicked;
+        _gd06018Owner = owner;
+        _gd06018RecipientCardId = livePicked.Data.id;
+        _gd06018RecipientIsBase = livePicked.Data.type == Type.Base || IsCardInBaseSlot(livePicked);
+        int hostCardId = source != null && source.Data != null ? source.Data.id : 0;
+        CardController host = MatchIncomingRedirectHostInAttackFlow(hostCardId)
+            ?? ResolveEffectSourceBattleHost(source)
+            ?? source;
+        if (host != null)
         {
-            return;
+            owner = ResolveIncomingRedirectHostOwner(host, owner);
+            _gd06018Owner = owner;
         }
 
-        _gd06018Active = true;
-        _gd06018PickedLive = picked;
-        _gd06018Owner = owner;
+        if (host != null && host.Data != null && host.Data.IsUnitLike())
+        {
+            host.SetIncomingBattleDamageRedirectUntilEndOfBattle(livePicked);
+            host.SetIncomingBattleDamageRedirectMeta(
+                _gd06018RecipientCardId,
+                _gd06018RecipientIsBase,
+                (int)owner);
+        }
+
         Debug.Log(
-            $"[GD06-018] UI選択を保持 → {picked.Data.cardName}(id:{picked.Data.id} type:{picked.Data.type}) "
-            + $"source:{source?.Data?.cardName}(id:{source?.Data?.id})");
+            $"[GD06-018] UI選択を保持 → {livePicked.Data.cardName}(id:{livePicked.Data.id} type:{livePicked.Data.type}) "
+            + $"source:{source?.Data?.cardName}(id:{source?.Data?.id}) host:{host?.Data?.cardName}");
     }
 
     /// <summary>
@@ -138,14 +154,40 @@ public partial class BattleGameMain
 
     private CardController GetGd06018PickedLive()
     {
-        if (_gd06018PickedLive != null
-            && _gd06018PickedLive.Data != null
-            && _gd06018PickedLive.CurrentHp > 0)
+        CardController live = ResolveLiveIncomingRedirectPicked(_gd06018PickedLive, _gd06018Owner);
+        if (live != null && live.Data != null && live.CurrentHp > 0)
         {
-            return _gd06018PickedLive;
+            return live;
         }
 
-        return null;
+        if (_gd06018RecipientCardId <= 0)
+        {
+            return null;
+        }
+
+        return FindIncomingRedirectRecipientByCardId(
+            _gd06018RecipientCardId,
+            _gd06018RecipientIsBase,
+            _gd06018Owner,
+            _battleIncomingRedirectHost);
+    }
+
+    private CardController ResolveLiveIncomingRedirectPicked(CardController picked, PlayerType owner)
+    {
+        if (picked == null || picked.Data == null)
+        {
+            return null;
+        }
+
+        if (picked.Data.type == Type.Base || IsCardInBaseSlot(picked))
+        {
+            return FindOwnerBaseForIncomingRedirect(owner, picked.Data.id)
+                ?? FindLiveOwnerBaseMatching(picked)
+                ?? (picked.CurrentHp > 0 ? picked : null);
+        }
+
+        return FindLiveBattleZoneUnitMatching(picked)
+            ?? (picked.CurrentHp > 0 && picked.Data.IsUnitLike() ? picked : null);
     }
 
     private static bool IsGd06018QubeleyMkII(CardController unit)
@@ -179,5 +221,7 @@ public partial class BattleGameMain
     {
         _gd06018Active = false;
         _gd06018PickedLive = null;
+        _gd06018RecipientCardId = 0;
+        _gd06018RecipientIsBase = false;
     }
 }

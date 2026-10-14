@@ -181,52 +181,156 @@ public partial class BattleGameMain
     {
         attackerStrike = Mathf.Max(0, attackerStrike);
         defenderStrike = Mathf.Max(0, defenderStrike);
+        ClearCombatRedirectRecipientOnlineSync();
 
-        // GD06-018 のみ: 通常の相互ダメージを1回スキップし、選択カード／相手ユニットへ差し替える。
-        if (TryApplyGd06018ReplacementDamageStep(
-            attacker,
-            defender,
-            attackerOwner,
-            defenderOwner,
-            attackerStrike,
-            defenderStrike))
-        {
-            return;
-        }
-
+        int attackerHpBefore = attacker != null ? attacker.CurrentHp : 0;
+        int defenderHpBefore = defender != null ? defender.CurrentHp : 0;
         bool attackerFirstStrike = UnitHasFirstStrikeInCombat(attacker, defender);
         bool defenderFirstStrike = UnitHasFirstStrikeInCombat(defender, attacker);
-        int defenderHpBefore = defender != null ? defender.CurrentHp : 0;
 
         if (attackerFirstStrike && !defenderFirstStrike)
         {
-            ApplyCombatDamageIfNotImmune(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
+            ApplyIncomingBattleStrike(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
             if (defender != null && defender.CurrentHp <= 0)
             {
                 Debug.Log(
                     $"[FirstStrike] {attacker?.Data?.cardName} 先制撃破 → {defender?.Data?.cardName} "
                     + $"HP:{defenderHpBefore}->{defender.CurrentHp}（反撃なし）");
+                RestoreRedirectHostHpIfAbsorbed(attacker, attackerHpBefore);
+                RestoreRedirectHostHpIfAbsorbed(defender, defenderHpBefore);
                 return;
             }
 
-            ApplyCombatDamageIfNotImmune(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
+            ApplyIncomingBattleStrike(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
+            RestoreRedirectHostHpIfAbsorbed(attacker, attackerHpBefore);
+            RestoreRedirectHostHpIfAbsorbed(defender, defenderHpBefore);
             return;
         }
 
         if (defenderFirstStrike && !attackerFirstStrike)
         {
-            ApplyCombatDamageIfNotImmune(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
+            ApplyIncomingBattleStrike(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
             if (attacker != null && attacker.CurrentHp <= 0)
             {
+                RestoreRedirectHostHpIfAbsorbed(attacker, attackerHpBefore);
+                RestoreRedirectHostHpIfAbsorbed(defender, defenderHpBefore);
                 return;
             }
 
-            ApplyCombatDamageIfNotImmune(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
+            ApplyIncomingBattleStrike(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
+            RestoreRedirectHostHpIfAbsorbed(attacker, attackerHpBefore);
+            RestoreRedirectHostHpIfAbsorbed(defender, defenderHpBefore);
             return;
         }
 
-        ApplyCombatDamageIfNotImmune(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
-        ApplyCombatDamageIfNotImmune(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
+        ApplyIncomingBattleStrike(defender, attacker, defenderOwner, attackerOwner, attackerStrike);
+        ApplyIncomingBattleStrike(attacker, defender, attackerOwner, defenderOwner, defenderStrike);
+        RestoreRedirectHostHpIfAbsorbed(attacker, attackerHpBefore);
+        RestoreRedirectHostHpIfAbsorbed(defender, defenderHpBefore);
+    }
+
+    /// <summary>
+    /// 戦闘ダメージ1発。GD06-018 は敵のストライクを選んだカードへ移し、本体には入れない。
+    /// </summary>
+    private void ApplyIncomingBattleStrike(
+        CardController intendedTarget,
+        CardController damageSource,
+        PlayerType intendedOwner,
+        PlayerType sourceOwner,
+        int damage)
+    {
+        if (intendedTarget == null || damage <= 0)
+        {
+            return;
+        }
+
+        CardController recipient = ResolveCombatIncomingDamageTarget(intendedTarget);
+        if (recipient != null && recipient != intendedTarget)
+        {
+            Debug.Log(
+                $"[GD06-018] 敵ダメージ {damage} を {intendedTarget.Data?.cardName} ではなく "
+                + $"{recipient.Data?.cardName}(id:{recipient.Data?.id} type:{recipient.Data?.type}) が受ける");
+            ApplyResolvedBattleDamageToRecipient(recipient, intendedTarget, damageSource, damage);
+            return;
+        }
+
+        ApplyCombatDamageIfNotImmune(intendedTarget, damageSource, intendedOwner, sourceOwner, damage);
+    }
+
+    private CardController ResolveCombatIncomingDamageTarget(CardController intended)
+    {
+        if (intended == null)
+        {
+            return null;
+        }
+
+        bool is018 = IsGd06018QubeleyMkII(intended);
+        if (!is018
+            && !intended.HasIncomingBattleDamageRedirectThisBattle
+            && !IsBattleIncomingRedirectHost(intended)
+            && !IsIncomingBattleDamageRedirectHost(intended)
+            && !HasActiveIncomingBattleDamageRedirect())
+        {
+            return intended;
+        }
+
+        if (!is018
+            && !intended.HasIncomingBattleDamageRedirectThisBattle
+            && !IsBattleIncomingRedirectHost(intended)
+            && !IsIncomingBattleDamageRedirectHost(intended))
+        {
+            return intended;
+        }
+
+        CardController recipient = ResolveLiveIncomingRedirectRecipientForHost(intended);
+        if (recipient != null && recipient != intended && recipient.CurrentHp > 0)
+        {
+            return recipient;
+        }
+
+        List<CardController> lastPicked = GetAliveEffectChainLastPickedTargets();
+        for (int i = 0; i < lastPicked.Count; i++)
+        {
+            CardController picked = lastPicked[i];
+            if (picked != null && picked != intended && picked.CurrentHp > 0)
+            {
+                return picked;
+            }
+        }
+
+        if (is018 && _gd06018RecipientCardId > 0)
+        {
+            recipient = FindIncomingRedirectRecipientByCardId(
+                _gd06018RecipientCardId,
+                _gd06018RecipientIsBase,
+                _gd06018Owner,
+                intended);
+            if (recipient != null && recipient != intended && recipient.CurrentHp > 0)
+            {
+                return recipient;
+            }
+        }
+
+        return intended;
+    }
+
+    private void RestoreRedirectHostHpIfAbsorbed(CardController unit, int hpBefore)
+    {
+        if (unit == null || hpBefore <= 0 || unit.CurrentHp >= hpBefore)
+        {
+            return;
+        }
+
+        CardController recipient = ResolveCombatIncomingDamageTarget(unit);
+        if (recipient == null || recipient == unit)
+        {
+            return;
+        }
+
+        Debug.Log(
+            $"[GD06-018] 本体HPを復元 {unit.Data?.cardName} {unit.CurrentHp}→{hpBefore} "
+            + $"(受け替え先:{recipient.Data?.cardName})");
+        unit.RestoreHpAfterRedirectAbsorb(hpBefore);
     }
 
     private void ApplyCombatDamageIfNotImmune(
@@ -241,8 +345,8 @@ public partial class BattleGameMain
             return;
         }
 
-        // GD06-018: キュベレイ本体は戦闘ダメージを受けない。UI で選んだカードへ移す。
-        if (TryMoveGd06018IncomingDamageOffQubeley(damageTarget, damageSource, damage))
+        // GD06-018 等: このユニットが受ける戦闘ダメージを、Action で選んだカードへ移す。
+        if (TryApplyIncomingBattleDamageRedirectOnCombatHit(damageTarget, damageSource, damage))
         {
             return;
         }
@@ -331,6 +435,7 @@ public partial class BattleGameMain
 
         int hpBefore = recipient.CurrentHp;
         recipient.ApplyDamage(damage);
+        NoteCombatRedirectRecipientForOnlineSync(recipient, originalTarget);
 
         if (recipient.Data != null && recipient.Data.type == Type.Base)
         {

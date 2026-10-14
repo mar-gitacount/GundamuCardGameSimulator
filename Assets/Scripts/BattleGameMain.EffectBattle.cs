@@ -12,21 +12,454 @@ public partial class BattleGameMain
 {
     private CardController _effectBattleAttackerOverride;
 
+    private const int St13001QubeleyCardId = 1000670;
+    /// <summary>OnMain / OnAction 共通のターン1回キー（ブロック index と衝突しない）。</summary>
+    private const int St13001TokenBattleOncePerTurnKey = 670;
+    /// <summary>場のキュベレイ起動をターン1回に固定する。</summary>
+    private readonly HashSet<EntityId> _qubeleyFieldActionUsedEntityIds = new HashSet<EntityId>();
+    private readonly HashSet<int> _qubeleyFieldActionUsedBattleInstanceIds = new HashSet<int>();
+    private readonly HashSet<CardController> _qubeleyFieldActionUsedSources = new HashSet<CardController>();
+    private bool _qubeleyAttackActionUsedPlayer;
+    private bool _qubeleyAttackActionUsedEnemy;
+
+    private static bool IsSt13001Qubeley(CardController source)
+    {
+        return source != null && source.Data != null && source.Data.id == St13001QubeleyCardId;
+    }
+
+    private static bool TimedHasEffectBattle(TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (effects[i] != null && effects[i].type == EffectType.EffectBattle)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private const int BitFunnelTokenCardId = 1000703;
+
+    private static bool IsQubeleyEffectBattleToken(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return false;
+        }
+
+        if (unit.CurrentHp < 0)
+        {
+            return false;
+        }
+
+        if (unit.Data.IsUnitToken())
+        {
+            return true;
+        }
+
+        if (unit.Data.id == BitFunnelTokenCardId
+            || string.Equals(unit.Data.gcgOfficialId, "T-029", System.StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string name = unit.Data.cardName;
+        return !string.IsNullOrEmpty(name)
+            && (name.IndexOf("Bit-Funnel", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("Bit Funnel", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("ビットファンネル", System.StringComparison.Ordinal) >= 0);
+    }
+
+    /// <summary>
+    /// アタック時アクション：ビットファンネル／ユニットトークン、または〔ネオジオン〕ベースがあるか。
+    /// </summary>
+    private bool HasQubeleyActionFuelNow(PlayerType side)
+    {
+        AbsorbDeployedFieldUnitsIntoBattleZoneLists();
+        return OwnerHasBitFunnelOrUnitTokenNow(side) || OwnerHasNeoZeonBaseNow(side);
+    }
+
+    private bool OwnerHasBitFunnelOrUnitTokenNow(PlayerType side)
+    {
+        AbsorbDeployedFieldUnitsIntoBattleZoneLists();
+        List<CardController> ownZone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (AnyOwnedBitFunnelOrToken(ownZone, side))
+        {
+            return true;
+        }
+
+        List<CardController> otherZone = side == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
+        if (AnyOwnedBitFunnelOrToken(otherZone, side))
+        {
+            return true;
+        }
+
+        if (AnyOwnedBitFunnelOrTokenOnPanel(side == PlayerType.Player ? cardGameRule : enemyCardGameRule, side))
+        {
+            return true;
+        }
+
+        if (AnyOwnedBitFunnelOrTokenOnPanel(side == PlayerType.Player ? enemyCardGameRule : cardGameRule, side))
+        {
+            return true;
+        }
+
+        return AnyOwnedBitFunnelOrTokenUnder(attackFlowDeclaredDefenderUnit, side)
+            || AnyOwnedBitFunnelOrTokenUnder(attackFlowBlockRedirectUnit, side);
+    }
+
+    private bool AnyOwnedBitFunnelOrTokenOnPanel(CardGameRule rule, PlayerType side)
+    {
+        if (rule == null || rule.PlayerDeployPanel == null)
+        {
+            return false;
+        }
+
+        CardController[] nested = rule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+        for (int i = 0; nested != null && i < nested.Length; i++)
+        {
+            if (IsOwnedBitFunnelOrToken(nested[i], side))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool AnyOwnedBitFunnelOrToken(List<CardController> units, PlayerType side)
+    {
+        if (units == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < units.Count; i++)
+        {
+            if (IsOwnedBitFunnelOrToken(units[i], side)
+                || AnyOwnedBitFunnelOrTokenUnder(units[i], side))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool AnyOwnedBitFunnelOrTokenUnder(CardController host, PlayerType side)
+    {
+        if (host == null)
+        {
+            return false;
+        }
+
+        CardController[] nested = host.GetComponentsInChildren<CardController>(true);
+        for (int i = 0; nested != null && i < nested.Length; i++)
+        {
+            if (IsOwnedBitFunnelOrToken(nested[i], side))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsOwnedBitFunnelOrToken(CardController unit, PlayerType side)
+    {
+        if (unit == null || unit.Data == null || !IsQubeleyEffectBattleToken(unit))
+        {
+            return false;
+        }
+
+        if (IsCardInAnyHandOrShield(unit))
+        {
+            return false;
+        }
+
+        List<CardController> otherZone = side == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
+        if (otherZone != null && otherZone.Contains(unit))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool OwnerHasNeoZeonBaseNow(PlayerType side)
+    {
+        if (IsAliveNeoZeonBase(GetDeployedBaseForRuleSide(ToRuleSide(side))))
+        {
+            return true;
+        }
+
+        CardGameRule rule = GetCardRuleForRuleSide(ToRuleSide(side));
+        if (rule?.BaseSlotContent == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < rule.BaseSlotContent.childCount; i++)
+        {
+            CardController occupant = rule.BaseSlotContent.GetChild(i).GetComponent<CardController>();
+            if (IsAliveNeoZeonBase(occupant))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsAliveNeoZeonBase(CardController baseCard)
+    {
+        return baseCard != null
+            && baseCard.Data != null
+            && baseCard.Data.type == Type.Base
+            && baseCard.CurrentHp > 0
+            && (baseCard.HasFeatureId(NeoZeonFeatureId) || baseCard.Data.HasFeatureKey("Neo_Zeon"));
+    }
+
+    /// <summary>アクションステップで都度、枠上のトークンと相手ユニットを数え直す。</summary>
+    private bool HasQubeleyTokenBattleTargetsNow(PlayerType side)
+    {
+        AbsorbDeployedFieldUnitsIntoBattleZoneLists();
+        if (!OwnerHasBitFunnelOrUnitTokenNow(side))
+        {
+            return false;
+        }
+
+        PlayerType opponent = side == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        List<CardController> enemies = GetAliveUnitsForEffectBattle(opponent);
+        EnsureCombatPairUnitsInEffectBattleList(opponent, enemies);
+        if (enemies.Count > 0)
+        {
+            return true;
+        }
+
+        // 相手アタック中は攻撃ユニットが一覧から外れても対象ありとみなす
+        return (_actionStepSession != null && _actionStepSession.IsAttackContext)
+            || IsRemoteOnActionAttackContext(_onlineOnActionActiveContext)
+            || attackFlowAttackerUnit != null
+            || pendingUnitAttackAttacker != null;
+    }
+
+    /// <summary>攻撃中ユニットが一覧から外れても効果バトル対象に残す。</summary>
+    private void EnsureCombatPairUnitsInEffectBattleList(PlayerType ownerType, List<CardController> units)
+    {
+        if (units == null)
+        {
+            return;
+        }
+
+        TryAddCombatPairUnitToEffectBattleList(ownerType, units, attackFlowAttackerUnit);
+        TryAddCombatPairUnitToEffectBattleList(ownerType, units, pendingUnitAttackAttacker);
+        TryAddCombatPairUnitToEffectBattleList(ownerType, units, attackFlowDeclaredDefenderUnit);
+        TryAddCombatPairUnitToEffectBattleList(ownerType, units, attackFlowBlockRedirectUnit);
+    }
+
+    private void TryAddCombatPairUnitToEffectBattleList(
+        PlayerType ownerType,
+        List<CardController> units,
+        CardController unit)
+    {
+        if (unit == null
+            || unit.Data == null
+            || !unit.Data.IsUnitLike()
+            || unit.CurrentHp <= 0
+            || units.Contains(unit))
+        {
+            return;
+        }
+
+        bool isAttacker = ReferenceEquals(unit, attackFlowAttackerUnit)
+            || ReferenceEquals(unit, pendingUnitAttackAttacker);
+        bool isDefender = ReferenceEquals(unit, attackFlowDeclaredDefenderUnit)
+            || ReferenceEquals(unit, attackFlowBlockRedirectUnit);
+        if (isAttacker)
+        {
+            if (ownerType == attackFlowAttackerOwner)
+            {
+                units.Add(unit);
+            }
+
+            return;
+        }
+
+        if (isDefender)
+        {
+            if (ownerType != attackFlowAttackerOwner)
+            {
+                units.Add(unit);
+            }
+
+            return;
+        }
+
+        units.Add(unit);
+    }
+
+    private bool HasUsedQubeleyAttackActionThisTurn(PlayerType side)
+    {
+        return side == PlayerType.Player ? _qubeleyAttackActionUsedPlayer : _qubeleyAttackActionUsedEnemy;
+    }
+
+    private bool HasUsedQubeleyFieldActionThisTurn(PlayerType side, CardController source)
+    {
+        if (source == null)
+        {
+            return false;
+        }
+
+        if (HasUsedQubeleyAttackActionThisTurn(side))
+        {
+            return true;
+        }
+
+        if (_qubeleyFieldActionUsedSources.Contains(source))
+        {
+            return true;
+        }
+
+        EntityId entityId = source.GetEntityId();
+        if (entityId != default && _qubeleyFieldActionUsedEntityIds.Contains(entityId))
+        {
+            return true;
+        }
+
+        return source.BattleInstanceId > 0
+            && _qubeleyFieldActionUsedBattleInstanceIds.Contains(source.BattleInstanceId);
+    }
+
+    private void MarkQubeleyFieldActionUsedThisTurn(PlayerType side, CardController source)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        if (side == PlayerType.Player)
+        {
+            _qubeleyAttackActionUsedPlayer = true;
+        }
+        else
+        {
+            _qubeleyAttackActionUsedEnemy = true;
+        }
+
+        _qubeleyFieldActionUsedSources.Add(source);
+        EntityId entityId = source.GetEntityId();
+        if (entityId != default)
+        {
+            _qubeleyFieldActionUsedEntityIds.Add(entityId);
+        }
+
+        if (source.BattleInstanceId > 0)
+        {
+            _qubeleyFieldActionUsedBattleInstanceIds.Add(source.BattleInstanceId);
+        }
+    }
+
+    /// <summary>ターンが変わったら【ターン1回】をリセットする。相手ターンは別ターン。</summary>
+    private void ClearAllQubeleyOncePerTurnBecauseTurnChanged()
+    {
+        _qubeleyAttackActionUsedPlayer = false;
+        _qubeleyAttackActionUsedEnemy = false;
+        _qubeleyFieldActionUsedEntityIds.Clear();
+        _qubeleyFieldActionUsedBattleInstanceIds.Clear();
+        _qubeleyFieldActionUsedSources.Clear();
+
+        List<PaidActivationUseKey> remove = new List<PaidActivationUseKey>();
+        foreach (PaidActivationUseKey key in _paidActivationUsesThisTurn)
+        {
+            if (key.TimedBlockIndex == St13001TokenBattleOncePerTurnKey)
+            {
+                remove.Add(key);
+            }
+        }
+
+        for (int i = 0; i < remove.Count; i++)
+        {
+            _paidActivationUsesThisTurn.Remove(remove[i]);
+        }
+    }
+
+    private void ClearQubeleyFieldActionUsesForSide(PlayerType side)
+    {
+        if (side == PlayerType.Player)
+        {
+            _qubeleyAttackActionUsedPlayer = false;
+        }
+        else
+        {
+            _qubeleyAttackActionUsedEnemy = false;
+        }
+
+        List<CardController> zone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null)
+            {
+                continue;
+            }
+
+            _qubeleyFieldActionUsedSources.Remove(unit);
+            EntityId entityId = unit.GetEntityId();
+            if (entityId != default)
+            {
+                _qubeleyFieldActionUsedEntityIds.Remove(entityId);
+            }
+
+            if (unit.BattleInstanceId > 0)
+            {
+                _qubeleyFieldActionUsedBattleInstanceIds.Remove(unit.BattleInstanceId);
+            }
+        }
+    }
+
+    private bool HasUsedSt13001TokenBattleThisTurn(PlayerType side, CardController source)
+    {
+        return HasUsedQubeleyFieldActionThisTurn(side, source)
+            || HasUsedPaidActivationThisTurn(side, source, St13001TokenBattleOncePerTurnKey);
+    }
+
+    private void MarkSt13001TokenBattleUsedThisTurn(PlayerType side, CardController source)
+    {
+        MarkQubeleyFieldActionUsedThisTurn(side, source);
+        MarkPaidActivationUsedThisTurn(side, source, St13001TokenBattleOncePerTurnKey);
+    }
+
     private bool TryResolveQubeleyTokenEffectBattle(
         CardController sourceCard,
         PlayerType ownerType,
         EffectData effect,
         Action onComplete)
     {
-        if (sourceCard?.Data?.id != 1000670 || effect == null || effect.type != EffectType.EffectBattle)
+        if (!IsSt13001Qubeley(sourceCard) || effect == null || effect.type != EffectType.EffectBattle)
         {
             return false;
         }
 
         List<CardController> ownerUnits = GetAliveUnitsForEffectBattle(ownerType);
-        ownerUnits.RemoveAll(unit => unit?.Data == null || !unit.Data.IsUnitToken());
+        EnsureCombatPairUnitsInEffectBattleList(ownerType, ownerUnits);
+        ownerUnits.RemoveAll(unit => !IsQubeleyEffectBattleToken(unit));
         PlayerType opponentType = ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
         List<CardController> enemyUnits = GetAliveUnitsForEffectBattle(opponentType);
+        EnsureCombatPairUnitsInEffectBattleList(opponentType, enemyUnits);
         if (ownerUnits.Count == 0 || enemyUnits.Count == 0)
         {
             onComplete?.Invoke();
@@ -90,6 +523,95 @@ public partial class BattleGameMain
                     enemy => ResolvePair(token, enemy));
             });
         return true;
+    }
+
+    /// <summary>アタック・アクションでトークン有無を都度確認し、支払い後にターン1回を消費して効果バトルする。</summary>
+    private IEnumerator CoExecuteQubeleyTokenEffectBattleOnAction(
+        PlayerType side,
+        CardController command,
+        System.Action onDone,
+        CardController attackingUnitInAttackFlow,
+        int commandQueueIndex,
+        int commandQueueCount)
+    {
+        if (HasUsedSt13001TokenBattleThisTurn(side, command))
+        {
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        AbsorbDeployedFieldUnitsIntoBattleZoneLists();
+        if (attackingUnitInAttackFlow != null)
+        {
+            attackFlowAttackerUnit = attackingUnitInAttackFlow;
+            pendingUnitAttackAttacker = attackingUnitInAttackFlow;
+        }
+
+        EffectData effect = null;
+        List<EffectData> onActionEffects = GetEffectsByTiming(command.Data, EffectTiming.OnAction);
+        for (int i = 0; i < onActionEffects.Count; i++)
+        {
+            if (onActionEffects[i] != null && onActionEffects[i].type == EffectType.EffectBattle)
+            {
+                effect = onActionEffects[i];
+                break;
+            }
+        }
+
+        if (effect == null)
+        {
+            effect = new EffectData
+            {
+                type = EffectType.EffectBattle,
+                value = 1,
+                target = TargetType.EnemyUnit,
+                selectionMode = EffectSelectionMode.SelectSingle
+            };
+        }
+
+        BeginOnDestroyedLatencyHold();
+        yield return ShowCommandUseAcknowledgementCoroutine(
+            command,
+            attackingUnitInAttackFlow,
+            null,
+            GameLocale.T("コマンド発動", "Command activated"));
+
+        bool paymentOk = false;
+        int exToUse = 0;
+        int onActionCost = GetOnActionPlayCost(command, side);
+        int onActionRequiredLevel = GetOnActionRequiredLevelForAfford(command, side);
+        yield return WaitForResourcePaymentCoroutine(
+            side,
+            onActionCost,
+            onActionRequiredLevel,
+            (ok, chosenEx) =>
+            {
+                paymentOk = ok;
+                exToUse = chosenEx;
+            });
+        if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
+        {
+            EndOnDestroyedLatencyHold();
+            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
+            yield break;
+        }
+
+        MarkActionStepCardUsed(side, command);
+        MarkOnActionOncePerTurnUsedIfNeeded(side, command);
+
+        bool battleResolved = false;
+        TryResolveQubeleyTokenEffectBattle(
+            command,
+            side,
+            effect,
+            () => battleResolved = true);
+        yield return new WaitUntil(() => battleResolved);
+
+        EndOnDestroyedLatencyHold();
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
+        yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
+        FinalizeOnActionSourceCard(command, side);
+        FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
 
     private bool TryResolveFinalVictorEffectBattle(
@@ -214,27 +736,63 @@ public partial class BattleGameMain
 
     private List<CardController> GetAliveUnitsForEffectBattle(PlayerType ownerType)
     {
+        AbsorbDeployedFieldUnitsIntoBattleZoneList(ownerType);
         List<CardController> source =
             ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> result = new List<CardController>();
-        if (source == null)
+        HashSet<CardController> seen = new HashSet<CardController>();
+        if (source != null)
         {
-            return result;
-        }
-
-        for (int i = 0; i < source.Count; i++)
-        {
-            CardController unit = source[i];
-            if (unit != null
-                && unit.Data != null
-                && unit.Data.IsUnitLike()
-                && unit.CurrentHp > 0
-                && IsCardOnBattleZone(unit))
+            for (int i = 0; i < source.Count; i++)
             {
-                result.Add(unit);
+                TryAddAliveEffectBattleUnit(source[i], result, seen);
             }
         }
+
+        // ゾーン一覧漏れでも配備枠上の生存ユニットは効果バトル対象にする
+        AppendAliveDeployPanelUnitsForEffectBattle(ownerType, result, seen);
         return result;
+    }
+
+    private void AppendAliveDeployPanelUnitsForEffectBattle(
+        PlayerType ownerType,
+        List<CardController> result,
+        HashSet<CardController> seen)
+    {
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (rule == null || rule.PlayerDeployPanel == null)
+        {
+            return;
+        }
+
+        CardController[] nested = rule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+        if (nested == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < nested.Length; i++)
+        {
+            TryAddAliveEffectBattleUnit(nested[i], result, seen);
+        }
+    }
+
+    private static void TryAddAliveEffectBattleUnit(
+        CardController unit,
+        List<CardController> result,
+        HashSet<CardController> seen)
+    {
+        if (unit == null
+            || unit.Data == null
+            || !unit.Data.IsUnitLike()
+            || unit.CurrentHp <= 0
+            || seen == null
+            || !seen.Add(unit))
+        {
+            return;
+        }
+
+        result.Add(unit);
     }
 
     private static CardController PickHighestPowerEffectBattleUnit(List<CardController> candidates)
@@ -534,7 +1092,7 @@ public partial class BattleGameMain
         int areaShieldAfter = -1;
         int areaExBaseAfter = -1;
         int areaBaseHpAfter = -1;
-        if (defenderHpAfter <= 0)
+        if (defenderHpAfter <= 0 && !ShouldSuppressBattleTrashDueToIncomingRedirect(defender))
         {
             ClearPendingDefenderDeployedBaseHpForOnlineSync();
             _suppressOnlineDefenderAreaStateNotify = true;
@@ -579,7 +1137,7 @@ public partial class BattleGameMain
             defenderExBaseAfter: areaExBaseAfter,
             defenderDeployedBaseHpAfter: areaBaseHpAfter);
 
-        if (attacker.CurrentHp <= 0)
+        if (attacker.CurrentHp <= 0 && !ShouldSuppressBattleTrashDueToIncomingRedirect(attacker))
         {
             SendCardToTrash(attacker, attackerOwner);
         }

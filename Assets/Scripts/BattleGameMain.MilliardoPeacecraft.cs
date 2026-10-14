@@ -58,6 +58,23 @@ public partial class BattleGameMain
                 attackFlowAttackerOwner = ResolveCardOwner(attackFlowAttackerUnit.transform);
             }
         }
+        else if (IsRemoteOnActionAttackContext(_onlineOnActionActiveContext)
+            && attackFlowStrikeKind == AttackFlowStrikeKind.None)
+        {
+            // オンライン被攻撃側は ActionStepSession が無い。コンテキストだけで交戦中とみなす。
+            if (attackFlowAttackerUnit != null && attackFlowAttackerUnit.CurrentHp > 0)
+            {
+                attackFlowStrikeKind = attackFlowDeclaredDefenderUnit != null
+                    || attackFlowBlockRedirectUnit != null
+                    ? AttackFlowStrikeKind.UnitVsUnit
+                    : AttackFlowStrikeKind.Shield;
+                attackFlowAttackerOwner = ResolveCardOwner(attackFlowAttackerUnit.transform);
+            }
+            else
+            {
+                attackFlowStrikeKind = AttackFlowStrikeKind.UnitVsUnit;
+            }
+        }
     }
 
     private void SyncActionStepCombatPairToAttackFlow()

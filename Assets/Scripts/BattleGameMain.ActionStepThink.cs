@@ -2,14 +2,17 @@
 // アクションタイミングのコメントテスト
 public partial class BattleGameMain
 {
-    private static string GetActionStepThinkSubtitle(PlayerType side, string context)
+    private string GetActionStepThinkSubtitle(PlayerType side, string context)
     {
         bool isAttackContext = !string.IsNullOrEmpty(context) && context.Contains("attack");
         if (isAttackContext)
         {
-            return side == PlayerType.Enemy
-                ? "Defender action step"
-                : "Attacker action step";
+            bool isAttackerSide = _actionStepSession != null
+                ? side == _actionStepSession.TurnPlayerSide
+                : side == currentPlayerType;
+            return isAttackerSide
+                ? "Attacker action step"
+                : "Defender action step";
         }
 
         return side == PlayerType.Player

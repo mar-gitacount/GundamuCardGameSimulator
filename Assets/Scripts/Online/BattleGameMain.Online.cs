@@ -19,6 +19,102 @@ public partial class BattleGameMain
     private bool _onlineLocalTurnSequenceStarted;
     private List<OnlineBattleUnitEffectChange> _pendingOnlineEffectChanges;
     private bool _onlineEffectSyncActive;
+    private int _combatRedirectSyncInstanceId;
+    private int _combatRedirectSyncHpAfter;
+    private int _combatRedirectSyncZoneSide;
+    private int _combatRedirectSyncIsBase;
+
+    private void ClearCombatRedirectRecipientOnlineSync()
+    {
+        _combatRedirectSyncInstanceId = 0;
+        _combatRedirectSyncHpAfter = 0;
+        _combatRedirectSyncZoneSide = 0;
+        _combatRedirectSyncIsBase = 0;
+    }
+
+    private void NoteCombatRedirectRecipientForOnlineSync(
+        CardController recipient,
+        CardController originalTarget)
+    {
+        if (recipient == null || recipient.Data == null || recipient == originalTarget)
+        {
+            return;
+        }
+
+        bool toBase = recipient.Data.type == Type.Base || IsCardInBaseSlot(recipient);
+        PlayerType zone = ResolveBattleZoneSideForUnit(recipient);
+        if (toBase)
+        {
+            zone = ResolveCardOwner(recipient.transform);
+        }
+
+        AssignBattleInstanceIdIfNeeded(recipient);
+        _combatRedirectSyncInstanceId = toBase ? 0 : recipient.BattleInstanceId;
+        _combatRedirectSyncHpAfter = recipient.CurrentHp;
+        _combatRedirectSyncZoneSide = zone == PlayerType.Enemy ? 1 : 0;
+        _combatRedirectSyncIsBase = toBase ? 1 : 0;
+        Debug.Log(
+            $"[RedirectBattleDmg][Online] capture {recipient.Data.cardName} inst:{_combatRedirectSyncInstanceId} "
+            + $"hp:{_combatRedirectSyncHpAfter} zone:{zone} base:{toBase}");
+    }
+
+    private void ApplyRemoteCombatRedirectRecipient(OnlineBattleActionPayload action)
+    {
+        if (action == null || !action.includeRedirectSnapshot)
+        {
+            return;
+        }
+
+        if (action.redirectIsBase != 0)
+        {
+            Gundam2024RuleScript.PlayerSide localSide = action.redirectZoneSide == 1
+                ? Gundam2024RuleScript.PlayerSide.Player
+                : Gundam2024RuleScript.PlayerSide.Enemy;
+            ApplyRemoteDeployedBaseHpUpdate(localSide, action.redirectHpAfter);
+            Debug.Log(
+                $"[OnlineBattle] Remote redirect base HP applied side:{localSide} hp:{action.redirectHpAfter}");
+            return;
+        }
+
+        if (action.redirectInstanceId <= 0)
+        {
+            return;
+        }
+
+        PlayerType senderZone = action.redirectZoneSide == 1 ? PlayerType.Enemy : PlayerType.Player;
+        CardController unit = FindBattleZoneUnitForRemoteSync(action.redirectInstanceId, senderZone)
+            ?? FindUnitByInstanceIdEitherZone(action.redirectInstanceId);
+        if (unit == null)
+        {
+            Debug.LogWarning(
+                $"[OnlineBattle] Redirect recipient not found inst:{action.redirectInstanceId} "
+                + $"zoneSide:{action.redirectZoneSide} hp:{action.redirectHpAfter}");
+            return;
+        }
+
+        unit.SetCurrentHpForSync(action.redirectHpAfter);
+        if (unit.CurrentHp > 0)
+        {
+            Debug.Log(
+                $"[OnlineBattle] Remote redirect HP applied {unit.Data?.cardName} hp:{unit.CurrentHp}");
+            return;
+        }
+
+        PlayerType owner = ResolveCardOwner(unit.transform);
+        if (owner == PlayerType.Player
+            && (HasOnDestroyedResolution(unit)
+                || (unit.MountedPilot != null && HasOnDestroyedResolution(unit.MountedPilot))))
+        {
+            ApplyRemoteDestroyedUnitWithOnDestroyedEffects(unit, 0, null);
+        }
+        else
+        {
+            ApplyRemoteUnitRemovedFromField(unit);
+        }
+
+        Debug.Log(
+            $"[OnlineBattle] Remote redirect destroy applied {unit.Data?.cardName} owner:{owner}");
+    }
 
     private bool ShouldUseOnlineBlockPhase(PlayerType attackerOwner)
     {
@@ -355,7 +451,29 @@ public partial class BattleGameMain
             return null;
         }
 
+        AbsorbDeployedFieldUnitsIntoBattleZoneList(zoneOwner);
         List<CardController> zone = zoneOwner == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
+        CardController fallback = FindUnitByInstanceIdInList(zone, instanceId, requiredCardId);
+        if (fallback != null)
+        {
+            return fallback;
+        }
+
+        CardGameRule rule = zoneOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (rule == null || rule.PlayerDeployPanel == null)
+        {
+            return null;
+        }
+
+        CardController[] nested = rule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+        return FindUnitByInstanceIdInArray(nested, instanceId, requiredCardId);
+    }
+
+    private static CardController FindUnitByInstanceIdInList(
+        List<CardController> zone,
+        int instanceId,
+        int requiredCardId)
+    {
         if (zone == null)
         {
             return null;
@@ -364,24 +482,61 @@ public partial class BattleGameMain
         CardController fallback = null;
         for (int i = 0; i < zone.Count; i++)
         {
-            CardController card = zone[i];
-            if (card == null || card.BattleInstanceId != instanceId)
+            CardController match = MatchUnitByInstanceId(zone[i], instanceId, requiredCardId, ref fallback);
+            if (match != null)
             {
-                continue;
-            }
-
-            if (requiredCardId < 0 || (card.Data != null && card.Data.id == requiredCardId))
-            {
-                return card;
-            }
-
-            if (fallback == null)
-            {
-                fallback = card;
+                return match;
             }
         }
 
         return requiredCardId >= 0 ? null : fallback;
+    }
+
+    private static CardController FindUnitByInstanceIdInArray(
+        CardController[] units,
+        int instanceId,
+        int requiredCardId)
+    {
+        if (units == null)
+        {
+            return null;
+        }
+
+        CardController fallback = null;
+        for (int i = 0; i < units.Length; i++)
+        {
+            CardController match = MatchUnitByInstanceId(units[i], instanceId, requiredCardId, ref fallback);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
+        return requiredCardId >= 0 ? null : fallback;
+    }
+
+    private static CardController MatchUnitByInstanceId(
+        CardController card,
+        int instanceId,
+        int requiredCardId,
+        ref CardController fallback)
+    {
+        if (card == null || card.BattleInstanceId != instanceId)
+        {
+            return null;
+        }
+
+        if (requiredCardId < 0 || (card.Data != null && card.Data.id == requiredCardId))
+        {
+            return card;
+        }
+
+        if (fallback == null)
+        {
+            fallback = card;
+        }
+
+        return null;
     }
 
     /// <summary>ローカル専用。オンライン同期ではゾーン明示の検索を使うこと。</summary>
@@ -2224,7 +2379,13 @@ public partial class BattleGameMain
                 defenderShieldAfter,
                 defenderExBaseAfter,
                 defenderDeployedBaseHpAfter,
-                defenderOnDestroyedRequestId)));
+                defenderOnDestroyedRequestId,
+                _combatRedirectSyncInstanceId,
+                _combatRedirectSyncHpAfter,
+                _combatRedirectSyncZoneSide,
+                _combatRedirectSyncIsBase,
+                includeRedirectSnapshot: _combatRedirectSyncInstanceId > 0 || _combatRedirectSyncIsBase != 0)));
+        ClearCombatRedirectRecipientOnlineSync();
     }
 
     private void HandleRemoteAttack(string payload)
@@ -2443,6 +2604,56 @@ public partial class BattleGameMain
         GrantAttackActiveEnemyToUnit(unit, grant, PlayerType.Enemy, sourceCard: null);
     }
 
+    /// <summary>
+    /// 防御側が GD06-018 を使っているとき、攻撃側の defenderHp=0 でキュベレイを上書きしない。
+    /// </summary>
+    private bool ShouldPreserveIncomingRedirectHostHpOnRemoteAttack(CardController defender)
+    {
+        if (defender == null || defender.Data == null)
+        {
+            return false;
+        }
+
+        return defender.HasIncomingBattleDamageRedirectThisBattle
+            || IsIncomingBattleDamageRedirectHostUnit(defender)
+            || (HasActiveIncomingBattleDamageRedirect() && IsGd06018QubeleyMkII(defender));
+    }
+
+    private void ApplyRemoteIncomingRedirectInsteadOfHostHp(
+        CardController defender,
+        CardController attacker,
+        OnlineBattleActionPayload action)
+    {
+        if (defender == null || action == null)
+        {
+            return;
+        }
+
+        if (action.includeRedirectSnapshot)
+        {
+            if (action.defenderHp > 0)
+            {
+                defender.SetCurrentHpForSync(action.defenderHp);
+            }
+
+            return;
+        }
+
+        int incoming = Mathf.Max(0, defender.CurrentHp - Mathf.Max(0, action.defenderHp));
+        CardController recipient = ResolveCombatIncomingDamageTarget(defender);
+        if (recipient != null && recipient != defender && incoming > 0)
+        {
+            Debug.Log(
+                $"[GD06-018][Online] リモート攻撃の本体HP上書きを抑止 "
+                + $"{defender.Data?.cardName} dmg:{incoming} → {recipient.Data?.cardName}");
+            ApplyResolvedBattleDamageToRecipient(recipient, defender, attacker, incoming);
+            return;
+        }
+
+        Debug.Log(
+            $"[GD06-018][Online] 受け替え先なし。キュベレイ HP は維持 {defender.Data?.cardName} hp:{defender.CurrentHp}");
+    }
+
     private void ApplyRemoteUnitAttack(OnlineBattleActionPayload action)
     {
         CardController attacker = FindBattleZoneUnitByInstanceId(action.attackerInstanceId, PlayerType.Enemy);
@@ -2480,7 +2691,15 @@ public partial class BattleGameMain
                 PlayerType.Player,
                 includeDrawEffects: true);
 
-            defender.SetCurrentHpForSync(action.defenderHp);
+            bool preserveRedirectHost = ShouldPreserveIncomingRedirectHostHpOnRemoteAttack(defender);
+            if (preserveRedirectHost)
+            {
+                ApplyRemoteIncomingRedirectInsteadOfHostHp(defender, attacker, action);
+            }
+            else
+            {
+                defender.SetCurrentHpForSync(action.defenderHp);
+            }
 
             if (action.blockCombat && defender.CurrentHp > 0)
             {
@@ -2520,6 +2739,8 @@ public partial class BattleGameMain
                 ApplyRemoteUnitRemovedFromField(attacker);
             }
         }
+
+        ApplyRemoteCombatRedirectRecipient(action);
 
         // エフェクトバトル撃破時の突破など、同メッセージに同梱された防御領域スナップショットを適用
         if (action.includeDefenderAreaSnapshot)
