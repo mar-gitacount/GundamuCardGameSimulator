@@ -326,6 +326,7 @@ public partial class BattleGameMain
         }
 
         amount += GetWhileMountedPilotRepairAmount(unit);
+        amount += GetWhileHostHasAlphacideRepairAmount(unit);
 
         return amount;
     }
@@ -333,6 +334,8 @@ public partial class BattleGameMain
     private const string GrantRepair1WhileMountedOnBlueHostEffectName = "GrantRepair1_WhileMountedOnBlueHost";
     private const string GrantRepair1WhileLinkedEffectName = "GrantRepair1_WhileLinked";
     private const string GrantRepair2WhileLinkedEffectName = "GrantRepair2_WhileLinked";
+    private const string GrantRepair2WhileHostHasAlphacideEffectName = "GrantRepair2_WhileHostHasAlphacide";
+    private const int AlphacideFeatureId = 78;
 
     /// <summary>
     /// 搭乗パイロットの常時効果（GD01-087 セイラ等）。
@@ -366,6 +369,44 @@ public partial class BattleGameMain
                     StringComparison.Ordinal))
             {
                 total += 1;
+            }
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// 搭乗パイロット：ホストが〔アルファサイド〕の間《リペア2》（GD06-081 アマテ等）。
+    /// リンク条件は不要。ホストの特徴（ランタイム付与含む）を見る。
+    /// </summary>
+    private static int GetWhileHostHasAlphacideRepairAmount(CardController hostUnit)
+    {
+        if (hostUnit == null || !hostUnit.HasFeatureId(AlphacideFeatureId))
+        {
+            return 0;
+        }
+
+        CardController pilot = hostUnit.MountedPilot;
+        if (pilot?.Data?.timedEffects == null)
+        {
+            return 0;
+        }
+
+        int total = 0;
+        for (int i = 0; i < pilot.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = pilot.Data.timedEffects[i];
+            if (timed == null || string.IsNullOrWhiteSpace(timed.effectsName))
+            {
+                continue;
+            }
+
+            if (string.Equals(
+                    timed.effectsName.Trim(),
+                    GrantRepair2WhileHostHasAlphacideEffectName,
+                    StringComparison.Ordinal))
+            {
+                total += 2;
             }
         }
 

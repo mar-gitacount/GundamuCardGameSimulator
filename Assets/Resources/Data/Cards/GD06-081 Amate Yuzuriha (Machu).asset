@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
+  m_Name: GD06-081 Amate Yuzuriha (Machu)
+  m_EditorClassIdentifier: 
+  id: 1000842
+  gcgOfficialId: GD06-081
+  cardName: "Amate Yuzuriha (Machu)"
+  cost: 1
+  level: 4
+  power: 1
+  hp: 2
+  imageName: {fileID: 0}
+  image: {fileID: 0}
+  imageAddress: "Data/Images/GD06-081_Amate Yuzuriha (Machu)"
+  version: 6
+  sourceType: 1
+  productLine: 1
+  boosterSet: 6
+  starterSet: 0
+  eternalBoosterSet: 0
+  sourceTitle: 19
+  filterType: 0
+  color: 2
+  type: 1
+  battleZones: 0
+  attackFlg: 0
+  timedEffects:
+  - timing: 5
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: AddSelfToHand_OnBurst
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 15
+    activationConditions:
+    - boardSide: -1
+      checkKind: 23
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: f0786d06000000000000000000000078, type: 2}
+      featureId: 78
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: GrantRepair2_WhileHostHasAlphacide
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  features:
+  - {fileID: 11400000, guid: f0786d06000000000000000000000078, type: 2}
+  - {fileID: 11400000, guid: f708192a3b4c5d6e7f8012a3b4c5d6e7, type: 2}
+  pilotIds:
+  - {fileID: 11400000, guid: c7c7c9525b964bcc8d552dfcc64ef669, type: 2}
+  link: []
+  pilotMountOnPilotMountedSource: 0
+  pilotMountOnPilotMountedOrder: 1
+  isBlocker: 0
+  isDeployTurnAttack: 0
+  isNotDirectAttack: 0
+  isShieldToken: 0
+  isRepair: 0
+  repairAmount: 0
+  notUsedOnline: 0
+  hideFromCardList: 0
+  cannotMountPilot: 0
+  pairFromHandCostReduction: 0
+  pairFromHandHostMinLevel: 0
+  pairFromHandHostFeature: {fileID: 0}
+  pairFromHandRequireLinkMatch: 0
+  gcgId:
+    setKind: 2
+    setNumber: 6
+    cardNumber: 81

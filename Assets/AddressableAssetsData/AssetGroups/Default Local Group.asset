@@ -4992,6 +4992,81 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0436d0600000000000000000000002d
+    m_Address: Data/Images/GD06-043_Julieta's Reginlaze
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0386d0600000000000000000000002e
+    m_Address: Data/Images/GD06-038_Gundam Kimaris Vidar
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0746d0600000000000000000000002f
+    m_Address: Data/Images/GD06-074_Flat
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0816d06000000000000000000000030
+    m_Address: Data/Images/GD06-081_Amate Yuzuriha (Machu)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0036d06000000000000000000000031
+    m_Address: Data/Images/GD06-003_GGumega Psycommu Released
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0986d06000000000000000000000032
+    m_Address: Data/Images/GD06-098_Duo Maxwell
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0726d06000000000000000000000033
+    m_Address: Data/Images/GD06-072_Gundam Deathscythe Hell (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0216d06000000000000000000000034
+    m_Address: Data/Images/GD06-021_Turn X (Top)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1036d06000000000000000000000035
+    m_Address: Data/Images/GD06-103_Restore the Front Line South Burning
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1096d06000000000000000000000036
+    m_Address: Data/Images/GD06-109_God of War Ghingnham
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0556d06000000000000000000000037
+    m_Address: Data/Images/GD06-055_Gundam GP02A
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1166d06000000000000000000000038
+    m_Address: Data/Images/GD06-116_Afterglow of Zeon
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0146d06000000000000000000000039
+    m_Address: Data/Images/GD06-014_GM Type C
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0316d0600000000000000000000003a
+    m_Address: Data/Images/T-031_Turn X (Arms)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0326d0600000000000000000000003b
+    m_Address: Data/Images/T-032_Turn X (Legs)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

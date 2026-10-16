@@ -65,10 +65,31 @@ public static class EffectMagnitudeResolver
                 return CountSourceUnitApPerEvery(sourceCard, effect.valueCountMinUnitLevel);
             case EffectValueCountKind.RestedAliveUnits:
                 return CountRestedAliveUnits(zone, effect, sourceCard);
+            case EffectValueCountKind.HandCards:
+                return CountNonNullCards(zone);
             case EffectValueCountKind.AliveUnits:
             default:
                 return CountAliveUnits(zone, effect, sourceCard, requireValueCountFeature: true);
         }
+    }
+
+    private static int CountNonNullCards(IReadOnlyList<CardController> cards)
+    {
+        if (cards == null)
+        {
+            return 0;
+        }
+
+        int n = 0;
+        for (int i = 0; i < cards.Count; i++)
+        {
+            if (cards[i] != null)
+            {
+                n++;
+            }
+        }
+
+        return n;
     }
 
     private static int CountRestedAliveUnits(

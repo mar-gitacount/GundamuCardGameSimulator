@@ -966,6 +966,17 @@ public partial class BattleGameMain
             return true;
         }
 
+        if (ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+                defenderBase,
+                sourceUnit,
+                targetSide))
+        {
+            logMessage =
+                $"[EffectDamage] Deployed Base ignores Lv-or-less unit damage "
+                + $"(linked rested source vs {defenderBase.Data.cardName}).";
+            return true;
+        }
+
         // 先頭の配備ベースが効果ダメージ無効なら、ここでダメージ全体を消費する（EX/シールドへ抜けない）。
         // 戦闘ダメージ（シールド攻撃）は TryApplyShieldAttackDamageToDeployedBase 側で別途受ける。
         if (DoesCardIgnoreEffectDamage(defenderBase))
@@ -1056,7 +1067,11 @@ public partial class BattleGameMain
         }
 
         // 配備ベース無し → EX。無効化を再確認（先頭チェックの取りこぼし防止）
-        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit))
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit)
+            || ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+                null,
+                sourceUnit,
+                targetSide))
         {
             Debug.Log(
                 $"[EffectDamage] EX Base immune to unit damage (side:{targetSide}, source:"
@@ -1225,7 +1240,7 @@ public partial class BattleGameMain
             return;
         }
 
-        // 配備ベース無し → EX／シールド。無効化を再確認
+        // 配備ベース無し → EX／シールド。ST02-013 はシールドも含む。デュオはベース（EX）のみ。
         if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceUnit))
         {
             Debug.Log(
@@ -1237,6 +1252,17 @@ public partial class BattleGameMain
         int exDamage = ResolveEffectDamageAmount(baseMagnitude);
         if (target != null && target.exBase > 0 && exDamage > 0)
         {
+            if (ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+                    null,
+                    sourceUnit,
+                    targetSide))
+            {
+                Debug.Log(
+                    $"[EffectDamage] EX Base ignores Lv-or-less unit damage "
+                    + $"(linked rested Duo vs {(sourceUnit?.Data != null ? sourceUnit.Data.cardName : "-")}).");
+                return;
+            }
+
             gundamRule.DamageExBaseOnly(targetSide, exDamage);
             Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {target.exBase}).");
             destroyedShieldAreaCard = exBaseBefore > 0 && target.exBase <= 0;
@@ -1371,6 +1397,18 @@ public partial class BattleGameMain
             logMessage =
                 $"[Attack] Deployed Base ignores non-token Lv-or-less unit damage "
                 + $"({attacker?.Data?.cardName} vs {defenderBase.Data.cardName}).";
+            return true;
+        }
+
+        if (ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+                defenderBase,
+                attacker,
+                targetSide,
+                attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] Deployed Base ignores Lv-or-less unit damage "
+                + $"(linked rested source vs {defenderBase.Data.cardName}).";
             return true;
         }
 

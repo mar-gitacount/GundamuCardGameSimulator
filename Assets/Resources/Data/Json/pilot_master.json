@@ -851,6 +851,30 @@
             "pilotKey": "Sweatson_Stero",
             "displayName": "スエッソン・ステロ",
             "description": ""
+        },
+        {
+            "id": 143,
+            "pilotKey": "Julieta_Juris",
+            "displayName": "ジュリエッタ・カタリン",
+            "description": ""
+        },
+        {
+            "id": 144,
+            "pilotKey": "Gym_Ghingnham",
+            "displayName": "ギム・ギンガム",
+            "description": ""
+        },
+        {
+            "id": 145,
+            "pilotKey": "Anavel_Gato",
+            "displayName": "アナベル・ガトー",
+            "description": ""
+        },
+        {
+            "id": 146,
+            "pilotKey": "South_Burning",
+            "displayName": "サウス・バニング",
+            "description": ""
         }
     ]
 }

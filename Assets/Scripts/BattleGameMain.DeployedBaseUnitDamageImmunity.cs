@@ -162,4 +162,170 @@ public partial class BattleGameMain
 
         return n;
     }
+
+    /// <summary>
+    /// 【リンク中】かつレストの味方ユニット（搭乗パイロット含む）が、
+    /// このユニット以下の Lv の相手ユニットからの味方ベース（配備ベース／EXベース）ダメージを無効にする（GD06-098 デュオ等）。
+    /// シールドカードは対象外。defenderBase が無くても EXベースに適用する。
+    /// </summary>
+    private bool ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+        CardController defenderBase,
+        CardController sourceUnit,
+        Gundam2024RuleScript.PlayerSide targetSide,
+        PlayerType? sourceOwnerOverride = null)
+    {
+        CardController unitSource = ResolveUnitSourceForShieldAreaDamage(sourceUnit);
+        if (unitSource == null || unitSource.Data == null || !unitSource.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? PlayerType.Player
+            : PlayerType.Enemy;
+        PlayerType sourceOwner = sourceOwnerOverride
+            ?? ResolveUnitOwnerForShieldAreaDamageSource(unitSource);
+        if (sourceOwner == targetOwner)
+        {
+            return false;
+        }
+
+        int attackerLevel = unitSource.CurrentLevel;
+        if (HasLinkedRestedFriendlyBaseImmunityOnZone(playerBattleZoneCards, targetOwner, attackerLevel)
+            || HasLinkedRestedFriendlyBaseImmunityOnZone(enemyBattleZoneCards, targetOwner, attackerLevel)
+            || HasLinkedRestedFriendlyBaseImmunityOnDeployPanel(targetOwner, attackerLevel))
+        {
+            string targetName = defenderBase?.Data != null ? defenderBase.Data.cardName : "EX/Shield";
+            Debug.Log(
+                $"[DuoMaxwell] {targetName} ignores dmg from "
+                + $"{unitSource.Data.cardName} Lv:{attackerLevel} owner:{targetOwner}");
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool HasLinkedRestedFriendlyBaseImmunityOnZone(
+        List<CardController> zone,
+        PlayerType ownerType,
+        int attackerLevel)
+    {
+        if (zone == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null
+                || unit.Data == null
+                || !unit.Data.IsUnitLike()
+                || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (!UnitGrantsLinkedRestedFriendlyBaseImmunity(unit, ownerType, attackerLevel))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool HasLinkedRestedFriendlyBaseImmunityOnDeployPanel(PlayerType ownerType, int attackerLevel)
+    {
+        CardGameRule rule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (rule == null || rule.PlayerDeployPanel == null)
+        {
+            return false;
+        }
+
+        CardController[] fieldCards = rule.PlayerDeployPanel.GetComponentsInChildren<CardController>(true);
+        for (int i = 0; i < fieldCards.Length; i++)
+        {
+            if (UnitGrantsLinkedRestedFriendlyBaseImmunity(fieldCards[i], ownerType, attackerLevel))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool UnitGrantsLinkedRestedFriendlyBaseImmunity(
+        CardController unit,
+        PlayerType ownerType,
+        int attackerLevel)
+    {
+        if (unit == null
+            || unit.Data == null
+            || !unit.Data.IsUnitLike()
+            || unit.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        if (ResolveBattleZoneUnitOwner(unit) != ownerType
+            && !IsOnDeployPanel(unit, ownerType))
+        {
+            return false;
+        }
+
+        if (!IsOnDeployPanel(unit, ownerType) && !IsUnitInSideBattleZoneList(unit, ownerType))
+        {
+            return false;
+        }
+
+        if (!UnitLooksRested(unit) && !unit.IsRestState)
+        {
+            return false;
+        }
+
+        if (!UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+        {
+            return false;
+        }
+
+        if (attackerLevel > unit.CurrentLevel)
+        {
+            return false;
+        }
+
+        return CardHasFriendlyBasesImmunityMarker(unit.Data)
+            || CardHasFriendlyBasesImmunityMarker(unit.MountedPilot?.Data);
+    }
+
+    private static bool CardHasFriendlyBasesImmunityMarker(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int ti = 0; ti < data.timedEffects.Count; ti++)
+        {
+            TimedEffectData timed = data.timedEffects[ti];
+            if (timed == null || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int ei = 0; ei < effects.Count; ei++)
+            {
+                if (effects[ei] != null
+                    && effects[ei].type == EffectType.FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }
