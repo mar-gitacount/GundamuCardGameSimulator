@@ -435,7 +435,12 @@ public enum EffectType
     /// フィールド上にある限り、味方の指定特徴カードが敵ユニットへ与えるダメージを value 増加する
     /// （GD06-033 〔エゥーゴ〕+1 等）。targetFeatureId で特徴を指定。ApplyEffect はマーカーのみ。
     /// </summary>
-    IncreaseAllyFeatureDamageToEnemyUnits
+    IncreaseAllyFeatureDamageToEnemyUnits,
+    /// <summary>
+    /// 【リンク中】かつレストの間、味方配備ベースは、このユニット以下の Lv の相手ユニットからダメージを受けない
+    /// （GD06-098 デュオ・マックスウェル等）。ApplyEffect はマーカーのみ。ダメージ判定で参照する。
+    /// </summary>
+    FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -1101,7 +1106,9 @@ public enum EffectValueCountKind
     /// 指定ゾーンの REST 状態の生存ユニット体数（ST14-011 シロッコ等）。
     /// 明示指定したカードのみ参照するため、既存の AliveUnits 挙動は変えない。
     /// </summary>
-    RestedAliveUnits
+    RestedAliveUnits,
+    /// <summary>指定ゾーン（主に OwnerHand）のカード枚数。GGumega の「手札の枚数だけ AP を上げる」用。</summary>
+    HandCards
 }
 
 [Serializable]
@@ -2247,7 +2254,9 @@ public static class EffectDataExtensions
             statFilter = EffectTargetUnitFilterStat.AP;
         }
 
-        if (statFilter != EffectTargetUnitFilterStat.Unset)
+        if (statFilter != EffectTargetUnitFilterStat.Unset
+            && !effect.autoSelectHighestUnitStat
+            && !effect.autoSelectLowestUnitStat)
         {
             if (effect.ShouldRelaxTargetUnitStatFilter(sourceCard, ownerTrashCardIds))
             {
@@ -2871,7 +2880,24 @@ public static class EffectDataExtensions
             return effect.selectionMode.RequiresManualUnitPick();
         }
 
+        // 味方トークンを選んで同種を配備（GD06-021 Turn X (Top) 等）
+        if (effect.IsCopySelectedAllyTokenDeploy())
+        {
+            return true;
+        }
+
         return effect.deployUnitSource == DeployUnitSource.Trash;
+    }
+
+    /// <summary>味方ユニットトークン1体を選び、同じ種類のトークンを配備する。</summary>
+    public static bool IsCopySelectedAllyTokenDeploy(this EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.DeployUnit
+            && effect.deployUnitSource == DeployUnitSource.Token
+            && effect.deployCardId <= 0
+            && effect.target == TargetType.TokenUnit
+            && effect.selectionMode.RequiresManualUnitPick();
     }
 
     /// <summary>DeployBase がトラッシュからの選択 UI を要するか。</summary>
@@ -3087,6 +3113,33 @@ public static class TimedEffectDataExtensions
         return true;
     }
 
+    /// <summary>手札枚数 × value の Self Buff/Debuff（GGumega 等）。条件なしでも Refresh で維持する。</summary>
+    public static bool HasOwnerHandCountSelfStatValueScale(this TimedEffectData timed)
+    {
+        if (timed == null || !timed.ContainsOnlySelfStatBuffDebuffEffects())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.valueMode == EffectValueMode.MultiplyByBoardCount
+                && effect.valueCountKind == EffectValueCountKind.HandCards)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool HasTrashHasFeatureActivationRequirement(this TimedEffectData timed)
     {
         if (timed?.activationConditions == null)
@@ -3173,6 +3226,18 @@ public static class TimedEffectDataExtensions
         }
 
         if (timed.IsHandConditionalPassiveBlock())
+        {
+            return false;
+        }
+
+        // 自ターン盤面オーラは RefreshFieldOwnerTurnPassives で維持する（配備時ワンショットにしない）
+        if (timed.IsFieldOwnerTurnStatPassiveBlock())
+        {
+            return false;
+        }
+
+        // 手札枚数連動 Self AP（GGumega 等）は RefreshConditionalFieldSelfStatPassives で維持する
+        if (timed.HasOwnerHandCountSelfStatValueScale())
         {
             return false;
         }

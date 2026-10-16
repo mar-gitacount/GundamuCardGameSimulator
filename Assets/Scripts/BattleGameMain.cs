@@ -2312,6 +2312,9 @@ public partial class BattleGameMain : MonoBehaviour
         // 効果ドロー（ターン開始・開始手札以外）をコウ・ウラキ条件へ記録する。
         NoteEffectDrawResolved(targetType, 1);
 
+        // 手札枚数連動 AP（GGumega 等）をドロー直後に再計算する
+        RefreshConditionalFieldSelfStatPassives();
+
         return drawnCard;
     }
     public bool DecideTurnOrder()
@@ -8411,6 +8414,8 @@ public partial class BattleGameMain : MonoBehaviour
                     break;
                 case EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess:
                     break;
+                case EffectType.FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit:
+                    break;
                 case EffectType.ReturnFromHandToDeckBottom:
                     break;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
@@ -9445,6 +9450,19 @@ public partial class BattleGameMain : MonoBehaviour
         // 配備ベースがいるのにダメージ未適用 → EX層空振り扱いにせずシールド破壊へ（Master Gundam バースト後など）
         bool overflowGuardAsExLayer = hadExBaseLayerAtShieldAttackStart
             && !HasActiveDeployedBaseForRuleSide(targetSide);
+        bool hittingExBase = defender.exBase > 0 || overflowGuardAsExLayer;
+        if (hittingExBase
+            && ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+                null,
+                attacker,
+                targetSide,
+                attackerOwnerHint))
+        {
+            logMessage =
+                $"[Attack] EX Base ignores Lv-or-less unit damage "
+                + $"(linked rested Duo vs {attacker.Data?.cardName}).";
+            return true;
+        }
 
         // 無効化は EX／制圧／実シールドすべてに再確認（配備ベース無し経路の取りこぼし防止）
         if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, attacker, attackerOwnerHint))
@@ -13764,6 +13782,15 @@ public partial class BattleGameMain : MonoBehaviour
             RemoveUnitsFromList(candidates, attackDestroyBlocked);
         }
 
+        // 最高Lvが1体に決まるときは選択UIを待たずダメージを適用する（セット時オーバーレイでUIが消えるのを防ぐ）。
+        if (effect.autoSelectHighestUnitStat && candidates.Count == 1)
+        {
+            InvokePlayerManualUnitSelectionCallback(
+                () => ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, candidates));
+            onDone?.Invoke();
+            return;
+        }
+
         if (candidates.Count == 0)
         {
             // Sazabi 等: 攻撃ユニット自身だけが候補のときはグレイ表示＋Cancel の UI を出す
@@ -14723,6 +14750,12 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        // 最高/最低の自動選択は比較閾値（既定 Lv≤0 等）で候補を消さない。
+        if (effect.autoSelectHighestUnitStat || effect.autoSelectLowestUnitStat)
+        {
+            return;
+        }
+
         PlayerType sourceOwner = effectOwnerType
             ?? (sourceCard != null ? ResolveCardOwner(sourceCard.transform) : currentPlayerType);
         CardGameRule ownerRule = sourceOwner == PlayerType.Player ? cardGameRule : enemyCardGameRule;
@@ -15663,6 +15696,12 @@ public partial class BattleGameMain : MonoBehaviour
                     + $"by cardId:{sourceCard?.Data?.id}");
                 break;
 
+            case EffectType.FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit:
+                Debug.Log(
+                    $"[Effect] FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit marker "
+                    + $"by cardId:{sourceCard?.Data?.id}");
+                break;
+
             case EffectType.ReturnFromHandToDeckBottom:
                 Debug.LogWarning(
                     $"[Effect] ReturnFromHandToDeckBottom は手札選択経路専用です (cardId:{sourceCard?.Data?.id})");
@@ -16040,7 +16079,16 @@ public partial class BattleGameMain : MonoBehaviour
                 AddFirstAliveUnit(allies, result, null, requiredFeatures);
                 break;
             case TargetType.AllyOtherUnit:
-                AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
+                // Unset（盤面オーラ等）は他の味方全員。SelectSingle の自動解決だけ従来どおり先頭1体。
+                if (effect.selectionMode.RequiresManualUnitPick())
+                {
+                    AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
+                }
+                else
+                {
+                    CardController excludeSelf = ResolveEffectSourceBattleHost(sourceCard) ?? sourceCard;
+                    AddAllAliveUnits(allies, result, excludeSelf, requiredFeatures);
+                }
                 break;
             case TargetType.TokenUnit:
                 AddAllAliveTokenUnits(allies, result, null, requiredFeatures);

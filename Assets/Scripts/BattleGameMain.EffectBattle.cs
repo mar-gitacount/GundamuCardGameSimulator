@@ -897,6 +897,14 @@ public partial class BattleGameMain
                 "トラッシュからユニットを配備しますか？",
                 "Deploy a Unit from Trash?");
         }
+        else if (effect != null
+            && effect.type == EffectType.Damage
+            && effect.target == TargetType.Self)
+        {
+            title.SetLocalizedText(
+                "このユニットに1ダメージを与えますか？",
+                "Deal 1 damage to this Unit?");
+        }
         else if (effect != null && effect.type == EffectType.DeployBase)
         {
             title.SetLocalizedText(

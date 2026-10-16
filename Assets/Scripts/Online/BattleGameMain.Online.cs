@@ -2488,15 +2488,32 @@ public partial class BattleGameMain
             return;
         }
 
-        ApplyRemoteDeployedBaseHpUpdate(
+        bool ignoreRemoteBaseDamage = ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+            null,
+            attacker,
             Gundam2024RuleScript.PlayerSide.Player,
-            action.defenderDeployedBaseHpAfter);
+            PlayerType.Enemy);
+        if (!ignoreRemoteBaseDamage)
+        {
+            ApplyRemoteDeployedBaseHpUpdate(
+                Gundam2024RuleScript.PlayerSide.Player,
+                action.defenderDeployedBaseHpAfter);
+        }
+        else
+        {
+            Debug.Log(
+                "[OnlineBattle] Remote base HP/EX ignored — local Duo linked-rested immunity "
+                + $"(attacker:{(attacker?.Data != null ? attacker.Data.cardName : "-")}).");
+        }
 
         Gundam2024RuleScript.PlayerState defender = gundamRule.Player;
         int oldShield = defender.shield;
         int oldExBase = defender.exBase;
         defender.shield = Mathf.Max(0, action.defenderShieldAfter);
-        defender.exBase = Mathf.Max(0, action.defenderExBaseAfter);
+        if (!ignoreRemoteBaseDamage)
+        {
+            defender.exBase = Mathf.Max(0, action.defenderExBaseAfter);
+        }
 
         int brokenCount = Mathf.Max(0, oldShield - defender.shield);
         StartCoroutine(CoRemoteShieldAttackJudgmentThenArgama(

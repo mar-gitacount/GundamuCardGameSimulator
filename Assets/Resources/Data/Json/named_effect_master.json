@@ -6166,6 +6166,239 @@
                     "filterTargetIsBlocker": true
                 }
             ]
+        },
+        {
+            "effectSetName": "BuffAp1_OtherAllyGjallarhornUnits_OwnerTurn",
+            "displayName": "【リンク中・自分のターン】他の味方〔ギャラルホルン〕ユニット全体を AP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 8,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 43
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantRepair2_WhileHostHasAlphacide",
+            "displayName": "このユニットが〔アルファサイド〕の間、《リペア2》を得る",
+            "effects": []
+        },
+        {
+            "effectSetName": "BuffSelfAp_ByOwnerHandCount",
+            "displayName": "自分の手札の枚数だけ、このユニットの AP を上げる",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 2,
+                    "valueCountKind": 5,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "FriendlyBasesImmunityFromEnemyUnitsLvOrLess_WhileLinkedAndRested",
+            "displayName": "【リンク中】レストの間、このユニット以下の Lv の相手ユニットから味方ベースがダメージを受けない",
+            "effects": [
+                {
+                    "type": 72,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddFromTrashToHand_Command_Lv5OrLess_Optional",
+            "displayName": "トラッシュの Lv.5 以下コマンド1枚を手札に加えてもよい",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 2,
+                    "filterTargetUnitLevel": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployCopyOfSelectedAllyToken_Rested",
+            "displayName": "【配備時】味方ユニットトークン1体を選び、同種のトークン1体をレストで配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 9,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 0,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAttack_OptionalDamage1Self_ThenGrantBreach2_UntilEndOfBattle",
+            "displayName": "【セット時・攻撃時】してもよい：自身に1ダメージ。そうしたならこの戦闘中《突破2》",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 48,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployRestedTurnXArmsToken1",
+            "displayName": "ターンX（アームズ）トークン1体をレストで配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000846,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployRestedTurnXLegsToken1",
+            "displayName": "ターンX（レッグス）トークン1体をレストで配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000847,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "ChooseDeployRestedTurnXArmsOrLegsToken",
+            "displayName": "【メイン】レストのターンX（アームズ）またはターンX（レッグス）トークン1体を配備",
+            "effects": [
+                {
+                    "type": 38,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "choicePromptJa": "配備するユニットトークンを1つ選び、OKで発動。",
+                    "choicePromptEn": "Choose 1 Unit token to deploy, then press OK.",
+                    "choiceBranches": [
+                        {
+                            "labelJa": "■ターンX（アームズ）（〔ギンガム艦隊〕〔遠距離兵器〕・AP2・HP3）をレストで配備する。",
+                            "labelEn": "■Deploy Turn X (Arms) ((Ghingnham Fleet)(Long-Range Weapon) / AP2 / HP3) rested.",
+                            "effectsName": "DeployRestedTurnXArmsToken1"
+                        },
+                        {
+                            "labelJa": "■ターンX（レッグス）（〔ギンガム艦隊〕〔遠距離兵器〕・AP3・HP2）をレストで配備する。",
+                            "labelEn": "■Deploy Turn X (Legs) ((Ghingnham Fleet)(Long-Range Weapon) / AP3 / HP2) rested.",
+                            "effectsName": "DeployRestedTurnXLegsToken1"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployPurpleZeonUnitLv5OrLessFromTrash",
+            "displayName": "【メイン】トラッシュの紫〔ジオン〕Lv.5以下ユニット1枚を配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitSource": 2,
+                    "targetFeatureId": 5,
+                    "filterTargetUnitColor": true,
+                    "filterTargetUnitColorValue": 6,
+                    "filterTargetUnitLevel": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5,
+                    "deployUnitTriggerOnPlayed": true,
+                    "deployUnitAsRested": false,
+                    "deployUnitPayCost": false
+                }
+            ]
         }
     ]
 }

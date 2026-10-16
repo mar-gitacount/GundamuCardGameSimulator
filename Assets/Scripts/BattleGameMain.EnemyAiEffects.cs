@@ -354,6 +354,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess
                 || eff.type == EffectType.AllyEnemyEffectDamageImmunity
                 || eff.type == EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess
+                || eff.type == EffectType.FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit
                 || eff.type == EffectType.ReturnFromHandToDeckBottom
                 || eff.type == EffectType.PreventOpponentStartPhaseActiveLowestRestUnits
                 || eff.type == EffectType.PreventNextStartPhaseActive

@@ -747,6 +747,49 @@ public partial class BattleGameMain
     }
 
     /// <summary>満杯時は置換 UI を挟み、Cancel ならそのトークン以降を出さない。</summary>
+    /// <summary>味方ユニットトークン1体を選び、同種配備の元カードにする。</summary>
+    private IEnumerator CoPickSingleAllyTokenForCopy(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        System.Action<CardController> onPicked)
+    {
+        List<CardController> candidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
+        if (candidates == null || candidates.Count == 0)
+        {
+            onPicked?.Invoke(null);
+            yield break;
+        }
+
+        if (ownerType == PlayerType.Enemy && !RequiresInteractiveManualUnitSelectionUi(ownerType))
+        {
+            EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(ownerType, sourceCard, null, null);
+            onPicked?.Invoke(PickEnemyAiEffectTarget(effect, pickCtx, candidates) ?? candidates[0]);
+            yield break;
+        }
+
+        bool done = false;
+        CardController picked = null;
+        OpenManualUnitTargetSelectionUI(
+            sourceCard,
+            ownerType,
+            effect,
+            candidates,
+            attackingUnitInAttackFlow: null,
+            chosen =>
+            {
+                picked = chosen;
+                done = true;
+            });
+
+        while (!done)
+        {
+            yield return null;
+        }
+
+        onPicked?.Invoke(picked);
+    }
+
     private IEnumerator CoDeployTokenUnitsWithCap(
         EffectData effect,
         int resolvedMagnitude,
@@ -761,6 +804,26 @@ public partial class BattleGameMain
         }
 
         int cardId = effect.deployCardId;
+        if (cardId <= 0 && effect.IsCopySelectedAllyTokenDeploy())
+        {
+            CardController pickedToken = null;
+            yield return CoPickSingleAllyTokenForCopy(
+                sourceCard,
+                sourceOwner,
+                effect,
+                picked => pickedToken = picked);
+
+            if (pickedToken?.Data == null || !pickedToken.Data.IsUnitToken())
+            {
+                Debug.Log("[DeployUnit] 同種トークン配備：選択なし");
+                onComplete?.Invoke();
+                yield break;
+            }
+
+            cardId = pickedToken.Data.id;
+            SetEffectChainLastPickedTargets(new List<CardController> { pickedToken });
+        }
+
         if (cardId <= 0 && sourceCard?.Data != null && sourceCard.Data.type == Type.UnitToken)
         {
             cardId = sourceCard.Data.id;
@@ -1779,6 +1842,12 @@ public partial class BattleGameMain
             return true;
         }
 
+        if ((effect.type == EffectType.Damage || effect.type == EffectType.GrantBreach)
+            && effect.target == TargetType.Self)
+        {
+            return true;
+        }
+
         if (effect.type == EffectType.DeployUnit
             || effect.type == EffectType.ExileFromTrash
             || effect.type == EffectType.ReturnFromTrashToDeckAndShuffle
@@ -2276,6 +2345,33 @@ public partial class BattleGameMain
         }
 
         // CombatPair 経路では Activate（UsesTargetCountValue）がスキップされるため、自身対象はここで解決
+        // 【リンク中・攻撃時】任意の自身ダメージ→突破付与など
+        if (effect.optionalPlayerConfirm
+            && effect.target == TargetType.Self
+            && (effect.type == EffectType.Damage || effect.type == EffectType.GrantBreach))
+        {
+            TryBeginOptionalConfirmedEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                onAccepted: () =>
+                {
+                    ApplyEffect(sourceCard, ownerType, effect);
+                    TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                },
+                onDeclined: () =>
+                {
+                    if (effect.abortRemainingChainOnSkip)
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                });
+            return;
+        }
+
         if ((effect.type == EffectType.Activate || effect.type == EffectType.FirstStrike)
             && effect.target == TargetType.Self)
         {
@@ -2507,6 +2603,31 @@ public partial class BattleGameMain
                         effects,
                         index + 1,
                         onDone);
+                });
+            return;
+        }
+
+        if (effect.optionalPlayerConfirm
+            && !EffectRequiresManualUnitSelection(effect))
+        {
+            TryBeginOptionalConfirmedEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                onAccepted: () => ApplyEffectRespectingLookAsync(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone)),
+                onDeclined: () =>
+                {
+                    if (effect.abortRemainingChainOnSkip)
+                    {
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
                 });
             return;
         }

@@ -194,6 +194,15 @@ public partial class BattleGameMain
             && timed.HasTrashHasFeatureActivationRequirement();
     }
 
+    /// <summary>手札枚数連動 Self AP（GGumega 等）。自ターン限定ではない。</summary>
+    private static bool IsFieldUnitHandCountSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasOwnerHandCountSelfStatValueScale();
+    }
+
     /// <summary>プレイヤー Lv 条件の Self AP（AGE-1 タイタス C 等）。</summary>
     private static bool IsFieldUnitOwnerLevelSelfStatPassive(TimedEffectData timed, bool isPilotSource)
     {
@@ -225,7 +234,8 @@ public partial class BattleGameMain
                 && !IsFieldUnitOwnerTurnSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitMountedPilotSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOwnerLevelSelfStatPassive(timed, isPilotSource)
-                && !IsFieldUnitTrashFeatureSelfStatPassive(timed, isPilotSource))
+                && !IsFieldUnitTrashFeatureSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitHandCountSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }
