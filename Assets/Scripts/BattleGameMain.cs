@@ -3008,23 +3008,120 @@ public partial class BattleGameMain : MonoBehaviour
         for (int i = 0; i < enemies.Count; i++)
         {
             CardController host = enemies[i];
-            if (host == null || !CanAttackerTargetEnemyUnitForCombat(attacker, host))
+            if (host == null)
             {
                 continue;
             }
 
-            if (DoesUnitPreventBeingChosenAsAttackTarget(host))
+            AppendForcedEnemyAttackTargetsFromHost(forced, host, attacker, attackerOwner, attackerCtx);
+        }
+
+        return forced;
+    }
+
+    /// <summary>
+    /// ホストの ForceEnemyAttackTarget。TokenUnit 指定時は本体ではなく、
+    /// 可能なら味方のレスト・ユニットトークンへ攻撃を強制する（GD06-019 ターンX）。
+    /// </summary>
+    private void AppendForcedEnemyAttackTargetsFromHost(
+        List<CardController> forced,
+        CardController host,
+        CardController attacker,
+        PlayerType attackerOwner,
+        EffectActivationContext attackerCtx)
+    {
+        if (forced == null || host == null || attacker == null)
+        {
+            return;
+        }
+
+        var abilities = new List<CardForceEnemyAttackExtensions.ForceEnemyAttackAbility>(2);
+        CardForceEnemyAttackExtensions.CollectForceEnemyAttackAbilities(host, abilities);
+        if (abilities.Count == 0)
+        {
+            return;
+        }
+
+        PlayerType hostOwner = ResolveCardOwner(host.transform);
+        EffectActivationContext hostCtx = BuildOnAttackActivationContext(hostOwner, host);
+
+        for (int i = 0; i < abilities.Count; i++)
+        {
+            CardForceEnemyAttackExtensions.ForceEnemyAttackAbility ability = abilities[i];
+            if (ability.Effect == null)
             {
                 continue;
             }
 
-            if (DoesUnitForceEnemyAttackTarget(host, attacker, attackerOwner, attackerCtx))
+            if (!EffectActivationEvaluator.AreAllConditionsMet(ability.HostConditions, hostCtx))
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreAllConditionsMet(
+                    ability.Effect.effectActivationConditions,
+                    attackerCtx ?? BuildOnAttackActivationContext(attackerOwner, attacker)))
+            {
+                continue;
+            }
+
+            if (ability.Effect.target == TargetType.TokenUnit)
+            {
+                List<CardController> tokens = hostOwner == PlayerType.Player
+                    ? playerBattleZoneCards
+                    : enemyBattleZoneCards;
+                AddForcedRestAllyTokenAttackTargets(forced, attacker, tokens, ability.Effect);
+                continue;
+            }
+
+            if (!CanAttackerTargetEnemyUnitForCombat(attacker, host)
+                || DoesUnitPreventBeingChosenAsAttackTarget(host))
+            {
+                continue;
+            }
+
+            if (!forced.Contains(host))
             {
                 forced.Add(host);
             }
         }
+    }
 
-        return forced;
+    private void AddForcedRestAllyTokenAttackTargets(
+        List<CardController> forced,
+        CardController attacker,
+        List<CardController> allyZone,
+        EffectData effect)
+    {
+        if (forced == null || allyZone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < allyZone.Count; i++)
+        {
+            CardController token = allyZone[i];
+            if (token == null || token.Data == null || !token.Data.IsUnitToken() || token.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (effect != null && effect.requireTargetIsRest && !token.IsRestState)
+            {
+                continue;
+            }
+
+            if (!CanAttackerTargetEnemyUnitForCombat(attacker, token)
+                || DoesUnitPreventBeingChosenAsAttackTarget(token))
+            {
+                continue;
+            }
+
+            if (!forced.Contains(token))
+            {
+                forced.Add(token);
+            }
+        }
     }
 
     /// <summary>強制攻撃対象が1体以上あるか（シールド／直接攻撃を封じる判定用）。</summary>
@@ -12695,7 +12792,10 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             if (mountTiming == EffectTiming.OnPilotMounted
-                && (timed.IsFieldOwnerTurnStatPassiveBlock() || timed.MatchesOwnerTurnMountFieldPassivePattern()))
+                && (timed.IsFieldOwnerTurnStatPassiveBlock()
+                    || timed.IsFieldNotOwnerTurnStatPassiveBlock()
+                    || timed.MatchesOwnerTurnMountFieldPassivePattern()
+                    || timed.IsDuringLinkAllyFieldStatPassiveBlock()))
             {
                 continue;
             }
@@ -12743,7 +12843,10 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         TimedEffectData block = blocks[blockIndex];
-        if (block.IsFieldOwnerTurnStatPassiveBlock() || block.MatchesOwnerTurnMountFieldPassivePattern())
+        if (block.IsFieldOwnerTurnStatPassiveBlock()
+            || block.IsFieldNotOwnerTurnStatPassiveBlock()
+            || block.MatchesOwnerTurnMountFieldPassivePattern()
+            || block.IsDuringLinkAllyFieldStatPassiveBlock())
         {
             RunMountTimedBlocks(
                 sourceCard,
@@ -14734,13 +14837,179 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.selectionMode.RequiresManualUnitPick();
     }
 
+    /// <summary>
+    /// 味方の指定特徴ユニットと現在バトル中の相手ユニットのみ残す（GD06-112 等）。
+    /// </summary>
+    private void FilterToUnitsBattlingFriendlyFeature(
+        List<CardController> targets,
+        EffectData effect,
+        PlayerType friendlyOwner)
+    {
+        if (targets == null || effect == null || !effect.requireTargetBattlingFriendlyFeature)
+        {
+            return;
+        }
+
+        ResolveCurrentCombatPairForEffect(out CardController attacker, out CardController defender);
+        if (attacker == null || defender == null)
+        {
+            targets.Clear();
+            return;
+        }
+
+        IReadOnlyList<CardFeatureData> required = effect.GetTargetFeatures();
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            if (!IsUnitBattlingFriendlyFeature(targets[i], attacker, defender, friendlyOwner, required, effect.targetFeatureId))
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>アクション／攻撃フロー中の交戦ペア（ブロッカー優先）。</summary>
+    private void ResolveCurrentCombatPairForEffect(out CardController attacker, out CardController defender)
+    {
+        SyncActionStepCombatPairToAttackFlow();
+
+        attacker = attackFlowAttackerUnit != null && attackFlowAttackerUnit.CurrentHp > 0
+            ? attackFlowAttackerUnit
+            : null;
+        if (attacker == null && pendingUnitAttackAttacker != null && pendingUnitAttackAttacker.CurrentHp > 0)
+        {
+            attacker = pendingUnitAttackAttacker;
+        }
+
+        if (attacker == null
+            && _actionStepSession != null
+            && _actionStepSession.AttackingUnit != null
+            && _actionStepSession.AttackingUnit.CurrentHp > 0)
+        {
+            attacker = _actionStepSession.AttackingUnit;
+        }
+
+        defender = attackFlowBlockRedirectUnit != null && attackFlowBlockRedirectUnit.CurrentHp > 0
+            ? attackFlowBlockRedirectUnit
+            : null;
+        if (defender == null && attackFlowDeclaredDefenderUnit != null && attackFlowDeclaredDefenderUnit.CurrentHp > 0)
+        {
+            defender = attackFlowDeclaredDefenderUnit;
+        }
+
+        if (defender == null)
+        {
+            defender = ResolveAttackFlowDefenderForPreview();
+        }
+
+        if (defender == null
+            && _actionStepSession != null
+            && _actionStepSession.DefendingUnit != null
+            && _actionStepSession.DefendingUnit.CurrentHp > 0)
+        {
+            defender = _actionStepSession.DefendingUnit;
+        }
+    }
+
+    private bool IsUnitBattlingFriendlyFeature(
+        CardController candidate,
+        CardController attacker,
+        CardController defender,
+        PlayerType friendlyOwner,
+        IReadOnlyList<CardFeatureData> requiredFeatures,
+        int requiredFeatureId)
+    {
+        if (candidate == null)
+        {
+            return false;
+        }
+
+        CardController friendlyPartner = null;
+        if (IsSameBattleUnit(candidate, attacker))
+        {
+            friendlyPartner = defender;
+        }
+        else if (IsSameBattleUnit(candidate, defender))
+        {
+            friendlyPartner = attacker;
+        }
+
+        if (friendlyPartner == null || friendlyPartner.Data == null || !friendlyPartner.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        if (ResolveBattleZoneUnitOwner(friendlyPartner) != friendlyOwner)
+        {
+            return false;
+        }
+
+        return UnitOrMountedPilotHasBattlingFeature(friendlyPartner, requiredFeatures, requiredFeatureId);
+    }
+
+    private static bool UnitOrMountedPilotHasBattlingFeature(
+        CardController unit,
+        IReadOnlyList<CardFeatureData> requiredFeatures,
+        int requiredFeatureId)
+    {
+        if (unit == null)
+        {
+            return false;
+        }
+
+        if ((requiredFeatures == null || requiredFeatures.Count == 0) && requiredFeatureId <= 0)
+        {
+            return true;
+        }
+
+        if (requiredFeatures != null && requiredFeatures.Count > 0)
+        {
+            if (unit.HasAnyFeature(requiredFeatures))
+            {
+                return true;
+            }
+
+            if (unit.MountedPilot != null && unit.MountedPilot.HasAnyFeature(requiredFeatures))
+            {
+                return true;
+            }
+        }
+
+        if (requiredFeatureId > 0)
+        {
+            if (unit.HasFeatureId(requiredFeatureId))
+            {
+                return true;
+            }
+
+            if (unit.MountedPilot != null && unit.MountedPilot.HasFeatureId(requiredFeatureId))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void FilterTargetsByUnitCondition(
         List<CardController> targets,
         EffectData effect,
         CardController sourceCard = null,
         PlayerType? effectOwnerType = null)
     {
-        if (targets == null || effect == null || !effect.HasTargetUnitFilter())
+        if (targets == null || effect == null)
+        {
+            return;
+        }
+
+        PlayerType battlingOwner = effectOwnerType
+            ?? (sourceCard != null ? ResolveCardOwner(sourceCard.transform) : currentPlayerType);
+        FilterToUnitsBattlingFriendlyFeature(targets, effect, battlingOwner);
+        if (effect.requireTargetBattlingFriendlyFeature)
+        {
+            return;
+        }
+
+        if (!effect.HasTargetUnitFilter())
         {
             return;
         }
@@ -16046,7 +16315,9 @@ public partial class BattleGameMain : MonoBehaviour
             return new List<CardController>();
         }
 
-        IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
+        IReadOnlyList<CardFeatureData> requiredFeatures = effect.requireTargetBattlingFriendlyFeature
+            ? System.Array.Empty<CardFeatureData>()
+            : effect.GetTargetFeatures();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> enemies = ownerType == PlayerType.Player ? enemyBattleZoneCards : playerBattleZoneCards;
         List<CardController> result = new List<CardController>();
@@ -16112,6 +16383,8 @@ public partial class BattleGameMain : MonoBehaviour
                 break;
             case TargetType.AllyAllUnits:
                 AddAllAliveUnits(allies, result, null, requiredFeatures);
+                EnsureAllyUnitSelfInCandidateList(sourceCard, result, requiredFeatures);
+                EnsurePilotMountHostInAllyCandidateList(result, requiredFeatures);
                 break;
             case TargetType.EnemyAllUnits:
                 AddAllAliveUnits(enemies, result, null, requiredFeatures);
@@ -22093,7 +22366,9 @@ public partial class BattleGameMain : MonoBehaviour
 
         AbsorbDeployedFieldUnitsIntoBattleZoneLists();
 
-        IReadOnlyList<CardFeatureData> requiredFeatures = effect.GetTargetFeatures();
+        IReadOnlyList<CardFeatureData> requiredFeatures = effect.requireTargetBattlingFriendlyFeature
+            ? System.Array.Empty<CardFeatureData>()
+            : effect.GetTargetFeatures();
         List<CardController> allies = ownerType == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         List<CardController> result = new List<CardController>();
 

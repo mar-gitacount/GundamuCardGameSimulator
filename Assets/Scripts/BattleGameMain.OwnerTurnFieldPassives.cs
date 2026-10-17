@@ -9,7 +9,30 @@ public partial class BattleGameMain
     private static bool IsOwnerTurnFieldPassiveTimedBlock(TimedEffectData timed)
     {
         return timed != null
-            && (timed.IsFieldOwnerTurnStatPassiveBlock() || timed.MatchesOwnerTurnMountFieldPassivePattern());
+            && (timed.IsFieldOwnerTurnStatPassiveBlock()
+                || timed.IsFieldNotOwnerTurnStatPassiveBlock()
+                || timed.MatchesOwnerTurnMountFieldPassivePattern());
+    }
+
+    /// <summary>自ターン限定はターンプレイヤー側、相手ターン限定は非ターンプレイヤー側だけ再付与する。</summary>
+    private bool ShouldApplyFieldTurnStatPassiveForSide(TimedEffectData timed, PlayerType side)
+    {
+        if (timed == null)
+        {
+            return false;
+        }
+
+        if (timed.IsFieldNotOwnerTurnStatPassiveBlock())
+        {
+            return side != currentPlayerType;
+        }
+
+        if (timed.IsFieldOwnerTurnStatPassiveBlock() || timed.MatchesOwnerTurnMountFieldPassivePattern())
+        {
+            return side == currentPlayerType;
+        }
+
+        return true;
     }
 
     private static string MakeOwnerTurnFieldPassiveSourceKey(CardController unit, int blockIndex)
@@ -29,6 +52,9 @@ public partial class BattleGameMain
 
     private const int ZaftFeatureId = 3;
     private const int ProvidenceCardId = 1000297;
+    private const int GymGhingnhamCardId = 1000855;
+    private const int GymGhingnhamPilotId = 144;
+    private const int GhingnhamFleetFeatureId = 83;
 
     /// <summary>全ユニットの自ターン限定盤面バフを一旦解除し、現在ターン側のみ再付与する。</summary>
     private void RefreshAllFieldOwnerTurnPassives()
@@ -45,6 +71,8 @@ public partial class BattleGameMain
         RefreshConditionalBlockerAbilities();
         RefreshDuringLinkFeatureGrants();
         RefreshDuringLinkSelfStatPassives();
+        RefreshDuringLinkAllyFieldStatPassives();
+        RefreshGymGhingnhamOpponentTurnApBuff();
 
         // 個別 Stat は送らない。相手には「同じ再計算をして」とだけ伝える。
         // ネスト中でも外側バッチに載せる（Flush は外側に任せる）。
@@ -577,6 +605,338 @@ public partial class BattleGameMain
         }
     }
 
+    /// <summary>
+    /// GD06-085 ギンガム：相手ターン中、味方〔ギンガム艦隊〕全体（リンクしている自身を含む）へ AP+1。
+    /// 名前付き効果の分類漏れでも確実に再付与する。
+    /// </summary>
+    private void RefreshGymGhingnhamOpponentTurnApBuff()
+    {
+        ClearGymGhingnhamOpponentTurnApBuffOnZone(playerBattleZoneCards);
+        ClearGymGhingnhamOpponentTurnApBuffOnZone(enemyBattleZoneCards);
+        ApplyGymGhingnhamOpponentTurnApBuffOnZone(playerBattleZoneCards, PlayerType.Player);
+        ApplyGymGhingnhamOpponentTurnApBuffOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+    }
+
+    private static string MakeGymGhingnhamOpponentTurnApSourceKey(CardController host)
+    {
+        if (host == null)
+        {
+            return null;
+        }
+
+        if (host.BattleInstanceId > 0)
+        {
+            return $"GymGhingnhamOppTurnAp:{host.BattleInstanceId}";
+        }
+
+        return $"GymGhingnhamOppTurnAp:{host.GetEntityId()}";
+    }
+
+    private static bool IsGymGhingnhamPilotCard(CardData data)
+    {
+        if (data == null || !data.IsPilot())
+        {
+            return false;
+        }
+
+        if (data.id == GymGhingnhamCardId)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(data.gcgOfficialId)
+            && string.Equals(data.gcgOfficialId, "GD06-085", System.StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return data.HasPilotIdValue(GymGhingnhamPilotId);
+    }
+
+    private void ClearGymGhingnhamOpponentTurnApBuffOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            string key = MakeGymGhingnhamOpponentTurnApSourceKey(zone[i]);
+            if (!string.IsNullOrEmpty(key))
+            {
+                RemoveModifiersBySourceKeyFromAllFieldUnits(key);
+            }
+        }
+    }
+
+    private void ApplyGymGhingnhamOpponentTurnApBuffOnZone(List<CardController> zone, PlayerType ownerType)
+    {
+        if (zone == null || ownerType == currentPlayerType)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController host = zone[i];
+            if (host == null || host.Data == null || !host.Data.IsUnitLike() || host.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (ResolveBattleZoneUnitOwner(host) != ownerType)
+            {
+                continue;
+            }
+
+            CardController gym = host.MountedPilot;
+            if (gym?.Data == null || !IsGymGhingnhamPilotCard(gym.Data))
+            {
+                continue;
+            }
+
+            AssignBattleInstanceIdIfNeeded(host);
+            string sourceKey = MakeGymGhingnhamOpponentTurnApSourceKey(host);
+            if (string.IsNullOrEmpty(sourceKey))
+            {
+                continue;
+            }
+
+            int applied = 0;
+            for (int ai = 0; ai < zone.Count; ai++)
+            {
+                CardController ally = zone[ai];
+                if (ally == null || ally.Data == null || !ally.Data.IsUnitLike() || ally.CurrentHp <= 0)
+                {
+                    continue;
+                }
+
+                if (ResolveBattleZoneUnitOwner(ally) != ownerType)
+                {
+                    continue;
+                }
+
+                bool isHost = ally == host;
+                ally.Data.EnsureFeaturesResolved();
+                bool isGhingnhamFleet = ally.HasFeatureId(GhingnhamFleetFeatureId);
+                if (!isHost && !isGhingnhamFleet)
+                {
+                    continue;
+                }
+
+                ApplyStatEffect(ally, 1, EffectStatTarget.AP, EffectDuration.Permanent, sourceKey);
+                applied++;
+            }
+
+            Debug.Log(
+                $"[GymGhingnham] 相手ターン AP+1 host:{host.Data.cardName} "
+                + $"targets:{applied} (自身含む) current:{currentPlayerType}");
+        }
+    }
+
+    /// <summary>
+    /// 【リンク中】味方全体 AP 等（ユニット定義の Julieta、搭乗パイロットの GD06-085 ギンガム）。
+    /// 自ターン／相手ターン条件は activationConditions の turnCheck で評価する。
+    /// </summary>
+    private void RefreshDuringLinkAllyFieldStatPassives()
+    {
+        ClearDuringLinkAllyFieldStatPassivesOnZone(playerBattleZoneCards);
+        ClearDuringLinkAllyFieldStatPassivesOnZone(enemyBattleZoneCards);
+        ApplyDuringLinkAllyFieldStatPassivesOnZone(playerBattleZoneCards, PlayerType.Player);
+        ApplyDuringLinkAllyFieldStatPassivesOnZone(enemyBattleZoneCards, PlayerType.Enemy);
+    }
+
+    private static string MakeDuringLinkAllyFieldSourceKey(CardController host, int blockIndex, bool isPilotSource)
+    {
+        if (host == null)
+        {
+            return string.Empty;
+        }
+
+        string prefix = isPilotSource ? "DuringLinkPilotAllyField" : "DuringLinkAllyField";
+        if (host.BattleInstanceId > 0)
+        {
+            return $"{prefix}:{host.BattleInstanceId}:{blockIndex}";
+        }
+
+        return $"{prefix}:{host.GetEntityId()}:{blockIndex}";
+    }
+
+    private void ClearDuringLinkAllyFieldStatPassivesOnZone(List<CardController> zone)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        HashSet<string> keys = new HashSet<string>();
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController host = zone[i];
+            if (host?.Data == null || !host.Data.IsUnitLike())
+            {
+                continue;
+            }
+
+            CollectDuringLinkAllyFieldSourceKeys(host, host.Data.timedEffects, isPilotSource: false, keys);
+            CollectDuringLinkAllyFieldSourceKeys(
+                host,
+                host.MountedPilot?.Data?.timedEffects,
+                isPilotSource: true,
+                keys);
+        }
+
+        foreach (string key in keys)
+        {
+            RemoveModifiersBySourceKeyFromAllFieldUnits(key);
+        }
+    }
+
+    private static void CollectDuringLinkAllyFieldSourceKeys(
+        CardController host,
+        IList<TimedEffectData> blocks,
+        bool isPilotSource,
+        HashSet<string> keys)
+    {
+        if (host == null || blocks == null || keys == null)
+        {
+            return;
+        }
+
+        for (int bi = 0; bi < blocks.Count; bi++)
+        {
+            TimedEffectData timed = blocks[bi];
+            if (timed == null || !timed.IsDuringLinkAllyFieldStatPassiveBlock())
+            {
+                continue;
+            }
+
+            string key = MakeDuringLinkAllyFieldSourceKey(host, bi, isPilotSource);
+            if (!string.IsNullOrEmpty(key))
+            {
+                keys.Add(key);
+            }
+        }
+    }
+
+    private void ApplyDuringLinkAllyFieldStatPassivesOnZone(List<CardController> zone, PlayerType ownerType)
+    {
+        if (zone == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController host = zone[i];
+            if (host?.Data == null || !host.Data.IsUnitLike() || host.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (ResolveBattleZoneUnitOwner(host) != ownerType)
+            {
+                continue;
+            }
+
+            AssignBattleInstanceIdIfNeeded(host);
+            ApplyDuringLinkAllyFieldStatFromBlocks(host, ownerType, host.Data.timedEffects, isPilotSource: false);
+
+            CardController pilot = host.MountedPilot;
+            if (pilot?.Data?.timedEffects != null)
+            {
+                ApplyDuringLinkAllyFieldStatFromBlocks(host, ownerType, pilot.Data.timedEffects, isPilotSource: true);
+            }
+        }
+    }
+
+    private void ApplyDuringLinkAllyFieldStatFromBlocks(
+        CardController host,
+        PlayerType ownerType,
+        IList<TimedEffectData> blocks,
+        bool isPilotSource)
+    {
+        if (host == null || blocks == null)
+        {
+            return;
+        }
+
+        CardController pilot = host.MountedPilot;
+        for (int bi = 0; bi < blocks.Count; bi++)
+        {
+            TimedEffectData timed = blocks[bi];
+            if (timed == null || !timed.IsDuringLinkAllyFieldStatPassiveBlock())
+            {
+                continue;
+            }
+
+            if (pilot == null)
+            {
+                continue;
+            }
+
+            // GD06-085 は RefreshGymGhingnhamOpponentTurnApBuff が自身込みで付与する（二重加算しない）
+            if (isPilotSource && IsGymGhingnhamPilotCard(pilot.Data))
+            {
+                continue;
+            }
+
+            EffectActivationContext ctx = isPilotSource
+                ? BuildPilotMountActivationContext(ownerType, pilot, host, pilot)
+                : BuildOwnerTurnFieldPassiveActivationContext(ownerType, host, timed);
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            string sourceKey = MakeDuringLinkAllyFieldSourceKey(host, bi, isPilotSource);
+            if (string.IsNullOrEmpty(sourceKey))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int ei = 0; ei < effects.Count; ei++)
+            {
+                EffectData effect = effects[ei];
+                if (effect == null
+                    || (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+                    || (effect.target != TargetType.AllyAllUnits && effect.target != TargetType.AllyOtherUnit))
+                {
+                    continue;
+                }
+
+                int magnitude = ResolveEffectMagnitude(effect, ownerType, host);
+                if (magnitude == 0)
+                {
+                    continue;
+                }
+
+                int signedValue = (effect.type == EffectType.Buff ? 1 : -1) * magnitude;
+                List<CardController> targets = ResolveEffectTargets(host, ownerType, effect);
+                Debug.Log(
+                    $"[LinkAllyField] {host.Data?.cardName} pilot:{pilot.Data?.cardName} "
+                    + $"{effect.type} {signedValue} targets:{targets.Count} ownerTurn:{ownerType == currentPlayerType}");
+                for (int ti = 0; ti < targets.Count; ti++)
+                {
+                    CardController target = targets[ti];
+                    if (target == null)
+                    {
+                        continue;
+                    }
+
+                    ApplyStatEffect(
+                        target,
+                        signedValue,
+                        effect.statTarget,
+                        EffectDuration.Permanent,
+                        sourceKey);
+                }
+            }
+        }
+    }
+
     private void ClearAllOwnerTurnFieldPassiveModifiers()
     {
         HashSet<string> keys = new HashSet<string>();
@@ -617,16 +977,26 @@ public partial class BattleGameMain
 
     private static bool UnitHasFieldOwnerTurnStatPassiveBlock(CardController unit)
     {
-        if (unit?.Data?.timedEffects == null)
+        if (TimedListHasFieldTurnStatPassive(unit?.Data?.timedEffects))
+        {
+            return true;
+        }
+
+        return TimedListHasFieldTurnStatPassive(unit?.MountedPilot?.Data?.timedEffects);
+    }
+
+    private static bool TimedListHasFieldTurnStatPassive(IList<TimedEffectData> timedEffects)
+    {
+        if (timedEffects == null)
         {
             return false;
         }
 
-        for (int i = 0; i < unit.Data.timedEffects.Count; i++)
+        for (int i = 0; i < timedEffects.Count; i++)
         {
-            if (unit.Data.timedEffects[i] != null
-                && (IsOwnerTurnFieldPassiveTimedBlock(unit.Data.timedEffects[i])
-                    || IsOnPilotMountedAllyFieldStatBlock(unit.Data.timedEffects[i])))
+            if (timedEffects[i] != null
+                && (IsOwnerTurnFieldPassiveTimedBlock(timedEffects[i])
+                    || IsOnPilotMountedAllyFieldStatBlock(timedEffects[i])))
             {
                 return true;
             }
@@ -647,27 +1017,46 @@ public partial class BattleGameMain
         for (int ui = 0; ui < zone.Count; ui++)
         {
             CardController unit = zone[ui];
-            if (unit?.Data?.timedEffects == null)
+            if (unit == null)
             {
                 continue;
             }
 
-            for (int bi = 0; bi < unit.Data.timedEffects.Count; bi++)
-            {
-                TimedEffectData timed = unit.Data.timedEffects[bi];
-                if (timed == null
-                    || (!IsOwnerTurnFieldPassiveTimedBlock(timed)
-                        && !IsOnPilotMountedAllyFieldStatBlock(timed)
-                        && !(IsProvidenceZaftHost(unit) && IsZaftDuringPairAllyApBuffBlock(timed))))
-                {
-                    continue;
-                }
+            CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(unit, unit.Data?.timedEffects, 0, keys);
+            CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(
+                unit,
+                unit.MountedPilot?.Data?.timedEffects,
+                1000,
+                keys);
+        }
+    }
 
-                string key = MakeOwnerTurnFieldPassiveSourceKey(unit, bi);
-                if (!string.IsNullOrEmpty(key))
-                {
-                    keys.Add(key);
-                }
+    private static void CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(
+        CardController unit,
+        IList<TimedEffectData> timedEffects,
+        int blockIndexOffset,
+        HashSet<string> keys)
+    {
+        if (unit == null || timedEffects == null || keys == null)
+        {
+            return;
+        }
+
+        for (int bi = 0; bi < timedEffects.Count; bi++)
+        {
+            TimedEffectData timed = timedEffects[bi];
+            if (timed == null
+                || (!IsOwnerTurnFieldPassiveTimedBlock(timed)
+                    && !IsOnPilotMountedAllyFieldStatBlock(timed)
+                    && !(IsProvidenceZaftHost(unit) && IsZaftDuringPairAllyApBuffBlock(timed))))
+            {
+                continue;
+            }
+
+            string key = MakeOwnerTurnFieldPassiveSourceKey(unit, blockIndexOffset + bi);
+            if (!string.IsNullOrEmpty(key))
+            {
+                keys.Add(key);
             }
         }
     }
@@ -693,14 +1082,7 @@ public partial class BattleGameMain
 
     private void RefreshFieldOwnerTurnPassivesForSide(PlayerType side, bool syncOnlineBatch = true)
     {
-        if (side != currentPlayerType)
-        {
-            return;
-        }
-
-        // オンラインでも currentPlayerType 側のローカル再計算は行う。
-        // 以前の「Player のみ」ガードだと、受信側（相手ターン=Enemy）でガンダム等の再付与が走らず
-        // 相手盤面にバフが乗らない。送信可否は Begin/ShouldSyncOnlineEffects 側で制限する。
+        // 自ターン限定はターンプレイヤー側、相手ターン限定（GD06-085 等）は非ターン側を再付与する。
 
         List<CardController> zone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
         if (zone == null)
@@ -711,7 +1093,7 @@ public partial class BattleGameMain
         for (int ui = 0; ui < zone.Count; ui++)
         {
             CardController unit = zone[ui];
-            if (unit == null || unit.Data == null || unit.Data.timedEffects == null)
+            if (unit == null || unit.Data == null)
             {
                 continue;
             }
@@ -732,9 +1114,10 @@ public partial class BattleGameMain
                 ApplyZaftDuringPairAllyApBuff(unit, unit.MountedPilot, side);
             }
 
-            for (int bi = 0; bi < unit.Data.timedEffects.Count; bi++)
+            IList<TimedEffectData> unitTimed = unit.Data.timedEffects;
+            for (int bi = 0; unitTimed != null && bi < unitTimed.Count; bi++)
             {
-                TimedEffectData timed = unit.Data.timedEffects[bi];
+                TimedEffectData timed = unitTimed[bi];
                 if (timed == null)
                 {
                     continue;
@@ -746,8 +1129,18 @@ public partial class BattleGameMain
                     continue;
                 }
 
+                if (timed.IsDuringLinkAllyFieldStatPassiveBlock())
+                {
+                    continue;
+                }
+
                 if (!IsOwnerTurnFieldPassiveTimedBlock(timed)
                     && !IsOnPilotMountedAllyFieldStatBlock(timed))
+                {
+                    continue;
+                }
+
+                if (!ShouldApplyFieldTurnStatPassiveForSide(timed, side))
                 {
                     continue;
                 }
@@ -785,6 +1178,41 @@ public partial class BattleGameMain
                 }
 
                 ApplyOwnerTurnFieldStatPassiveBlock(unit, side, timed, bi, syncOnlineBatch);
+            }
+
+            IList<TimedEffectData> pilotTimed = unit.MountedPilot?.Data?.timedEffects;
+            bool skipGymPilotFieldPassive = IsGymGhingnhamPilotCard(unit.MountedPilot?.Data);
+            for (int bi = 0; !skipGymPilotFieldPassive && pilotTimed != null && bi < pilotTimed.Count; bi++)
+            {
+                TimedEffectData timed = pilotTimed[bi];
+                if (timed == null)
+                {
+                    continue;
+                }
+
+                if (timed.IsDuringLinkAllyFieldStatPassiveBlock())
+                {
+                    continue;
+                }
+
+                if (!IsOwnerTurnFieldPassiveTimedBlock(timed)
+                    && !IsOnPilotMountedAllyFieldStatBlock(timed))
+                {
+                    continue;
+                }
+
+                if (!ShouldApplyFieldTurnStatPassiveForSide(timed, side))
+                {
+                    continue;
+                }
+
+                EffectActivationContext ctx = BuildOwnerTurnFieldPassiveActivationContext(side, unit, timed);
+                if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+                {
+                    continue;
+                }
+
+                ApplyOwnerTurnFieldStatPassiveBlock(unit, side, timed, 1000 + bi, syncOnlineBatch);
             }
         }
     }
