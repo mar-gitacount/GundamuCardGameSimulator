@@ -5067,6 +5067,36 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0916d0600000000000000000000003c
+    m_Address: Data/Images/GD06-091_Roux Louka
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0856d0600000000000000000000003d
+    m_Address: Data/Images/GD06-085_Gym Ghingnham
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0196d0600000000000000000000003e
+    m_Address: Data/Images/GD06-019_Turn X
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1126d0600000000000000000000003f
+    m_Address: Data/Images/GD06-112_Rivalry with Roux Elle Vianno
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0686d06000000000000000000000040
+    m_Address: Data/Images/GD06-068_Gundam Heavyarms Custom (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0676d06000000000000000000000041
+    m_Address: Data/Images/GD06-067_Gundam Sandrock Custom (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

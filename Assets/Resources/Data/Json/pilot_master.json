@@ -875,6 +875,18 @@
             "pilotKey": "South_Burning",
             "displayName": "サウス・バニング",
             "description": ""
+        },
+        {
+            "id": 147,
+            "pilotKey": "Roux_Louka",
+            "displayName": "ルー・ルカ",
+            "description": ""
+        },
+        {
+            "id": 148,
+            "pilotKey": "Elle_Vianno",
+            "displayName": "エル・ビアンノ",
+            "description": ""
         }
     ]
 }

@@ -6399,6 +6399,142 @@
                     "deployUnitPayCost": false
                 }
             ]
+        },
+        {
+            "effectSetName": "Breach1_WhileHostIsAeug",
+            "displayName": "このユニットが〔エゥーゴ〕の間、《突破1》を得る",
+            "effects": [
+                {
+                    "type": 31,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAp1_AllAllyGhingnhamFleetUnits_NotOwnerTurn",
+            "displayName": "【リンク中・相手のターン】味方〔ギンガム艦隊〕ユニット全体を AP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetFeatureId": 83
+                }
+            ]
+        },
+        {
+            "effectSetName": "ForceEnemyAttackRestedAllyTokens",
+            "displayName": "相手ユニットは可能なら味方のレスト・ユニットトークンを攻撃対象に選ぶ",
+            "effects": [
+                {
+                    "type": 35,
+                    "value": 0,
+                    "target": 9,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "requireTargetIsRest": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployRestedTurnXArmsAndLegsTokensIfNoGhingnhamFleetTokens",
+            "displayName": "【アタック】味方に〔ギンガム艦隊〕ユニットトークンがないなら、アームズとレッグスをレストで配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000846,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": true
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000847,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyUnitBattlingFriendlyAeug_SelectSingle",
+            "displayName": "味方〔エゥーゴ〕とバトル中の相手ユニット1つに2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetFeatureId": 41,
+                    "requireTargetBattlingFriendlyFeature": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyLv3OrLess_ThenApMinus2IfOtherGTeamOrPreventer",
+            "displayName": "Lv.3以下の相手ユニット1つをレスト。他に〔Gチーム〕または〔プリベンター〕がいればそのユニットをこのターン AP-2",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 4,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": 0,
+                            "checkKind": 54,
+                            "turnCheck": -1,
+                            "featureId": 0,
+                            "featureIds": [37, 55],
+                            "minimumCount": 1,
+                            "compareOp": 0,
+                            "compareValue": 0
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

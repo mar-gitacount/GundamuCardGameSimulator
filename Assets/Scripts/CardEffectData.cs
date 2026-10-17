@@ -1617,6 +1617,11 @@ public class EffectData
     public bool requireTargetIsRest;
 
     [Tooltip(
+        "true のとき、味方の targetFeature（未指定時は targetFeatureId）ユニットと"
+        + "現在バトル中の相手ユニットのみ対象（GD06-112 等）。")]
+    public bool requireTargetBattlingFriendlyFeature;
+
+    [Tooltip(
         "true のとき OnAttack の攻撃対象限定効果を戦闘前ではなく、"
         + "その攻撃で相手ユニットへバトルダメージを与えたあとに解決する（Exia Repair 等）。")]
     public bool resolveAfterDealtBattleDamage;
@@ -2962,7 +2967,8 @@ public static class TimedEffectDataExtensions
             return true;
         }
 
-        if (timed.IsFieldOwnerTurnStatPassiveBlock())
+        if (timed.IsFieldOwnerTurnStatPassiveBlock()
+            || timed.IsFieldNotOwnerTurnStatPassiveBlock())
         {
             return true;
         }
@@ -3021,6 +3027,26 @@ public static class TimedEffectDataExtensions
         return false;
     }
 
+    /// <summary>activationConditions に「相手ターンのみ」(NotOwnerTurn) が含まれるか。</summary>
+    public static bool HasNotOwnerTurnActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.turnCheck == EffectTurnCheckKind.NotOwnerTurn)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// OnPilotMounted + 自ターン + 味方全体等の盤面 Buff/Debuff。
     /// <see cref="IsFieldOwnerTurnStatPassiveBlock"/> と同等だが、分類漏れ時のフォールバックにも使う。
@@ -3066,6 +3092,39 @@ public static class TimedEffectDataExtensions
     public static bool IsFieldOwnerTurnStatPassiveBlock(this TimedEffectData timed)
     {
         if (timed == null || !timed.HasOwnerTurnActivationRequirement() || timed.IsHandConditionalPassiveBlock())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+            {
+                continue;
+            }
+
+            if (effect.target == TargetType.Self)
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>盤面ユニットへ掛ける相手ターン限定 Buff/Debuff（GD06-085 ギンガム等）。</summary>
+    public static bool IsFieldNotOwnerTurnStatPassiveBlock(this TimedEffectData timed)
+    {
+        if (timed == null || !timed.HasNotOwnerTurnActivationRequirement() || timed.IsHandConditionalPassiveBlock())
         {
             return false;
         }
@@ -3230,8 +3289,10 @@ public static class TimedEffectDataExtensions
             return false;
         }
 
-        // 自ターン盤面オーラは RefreshFieldOwnerTurnPassives で維持する（配備時ワンショットにしない）
-        if (timed.IsFieldOwnerTurnStatPassiveBlock())
+        // 自ターン／相手ターン盤面オーラは RefreshFieldOwnerTurnPassives で維持する（配備時ワンショットにしない）
+        if (timed.IsFieldOwnerTurnStatPassiveBlock()
+            || timed.IsFieldNotOwnerTurnStatPassiveBlock()
+            || timed.IsDuringLinkAllyFieldStatPassiveBlock())
         {
             return false;
         }
@@ -3338,6 +3399,51 @@ public static class TimedEffectDataExtensions
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 【リンク中】味方全体／他味方への Buff/Debuff（Julieta 自ターン、GD06-085 相手ターン等）。
+    /// RefreshDuringLinkAllyFieldStatPassives で維持する。
+    /// </summary>
+    public static bool IsDuringLinkAllyFieldStatPassiveBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || !timed.HasResolvedEffects()
+            || !timed.HasSourceUnitIsLinkedActivationRequirement()
+            || timed.IsHandConditionalPassiveBlock())
+        {
+            return false;
+        }
+
+        IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type != EffectType.Buff && effect.type != EffectType.Debuff)
+            {
+                continue;
+            }
+
+            if (effect.target != TargetType.AllyAllUnits
+                && effect.target != TargetType.AllyOtherUnit)
+            {
+                continue;
+            }
+
+            if (effect.selectionMode.RequiresManualUnitPick())
+            {
+                continue;
+            }
+
+            return true;
         }
 
         return false;

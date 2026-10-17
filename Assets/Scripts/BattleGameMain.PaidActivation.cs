@@ -577,6 +577,12 @@ public partial class BattleGameMain
             return false;
         }
 
+        // GD06-112: 味方〔エゥーゴ〕とバトル中の相手ユニットがいるときのみアクション可
+        if (source?.Data?.id == 1000857 && !CanActivateGd06112RivalryOnAction(side, source, timed))
+        {
+            return false;
+        }
+
         // ST07-013 武力介入：相手の攻撃アクション中かつ REST〔CB〕がいるときのみ
         if (IsArmedInterventionCard(source?.Data) && !CanPlayArmedInterventionCommandNow(side, source))
         {
@@ -669,6 +675,32 @@ public partial class BattleGameMain
         int requiredLevel = IsOnActionActivatedFromField(source, side) ? 0 : source.CurrentLevel;
         return gundamRule != null
             && gundamRule.CanPlayCardWithAnyEx(ToRuleSide(side), requiredLevel, cost);
+    }
+
+    /// <summary>GD06-112: 味方〔エゥーゴ〕とユニットバトル中の相手が1体以上いるか。</summary>
+    private bool CanActivateGd06112RivalryOnAction(PlayerType side, CardController source, TimedEffectData timed)
+    {
+        CardController attacking = _actionStepSession != null ? _actionStepSession.AttackingUnit : attackFlowAttackerUnit;
+        PrepareOnActionCombatContextForUi(attacking);
+
+        IReadOnlyList<EffectData> resolved = timed != null ? timed.GetResolvedEffects() : null;
+        if (resolved == null || resolved.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            EffectData effect = resolved[i];
+            if (effect == null || effect.type != EffectType.Damage)
+            {
+                continue;
+            }
+
+            return ResolveSelectableEffectTargets(source, side, effect).Count > 0;
+        }
+
+        return false;
     }
 
     private bool IsOnActionOncePerTurnAvailable(PlayerType side, CardController source)
