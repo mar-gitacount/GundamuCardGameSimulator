@@ -33,7 +33,8 @@ public partial class BattleGameMain
         ChooseToDeckTopThenTrashRemainder,
         ChooseToHandThenTrashRemainder,
         ChooseToDeckTopThenBottomRemainder,
-        DeployToBattle
+        DeployToBattle,
+        MountPilotToSource
     }
 
     private sealed class LookResolutionContext
@@ -445,6 +446,7 @@ public partial class BattleGameMain
     {
         return OnLookBlocksContainEffectType(blocks, EffectType.AddToHandFromLooked)
             || OnLookBlocksContainEffectType(blocks, EffectType.DeployUnitFromLooked)
+            || OnLookBlocksContainEffectType(blocks, EffectType.MountPilotFromLooked)
             || OnLookBlocksContainEffectType(blocks, EffectType.ChooseLookedToDeckTopThenTrashRemainder)
             || OnLookBlocksContainEffectType(blocks, EffectType.ChooseLookedToDeckTopThenBottomRemainder);
     }
@@ -541,6 +543,15 @@ public partial class BattleGameMain
         if (effect.type == EffectType.DeployUnitFromLooked)
         {
             ApplyDeployUnitFromLookedEffect(
+                context,
+                effect,
+                () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.MountPilotFromLooked)
+        {
+            ApplyMountPilotFromLookedEffect(
                 context,
                 effect,
                 () => TryExecuteOnLookEffectChain(context, effects, index + 1, onDone));
@@ -884,6 +895,159 @@ public partial class BattleGameMain
         Debug.Log(
             $"[Effect] DeployUnitFromLooked {entry.Data.cardName}(id:{entry.CardId}) → {recipient} "
             + $"by cardId:{context.SourceCard?.Data?.id}");
+    }
+
+    /// <summary>見た山札から条件に合うパイロットを発動元ユニットへセットしてもよい。</summary>
+    private void ApplyMountPilotFromLookedEffect(
+        LookResolutionContext context,
+        EffectData effect,
+        System.Action onComplete)
+    {
+        if (context == null || effect == null || context.Entries.Count == 0)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        CardController host = context.SourceCard;
+        if (host == null || !host.CanMountPilot())
+        {
+            Debug.Log("[OnLook] MountPilotFromLooked: 搭乗先がセット不可 — スキップ");
+            onComplete?.Invoke();
+            return;
+        }
+
+        int magnitude = ResolveEffectMagnitude(effect, context.OwnerType, context.SourceCard);
+        int pickCount = magnitude > 0 ? magnitude : 1;
+        List<LookedDeckEntry> selectable = FilterLookedEntriesForMountPilotEffect(context.Entries, effect);
+        string filterLabel = FormatLookedDeployFilterLabel(effect);
+
+        if (context.OwnerType == PlayerType.Enemy)
+        {
+            BeginOnlineEffectSyncBatch(context.OwnerType);
+            if (selectable.Count > 0)
+            {
+                TakeLookedEntryToMountOnSource(context, selectable[0]);
+            }
+
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            InvokeAfterOnlineDeployConfirmIfNeeded(onComplete);
+            return;
+        }
+
+        if (selectable.Count == 0)
+        {
+            ShowLookDeckViewOnlyPopup(
+                context,
+                onComplete,
+                GameLocale.T(
+                    $"セットできるパイロットなし（条件:{filterLabel}）",
+                    $"No pairing pilots matched \"{filterLabel}\""));
+            return;
+        }
+
+        string subtitle = GameLocale.T(
+            $"〔Biological CPU〕パイロットをこのユニットにセットしてもよい（最大{pickCount}枚）",
+            $"You may pair up to {pickCount} matching Pilot(s) with this Unit");
+        ShowLookDeckPopupCore(
+            context,
+            selectable,
+            pickCount,
+            handOwner: context.OwnerType,
+            handRule: null,
+            addEffect: effect,
+            onComplete,
+            subtitle,
+            LookDeckPickCommitKind.MountPilotToSource,
+            allowSkip: true);
+    }
+
+    private static List<LookedDeckEntry> FilterLookedEntriesForMountPilotEffect(
+        List<LookedDeckEntry> entries,
+        EffectData effect)
+    {
+        List<LookedDeckEntry> result = new List<LookedDeckEntry>();
+        if (entries == null)
+        {
+            return result;
+        }
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            LookedDeckEntry entry = entries[i];
+            if (entry?.Data == null || !entry.Data.IsPilot())
+            {
+                continue;
+            }
+
+            if (effect.MatchesLookedCardDataFeatureFilter(entry.Data))
+            {
+                result.Add(entry);
+            }
+        }
+
+        return result;
+    }
+
+    private void TakeLookedEntryToMountOnSource(LookResolutionContext context, LookedDeckEntry entry)
+    {
+        if (context?.DeckRule == null || entry?.Data == null || context.SourceCard == null)
+        {
+            return;
+        }
+
+        CardController host = context.SourceCard;
+        if (!host.CanMountPilot() || !entry.Data.IsPilot() || CardImagePrefab == null)
+        {
+            return;
+        }
+
+        if (!context.DeckRule.TryTakeCardById(entry.CardId, out _))
+        {
+            Debug.LogWarning($"[OnLook] MountPilotFromLooked 山札取得失敗 id:{entry.CardId}");
+            return;
+        }
+
+        context.TakenCardIds.Add(entry.CardId);
+
+        GameObject pilotObject = Instantiate(CardImagePrefab, host.transform);
+        CardController pilotController = pilotObject.GetComponent<CardController>();
+        if (pilotController == null)
+        {
+            Destroy(pilotObject);
+            return;
+        }
+
+        pilotController.SetUp(entry.Data, OnCardClicked);
+        if (!host.TryAttachPilot(pilotController))
+        {
+            Destroy(pilotObject);
+            Debug.LogWarning(
+                $"[OnLook] MountPilotFromLooked TryAttachPilot 失敗 host:{host.Data?.cardName}");
+            return;
+        }
+
+        PlayerType ownerType = context.OwnerType;
+        ApplyOnPilotMountedAllyBuffsDirect(host, pilotController, ownerType);
+        if (ownerType == PlayerType.Player)
+        {
+            NotifyLocalPilotMounted(host, pilotController);
+        }
+
+        ApplyUnitAttackFlgFromLink(host, ownerType);
+        TryGrantOperationMeteorFirstStrikeOnPilotMount(host, pilotController, ownerType);
+        TriggerOnPilotMountedEffects(host, pilotController, ownerType, () =>
+        {
+            TriggerOnLinkEffects(host, pilotController, ownerType, () =>
+            {
+                TriggerOnPlayedEffects(pilotController, ownerType, RefreshAllHandsConditionalOnHandAuto);
+            });
+        });
+
+        Debug.Log(
+            $"[Effect] MountPilotFromLooked {entry.Data.cardName}(id:{entry.CardId}) → "
+            + $"{host.Data?.cardName} by cardId:{host.Data?.id}");
     }
 
     /// <summary>手札追加後、必要なら相手公開してから OnLook チェーンを続行する。</summary>
@@ -1902,6 +2066,20 @@ public partial class BattleGameMain
                 for (int i = 0; i < pendingPicks.Count; i++)
                 {
                     TakeLookedEntryToBattle(context, addEffect, pendingPicks[i]);
+                }
+
+                FlushOnlineEffectSyncBatch();
+                SyncAllResourceViewsFromRule();
+                ClosePopup();
+                return;
+            }
+
+            if (commitKind == LookDeckPickCommitKind.MountPilotToSource)
+            {
+                BeginOnlineEffectSyncBatch(context.OwnerType);
+                for (int i = 0; i < pendingPicks.Count; i++)
+                {
+                    TakeLookedEntryToMountOnSource(context, pendingPicks[i]);
                 }
 
                 FlushOnlineEffectSyncBatch();

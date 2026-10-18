@@ -1873,6 +1873,73 @@ public partial class BattleGameMain
         return applied > 0;
     }
 
+    private bool TryApplyGrantTurnEndActivateResource(EffectData effect, CardController sourceCard)
+    {
+        if (effect == null
+            || effect.type != EffectType.GrantTurnEndActivateResource
+            || sourceCard == null
+            || sourceCard.Data == null
+            || !sourceCard.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        int amount = effect.value > 0 ? effect.value : 2;
+        GrantTurnEndActivateResourceIfUnset(sourceCard, amount);
+        GrantTurnEndActivateResourceToOtherFriendlyCopies(sourceCard, amount);
+        return true;
+    }
+
+    /// <summary>
+    /// 同名ユニットが後から出たとき、先に出ていたコピーにも「他に〔特徴〕がいれば」の終了時効果を付与する。
+    /// 既に付与済みのコピーは重ねない。
+    /// </summary>
+    private void GrantTurnEndActivateResourceToOtherFriendlyCopies(CardController sourceCard, int amount)
+    {
+        if (sourceCard?.Data == null || amount <= 0)
+        {
+            return;
+        }
+
+        PlayerType owner = ResolveCardOwner(sourceCard.transform);
+        List<CardController> zone = owner == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        if (zone == null)
+        {
+            return;
+        }
+
+        int sourceId = sourceCard.Data.id;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null
+                || unit == sourceCard
+                || unit.Data == null
+                || unit.Data.id != sourceId
+                || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            GrantTurnEndActivateResourceIfUnset(unit, amount);
+        }
+    }
+
+    private static void GrantTurnEndActivateResourceIfUnset(CardController unit, int amount)
+    {
+        if (unit == null || amount <= 0 || unit.GetTurnEndActivateResourceBonus() > 0)
+        {
+            return;
+        }
+
+        unit.AddTurnEndActivateResourceBonus(amount);
+        Debug.Log(
+            $"[GrantTurnEndActivateResource] {unit.Data?.cardName}(id:{unit.Data?.id}) "
+            + $"+{amount} (total:{unit.GetTurnEndActivateResourceBonus()})");
+    }
+
     private void ClearBreachUntilEndOfTurnGrantsForAllInPlayUnits()
     {
         ClearBreachUntilEndOfTurnGrantsOnZone(playerBattleZoneCards);

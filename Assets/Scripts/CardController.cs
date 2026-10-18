@@ -1016,6 +1016,27 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         _turnEndRepairBonus = 0;
     }
 
+    /// <summary>効果で付与されるターン終了時リソースアクティブ化枚数。</summary>
+    private int _turnEndActivateResourceBonus;
+
+    public void AddTurnEndActivateResourceBonus(int amount)
+    {
+        if (amount > 0)
+        {
+            _turnEndActivateResourceBonus += amount;
+        }
+    }
+
+    public void ClearTurnEndActivateResourceBonus()
+    {
+        _turnEndActivateResourceBonus = 0;
+    }
+
+    public int GetTurnEndActivateResourceBonus()
+    {
+        return Mathf.Max(0, _turnEndActivateResourceBonus);
+    }
+
     /// <summary>ターン終了時に回復する合計量（カード定義 isRepair + 付与分）。</summary>
     public int GetTurnEndRepairAmount()
     {

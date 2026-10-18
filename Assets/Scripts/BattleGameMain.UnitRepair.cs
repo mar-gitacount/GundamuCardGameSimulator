@@ -224,6 +224,62 @@ public partial class BattleGameMain
     }
 
     /// <summary>
+    /// ターン終了時、付与されたリソースアクティブ化をオーナー側に解決する。
+    /// </summary>
+    private void ApplyTurnEndActivateResourceBonusesForSide(PlayerType endingTurnSide)
+    {
+        List<CardController> zone = endingTurnSide == PlayerType.Player
+            ? playerBattleZoneCards
+            : enemyBattleZoneCards;
+        if (zone == null || gundamRule == null)
+        {
+            return;
+        }
+
+        int total = 0;
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(endingTurnSide);
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            int amount = unit.GetTurnEndActivateResourceBonus();
+            if (amount <= 0)
+            {
+                continue;
+            }
+
+            unit.ClearTurnEndActivateResourceBonus();
+            for (int n = 0; n < amount; n++)
+            {
+                if (!gundamRule.TryActivateRestedResource(side, 1))
+                {
+                    break;
+                }
+
+                total++;
+            }
+        }
+
+        if (total <= 0)
+        {
+            return;
+        }
+
+        MarkOwnerActivatedResourceByEffectThisTurn(endingTurnSide);
+        SyncResourceViewsFromRule(side);
+        if (side == Gundam2024RuleScript.PlayerSide.Player)
+        {
+            NotifyLocalPlayerResourceSnapshotAfterCost();
+        }
+
+        Debug.Log($"[TurnEndActivateResource] x{total} side:{endingTurnSide}");
+    }
+
+    /// <summary>
     /// ターン終了リペア適用後、効果付与分のボーナスを解除し SyncTurnEndRepairBonus を再計算する。
     /// </summary>
     private void ClearTemporaryTurnEndRepairBonusesForAllInPlay()
@@ -254,6 +310,7 @@ public partial class BattleGameMain
         if (card != null)
         {
             card.ClearTurnEndRepairBonus();
+            card.ClearTurnEndActivateResourceBonus();
         }
     }
 

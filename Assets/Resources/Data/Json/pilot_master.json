@@ -905,6 +905,12 @@
             "pilotKey": "Merrybell_Gadget",
             "displayName": "メリーベル・ガジェット",
             "description": ""
+        },
+        {
+            "id": 152,
+            "pilotKey": "Poe_Aijee",
+            "displayName": "ポゥ・エイジ",
+            "description": ""
         }
     ]
 }

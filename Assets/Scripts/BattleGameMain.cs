@@ -4218,6 +4218,7 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             ApplyTurnEndRepairForAllInPlayUnits();
+            ApplyTurnEndActivateResourceBonusesForSide(endingTurnSide);
             ClearTemporaryTurnEndRepairBonusesForAllInPlay();
             // アクション → リペアのあと、手札上限（10枚）まで捨てる（捨て札は相手に公開）
             yield return CoEnforceEndPhaseHandSizeLimit(endingTurnSide);
@@ -8221,6 +8222,14 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (TryApplyGrantTurnEndActivateResource(effect, sourceCard))
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.MarkObservedUnit)
         {
             RegisterObservedUnitWatch(sourceCard, ownerType, effect, targets);
@@ -11604,6 +11613,16 @@ public partial class BattleGameMain : MonoBehaviour
         {
             TryResolveOnDealtBattleDamageFromSource(attacker.MountedPilot, attackerOwner, defender, attacker);
         }
+
+        PlayerType defenderOwner = attackerOwner == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        TriggerObservedUnitWatchEffects(
+            defender,
+            defenderOwner,
+            attacker,
+            attackerOwner,
+            ObservedUnitTriggerKind.DealtBattleDamageToEnemyUnit,
+            onComplete: null,
+            destroyedByBattleDamage: true);
     }
 
     private void TryResolveOnDealtBattleDamageFromSource(
@@ -15619,6 +15638,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.GrantTurnEndActivateResource)
+        {
+            TryApplyGrantTurnEndActivateResource(effect, sourceCard);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
@@ -15692,6 +15720,11 @@ public partial class BattleGameMain : MonoBehaviour
             case EffectType.DeployUnitFromLooked:
                 Debug.LogWarning(
                     $"[Effect] DeployUnitFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
+                break;
+
+            case EffectType.MountPilotFromLooked:
+                Debug.LogWarning(
+                    $"[Effect] MountPilotFromLooked は OnLook 専用です (cardId:{sourceCard?.Data?.id})。");
                 break;
 
             case EffectType.ReturnLookedRemainderToDeckTop:
@@ -17407,6 +17440,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (effect.type == EffectType.Draw || effect.type == EffectType.Look || effect.type == EffectType.AddToHandFromLooked
             || effect.type == EffectType.DeployUnitFromLooked
+            || effect.type == EffectType.MountPilotFromLooked
             || effect.type == EffectType.ReturnLookedRemainderToDeckTop
             || effect.type == EffectType.ShuffleLookedRemainderToDeckBottom
             || effect.type == EffectType.ChooseLookedRemainderDisposition
@@ -18002,6 +18036,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (eff.type == EffectType.Draw || eff.type == EffectType.Look || eff.type == EffectType.AddToHandFromLooked
                 || eff.type == EffectType.DeployUnitFromLooked
+                || eff.type == EffectType.MountPilotFromLooked
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.ChooseLookedRemainderDisposition

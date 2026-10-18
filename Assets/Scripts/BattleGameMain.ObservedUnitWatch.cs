@@ -353,6 +353,22 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect.type == EffectType.Destroy
+            && effect.resolveAfterDealtBattleDamage
+            && triggerContextUnit != null)
+        {
+            List<CardController> singleTarget = new List<CardController> { triggerContextUnit };
+            FilterTargetsByUnitCondition(singleTarget, effect, sourceCard, ownerType);
+            if (singleTarget.Count > 0)
+            {
+                ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, singleTarget);
+            }
+
+            TryExecuteOnObservedUnitTriggerEffectChain(
+                sourceCard, ownerType, actingUnit, triggerContextUnit, effects, index + 1, onDone);
+            return;
+        }
+
         EffectActivationContext activationContext =
             BuildObservedUnitTriggerActivationContext(ownerType, sourceCard, actingUnit, triggerContextUnit);
         if (!ShouldApplyChainedEffect(effect, activationContext, "OnObservedUnitTrigger"))
