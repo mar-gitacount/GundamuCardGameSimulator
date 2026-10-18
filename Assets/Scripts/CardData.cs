@@ -38,6 +38,10 @@ public class CardData : ScriptableObject
 
     public FilterType filterType;
     public CardColor color;
+    [Tooltip("true のとき secondaryColor を第2色として扱う（白青など）。")]
+    public bool hasSecondaryColor;
+    [Tooltip("2色カードの第2色。hasSecondaryColor が true のときだけ有効。")]
+    public CardColor secondaryColor;
     [Tooltip("カード種類（ユニット / パイロット / コマンド / ベース / EXリソース / ユニットトークン / コマンドパイロット）。")]
     public Type type;
 
@@ -126,6 +130,36 @@ public class CardData : ScriptableObject
         }
 
         return string.IsNullOrWhiteSpace(gcgOfficialId) ? string.Empty : gcgOfficialId.Trim();
+    }
+
+    /// <summary>主色または第2色が query と一致するか。</summary>
+    public bool HasColor(CardColor query)
+    {
+        if (color == query)
+        {
+            return true;
+        }
+
+        return hasSecondaryColor && secondaryColor == query;
+    }
+
+    /// <summary>デッキ色判定用。Colorless は追加しない。</summary>
+    public void AddColorsTo(HashSet<CardColor> destination)
+    {
+        if (destination == null)
+        {
+            return;
+        }
+
+        if (color != CardColor.Colorless)
+        {
+            destination.Add(color);
+        }
+
+        if (hasSecondaryColor && secondaryColor != CardColor.Colorless)
+        {
+            destination.Add(secondaryColor);
+        }
     }
 
     public bool HasGcgStNum()

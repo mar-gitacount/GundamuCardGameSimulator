@@ -6618,6 +6618,97 @@
                     "compareTargetStatToMountHostUnit": true
                 }
             ]
+        },
+        {
+            "effectSetName": "RestEnemyUnitLv3OrLess_SelectSingle",
+            "displayName": "敵ユニット(Lv3以下)1体をREST",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "EffectBattleEnemyAp3OrLess_SelectSingle",
+            "displayName": "AP3以下の敵ユニット1体とダメージステップのみのバトル",
+            "effects": [
+                {
+                    "type": 30,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAttackActiveEnemy_AllyGhingnhamFleet_EnemyLv4OrLess_UntilEOT",
+            "displayName": "〔ギンガム艦隊〕味方1体に、Lv.4以下のACTIVE敵ユニットへの攻撃許可（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "targetFeatureId": 83,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyUnitHp5OrLess_SelectSingle",
+            "displayName": "HP5以下の敵ユニット1体をREST",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyUnitHp3OrLess_Optional_SelectSingle",
+            "displayName": "HP3以下の敵ユニット1体を手札に戻してもよい",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "HighMobility_WhileLinkedAndHostHasRepair",
+            "displayName": "【リンク中】ホストが《リペア》なら《高機動》",
+            "effects": [
+                {
+                    "type": 11,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "duration": 0
+                }
+            ]
         }
     ]
 }

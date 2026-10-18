@@ -899,6 +899,12 @@
             "pilotKey": "Neo_Lorrnoke",
             "displayName": "ネオ・ロルノーク",
             "description": ""
+        },
+        {
+            "id": 151,
+            "pilotKey": "Merrybell_Gadget",
+            "displayName": "メリーベル・ガジェット",
+            "description": ""
         }
     ]
 }
