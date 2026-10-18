@@ -499,6 +499,12 @@
             "description": ""
         },
         {
+            "id": 84,
+            "featureKey": "Biological_CPU",
+            "displayName": "Biological CPU",
+            "description": ""
+        },
+        {
             "id": 10000,
             "featureKey": "test",
             "displayName": "test",

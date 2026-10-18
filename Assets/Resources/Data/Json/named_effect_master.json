@@ -6709,6 +6709,182 @@
                     "duration": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "OnLook_MountBiologicalCpuPilot1_Optional",
+            "displayName": "OnLook：〔Biological CPU〕パイロット1枚をこのユニットにセットしてもよい",
+            "effects": [
+                {
+                    "type": 73,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 1,
+                    "targetFeatureId": 84
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyLv4OrLess_ThenDeploySazabiAndOpponentNuTokens",
+            "displayName": "Lv4以下の敵1体を破壊し、[Sazabi]トークンを配備。破壊された側は[Nu Gundam]トークンを配備",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000878,
+                    "filterByDeployCardId": 1,
+                    "deployUnitTriggerOnPlayed": false
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 6,
+                    "selectionMode": -1,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000879,
+                    "filterByDeployCardId": 1,
+                    "deployUnitTriggerOnPlayed": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestSelf_DeployAlphacideUnitLv5OrLessFromTrash_OnMain",
+            "displayName": "OnMain：自身REST→トラッシュのLv5以下〔アルファサイド〕ユニット1枚を配備",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitSource": 2,
+                    "filterDeployCandidateByFeature": true,
+                    "targetFeatureId": 78,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5,
+                    "deployUnitTriggerOnPlayed": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantTurnEndActivateResource2_Self",
+            "displayName": "このターン終了時、自分のリソース2つをアクティブにする",
+            "effects": [
+                {
+                    "type": 74,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestSelf_BuffAllyGhingnhamFleetAp1_UntilEOT_OnMain",
+            "displayName": "OnMain：自身REST→味方〔ギンガナム艦隊〕すべて AP+1（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "targetFeatureId": 83
+                }
+            ]
+        },
+        {
+            "effectSetName": "MarkAllyUnit_DealtBattleDamageDestroyLv4OrLess_UntilEOT",
+            "displayName": "味方ユニット1体を監視（このターン中、バトルダメージでLv4以下の敵を破壊）",
+            "effects": [
+                {
+                    "type": 28,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "observedUnitTriggerKind": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyDamagedEnemy_Lv4OrLess_AfterBattleDamage",
+            "displayName": "バトルダメージ後：Lv4以下のダメージ対象を破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4,
+                    "resolveAfterDealtBattleDamage": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp2_UntilEOB_OrAp6IfHighMobility",
+            "displayName": "敵1体をこのバトル中 AP-2。高機動ならさらに AP-4（合計-6）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "duration": 2
+                },
+                {
+                    "type": 3,
+                    "value": 4,
+                    "target": 2,
+                    "selectionMode": 4,
+                    "duration": 2,
+                    "requireTargetHasHighMobility": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "FirstStrike_Permanent",
+            "displayName": "常時《先制攻撃》",
+            "effects": [
+                {
+                    "type": 47,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "duration": 0
+                }
+            ]
         }
     ]
 }

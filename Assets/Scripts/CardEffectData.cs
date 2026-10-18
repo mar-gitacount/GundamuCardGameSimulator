@@ -440,7 +440,17 @@ public enum EffectType
     /// 【リンク中】かつレストの間、味方配備ベースは、このユニット以下の Lv の相手ユニットからダメージを受けない
     /// （GD06-098 デュオ・マックスウェル等）。ApplyEffect はマーカーのみ。ダメージ判定で参照する。
     /// </summary>
-    FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit
+    FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit,
+    /// <summary>
+    /// OnLook 専用。見た山札から条件に合うパイロットを value 枚まで、発動元ユニットへセットしてもよい。
+    /// 残りは後続の ShuffleLookedRemainderToDeckBottom 等で処理する。
+    /// </summary>
+    MountPilotFromLooked,
+    /// <summary>
+    /// 発動元ユニットに「ターン終了時、自分のリソースを value 個アクティブにする」を付与する。
+    /// duration=UntilEndOfTurn。そのターン終了処理で解決し、付与分は解除する。
+    /// </summary>
+    GrantTurnEndActivateResource
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -639,6 +649,8 @@ public enum ObservedUnitTriggerKind
     BaseDestroyed = 2,
     /// <summary>監視ユニットが EX ベースを 0 にした時。</summary>
     ExBaseDestroyed = 3,
+    /// <summary>監視ユニットが敵ユニットへバトルダメージを与えた時（撃破は不要）。</summary>
+    DealtBattleDamageToEnemyUnit = 4,
 }
 
 public enum EffectSelectionMode
@@ -1616,6 +1628,12 @@ public class EffectData
     [Tooltip("true のとき REST 状態のユニットのみ対象（武力介入等）。ACTIVE は候補にしない。")]
     public bool requireTargetIsRest;
 
+    [Tooltip("true のとき《高機動》を持つユニットのみ対象（印刷＋付与）。")]
+    public bool requireTargetHasHighMobility;
+
+    [Tooltip("true のとき《高機動》を持たないユニットのみ対象。")]
+    public bool requireTargetLacksHighMobility;
+
     [Tooltip(
         "true のとき、味方の targetFeature（未指定時は targetFeatureId）ユニットと"
         + "現在バトル中の相手ユニットのみ対象（GD06-112 等）。")]
@@ -1975,7 +1993,9 @@ public static class EffectDataExtensions
                 || effect.requireTargetHasNoPilot
                 || effect.requireTargetDamaged
                 || effect.requireTargetIsLinked
-                || effect.requireTargetIsRest);
+                || effect.requireTargetIsRest
+                || effect.requireTargetHasHighMobility
+                || effect.requireTargetLacksHighMobility);
     }
 
     /// <summary>
@@ -2252,6 +2272,16 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.requireTargetHasHighMobility && !unit.HasHighMobilityAbility())
+        {
+            return false;
+        }
+
+        if (effect.requireTargetLacksHighMobility && unit.HasHighMobilityAbility())
+        {
+            return false;
+        }
+
         EffectTargetUnitFilterStat statFilter = effect.GetTargetUnitFilterStat();
         if (statFilter == EffectTargetUnitFilterStat.Unset
             && (effect.compareTargetStatToSource || effect.compareTargetStatToPriorChainPicked))
@@ -2432,6 +2462,26 @@ public static class EffectDataExtensions
             }
 
             sb.Append(GameLocale.T("REST", "REST"));
+        }
+
+        if (effect.requireTargetHasHighMobility)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("高機動", "High Maneuver"));
+        }
+
+        if (effect.requireTargetLacksHighMobility)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("高機動なし", "no High Maneuver"));
         }
 
         return sb.ToString();
@@ -2757,6 +2807,16 @@ public static class EffectDataExtensions
         }
 
         if (effect.requireTargetIsRest && !unit.IsRestState)
+        {
+            return false;
+        }
+
+        if (effect.requireTargetHasHighMobility && !unit.HasHighMobilityAbility())
+        {
+            return false;
+        }
+
+        if (effect.requireTargetLacksHighMobility && unit.HasHighMobilityAbility())
         {
             return false;
         }

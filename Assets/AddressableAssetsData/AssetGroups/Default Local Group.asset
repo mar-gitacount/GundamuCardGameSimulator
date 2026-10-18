@@ -5157,6 +5157,46 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0426d0600000000000000000000004e
+    m_Address: Data/Images/GD06-042_Destroy Gundam (MA Mode)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1156d0600000000000000000000004f
+    m_Address: Data/Images/GD06-115_Teaching New Techniques
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0516d06000000000000000000000050
+    m_Address: Data/Images/GD06-051_GFreD
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1246d06000000000000000000000051
+    m_Address: Data/Images/GD06-124_Aspite
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0946d06000000000000000000000052
+    m_Address: Data/Images/GD06-094_Nyaan
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1216d06000000000000000000000053
+    m_Address: Data/Images/GD06-121_Crybaby Poe
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0336d06000000000000000000000054
+    m_Address: Data/Images/T-033_Sazabi
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0346d06000000000000000000000055
+    m_Address: Data/Images/T-034_Nu Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:
