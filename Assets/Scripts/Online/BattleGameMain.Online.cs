@@ -972,6 +972,53 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>GD06-049 等：送信側視点の配備ベース破壊を相手クライアントへ同期する。</summary>
+    private void QueueOnlineDestroyDeployedBase(PlayerType destroyedOwnerFromSenderView)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] DestroyDeployedBase queue skipped (batch inactive) "
+                + $"owner:{destroyedOwnerFromSenderView}");
+            return;
+        }
+
+        if (_pendingOnlineEffectChanges == null)
+        {
+            _pendingOnlineEffectChanges = new List<OnlineBattleUnitEffectChange>();
+        }
+
+        for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
+        {
+            OnlineBattleUnitEffectChange existing = _pendingOnlineEffectChanges[i];
+            if (existing != null
+                && existing.changeKind == OnlineBattleEffectSyncPayload.ChangeKindDestroyDeployedBase
+                && existing.targetZoneOwnerSide == (int)destroyedOwnerFromSenderView)
+            {
+                return;
+            }
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroyDeployedBase,
+            targetZoneOwnerSide = (int)destroyedOwnerFromSenderView,
+            hpAfter = 0
+        });
+        Debug.Log(
+            $"[EffectSync][QueueDestroyDeployedBase] senderOwner:{destroyedOwnerFromSenderView}");
+    }
+
     /// <summary>AttackActiveEnemyUnit のランタイム付与を相手クライアントへ同期する。</summary>
     private void QueueOnlineAttackActiveEnemyGrant(CardController target, EffectData runtimeGrant)
     {
@@ -2089,7 +2136,8 @@ public partial class BattleGameMain
             (action.action == OnlineBattleActionPayload.DeployUnit
              && action.deployUnitExtras != null
              && action.deployUnitExtras.allowOffTurnDeploy)
-            || (action.action == OnlineBattleActionPayload.DeployBase && action.cardId <= 0);
+            || (action.action == OnlineBattleActionPayload.DeployBase && action.cardId <= 0)
+            || action.action == OnlineBattleActionPayload.DestroyEnemyDeployedBase;
 
         if (currentPlayerType != PlayerType.Enemy && !allowOffTurnPlayCard)
         {
@@ -2118,6 +2166,13 @@ public partial class BattleGameMain
         if (action.action == OnlineBattleActionPayload.DeployBase)
         {
             ApplyRemoteDeployBase(action);
+            yield break;
+        }
+
+        if (action.action == OnlineBattleActionPayload.DestroyEnemyDeployedBase)
+        {
+            // 送信側は「相手のベース」を壊した。受信側では自分のベース枠になる。
+            ApplyRemoteDestroyDeployedBase(PlayerType.Enemy);
             yield break;
         }
 
@@ -2926,6 +2981,16 @@ public partial class BattleGameMain
                         ? PlayerType.Enemy
                         : PlayerType.Player;
                 ApplyRemoteShieldAreaUnitDamageImmunity(senderSide, change.signedStatValue);
+                continue;
+            }
+
+            if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindDestroyDeployedBase)
+            {
+                PlayerType senderDestroyedOwner =
+                    change.targetZoneOwnerSide == (int)PlayerType.Enemy
+                        ? PlayerType.Enemy
+                        : PlayerType.Player;
+                ApplyRemoteDestroyDeployedBase(senderDestroyedOwner);
                 continue;
             }
 

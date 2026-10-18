@@ -6885,6 +6885,141 @@
                     "duration": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "BounceEnemyUnitDamagedLv5OrLess_Optional_SelectSingle",
+            "displayName": "ダメージ中のLv5以下の敵ユニット1体を手札に戻してもよい",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5,
+                    "requireTargetDamaged": true,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyOtherGundamTeamAp2_UntilEOT_SelectSingle",
+            "displayName": "このユニット以外の味方〔ガンダムチーム〕1体にAP+2（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "targetFeatureId": 82
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyDeployedBase",
+            "displayName": "相手プレイヤーのベースを破壊する",
+            "effects": [
+                {
+                    "type": 76,
+                    "value": 1,
+                    "target": 6,
+                    "selectionMode": -1
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLook_AddDelazFleetUnit1_Reveal_Optional_ThenTrashRemainder",
+            "displayName": "OnLook：〔デラーズ・フリート〕ユニット1枚を公開して手札へ加えてもよい。残りはトラッシュへ",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "targetFeatureId": 81,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "revealDiscardedToOpponent": true,
+                    "optionalPlayerConfirm": true
+                },
+                {
+                    "type": 75,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelf_BattleDmgReduce2_IfAttackerLvAtMostThis_UntilEOB",
+            "displayName": "このバトル中、このユニット以下のLvの敵ユニットからのバトルダメージを2軽減",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 8,
+                    "duration": 2,
+                    "requireBattleDamageSourceLevelAtMostTarget": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyUnit_SelectSingle",
+            "displayName": "敵ユニット1体に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage5_DamagedEnemyUnit_SelectSingle",
+            "displayName": "ダメージ中の敵ユニット1体に5ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 5,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "requireTargetDamaged": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenDebuffEnemyNoPilotApByDiannaOrMilitia_UntilEOT_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ→パイロット未セットの敵1体のAPを味方〔ダイアナ・カウンター〕／〔ミリシア〕体数だけ下げる（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountFeatureIds": [
+                        79,
+                        24
+                    ],
+                    "requireTargetHasNoPilot": true
+                }
+            ]
         }
     ]
 }

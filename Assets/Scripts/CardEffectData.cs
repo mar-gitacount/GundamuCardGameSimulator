@@ -450,7 +450,17 @@ public enum EffectType
     /// 発動元ユニットに「ターン終了時、自分のリソースを value 個アクティブにする」を付与する。
     /// duration=UntilEndOfTurn。そのターン終了処理で解決し、付与分は解除する。
     /// </summary>
-    GrantTurnEndActivateResource
+    GrantTurnEndActivateResource,
+    /// <summary>
+    /// OnLook 専用。見た残りをトラッシュへ置く。
+    /// AddToHandFromLooked 等で手札に加えた枚は対象外。
+    /// </summary>
+    TrashLookedRemainder,
+    /// <summary>
+    /// 相手プレイヤーの配備ベース（および EX ベース層）を破壊する。
+    /// 対象選択は不要。1v1 では相手1人のベースを破壊する。
+    /// </summary>
+    DestroyEnemyDeployedBase
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -1649,6 +1659,11 @@ public class EffectData
         + "OnAttack の Destroy 等では Cancel で効果全体をスキップし攻撃／アクションステップへ続行。"
         + "通常チェーンでは Cancel なら後続を含まずその効果のみスキップ。")]
     public bool optionalPlayerConfirm;
+
+    [Tooltip(
+        "BattleDamageFromEnemyUnitReduction 付与時: true なら軽減は、攻撃元ユニットの実効 Lv が"
+        + "受けるユニット以下のときだけ適用する（GD06-093 ガトー等）。")]
+    public bool requireBattleDamageSourceLevelAtMostTarget;
 
     [Tooltip(
         "手動選択系: true のとき効果オーナーではなく相手プレイヤーが対象を選ぶ。"

@@ -24,7 +24,8 @@ public partial class BattleGameMain
     private enum LookedRemainderDispositionChoice
     {
         ReturnToDeckTop,
-        ShuffleToDeckBottom
+        ShuffleToDeckBottom,
+        Trash
     }
 
     private enum LookDeckPickCommitKind
@@ -293,6 +294,13 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.DestroyEnemyDeployedBase)
+        {
+            TryApplyDestroyEnemyDeployedBase(effect, ownerType);
+            onChainContinue?.Invoke();
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.AddFromTrashToHand)
         {
             ApplyAddFromTrashToHandEffect(sourceCard, ownerType, effect, onChainContinue);
@@ -460,6 +468,7 @@ public partial class BattleGameMain
     {
         return OnLookBlocksContainEffectType(blocks, EffectType.ReturnLookedRemainderToDeckTop)
             || OnLookBlocksContainEffectType(blocks, EffectType.ShuffleLookedRemainderToDeckBottom)
+            || OnLookBlocksContainEffectType(blocks, EffectType.TrashLookedRemainder)
             || OnLookBlocksContainEffectType(blocks, EffectType.ChooseLookedRemainderDisposition);
     }
 
@@ -568,6 +577,13 @@ public partial class BattleGameMain
         if (effect.type == EffectType.ShuffleLookedRemainderToDeckBottom)
         {
             ApplyShuffleLookedRemainderToDeckBottom(context);
+            TryExecuteOnLookEffectChain(context, effects, index + 1, onDone);
+            return;
+        }
+
+        if (effect.type == EffectType.TrashLookedRemainder)
+        {
+            ApplyTrashLookedRemainder(context);
             TryExecuteOnLookEffectChain(context, effects, index + 1, onDone);
             return;
         }
@@ -1263,6 +1279,11 @@ public partial class BattleGameMain
         ApplyLookedRemainderDisposition(context, LookedRemainderDispositionChoice.ShuffleToDeckBottom);
     }
 
+    private void ApplyTrashLookedRemainder(LookResolutionContext context)
+    {
+        ApplyLookedRemainderDisposition(context, LookedRemainderDispositionChoice.Trash);
+    }
+
     private void ApplyLookedRemainderDisposition(
         LookResolutionContext context,
         LookedRemainderDispositionChoice disposition)
@@ -1284,6 +1305,25 @@ public partial class BattleGameMain
             context.DeckRule.PrependCardsToTopInOrder(remainder);
             Debug.Log(
                 $"[Effect] ReturnLookedRemainderToDeckTop count:{remainder.Count} deck:{context.DeckLabel} "
+                + $"by cardId:{context.SourceCard?.Data?.id}");
+            return;
+        }
+
+        if (disposition == LookedRemainderDispositionChoice.Trash)
+        {
+            WithZoneSyncSuppressed(() =>
+            {
+                for (int i = 0; i < remainder.Count; i++)
+                {
+                    context.DeckRule.AddCardToTrash(remainder[i]);
+                }
+            });
+
+            int deckRemain = context.DeckRule.GetRemainingCount();
+            SyncGundamRuleDeckCount(context.DeckOwnerType, deckRemain);
+            NotifyLocalZoneDeckToTrash(context.DeckOwnerType, remainder, deckRemain);
+            Debug.Log(
+                $"[Effect] TrashLookedRemainder count:{remainder.Count} deck:{context.DeckLabel} "
                 + $"by cardId:{context.SourceCard?.Data?.id}");
             return;
         }

@@ -15,6 +15,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         public EffectDuration duration;
         /// <summary>空文字は従来の修飾。非空は <see cref="RemoveStatModifiersBySource"/> でまとめて除去。</summary>
         public string sourceKey;
+        /// <summary>バトルダメージ軽減: 攻撃元 Lv がこのユニット以下のときだけ適用。</summary>
+        public bool requireAttackerLevelAtMostRecipient;
     }
 
     /// <summary>パイロット搭乗時の AllyAllUnits 永続バフを、後から配備された味方ユニットにも適用するためのオーラ定義。</summary>
@@ -163,7 +165,34 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     /// <summary>相手ユニットからのバトルダメージ軽減量（正の値ほど軽減。効果ダメージには使わない）。</summary>
     public int CurrentBattleDamageFromEnemyUnitReduction =>
-        Mathf.Max(0, SumModifierValues(battleDamageFromEnemyUnitReductionModifiers));
+        GetBattleDamageFromEnemyUnitReduction(null);
+
+    /// <summary>
+    /// 相手ユニットからのバトルダメージ軽減。
+    /// 攻撃元 Lv 条件付きの修飾は <paramref name="damageSource"/> の実効 Lv を参照する。
+    /// </summary>
+    public int GetBattleDamageFromEnemyUnitReduction(CardController damageSource)
+    {
+        int total = 0;
+        for (int i = 0; i < battleDamageFromEnemyUnitReductionModifiers.Count; i++)
+        {
+            StatModifier modifier = battleDamageFromEnemyUnitReductionModifiers[i];
+            if (modifier.requireAttackerLevelAtMostRecipient)
+            {
+                if (damageSource == null
+                    || damageSource.Data == null
+                    || !damageSource.Data.IsUnitLike()
+                    || damageSource.CurrentLevel > CurrentLevel)
+                {
+                    continue;
+                }
+            }
+
+            total += modifier.value;
+        }
+
+        return Mathf.Max(0, total);
+    }
 
     /// <summary>効果ダメージ無効化が有効か。</summary>
     public bool HasEffectDamageImmunity => CurrentEffectDamageImmunityCount > 0;
@@ -1346,7 +1375,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         int effectDamageDelta = 0,
         int effectDamageImmunityDelta = 0,
         int incomingDamageReductionDelta = 0,
-        int battleDamageFromEnemyUnitReductionDelta = 0)
+        int battleDamageFromEnemyUnitReductionDelta = 0,
+        bool requireAttackerLevelAtMostRecipient = false)
     {
         string key = statModifierSourceKey ?? string.Empty;
         if (powerDelta != 0)
@@ -1397,7 +1427,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             {
                 value = battleDamageFromEnemyUnitReductionDelta,
                 duration = duration,
-                sourceKey = key
+                sourceKey = key,
+                requireAttackerLevelAtMostRecipient = requireAttackerLevelAtMostRecipient
             });
         }
 

@@ -400,7 +400,7 @@ public partial class BattleGameMain
             && damageSource.Data.IsUnitLike()
             && damageTargetOwner != damageSourceOwner)
         {
-            int battleReduction = damageTarget.CurrentBattleDamageFromEnemyUnitReduction;
+            int battleReduction = damageTarget.GetBattleDamageFromEnemyUnitReduction(damageSource);
             if (battleReduction > 0)
             {
                 int before = damage;

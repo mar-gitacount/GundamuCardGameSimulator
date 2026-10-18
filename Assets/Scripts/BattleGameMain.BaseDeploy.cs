@@ -915,6 +915,82 @@ public partial class BattleGameMain
         }
     }
 
+    /// <summary>相手プレイヤーの配備ベース／EX ベース層を破壊する（GD06-049 等）。</summary>
+    private bool TryApplyDestroyEnemyDeployedBase(EffectData effect, PlayerType ownerType)
+    {
+        if (effect == null || effect.type != EffectType.DestroyEnemyDeployedBase)
+        {
+            return false;
+        }
+
+        PlayerType enemy = ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        // 先に ZoneSync AddTrash すると相手は墓地だけ増え、配備枠が残る。ゴミ箱同期は相手側の破壊に任せる。
+        WithZoneSyncSuppressed(() => DestroyDeployedBaseLayerForOwner(enemy));
+        QueueOnlineDestroyDeployedBase(enemy);
+        FlushOnlineEffectSyncBatch();
+        NotifyLocalDestroyEnemyDeployedBaseSynced();
+        Debug.Log($"[Effect] DestroyEnemyDeployedBase owner:{ownerType} target:{enemy}");
+        return true;
+    }
+
+    /// <summary>相手クライアントの自分側ベース枠を破壊する PlayCard を送る。</summary>
+    private void NotifyLocalDestroyEnemyDeployedBaseSynced()
+    {
+        if (_applyingRemoteBattleAction || !IsOnlineBattle())
+        {
+            return;
+        }
+
+        bool sent = SendOnlineBattleMessage(
+            EosOnlineBattleMessage.CreatePlayCard(
+                OnlineBattleActionPayload.CreateDestroyEnemyDeployedBase()));
+        Debug.Log($"[OnlineBattle] DestroyEnemyDeployedBase PlayCard sent={sent}");
+    }
+
+    /// <summary>指定オーナーの配備ベースカードと EX ベース層を破壊する。</summary>
+    private void DestroyDeployedBaseLayerForOwner(PlayerType ownerType)
+    {
+        Gundam2024RuleScript.PlayerSide side = ToRuleSide(ownerType);
+        CardGameRule ownerRule = GetCardRuleForRuleSide(side);
+        DestroyExistingBaseLayerBeforeDeploy(ownerType, ownerRule, incomingCard: null);
+        HideBaseSlotOccupantsImmediately(ownerRule);
+        if (ownerRule != null)
+        {
+            ownerRule.ClearDeployedBaseCard();
+            ownerRule.SetExBaseDisplay(0);
+        }
+
+        SyncBaseZoneHeaderDisplay(side);
+        SyncResourceViewsFromRule(side);
+    }
+
+    /// <summary>トラッシュ非同期完了前に、ベース枠の見た目だけ先に消す。</summary>
+    private static void HideBaseSlotOccupantsImmediately(CardGameRule ownerRule)
+    {
+        if (ownerRule == null || ownerRule.BaseSlotContent == null)
+        {
+            return;
+        }
+
+        for (int i = ownerRule.BaseSlotContent.childCount - 1; i >= 0; i--)
+        {
+            Transform child = ownerRule.BaseSlotContent.GetChild(i);
+            if (child != null)
+            {
+                child.gameObject.SetActive(false);
+            }
+        }
+    }
+
+    /// <summary>オンライン受信：送信側視点の破壊対象サイドをローカル視点へ反転してベース層を破壊する。</summary>
+    private void ApplyRemoteDestroyDeployedBase(PlayerType senderDestroyedOwner)
+    {
+        PlayerType localSide = MirrorOnlineZoneOwner(senderDestroyedOwner);
+        DestroyDeployedBaseLayerForOwner(localSide);
+        Debug.Log(
+            $"[EffectSync][ApplyDestroyDeployedBase] senderOwner:{senderDestroyedOwner} → localOwner:{localSide}");
+    }
+
     private void SendDeployedBaseToTrash(CardController baseCard, PlayerType ownerType, CardGameRule ownerRule)
     {
         if (baseCard == null)
