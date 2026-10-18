@@ -6535,6 +6535,89 @@
                     ]
                 }
             ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenBounceEnemyLv2OrLess_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ→敵ユニット(Lv2以下)1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "RedirectAttackToRestedDelazFleet_OnAction",
+            "displayName": "【アクション】レストの〔デラーズ・フリート〕味方1体へ、バトル中の相手ユニットのアタック先を変える",
+            "effects": [
+                {
+                    "type": 4,
+                    "value": 0,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "targetFeatureId": 81,
+                    "requireTargetIsRest": true,
+                    "selectMinCount": 1,
+                    "selectMaxCount": 1,
+                    "forbidSkipUnitPick": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DamageEnemyUnit1_Ap5OrLess_SelectSingle",
+            "displayName": "AP5以下の敵ユニット1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelfAp2_UntilEndOfTurn_OnAttack",
+            "displayName": "【アタック時】このターン中、このユニットをAP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "DamageEnemyUnit1_ApLeMountHost_SelectSingle",
+            "displayName": "搭乗ホストAP以下の敵ユニット1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 0,
+                    "compareTargetStatToMountHostUnit": true
+                }
+            ]
         }
     ]
 }

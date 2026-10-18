@@ -64,6 +64,9 @@ public sealed class EffectActivationContext
     /// <summary>オーナーの配備ベースが生存している。</summary>
     public bool OwnerHasDeployedBase { get; }
 
+    /// <summary>オーナーの配備ベース本体（特徴判定用。未配備なら null）。</summary>
+    public CardController OwnerDeployedBase { get; }
+
     /// <summary>効果オーナーの TotalLevel（level + exResource）。-1 なら未設定。</summary>
     public int OwnerTotalLevel { get; }
 
@@ -124,7 +127,8 @@ public sealed class EffectActivationContext
         int ownerExResource = -1,
         bool ownerActivatedResourceByEffectThisTurn = false,
         int ownerPaidUnitEffectCostThisTurn = -1,
-        bool ownerDrewWithEffectThisTurn = false)
+        bool ownerDrewWithEffectThisTurn = false,
+        CardController ownerDeployedBase = null)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -157,6 +161,7 @@ public sealed class EffectActivationContext
         OwnerActivatedResourceByEffectThisTurn = ownerActivatedResourceByEffectThisTurn;
         OwnerPaidUnitEffectCostThisTurn = ownerPaidUnitEffectCostThisTurn;
         OwnerDrewWithEffectThisTurn = ownerDrewWithEffectThisTurn;
+        OwnerDeployedBase = ownerDeployedBase;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -228,7 +233,8 @@ public sealed class EffectActivationContext
             OwnerExResource,
             OwnerActivatedResourceByEffectThisTurn,
             OwnerPaidUnitEffectCostThisTurn,
-            OwnerDrewWithEffectThisTurn);
+            OwnerDrewWithEffectThisTurn,
+            OwnerDeployedBase);
     }
 }
 
@@ -486,7 +492,17 @@ public static class EffectActivationEvaluator
 
         if (c.checkKind == EffectActivationCheckKind.OwnerHasDeployedBase)
         {
-            return ctx != null && ctx.OwnerHasDeployedBase;
+            if (ctx == null || !ctx.OwnerHasDeployedBase)
+            {
+                return false;
+            }
+
+            if (!c.HasActivationFeatureFilter())
+            {
+                return true;
+            }
+
+            return UnitMatchesActivationFeature(ctx.OwnerDeployedBase, c);
         }
 
         if (c.checkKind == EffectActivationCheckKind.SourceDeployedFromTrash)

@@ -584,7 +584,7 @@ public partial class BattleGameMain
         }
 
         // ST07-013 武力介入：相手の攻撃アクション中かつ REST〔CB〕がいるときのみ
-        if (IsArmedInterventionCard(source?.Data) && !CanPlayArmedInterventionCommandNow(side, source))
+        if (IsOnActionAttackTargetRedirectCard(source?.Data) && !CanPlayAttackTargetRedirectCommandNow(side, source))
         {
             return false;
         }

@@ -9,6 +9,8 @@ public partial class BattleGameMain
 {
     private const int ArmedInterventionCardId = 1000608;
     private const string ArmedInterventionOfficialId = "ST07-013";
+    private const int KariusVeteransCommandCardId = 1000861;
+    private const string KariusVeteransOfficialId = "GD06-117";
 
     private static bool IsArmedInterventionCard(CardData data)
     {
@@ -35,6 +37,36 @@ public partial class BattleGameMain
                 || name.IndexOf("武力介入", System.StringComparison.Ordinal) >= 0);
     }
 
+    /// <summary>GD06-117 退役軍の共闘／カリウス。【アクション】REST〔デラーズ・フリート〕へアタック先変更。</summary>
+    private static bool IsKariusVeteransCommand(CardData data)
+    {
+        if (data == null)
+        {
+            return false;
+        }
+
+        if (data.id == KariusVeteransCommandCardId)
+        {
+            return true;
+        }
+
+        string officialId = data.gcgOfficialId;
+        if (!string.IsNullOrEmpty(officialId)
+            && string.Equals(officialId.Trim(), KariusVeteransOfficialId, System.StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string name = data.cardName;
+        return !string.IsNullOrEmpty(name)
+            && name.IndexOf("Veterans Joining Forces", System.StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsOnActionAttackTargetRedirectCard(CardData data)
+    {
+        return IsArmedInterventionCard(data) || IsKariusVeteransCommand(data);
+    }
+
     private static EffectData CreateArmedInterventionPickEffect()
     {
         return new EffectData
@@ -58,9 +90,9 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (IsArmedInterventionCard(cc.Data))
+        if (IsOnActionAttackTargetRedirectCard(cc.Data))
         {
-            return CanPlayArmedInterventionCommandNow(side, cc);
+            return CanPlayAttackTargetRedirectCommandNow(side, cc);
         }
 
         if (!cc.Data.IsCommand())
@@ -73,7 +105,13 @@ public partial class BattleGameMain
 
     private bool CanPlayArmedInterventionCommandNow(PlayerType side, CardController source)
     {
-        if (source?.Data == null || !IsArmedInterventionCard(source.Data))
+        return CanPlayAttackTargetRedirectCommandNow(side, source);
+    }
+
+    /// <summary>武力介入／カリウス：攻撃アクション中かつ REST 指定特徴味方がいるときのみ。</summary>
+    private bool CanPlayAttackTargetRedirectCommandNow(PlayerType side, CardController source)
+    {
+        if (source?.Data == null || !IsOnActionAttackTargetRedirectCard(source.Data))
         {
             return false;
         }
@@ -83,7 +121,13 @@ public partial class BattleGameMain
             return false;
         }
 
-        if (CollectRestedCbAllyUnitsForAttackRedirect(side).Count == 0)
+        if (IsKariusVeteransCommand(source.Data) && !IsOpponentUnitAttackingNow(side))
+        {
+            return false;
+        }
+
+        EffectData pick = ResolveOnActionAttackTargetRedirectEffect(source);
+        if (CollectRestedAllyUnitsForAttackRedirect(side, pick).Count == 0)
         {
             return false;
         }
@@ -96,6 +140,47 @@ public partial class BattleGameMain
 
         // コマンドの印刷レベルではなく、支払えるコストのみ見る（アクション中に一覧から消えないようにする）
         return gundamRule.CanPlayCardWithAnyEx(ToRuleSide(side), 0, cost);
+    }
+
+    private bool IsOpponentUnitAttackingNow(PlayerType side)
+    {
+        CardController attacker = ResolveCurrentAttackFlowAttackerUnit();
+        if (attacker == null || attacker.Data == null || !attacker.Data.IsUnitLike() || attacker.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        return ResolveCardOwner(attacker.transform) != side;
+    }
+
+    private EffectData ResolveOnActionAttackTargetRedirectEffect(CardController source)
+    {
+        if (source?.Data == null)
+        {
+            return null;
+        }
+
+        if (IsArmedInterventionCard(source.Data))
+        {
+            return CreateArmedInterventionPickEffect();
+        }
+
+        List<EffectData> effects = GetEffectsByTiming(source.Data, EffectTiming.OnAction);
+        if (effects == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (IsOnActionAttackTargetRedirectEffect(effect))
+            {
+                return effect;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -206,15 +291,21 @@ public partial class BattleGameMain
     /// <summary>武力介入：REST かつ〔CB〕の味方ユニット（両ゾーン＋自配備パネル）。</summary>
     private List<CardController> CollectRestedCbAllyUnitsForAttackRedirect(PlayerType side)
     {
+        return CollectRestedAllyUnitsForAttackRedirect(side, CreateArmedInterventionPickEffect());
+    }
+
+    private List<CardController> CollectRestedAllyUnitsForAttackRedirect(PlayerType side, EffectData effect)
+    {
         List<CardController> result = new List<CardController>();
-        AppendRestedCbAlliesFromZone(playerBattleZoneCards, side, result);
-        AppendRestedCbAlliesFromZone(enemyBattleZoneCards, side, result);
+        AppendRestedRedirectAlliesFromZone(playerBattleZoneCards, side, effect, result);
+        AppendRestedRedirectAlliesFromZone(enemyBattleZoneCards, side, effect, result);
         return result;
     }
 
-    private void AppendRestedCbAlliesFromZone(
+    private void AppendRestedRedirectAlliesFromZone(
         List<CardController> zone,
         PlayerType side,
+        EffectData effect,
         List<CardController> result)
     {
         if (zone == null || result == null)
@@ -239,13 +330,28 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (!UnitLooksRested(unit) || !UnitHasCbFeature(unit))
+            if (!UnitLooksRested(unit) || !UnitMatchesAttackRedirectPick(unit, effect))
             {
                 continue;
             }
 
             result.Add(unit);
         }
+    }
+
+    private static bool UnitMatchesAttackRedirectPick(CardController unit, EffectData effect)
+    {
+        if (unit == null)
+        {
+            return false;
+        }
+
+        if (effect == null || !effect.HasTargetFeatureFilter())
+        {
+            return UnitHasCbFeature(unit);
+        }
+
+        return unit.HasAnyFeature(effect.GetTargetFeatures());
     }
 
     private bool IsUnitInSideBattleZoneList(CardController unit, PlayerType side)
@@ -282,12 +388,12 @@ public partial class BattleGameMain
         for (int i = 0; i < hand.childCount; i++)
         {
             CardController cc = hand.GetChild(i).GetComponent<CardController>();
-            if (cc == null || cc.Data == null || !IsArmedInterventionCard(cc.Data))
+            if (cc == null || cc.Data == null || !IsOnActionAttackTargetRedirectCard(cc.Data))
             {
                 continue;
             }
 
-            if (sources.Contains(cc) || !CanPlayArmedInterventionCommandNow(side, cc))
+            if (sources.Contains(cc) || !CanPlayAttackTargetRedirectCommandNow(side, cc))
             {
                 continue;
             }

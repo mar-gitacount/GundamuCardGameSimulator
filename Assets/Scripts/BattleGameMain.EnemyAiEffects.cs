@@ -1416,9 +1416,10 @@ public partial class BattleGameMain
             yield break;
         }
 
-        if (IsArmedInterventionCard(command.Data))
+        if (IsOnActionAttackTargetRedirectCard(command.Data))
         {
-            List<CardController> candidates = CollectRestedCbAllyUnitsForAttackRedirect(side);
+            EffectData pick = ResolveOnActionAttackTargetRedirectEffect(command);
+            List<CardController> candidates = CollectRestedAllyUnitsForAttackRedirect(side, pick);
             CardController picked = null;
             if (candidates != null && candidates.Count > 0)
             {
@@ -1427,7 +1428,7 @@ public partial class BattleGameMain
 
             if (picked != null)
             {
-                TryApplyOnActionAttackTargetRedirect(side, new List<CardController> { picked });
+                TryApplyOnActionAttackTargetRedirect(side, new List<CardController> { picked }, pick);
             }
 
             EndOnDestroyedLatencyHold();
