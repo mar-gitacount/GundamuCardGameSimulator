@@ -11975,7 +11975,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerExResource: ownerStateForHm != null ? ownerStateForHm.exResource : -1,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
-            ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType));
+            ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
         return true;
     }
 
@@ -12002,7 +12003,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerTotalLevel: ownerState.TotalLevel,
             ownerExResource: ownerState.exResource,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
-            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
     }
 
     /// <summary>
@@ -12056,7 +12058,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerTotalLevel: ownerState != null ? ownerState.TotalLevel : -1,
             ownerExResource: ownerState != null ? ownerState.exResource : -1,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
-            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -12095,7 +12098,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerTotalLevel: ownerState != null ? ownerState.TotalLevel : -1,
             ownerExResource: ownerState != null ? ownerState.exResource : -1,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
-            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType));
+            ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
     }
 
     /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
@@ -20401,12 +20405,12 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
-        if (IsArmedInterventionCard(command.Data))
+        if (IsOnActionAttackTargetRedirectCard(command.Data))
         {
             OpenOnActionUnitTargetSelection(
                 side,
                 command,
-                CreateArmedInterventionPickEffect(),
+                ResolveOnActionAttackTargetRedirectEffect(command) ?? CreateArmedInterventionPickEffect(),
                 onDone,
                 attackingUnitInAttackFlow,
                 commandQueueIndex,
@@ -21018,7 +21022,7 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> candidates = IsMagicBulletOfDuskCard(command != null ? command.Data : null)
             ? CollectMagicBulletOfDuskTargets(side)
             : (IsOnActionAttackTargetRedirectEffect(effect)
-                ? CollectRestedCbAllyUnitsForAttackRedirect(side)
+                ? CollectRestedAllyUnitsForAttackRedirect(side, effect)
                 : ResolveSelectableEffectTargets(command, side, effect));
         if (candidates.Count == 0)
         {
@@ -21341,7 +21345,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             System.Action applyRedirect = () =>
             {
-                bool applied = TryApplyOnActionAttackTargetRedirect(side, pickedTargets);
+                bool applied = TryApplyOnActionAttackTargetRedirect(side, pickedTargets, effect);
                 if (applied)
                 {
                     SetEffectChainLastPickedTargets(pickedTargets);
@@ -22386,7 +22390,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (IsOnActionAttackTargetRedirectEffect(effect))
         {
-            return CollectRestedCbAllyUnitsForAttackRedirect(ownerType);
+            return CollectRestedAllyUnitsForAttackRedirect(ownerType, effect);
         }
 
         if (effect.type == EffectType.RedirectIncomingBattleDamage)
@@ -23252,7 +23256,10 @@ public partial class BattleGameMain : MonoBehaviour
     /// 選んだ REST 味方を、バトル中の相手ユニットのアタック先にする。
     /// CommitBlockRedirectSelection（ACTIVE ブロッカー）は使わない。
     /// </summary>
-    private bool TryApplyOnActionAttackTargetRedirect(PlayerType side, List<CardController> pickedTargets)
+    private bool TryApplyOnActionAttackTargetRedirect(
+        PlayerType side,
+        List<CardController> pickedTargets,
+        EffectData effect = null)
     {
         if (pickedTargets == null || pickedTargets.Count == 0
             || !IsArmedInterventionAttackActionWindow())
@@ -23266,7 +23273,7 @@ public partial class BattleGameMain : MonoBehaviour
             || !picked.Data.IsUnitLike()
             || picked.CurrentHp <= 0
             || !UnitLooksRested(picked)
-            || !UnitHasCbFeature(picked)
+            || !UnitMatchesAttackRedirectPick(picked, effect)
             || (!IsOnDeployPanel(picked, side) && !IsUnitInSideBattleZoneList(picked, side)))
         {
             return false;

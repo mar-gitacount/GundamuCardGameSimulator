@@ -887,6 +887,18 @@
             "pilotKey": "Elle_Vianno",
             "displayName": "エル・ビアンノ",
             "description": ""
+        },
+        {
+            "id": 149,
+            "pilotKey": "Karius",
+            "displayName": "カリウス",
+            "description": ""
+        },
+        {
+            "id": 150,
+            "pilotKey": "Neo_Lorrnoke",
+            "displayName": "ネオ・ロルノーク",
+            "description": ""
         }
     ]
 }

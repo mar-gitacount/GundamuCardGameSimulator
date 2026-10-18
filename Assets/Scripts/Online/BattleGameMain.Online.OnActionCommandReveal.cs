@@ -126,7 +126,7 @@ public partial class BattleGameMain
             commandData,
             targetUnit);
 
-        if (IsArmedInterventionCard(commandData))
+        if (IsOnActionAttackTargetRedirectCard(commandData))
         {
             bool prevApplyingRemote = _applyingRemoteBattleAction;
             _applyingRemoteBattleAction = true;

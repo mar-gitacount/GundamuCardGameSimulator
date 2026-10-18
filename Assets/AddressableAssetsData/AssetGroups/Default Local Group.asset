@@ -5097,6 +5097,36 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1226d06000000000000000000000042
+    m_Address: Data/Images/GD06-122_Albion
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1176d06000000000000000000000043
+    m_Address: Data/Images/GD06-117_Veterans Joining Forces Karius
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0416d06000000000000000000000044
+    m_Address: Data/Images/GD06-041_Neo Lorrnoke's Windam (Jet Striker)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0086d06000000000000000000000045
+    m_Address: Data/Images/GD06-008_Powered GM
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0926d06000000000000000000000046
+    m_Address: Data/Images/GD06-092_Neo Lorrnoke
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0576d06000000000000000000000047
+    m_Address: Data/Images/GD06-057_Karius' Rick Dom II
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:
