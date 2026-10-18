@@ -1310,7 +1310,10 @@ public partial class BattleGameMain
         }
 
         PlayerType ownerType = ResolveCardOwner(sourceUnit.transform);
-        StartCoroutine(WaitOnOpponentShieldAreaCardDestroyedCoroutine(sourceUnit, ownerType));
+        StartCoroutine(WaitOnOpponentShieldAreaCardDestroyedCoroutine(
+            sourceUnit,
+            ownerType,
+            destroyedByBattleDamage: false));
     }
 
     private static CardController ResolveUnitSourceForShieldAreaDamage(CardController sourceCard)

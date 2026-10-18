@@ -63,10 +63,7 @@ public static class OnlineDeckRegulation
                     continue;
                 }
 
-                if (data.color != CardColor.Colorless)
-                {
-                    colors.Add(data.color);
-                }
+                data.AddColorsTo(colors);
             }
         }
 

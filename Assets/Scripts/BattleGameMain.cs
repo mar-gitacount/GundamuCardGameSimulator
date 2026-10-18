@@ -9285,7 +9285,10 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (triggerShieldDestroyedWatch || triggerBaseDestroyedWatch || triggerExBaseDestroyedWatch)
         {
-            yield return WaitOnOpponentShieldAreaCardDestroyedCoroutine(attacker, attackerOwner);
+            yield return WaitOnOpponentShieldAreaCardDestroyedCoroutine(
+                attacker,
+                attackerOwner,
+                destroyedByBattleDamage: true);
         }
 
         // アタック→アクション→ダメージ→判定のあとでアーガマの相手ユニット選択 UI。

@@ -18,10 +18,15 @@ public partial class BattleGameMain
 
     private IEnumerator WaitOnOpponentShieldAreaCardDestroyedCoroutine(
         CardController sourceUnit,
-        PlayerType ownerType)
+        PlayerType ownerType,
+        bool destroyedByBattleDamage = false)
     {
         bool done = false;
-        TriggerOnOpponentShieldAreaCardDestroyed(sourceUnit, ownerType, () => done = true);
+        TriggerOnOpponentShieldAreaCardDestroyed(
+            sourceUnit,
+            ownerType,
+            () => done = true,
+            destroyedByBattleDamage);
         yield return new WaitUntil(() => done);
     }
 
@@ -31,7 +36,8 @@ public partial class BattleGameMain
     private void TriggerOnOpponentShieldAreaCardDestroyed(
         CardController sourceUnit,
         PlayerType ownerType,
-        Action onComplete = null)
+        Action onComplete = null,
+        bool destroyedByBattleDamage = false)
     {
         if (sourceUnit == null || sourceUnit.Data == null || !sourceUnit.Data.IsUnitLike())
         {
@@ -45,7 +51,8 @@ public partial class BattleGameMain
         EffectActivationContext destroyerContext = BuildOpponentShieldAreaDestroyedContext(
             ownerType,
             sourceUnit,
-            sourceUnit);
+            sourceUnit,
+            destroyedByBattleDamage);
         CollectOpponentShieldAreaDestroyedBlocks(sourceUnit, ownerType, destroyerContext, blocks);
         if (sourceUnit.MountedPilot != null)
         {
@@ -82,7 +89,8 @@ public partial class BattleGameMain
                 EffectActivationContext watcherContext = BuildOpponentShieldAreaDestroyedContext(
                     ownerType,
                     watcher,
-                    sourceUnit);
+                    sourceUnit,
+                    destroyedByBattleDamage);
                 CollectOpponentShieldAreaDestroyedBlocks(watcher, ownerType, watcherContext, blocks);
             }
         }
@@ -103,7 +111,8 @@ public partial class BattleGameMain
     private EffectActivationContext BuildOpponentShieldAreaDestroyedContext(
         PlayerType ownerType,
         CardController effectSource,
-        CardController destroyerUnit)
+        CardController destroyerUnit,
+        bool destroyedByBattleDamage)
     {
         return new EffectActivationContext(
             ownerType,
@@ -126,8 +135,8 @@ public partial class BattleGameMain
             destroyingCard: destroyerUnit,
             hasDestroyingCardOwner: true,
             destroyingCardOwner: ownerType,
-            destroyedByBattleDamage: false,
-            destroyedByEffectDamage: true,
+            destroyedByBattleDamage: destroyedByBattleDamage,
+            destroyedByEffectDamage: !destroyedByBattleDamage,
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType));

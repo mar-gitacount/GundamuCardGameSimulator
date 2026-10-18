@@ -380,7 +380,7 @@ public List<CardData> GetSelectedCards(List<CardData> cards)
 
             for (int i = 0; i < selected.Count; i++)
             {
-                if (card.color == selected[i])
+                if (card.HasColor(selected[i]))
                 {
                     return true;
                 }

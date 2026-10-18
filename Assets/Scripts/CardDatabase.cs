@@ -357,7 +357,7 @@ public CardData FindById(int id)
                 continue;
             }
 
-            if (colors.Count > 0 && !SearchColorsContain(card.color, colors))
+            if (colors.Count > 0 && !SearchColorsContain(card, colors))
             {
                 continue;
             }
@@ -394,11 +394,16 @@ public CardData FindById(int id)
         return SearchCards(keyword);
     }
 
-    private static bool SearchColorsContain(CardColor cardColor, List<CardColor> colors)
+    private static bool SearchColorsContain(CardData card, List<CardColor> colors)
     {
+        if (card == null || colors == null)
+        {
+            return false;
+        }
+
         for (int i = 0; i < colors.Count; i++)
         {
-            if (cardColor == colors[i])
+            if (card.HasColor(colors[i]))
             {
                 return true;
             }
@@ -565,7 +570,7 @@ public CardData FindById(int id)
         var result = new List<CardData>();
         foreach (CardData card in cardDict.Values)
         {
-            if (card != null && card.color == color)
+            if (card != null && card.HasColor(color))
             {
                 result.Add(card);
             }
@@ -591,7 +596,22 @@ public CardData FindById(int id)
 
         foreach (CardData card in cardDict.Values)
         {
-            if (card != null && colorSet.Contains(card.color))
+            if (card == null)
+            {
+                continue;
+            }
+
+            bool matches = false;
+            foreach (CardColor required in colorSet)
+            {
+                if (card.HasColor(required))
+                {
+                    matches = true;
+                    break;
+                }
+            }
+
+            if (matches)
             {
                 result.Add(card);
             }

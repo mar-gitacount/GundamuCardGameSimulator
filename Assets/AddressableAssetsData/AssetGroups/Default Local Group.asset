@@ -5127,6 +5127,36 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0736d06000000000000000000000048
+    m_Address: Data/Images/GD06-073_Wing Gundam Zero (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0226d06000000000000000000000049
+    m_Address: Data/Images/GD06-022_Merrybell's Bandit
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0876d0600000000000000000000004a
+    m_Address: Data/Images/GD06-087_Merrybell Gadget
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1206d0600000000000000000000004b
+    m_Address: Data/Images/GD06-120_Hoping for Peace
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0066d0600000000000000000000004c
+    m_Address: Data/Images/GD06-006_GQuuuuuuX (Omega Psycommu)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0836d0600000000000000000000004d
+    m_Address: Data/Images/GD06-083_Challia Bull (GQ)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:
