@@ -8230,6 +8230,14 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (TryApplyDestroyEnemyDeployedBase(effect, ownerType))
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.MarkObservedUnit)
         {
             RegisterObservedUnitWatch(sourceCard, ownerType, effect, targets);
@@ -8457,7 +8465,7 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Buff:
                 {
                     string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
-                    ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey);
+                    ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey, effect);
                     QueueOnlineUnitStat(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey);
                     break;
                 }
@@ -8465,7 +8473,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
                     int signedValue = -magnitude;
-                    ApplyStatEffect(t, signedValue, effect.statTarget, effect.duration, modifierSourceKey);
+                    ApplyStatEffect(t, signedValue, effect.statTarget, effect.duration, modifierSourceKey, effect);
                     int apReducedRequestId = NotifyApReducedByOpponentIfNeeded(
                         sourceCard,
                         ownerType,
@@ -13777,6 +13785,13 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.DestroyEnemyDeployedBase)
+        {
+            TryApplyDestroyEnemyDeployedBase(effect, ownerType);
+            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
@@ -15647,6 +15662,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.DestroyEnemyDeployedBase)
+        {
+            TryApplyDestroyEnemyDeployedBase(effect, ownerType);
+            BeginOnlineEffectSyncBatch(ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
@@ -15659,7 +15683,9 @@ public partial class BattleGameMain : MonoBehaviour
             && effect.type != EffectType.PreventAllyDestroyByEnemyEffect
             && effect.type != EffectType.CopyKeywordsFromTrashUnit
             && effect.type != EffectType.DeployExBase
-            && effect.type != EffectType.HighMobility)
+            && effect.type != EffectType.HighMobility
+            && effect.type != EffectType.DestroyEnemyDeployedBase
+            && effect.type != EffectType.TrashLookedRemainder)
         {
             return;
         }
@@ -15853,7 +15879,7 @@ public partial class BattleGameMain : MonoBehaviour
                 string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
                 for (int i = 0; i < targets.Count; i++)
                 {
-                    ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey);
+                    ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey, effect);
                     int apReducedRequestId = 0;
                     if (effect.type == EffectType.Debuff)
                     {
@@ -16109,7 +16135,13 @@ public partial class BattleGameMain : MonoBehaviour
         SyncAllResourceViewsFromRule();
     }
     // ステータス変更の効果を適用する
-    private static void ApplyStatEffect(CardController target, int signedValue, EffectStatTarget statTarget, EffectDuration duration, string statModifierSourceKey = null)
+    private static void ApplyStatEffect(
+        CardController target,
+        int signedValue,
+        EffectStatTarget statTarget,
+        EffectDuration duration,
+        string statModifierSourceKey = null,
+        EffectData effect = null)
     {
         int powerDelta = 0;
         int hpDelta = 0;
@@ -16163,7 +16195,8 @@ public partial class BattleGameMain : MonoBehaviour
             effectDamageDelta,
             effectDamageImmunityDelta,
             incomingDamageReductionDelta,
-            battleDamageFromEnemyUnitReductionDelta);
+            battleDamageFromEnemyUnitReductionDelta,
+            effect != null && effect.requireBattleDamageSourceLevelAtMostTarget);
     }
 
     /// <summary>

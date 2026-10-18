@@ -2152,6 +2152,13 @@ public class CardGameRule
             return;
         }
 
+        if (points <= 0)
+        {
+            exBaseDisplayText.gameObject.SetActive(false);
+            exBaseDisplayText.text = "EX Base:0";
+            return;
+        }
+
         if (deployedBase != null)
         {
             return;

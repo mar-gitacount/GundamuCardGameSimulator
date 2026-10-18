@@ -95,6 +95,8 @@ public class OnlineBattleActionPayload
     public const string DeployUnit = "DeployUnit";
     public const string DeployBase = "DeployBase";
     public const string DeployShield = "DeployShield";
+    /// <summary>GD06-049 等：送信側が相手の配備ベース／EX を破壊した。受信側は自分のベース枠を破壊する。</summary>
+    public const string DestroyEnemyDeployedBase = "DestroyEnemyDeployedBase";
     public const string ShieldAttack = "ShieldAttack";
     public const string UnitAttack = "UnitAttack";
     public const string AttackDeclare = "AttackDeclare";
@@ -217,6 +219,16 @@ public class OnlineBattleActionPayload
             exResourceAfter = exResourceAfter,
             levelAfter = levelAfter,
             requestId = requestId
+        });
+    }
+
+    public static string CreateDestroyEnemyDeployedBase()
+    {
+        return JsonUtility.ToJson(new OnlineDestroyEnemyDeployedBaseDto
+        {
+            action = DestroyEnemyDeployedBase,
+            defenderExBaseAfter = 0,
+            defenderDeployedBaseHpAfter = 0
         });
     }
 
@@ -619,6 +631,8 @@ public class OnlineBattleActionPayload
                     // cardId>0: 通常ベース配備。cardId=0: 出資者等の EXベースのみ同期。
                     return payload.cardId > 0
                         || (payload.cardId == 0 && payload.defenderExBaseAfter >= 0);
+                case DestroyEnemyDeployedBase:
+                    return true;
                 case DeployShield:
                     return payload.cardId > 0;
                 case MountPilot:
@@ -707,6 +721,15 @@ public class OnlineUnitAttackDto
     public int redirectHpAfter;
     public int redirectZoneSide;
     public int redirectIsBase;
+}
+
+/// <summary>相手ベース破壊同期用 lean DTO。</summary>
+[Serializable]
+public class OnlineDestroyEnemyDeployedBaseDto
+{
+    public string action;
+    public int defenderExBaseAfter;
+    public int defenderDeployedBaseHpAfter;
 }
 
 /// <summary>DeployBase 送信用 lean DTO。</summary>

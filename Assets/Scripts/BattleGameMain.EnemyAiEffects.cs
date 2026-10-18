@@ -339,6 +339,8 @@ public partial class BattleGameMain
                 || eff.type == EffectType.MountPilotFromLooked
                 || eff.type == EffectType.ReturnLookedRemainderToDeckTop
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
+                || eff.type == EffectType.TrashLookedRemainder
+                || eff.type == EffectType.DestroyEnemyDeployedBase
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
                 || eff.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
                 || eff.type == EffectType.ChooseLookedToDeckTopThenBottomRemainder

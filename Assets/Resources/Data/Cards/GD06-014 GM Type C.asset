@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: "Data/Images/GD06-014_GM Type C"
+  imageAddress: Data/Images/GD06-014_GM Type C
   version: 6
   sourceType: 1
   productLine: 1
@@ -31,6 +31,8 @@ MonoBehaviour:
   sourceTitle: 22
   filterType: 0
   color: 2
+  hasSecondaryColor: 0
+  secondaryColor: 2
   type: 0
   battleZones: 3
   attackFlg: 0
@@ -57,11 +59,14 @@ MonoBehaviour:
       observedCardType: 0
       destroyedByOwnerRelation: 0
       cardNameContains: 
+      excludeSourceCard: 0
+      filterTrashByCardType: 0
     requireChainObservationContext: 0
     effectsName: 
     effects: []
     activationCost: 0
     oncePerTurn: 0
+    forcedAction: 0
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}

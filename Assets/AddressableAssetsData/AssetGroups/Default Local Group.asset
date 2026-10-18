@@ -5197,6 +5197,36 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0056d06000000000000000000000056
+    m_Address: Data/Images/GD06-005_Akatsuki (Shiranui)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0466d06000000000000000000000057
+    m_Address: Data/Images/GD06-046_Hyaku-Shiki
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0496d06000000000000000000000058
+    m_Address: Data/Images/GD06-049_Gundam GP02A
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0936d06000000000000000000000059
+    m_Address: Data/Images/GD06-093_Anavel Gato
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1136d0600000000000000000000005a
+    m_Address: Data/Images/GD06-113_Unsanctioned Ordnance
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1306d0600000000000000000000005b
+    m_Address: Data/Images/GD06-130_Soleil
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:
