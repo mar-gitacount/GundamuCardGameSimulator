@@ -7,6 +7,7 @@ using TMPro; // これを追加！
 public partial class BattleGameMain : MonoBehaviour
 {
     private const int PoorlyPlannedOffensiveCardId = 1000650;
+    private const int FifthLunaCardId = 1000889;
 
     /// <summary>盤面スナップショット・仮想シミュレーション等の重い診断ログ。Editor の GPU TDR 原因になるため通常は false。</summary>
     private const bool EnableVerboseBattleDebugLogs = false;
@@ -7964,6 +7965,32 @@ public partial class BattleGameMain : MonoBehaviour
         return EffectMagnitudeResolver.Resolve(effect, BuildActivationContext(ownerType, sourceCard), sourceCard);
     }
 
+    /// <summary>手動選択の上限。scaleSelectMaxByBoardCount 時は白ブロッカー数など盤面カウント。</summary>
+    private int ResolveManualSelectMaxCount(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect,
+        int candidateCount)
+    {
+        int max = effect.GetSelectMaxCount(candidateCount);
+        if (effect == null || !effect.scaleSelectMaxByBoardCount)
+        {
+            return max;
+        }
+
+        int board = EffectMagnitudeResolver.CountForValueScale(
+            effect,
+            BuildActivationContext(ownerType, sourceCard),
+            sourceCard);
+        int scaled = Mathf.Max(0, board);
+        if (candidateCount <= 0 || candidateCount == int.MaxValue)
+        {
+            return scaled;
+        }
+
+        return Mathf.Min(scaled, candidateCount);
+    }
+
     private void InvokePlayerManualUnitSelectionCallback(System.Action callback)
     {
         _playerManualUnitSelectionApplyDepth++;
@@ -8464,14 +8491,14 @@ public partial class BattleGameMain : MonoBehaviour
                 }
                 case EffectType.Buff:
                 {
-                    string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
+                    string modifierSourceKey = ResolveStatModifierSourceKeyForEffect(sourceCard, effect);
                     ApplyStatEffect(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey, effect);
                     QueueOnlineUnitStat(t, magnitude, effect.statTarget, effect.duration, modifierSourceKey);
                     break;
                 }
                 case EffectType.Debuff:
                 {
-                    string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
+                    string modifierSourceKey = ResolveStatModifierSourceKeyForEffect(sourceCard, effect);
                     int signedValue = -magnitude;
                     ApplyStatEffect(t, signedValue, effect.statTarget, effect.duration, modifierSourceKey, effect);
                     int apReducedRequestId = NotifyApReducedByOpponentIfNeeded(
@@ -13038,6 +13065,18 @@ public partial class BattleGameMain : MonoBehaviour
             return blocks;
         }
 
+        // GD06-129 フィフス・ルナ：シールドが1枚以上残っているときのみ Axis トークンを配備する。
+        if (sourceCard.Data.id == FifthLunaCardId)
+        {
+            CardGameRule lunaOwnerRule = ownerType == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+            if (lunaOwnerRule == null || lunaOwnerRule.GetShieldZoneCardCount() <= 0)
+            {
+                Debug.Log(
+                    $"[GD06-129] シールドが無いため破壊時の Axis トークン配備をスキップ owner:{ownerType}");
+                return blocks;
+            }
+        }
+
         // ST12-009【破壊時】：どちらかのプレイヤーのシールドが3枚以下の場合のみ解決する。
         if (sourceCard.Data.id == 1000662)
         {
@@ -13611,23 +13650,40 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             if (beneficiary == PlayerType.Enemy)
-            {
-                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(beneficiary, sourceCard, null, null);
-                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
-                if (picked != null)
                 {
-                    ApplyEffectToSpecificTargets(sourceCard, beneficiary, effect, new List<CardController> { picked });
+                    EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(beneficiary, sourceCard, null, null);
+                    CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                    if (picked != null)
+                    {
+                        ApplyEffectToSpecificTargets(sourceCard, beneficiary, effect, new List<CardController> { picked });
+                    }
+
+                    TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                    return;
                 }
 
-                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                bool abortRemainingOnSkip = effect.abortRemainingChainOnSkip;
+                TryExecuteManualUnitSelectionEffect(
+                    sourceCard,
+                    beneficiary,
+                    effect,
+                    null,
+                    () => TryExecuteOnEnemyUnitDestroyedEffectChain(
+                        sourceCard, beneficiary, effects, index + 1, onDone),
+                    () =>
+                    {
+                        if (abortRemainingOnSkip)
+                        {
+                            onDone?.Invoke();
+                        }
+                        else
+                        {
+                            TryExecuteOnEnemyUnitDestroyedEffectChain(
+                                sourceCard, beneficiary, effects, index + 1, onDone);
+                        }
+                    });
                 return;
             }
-
-            Debug.Log(
-                $"[OnEnemyUnitDestroyed] 手動対象選択は未対応のためスキップ ({effect.FormatEffectSelectionSummary()})。");
-            TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
-            return;
-        }
 
         ApplyEffectRespectingLookAsync(
             sourceCard,
@@ -13797,7 +13853,8 @@ public partial class BattleGameMain : MonoBehaviour
             bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
             // AllyOtherUnit 等で候補0（例: 95Sazabi 自身しかいない）なら UI を出さず終了
             List<CardController> preCandidates = ResolveSelectableEffectTargets(sourceCard, ownerType, effect);
-            if (preCandidates.Count == 0)
+            if (preCandidates.Count == 0
+                || ResolveManualSelectMaxCount(sourceCard, ownerType, effect, preCandidates.Count) <= 0)
             {
                 if (abortRemainingOnSkip)
                 {
@@ -14575,7 +14632,9 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> selected = new List<CardController>();
         bool resolved = false;
         int selectMin = effect != null ? effect.GetSelectMinCount() : 1;
-        int selectMax = effect != null ? effect.GetSelectMaxCount(candidates.Count) : candidates.Count;
+        int selectMax = effect != null
+            ? ResolveManualSelectMaxCount(source, ownerType, effect, candidates.Count)
+            : candidates.Count;
         bool forbidSkip = effect != null
             && effect.forbidSkipUnitPick
             && candidates != null
@@ -14745,7 +14804,7 @@ public partial class BattleGameMain : MonoBehaviour
                 && (effect.forbidSkipUnitPick || effect.selectMaxCount > 0))
             {
                 int min = effect.GetSelectMinCount();
-                int max = effect.GetSelectMaxCount(candidates.Count);
+                int max = ResolveManualSelectMaxCount(pickCtx.SourceCard, pickCtx.OwnerSide, effect, candidates.Count);
                 List<CardController> ranked = new List<CardController>();
                 for (int i = 0; i < candidates.Count; i++)
                 {
@@ -14787,7 +14846,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect != null && effect.selectionMode.IsMultipleUnitPickMode())
         {
             int min = effect.GetSelectMinCount();
-            int max = effect.GetSelectMaxCount(candidates.Count);
+            int max = ResolveManualSelectMaxCount(pickCtx.SourceCard, pickCtx.OwnerSide, effect, candidates.Count);
             List<CardController> ranked = new List<CardController>(candidates);
             ranked.Sort((a, b) => ComputeEnemyAiUnitThreatScore(b.CurrentPower, b.CurrentHp)
                 .CompareTo(ComputeEnemyAiUnitThreatScore(a.CurrentPower, a.CurrentHp)));
@@ -15876,7 +15935,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 int sign = effect.type == EffectType.Buff ? 1 : -1;
                 int signedValue = sign * magnitude;
-                string modifierSourceKey = ResolveUnitStatModifierSourceKey(sourceCard);
+                string modifierSourceKey = ResolveStatModifierSourceKeyForEffect(sourceCard, effect);
                 for (int i = 0; i < targets.Count; i++)
                 {
                     ApplyStatEffect(targets[i], signedValue, effect.statTarget, effect.duration, modifierSourceKey, effect);
@@ -20824,7 +20883,7 @@ public partial class BattleGameMain : MonoBehaviour
         // 除外〜後続が成立してから使用済み／ターン1回を消費
         MarkActionStepCardUsed(side, command);
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
-        FinalizeOnActionSourceCard(command, side);
+        yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
         FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
 
@@ -20975,7 +21034,7 @@ public partial class BattleGameMain : MonoBehaviour
                 applied,
                 "OnAction_AfterApplyDirectEffect",
                 milliardoBeforeSnaps);
-            FinalizeOnActionSourceCard(command, side);
+            yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
             FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
             yield break;
         }
@@ -21015,7 +21074,7 @@ public partial class BattleGameMain : MonoBehaviour
         // EX 支払い後のキャリバーン等は、コマンド効果解決後に出す
         yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, applied, "OnAction_AfterApplyDirectEffect", beforeSnaps);
-        FinalizeOnActionSourceCard(command, side);
+        yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
         List<CardController> unitTargetsForEvalLog = BuildOnActionUnitTargetListAfterApply(resolvedBeforeApply);
         LogCommandUseResultWithBoard(
             "OnAction_AfterApplyDirectEffect",
@@ -21517,7 +21576,7 @@ public partial class BattleGameMain : MonoBehaviour
         yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
 
         LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
-        FinalizeOnActionSourceCard(command, side);
+        yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
         List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(pickedTargets);
         LogCommandUseResultWithBoard(
             "OnAction_AfterApplyUnitTarget",
@@ -21670,8 +21729,10 @@ public partial class BattleGameMain : MonoBehaviour
         {
             Debug.Log($"OnAction follow-up: 選択可能な対象ユニットがいません ({effect?.FormatEffectSelectionSummary()}).");
             EndOnDestroyedLatencyHold();
-            FinalizeOnActionSourceCard(command, side);
-            FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+            FinalizeOnActionSourceCard(
+                command,
+                side,
+                () => FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true));
             return;
         }
 
@@ -21695,8 +21756,10 @@ public partial class BattleGameMain : MonoBehaviour
                 if (picked == null)
                 {
                     EndOnDestroyedLatencyHold();
-                    FinalizeOnActionSourceCard(command, side);
-                    FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+                    FinalizeOnActionSourceCard(
+                        command,
+                        side,
+                        () => FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true));
                     return;
                 }
 
@@ -21713,8 +21776,10 @@ public partial class BattleGameMain : MonoBehaviour
             () =>
             {
                 EndOnDestroyedLatencyHold();
-                FinalizeOnActionSourceCard(command, side);
-                FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
+                FinalizeOnActionSourceCard(
+                    command,
+                    side,
+                    () => FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true));
             },
             blockRedirectUnit);
     }
@@ -21732,7 +21797,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (picked == null || command == null || effect == null)
         {
             EndOnDestroyedLatencyHold();
-            FinalizeOnActionSourceCard(command, side);
+            yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
             FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
             yield break;
         }
@@ -21769,7 +21834,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         LogOnActionCommandAppliedToUnitsBattleOutcome(
             command, side, effect, "OnAction_AfterApplyFollowUpUnitTarget", beforeSnapsPick);
-        FinalizeOnActionSourceCard(command, side);
+        yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
         FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
 
@@ -22270,7 +22335,8 @@ public partial class BattleGameMain : MonoBehaviour
                 ? CollectMagicBulletOfDuskTargets(side)
                 : ResolveSelectableEffectTargets(source, side, effect);
             int selectMin = effect.GetSelectMinCount();
-            if (candidates.Count < selectMin)
+            int selectMaxForGate = ResolveManualSelectMaxCount(source, side, effect, candidates.Count);
+            if (candidates.Count < selectMin || selectMaxForGate <= 0)
             {
                 Debug.Log(
                     $"OnMain: 選択可能な対象が足りません (target:{effect.target} need:{selectMin} have:{candidates.Count})。");
@@ -23198,10 +23264,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private void FinalizeOnActionSourceCard(CardController source, PlayerType side)
+    private void FinalizeOnActionSourceCard(CardController source, PlayerType side, System.Action onComplete = null)
     {
         if (source == null || source.Data == null)
         {
+            onComplete?.Invoke();
             return;
         }
 
@@ -23214,10 +23281,26 @@ public partial class BattleGameMain : MonoBehaviour
                 RecordEnemyAiObservedPlayerCardPlay(source, playKind);
             }
 
-            // トラッシュ前に通知（カード実体は破棄される）
-            NotifyOwnerSpecialMoveCommandActivated(side, commandData);
-            SendUsedCommandToTrash(source, side);
+            // 必殺技監視（敵1体選択など）が終わるまでトラッシュしない。
+            // Finish 直後に Action ポップアップを壊すと GD06-071 等が適用されない。
+            NotifyOwnerSpecialMoveCommandActivated(side, commandData, () =>
+            {
+                SendUsedCommandToTrash(source, side);
+                onComplete?.Invoke();
+            });
+            return;
         }
+
+        onComplete?.Invoke();
+    }
+
+    private IEnumerator CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(
+        CardController source,
+        PlayerType side)
+    {
+        bool done = false;
+        FinalizeOnActionSourceCard(source, side, () => done = true);
+        yield return new WaitUntil(() => done);
     }
 
     /// <summary>

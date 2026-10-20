@@ -87,11 +87,11 @@ public partial class BattleGameMain
         if (!singleOnly && effect.selectionMode.IsMultipleUnitPickMode())
         {
             int min = effect.GetSelectMinCount();
-            int max = effect.GetSelectMaxCount(candidates.Count);
+            int max = ResolveManualSelectMaxCount(ctx.SourceCard, ctx.OwnerSide, effect, candidates.Count);
             List<CardController> ranked = new List<CardController>(candidates);
             ranked.Sort((a, b) => ComputeEnemyAiUnitThreatScore(b.CurrentPower, b.CurrentHp)
                 .CompareTo(ComputeEnemyAiUnitThreatScore(a.CurrentPower, a.CurrentHp)));
-            if (ranked.Count < min)
+            if (max <= 0 || ranked.Count < min)
             {
                 return result;
             }
@@ -1443,8 +1443,7 @@ public partial class BattleGameMain
         if (onActionEffects.Count == 0)
         {
             EndOnDestroyedLatencyHold();
-            FinalizeOnActionSourceCard(command, side);
-            onDone?.Invoke();
+            FinalizeOnActionSourceCard(command, side, onDone);
             yield break;
         }
 
@@ -1474,7 +1473,7 @@ public partial class BattleGameMain
     {
         yield return WaitUntilBlockingChoiceOrTrashUiCleared();
         yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
-        FinalizeOnActionSourceCard(command, side);
+        yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
         SyncAllResourceViewsFromRule();
         onDone?.Invoke();
     }

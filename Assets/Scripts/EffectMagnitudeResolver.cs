@@ -67,6 +67,8 @@ public static class EffectMagnitudeResolver
                 return CountRestedAliveUnits(zone, effect, sourceCard);
             case EffectValueCountKind.HandCards:
                 return CountNonNullCards(zone);
+            case EffectValueCountKind.AliveWhiteBlockerUnits:
+                return CountAliveWhiteBlockerUnits(zone, effect, sourceCard);
             case EffectValueCountKind.AliveUnits:
             default:
                 return CountAliveUnits(zone, effect, sourceCard, requireValueCountFeature: true);
@@ -87,6 +89,36 @@ public static class EffectMagnitudeResolver
             {
                 n++;
             }
+        }
+
+        return n;
+    }
+
+    private static int CountAliveWhiteBlockerUnits(
+        IReadOnlyList<CardController> cards,
+        EffectData effect,
+        CardController sourceCard)
+    {
+        int n = 0;
+        for (int i = 0; i < cards.Count; i++)
+        {
+            CardController c = cards[i];
+            if (!IsAliveUnit(c) || ShouldExcludeSource(c, effect, sourceCard) || c.Data == null)
+            {
+                continue;
+            }
+
+            if (c.Data.color != CardColor.White)
+            {
+                continue;
+            }
+
+            if (!c.HasBlockerKeywordForEffectTarget())
+            {
+                continue;
+            }
+
+            n++;
         }
 
         return n;

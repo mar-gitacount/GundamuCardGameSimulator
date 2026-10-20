@@ -505,6 +505,12 @@
             "description": ""
         },
         {
+            "id": 85,
+            "featureKey": "Mariemaia_Army",
+            "displayName": "マリーメイア軍",
+            "description": ""
+        },
+        {
             "id": 10000,
             "featureKey": "test",
             "displayName": "test",

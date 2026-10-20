@@ -2136,7 +2136,7 @@ public partial class BattleGameMain
             (action.action == OnlineBattleActionPayload.DeployUnit
              && action.deployUnitExtras != null
              && action.deployUnitExtras.allowOffTurnDeploy)
-            || (action.action == OnlineBattleActionPayload.DeployBase && action.cardId <= 0)
+            || action.action == OnlineBattleActionPayload.DeployBase
             || action.action == OnlineBattleActionPayload.DestroyEnemyDeployedBase;
 
         if (currentPlayerType != PlayerType.Enemy && !allowOffTurnPlayCard)
@@ -2490,6 +2490,7 @@ public partial class BattleGameMain
             ResumeDeferredEffectDamageTakenWatchIfNeeded();
             ResumeDeferredApReducedWatchIfNeeded();
             ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            FlushPendingNotifyDeployBaseSynced();
         }
     }
 
@@ -2896,6 +2897,7 @@ public partial class BattleGameMain
             ResumeDeferredEffectDamageTakenWatchIfNeeded();
             ResumeDeferredApReducedWatchIfNeeded();
             ResumeDeferredRemoteDestroyedResolutionsIfNeeded();
+            FlushPendingNotifyDeployBaseSynced();
         }
     }
     // リモート効果同期でのユニット変更を適用

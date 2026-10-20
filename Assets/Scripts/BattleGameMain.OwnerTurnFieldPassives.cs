@@ -222,6 +222,17 @@ public partial class BattleGameMain
             && timed.HasTrashHasFeatureActivationRequirement();
     }
 
+    /// <summary>相手盤面のユニット Lv 等条件の Self AP（アルトロン EW 等）。自ターン限定ではない。</summary>
+    private static bool IsFieldUnitOpponentUnitStatSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasUnitStatOnFieldActivationRequirement();
+    }
+
     /// <summary>手札枚数連動 Self AP（GGumega 等）。自ターン限定ではない。</summary>
     private static bool IsFieldUnitHandCountSelfStatPassive(TimedEffectData timed, bool isPilotSource)
     {
@@ -263,7 +274,8 @@ public partial class BattleGameMain
                 && !IsFieldUnitMountedPilotSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOwnerLevelSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitTrashFeatureSelfStatPassive(timed, isPilotSource)
-                && !IsFieldUnitHandCountSelfStatPassive(timed, isPilotSource))
+                && !IsFieldUnitHandCountSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitOpponentUnitStatSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }

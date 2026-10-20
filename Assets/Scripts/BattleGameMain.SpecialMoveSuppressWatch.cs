@@ -215,9 +215,19 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (timed.oncePerTurn && HasUsedPaidActivationThisTurn(ownerType, unit, i))
+            {
+                continue;
+            }
+
             if (!CanRunTimedBlockAtChainTime(timed, activationContext, "OnOwnerSpecialMoveCommandActivated"))
             {
                 continue;
+            }
+
+            if (timed.oncePerTurn)
+            {
+                MarkPaidActivationUsedThisTurn(ownerType, unit, i);
             }
 
             blocks.Add(timed);

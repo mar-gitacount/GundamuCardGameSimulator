@@ -1130,7 +1130,9 @@ public enum EffectValueCountKind
     /// </summary>
     RestedAliveUnits,
     /// <summary>指定ゾーン（主に OwnerHand）のカード枚数。GGumega の「手札の枚数だけ AP を上げる」用。</summary>
-    HandCards
+    HandCards,
+    /// <summary>白かつ《ブロッカー》の生存ユニット体数（GD06-118 Infinite Variations）。</summary>
+    AliveWhiteBlockerUnits
 }
 
 [Serializable]
@@ -1575,6 +1577,9 @@ public class EffectData
     [Tooltip("SelectMultipleUnits 等: 最大選択体数（0 なら上限なし）。")]
     public int selectMaxCount;
 
+    [Tooltip("true のとき選択上限を valueCountKind の盤面カウントにする（AP 量は value のまま）。")]
+    public bool scaleSelectMaxByBoardCount;
+
     [Tooltip("複数選択時、選んだカード名がすべて異なること（ネオ・コア・ファイター等）。")]
     public bool requireDistinctCardNames;
 
@@ -1637,6 +1642,9 @@ public class EffectData
 
     [Tooltip("true のとき REST 状態のユニットのみ対象（武力介入等）。ACTIVE は候補にしない。")]
     public bool requireTargetIsRest;
+
+    [Tooltip("true のとき ACTIVE のユニットのみ対象（REST は候補にしない）。")]
+    public bool requireTargetIsNotRest;
 
     [Tooltip("true のとき《高機動》を持つユニットのみ対象（印刷＋付与）。")]
     public bool requireTargetHasHighMobility;
@@ -2287,6 +2295,11 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.requireTargetIsNotRest && unit.IsRestState)
+        {
+            return false;
+        }
+
         if (effect.requireTargetHasHighMobility && !unit.HasHighMobilityAbility())
         {
             return false;
@@ -2826,6 +2839,11 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.requireTargetIsNotRest && unit.IsRestState)
+        {
+            return false;
+        }
+
         if (effect.requireTargetHasHighMobility && !unit.HasHighMobilityAbility())
         {
             return false;
@@ -3293,6 +3311,25 @@ public static class TimedEffectDataExtensions
         return false;
     }
 
+    public static bool HasUnitStatOnFieldActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.UnitStatOnField)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool HasOwnerTotalLevelActivationRequirement(this TimedEffectData timed)
     {
         if (timed?.activationConditions == null)
@@ -3384,7 +3421,8 @@ public static class TimedEffectDataExtensions
             && (timed.HasSourceUnitIsLinkedActivationRequirement()
                 || timed.HasOwnerTotalLevelActivationRequirement()
                 || timed.HasMountedPilotActivationRequirement()
-                || timed.HasTrashHasFeatureActivationRequirement()))
+                || timed.HasTrashHasFeatureActivationRequirement()
+                || timed.HasUnitStatOnFieldActivationRequirement()))
         {
             return false;
         }
