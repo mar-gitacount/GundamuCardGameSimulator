@@ -54,7 +54,8 @@ MonoBehaviour:
   features:
   - {fileID: 11400000, guid: e0f1a2b3c4d5e6f708192a3b4c5d6e7f, type: 2}
   - {fileID: 11400000, guid: f1a2b3c4d5e6f708192a3b4c5d6e7f80, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: 6b4a40f375c34a18baa5a3793745f610, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 0

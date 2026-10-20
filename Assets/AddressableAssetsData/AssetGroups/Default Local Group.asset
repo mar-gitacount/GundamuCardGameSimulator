@@ -5227,6 +5227,86 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1056d0600000000000000000000005c
+    m_Address: Data/Images/GD06-105_Brace Under Pressure
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0586d0600000000000000000000005d
+    m_Address: Data/Images/GD06-058_Blast Impulse Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0166d0600000000000000000000005e
+    m_Address: Data/Images/GD06-016_Dom Trooper
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1296d0600000000000000000000005f
+    m_Address: Data/Images/GD06-129_5th Luna
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0356d06000000000000000000000060
+    m_Address: Data/Images/GD06-035_Zeta Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0716d06000000000000000000000061
+    m_Address: Data/Images/GD06-071_Shining Gundam (Meikyo Shisui)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0256d06000000000000000000000062
+    m_Address: Data/Images/GD06-025_Re-GZ
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1186d06000000000000000000000063
+    m_Address: Data/Images/GD06-118_Infinite Variations
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0906d06000000000000000000000064
+    m_Address: Data/Images/GD06-090_Vidar
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0826d06000000000000000000000065
+    m_Address: Data/Images/GD06-082_Athrun Zala
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0026d06000000000000000000000066
+    m_Address: Data/Images/GD06-002_Infinite Justice Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0956d06000000000000000000000067
+    m_Address: Data/Images/GD06-095_Kelly Layzner
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1286d06000000000000000000000068
+    m_Address: Data/Images/GD06-128_Gwaden
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0996d06000000000000000000000069
+    m_Address: Data/Images/GD06-099_Chang Wufei
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0646d0600000000000000000000006a
+    m_Address: Data/Images/GD06-064_Altron Gundam (EW)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0366d0600000000000000000000006b
+    m_Address: Data/Images/GD06-036_Gundam Vidar
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

@@ -7020,6 +7020,272 @@
                     "requireTargetHasNoPilot": true
                 }
             ]
+        },
+        {
+            "effectSetName": "NotDirectAttack_Self_UntilEOT_OnPlayed",
+            "displayName": "配備ターン：相手プレイヤー／シールドへ直接攻撃できない",
+            "effects": [
+                {
+                    "type": 26,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployCalibarnToken1",
+            "displayName": "[Gundam Calibarn] ユニットトークン1体を配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000892,
+                    "filterByDeployCardId": 1,
+                    "deployUnitTriggerOnPlayed": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployAerialRebuildToken1",
+            "displayName": "[Gundam Aerial Rebuild] ユニットトークン1体を配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000893,
+                    "filterByDeployCardId": 1,
+                    "deployUnitTriggerOnPlayed": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "ChooseCalibarnOrAerialRebuildToken_OnMain",
+            "displayName": "メイン：キャリバーンかエアリアル改修型のユニットトークン1体を配備",
+            "effects": [
+                {
+                    "type": 38,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": 0,
+                    "choicePromptJa": "配備するユニットトークンを1つ選び、OKで発動。",
+                    "choicePromptEn": "Choose 1 Unit token to deploy, then press OK.",
+                    "choiceBranches": [
+                        {
+                            "labelJa": "■ガンダム・キャリバーン（〔アカデミー〕・AP5・HP3・《高機動》）を配備する。",
+                            "labelEn": "■Deploy Gundam Calibarn ((Academy) · AP5 · HP3 · High-Maneuver).",
+                            "effectsName": "DeployCalibarnToken1"
+                        },
+                        {
+                            "labelJa": "■ガンダム・エアリアル改修型（〔クワイエット・ゼロ〕・AP3・HP5・《突破3》）を配備する。",
+                            "labelEn": "■Deploy Gundam Aerial Rebuild ((Quiet Zero) · AP3 · HP5 · Breach 3).",
+                            "effectsName": "DeployAerialRebuildToken1"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployAxisBaseToken_IfOwnerHasShields_OnDestroyed",
+            "displayName": "破壊時：シールドが残っているなら [Axis] ベーストークンを配備",
+            "effects": [
+                {
+                    "type": 8,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1000894,
+                    "filterByDeployCardId": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyUnitAp3OrLess_SelectSingle",
+            "displayName": "AP3以下の敵ユニット1体に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp2_ThenBuffSelfAp2_UntilEOT_OnSpecialMove",
+            "displayName": "敵1体AP-2（ターン終了まで）。そうしたなら自身AP+2",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp2_UntilEOT_SelectUpToWhiteBlockerCount_OnMainAction",
+            "displayName": "白ブロッカー体数まで敵ユニットを選びAP-2（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 5,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 6,
+                    "scaleSelectMaxByBoardCount": true,
+                    "selectMinCount": 1,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_EnemyUnit_SelectSingle",
+            "displayName": "敵ユニット1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "RecoverHp3_AllyOrbUnit_SelectSingle",
+            "displayName": "自分の〔オーブ〕ユニット1体を3回復",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 3,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "targetFeatureId": 18
+                }
+            ]
+        },
+        {
+            "effectSetName": "OptionalExile3_OwnTrashUnits_ThenBounceActiveEnemy_OnPlayed",
+            "displayName": "配備時：トラッシュのユニット3枚を除外してもよい。そうしたならACTIVEな敵1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 3,
+                    "target": 5,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "requireExactExileCount": true,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "requireTargetIsNotRest": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OptionalDamage1_Self_ThenBuffAllyZeonAp2_UntilEOT_OnAttack",
+            "displayName": "アタック時：このユニットに1ダメージを与えてもよい。そうしたならジオン味方1体をAP+2",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "targetFeatureId": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestSelf_BuffAllyZeon_BattleDamageFromEnemyUnitReduction1_UntilEOT_OnMain",
+            "displayName": "起動メイン：自身をレストし、ジオン味方1体の相手ユニットからのバトルダメージを1軽減",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 8,
+                    "duration": 1,
+                    "targetFeatureId": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyLv5OrMoreAp3_UntilEndOfBattle_SelectSingle_OnAttack",
+            "displayName": "アタック時：Lv5以上の敵1体をこのバトル中AP-3",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelfAp3_WhileEnemyLv5OrMoreInPlay",
+            "displayName": "相手にLv5以上のユニットがいる間、このユニットAP+3",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 3,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                }
+            ]
         }
     ]
 }

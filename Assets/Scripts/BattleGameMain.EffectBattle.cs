@@ -610,7 +610,7 @@ public partial class BattleGameMain
         EndOnDestroyedLatencyHold();
         yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
         yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
-        FinalizeOnActionSourceCard(command, side);
+        yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
         FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
 

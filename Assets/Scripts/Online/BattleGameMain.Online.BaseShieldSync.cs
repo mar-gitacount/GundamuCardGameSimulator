@@ -4,10 +4,12 @@ using UnityEngine;
 /// <summary>ベース配備・シールドゾーン配備のオンライン同期。</summary>
 public partial class BattleGameMain
 {
+    /// <summary>リモート攻撃適用中に配備したベースは、フラグ解除後に PlayCard する。</summary>
+    private CardController _pendingNotifyDeployBaseCard;
+
     private void NotifyLocalDeployBaseSynced(CardController baseCard, PlayerType ownerType)
     {
-        if (_applyingRemoteBattleAction
-            || !IsOnlineBattle()
+        if (!IsOnlineBattle()
             || ownerType != PlayerType.Player
             || baseCard == null
             || baseCard.Data == null)
@@ -15,7 +17,43 @@ public partial class BattleGameMain
             return;
         }
 
-        Gundam2024RuleScript.PlayerSide ruleSide = ToRuleSide(ownerType);
+        if (_applyingRemoteBattleAction)
+        {
+            _pendingNotifyDeployBaseCard = baseCard;
+            Debug.Log(
+                $"[OnlineBattle] DeployBase sync deferred until remote apply ends. "
+                + $"card={baseCard.Data.cardName}(id:{baseCard.Data.id})");
+            return;
+        }
+
+        SendLocalDeployBaseSyncedNow(baseCard);
+    }
+
+    private void FlushPendingNotifyDeployBaseSynced()
+    {
+        CardController pending = _pendingNotifyDeployBaseCard;
+        _pendingNotifyDeployBaseCard = null;
+        if (pending == null || pending.Data == null)
+        {
+            return;
+        }
+
+        if (cardGameRule != null && !ReferenceEquals(cardGameRule.DeployedBase, pending))
+        {
+            return;
+        }
+
+        SendLocalDeployBaseSyncedNow(pending);
+    }
+
+    private void SendLocalDeployBaseSyncedNow(CardController baseCard)
+    {
+        if (baseCard == null || baseCard.Data == null || !IsOnlineBattle())
+        {
+            return;
+        }
+
+        Gundam2024RuleScript.PlayerSide ruleSide = Gundam2024RuleScript.PlayerSide.Player;
         Gundam2024RuleScript.PlayerState state = GetRuleState(ruleSide);
         CardGameRule rule = cardGameRule;
         int[] shieldIds = CollectShieldZoneCardIds(rule);
@@ -155,6 +193,25 @@ public partial class BattleGameMain
         _applyingRemoteBattleAction = true;
         try
         {
+            CardController existing = rule != null ? rule.DeployedBase : null;
+            if (existing != null && existing.Data != null && existing.Data.id == action.cardId)
+            {
+                if (action.baseHpAfter > 0)
+                {
+                    existing.SetCurrentHpForSync(action.baseHpAfter);
+                }
+
+                RefreshDeployedBaseHpOverlay(existing);
+                if (action.includeResourceSnapshot)
+                {
+                    ApplyRemoteDeployCostResourceSnapshotIfPresent(action);
+                }
+
+                Debug.Log(
+                    $"[OnlineBattle] Remote base deploy matched existing {cardData.cardName}({action.cardId}) — HP refresh only");
+                return;
+            }
+
             ClearRemoteMirrorDeployedBaseVisual(rule);
 
             gundamRule.SetExBasePoints(ruleSide, Mathf.Max(0, action.defenderExBaseAfter));

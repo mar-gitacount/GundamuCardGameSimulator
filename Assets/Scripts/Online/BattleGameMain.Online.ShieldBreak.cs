@@ -559,6 +559,7 @@ public partial class BattleGameMain
     {
         if (brokenCount <= 0 || isMatchFinished)
         {
+            yield return WaitUntilBlockingChoiceOrTrashUiCleared(10f);
             SendOnlineShieldBreakComplete(shieldBreakRequestId, side);
             yield break;
         }
@@ -567,6 +568,7 @@ public partial class BattleGameMain
         // 同タイミングの ZoneSync AddTrash と二重になると相手盤トラッシュが2枚になる。
         BeginRemoteShieldBreakTrashIdRecording();
         PushZoneSyncSuppress();
+        int[] trashedCardIds = null;
         try
         {
             if (simultaneousReveal && brokenCount > 1)
@@ -585,14 +587,15 @@ public partial class BattleGameMain
         finally
         {
             PopZoneSyncSuppress();
-            int[] trashedCardIds = EndRemoteShieldBreakTrashIdRecording();
+            trashedCardIds = EndRemoteShieldBreakTrashIdRecording();
             if (!shieldBreakQueueRunning && pendingShieldBreakBatches.Count == 0)
             {
                 isShieldBreakFlowOpen = false;
             }
-
-            SendOnlineShieldBreakComplete(shieldBreakRequestId, side, trashedCardIds);
         }
+
+        yield return WaitUntilBlockingChoiceOrTrashUiCleared(10f);
+        SendOnlineShieldBreakComplete(shieldBreakRequestId, side, trashedCardIds);
     }
 
     /// <summary>

@@ -861,6 +861,11 @@ public partial class BattleGameMain
             return;
         }
 
+        if (TryDeployBaseTokenImmediate(effect, sourceOwner, sourceCard, onComplete))
+        {
+            return;
+        }
+
         // バースト配備は常に破壊されたカードのオーナー側へ（旧 JSON の target=EnemyAllUnits でも自陣）
         PlayerType recipient = allowBurstSource
             ? sourceOwner
@@ -895,6 +900,68 @@ public partial class BattleGameMain
             $"[Effect] DeployBase x{applied}/{want} target:{(effect != null ? effect.target.ToString() : "?")} "
             + $"by cardId:{sourceCard?.Data?.id ?? -1}");
         onComplete?.Invoke();
+    }
+
+    /// <summary>deployCardId の Base トークンを新規生成してベース枠へ配備する（GD06-129 等）。</summary>
+    private bool TryDeployBaseTokenImmediate(
+        EffectData effect,
+        PlayerType sourceOwner,
+        CardController sourceCard,
+        Action onComplete)
+    {
+        if (effect == null || effect.deployCardId <= 0)
+        {
+            return false;
+        }
+
+        if (effect.deployUnitSource != DeployUnitSource.Token
+            && effect.deployUnitSource != DeployUnitSource.Hand)
+        {
+            return false;
+        }
+
+        CardData tokenData = DeckSettinObject.Instance != null
+            ? DeckSettinObject.Instance.GetCardDataById(effect.deployCardId)
+            : null;
+        if (tokenData == null || tokenData.type != Type.Base)
+        {
+            return false;
+        }
+
+        PlayerType recipient = ResolveEffectOwnerPlayerType(
+            sourceOwner,
+            effect.target);
+        CardGameRule deployRule = recipient == PlayerType.Player ? cardGameRule : enemyCardGameRule;
+        if (deployRule == null || CardImagePrefab == null)
+        {
+            onComplete?.Invoke();
+            return true;
+        }
+
+        GameObject go = Instantiate(CardImagePrefab);
+        CardController spawned = go.GetComponent<CardController>();
+        if (spawned == null)
+        {
+            Destroy(go);
+            onComplete?.Invoke();
+            return true;
+        }
+
+        spawned.SetUp(tokenData, OnCardClicked);
+        if (!DeployCardToBaseZone(spawned, recipient, deployRule, triggerOnPlayed: false))
+        {
+            Destroy(go);
+            Debug.LogWarning(
+                $"[DeployBase] token deploy failed id:{tokenData.id} recipient:{recipient}");
+            onComplete?.Invoke();
+            return true;
+        }
+
+        Debug.Log(
+            $"[DeployBase] token {tokenData.cardName}(id:{tokenData.id}) → {recipient} "
+            + $"by cardId:{sourceCard?.Data?.id ?? -1}");
+        onComplete?.Invoke();
+        return true;
     }
 
     private void RemoveCardFromHandLists(CardController cardController, PlayerType ownerType)
