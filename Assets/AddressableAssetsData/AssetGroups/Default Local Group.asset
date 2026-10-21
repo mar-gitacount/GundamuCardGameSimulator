@@ -5307,6 +5307,36 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0966d0600000000000000000000006c
+    m_Address: Data/Images/GD06-096_Xavier Olivette
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0246d0600000000000000000000006d
+    m_Address: Data/Images/GD06-024_R-Jarja
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1196d0600000000000000000000006e
+    m_Address: Data/Images/GD06-119_Sturm und Drang
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0666d0600000000000000000000006f
+    m_Address: Data/Images/GD06-066_Shadow Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0536d06000000000000000000000070
+    m_Address: Data/Images/GD06-053_Xavier's Gyan Hakuji-Packs (GQ)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1086d06000000000000000000000071
+    m_Address: Data/Images/GD06-108_On Edge
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

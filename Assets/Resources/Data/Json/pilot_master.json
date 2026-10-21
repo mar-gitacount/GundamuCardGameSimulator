@@ -911,6 +911,18 @@
             "pilotKey": "Poe_Aijee",
             "displayName": "ポゥ・エイジ",
             "description": ""
+        },
+        {
+            "id": 153,
+            "pilotKey": "Chara_Soon",
+            "displayName": "キャラ・スーン",
+            "description": ""
+        },
+        {
+            "id": 154,
+            "pilotKey": "Schwarz_Bruder",
+            "displayName": "シュバルツ・ブルーダー",
+            "description": ""
         }
     ]
 }

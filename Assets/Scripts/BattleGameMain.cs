@@ -17562,6 +17562,7 @@ public partial class BattleGameMain : MonoBehaviour
             || effect.type == EffectType.AddObservedToHandFromTrash
             || effect.type == EffectType.MountSelfFromTrashAsPilot
             || effect.type == EffectType.ActivateMountedCardOnMain
+            || effect.type == EffectType.ActivateMountedCardOnAction
             || effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
             || effect.type == EffectType.ActivateSelfOnMain)
         {
@@ -21065,6 +21066,12 @@ public partial class BattleGameMain : MonoBehaviour
                 continue;
             }
 
+            // トラッシュ送付後に解決する
+            if (effect.type == EffectType.MountSelfFromTrashAsPilot)
+            {
+                continue;
+            }
+
             ApplyEffect(command, side, effect);
         }
 
@@ -21663,6 +21670,11 @@ public partial class BattleGameMain : MonoBehaviour
         {
             EffectData next = onActionEffects[i];
             if (next == null)
+            {
+                continue;
+            }
+
+            if (next.type == EffectType.MountSelfFromTrashAsPilot)
             {
                 continue;
             }
@@ -23283,9 +23295,24 @@ public partial class BattleGameMain : MonoBehaviour
 
             // 必殺技監視（敵1体選択など）が終わるまでトラッシュしない。
             // Finish 直後に Action ポップアップを壊すと GD06-071 等が適用されない。
+            List<EffectData> deferredMountEffects = CollectMountSelfFromTrashAsPilotEffects(
+                GetEffectsByTiming(commandData, EffectTiming.OnAction));
+            int sourceCardId = commandData.id;
             NotifyOwnerSpecialMoveCommandActivated(side, commandData, () =>
             {
                 SendUsedCommandToTrash(source, side);
+                if (deferredMountEffects.Count > 0 && sourceCardId > 0)
+                {
+                    TryExecuteDeferredMountSelfFromTrashChain(
+                        side,
+                        sourceCardId,
+                        commandData,
+                        deferredMountEffects,
+                        0,
+                        onComplete);
+                    return;
+                }
+
                 onComplete?.Invoke();
             });
             return;
@@ -23444,6 +23471,11 @@ public partial class BattleGameMain : MonoBehaviour
     private bool CanExecuteOnActionCardNow(PlayerType ownerType, CardController card)
     {
         if (card == null || card.Data == null)
+        {
+            return false;
+        }
+
+        if (ShouldSuppressMountedCommandPilotOnAction(card))
         {
             return false;
         }

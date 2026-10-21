@@ -7286,6 +7286,88 @@
                     "duration": 0
                 }
             ]
+        },
+        {
+            "effectSetName": "MillTop1_ThenDebuffAllEnemyAp1_UntilEOB_IfMilledZeonOrAlphacide",
+            "displayName": "山札上1枚トラッシュ。〔ジオン〕／〔Alphacide〕なら敵全体をこのバトル中AP-1",
+            "effects": [
+                {
+                    "type": 19,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "requireChainObservationContext": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 7,
+                            "featureIds": [5, 78],
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyHp3OrLess_ThenOptionalMountSelfOnMF_FromTrash_OnAction",
+            "displayName": "アクション：HP3以下の敵1体をREST。解決後、任意で自身をトラッシュから〔MF〕へセット",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                },
+                {
+                    "type": 41,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "targetFeatureId": 12,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "ActivateMountedCardOnAction_OnAttack",
+            "displayName": "攻撃時：セットカードの【アクション】を発動（コストなし・セット維持）",
+            "effects": [
+                {
+                    "type": 77,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyNeoZeonLv4OrLessAp2_UntilEOT_All",
+            "displayName": "味方〔ネオジオン〕Lv4以下全体をAP+2（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 3,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "targetFeatureId": 6,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
         }
     ]
 }
