@@ -313,6 +313,12 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.type == EffectType.ActivateMountedCardOnAction)
+        {
+            ApplyActivateMountedCardOnAction(sourceCard, ownerType, onChainContinue);
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.ActivateObservedSpecialMoveCommandOnMain)
         {
             ApplyActivateObservedSpecialMoveCommandOnMain(sourceCard, ownerType, effect, onChainContinue);

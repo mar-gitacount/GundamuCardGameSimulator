@@ -1833,6 +1833,13 @@ public partial class BattleGameMain
                 return true;
             }
 
+            // GD06-096 等: このバトル中の敵全体デバフは攻撃前チェーンで解決する
+            if (effect.duration == EffectDuration.UntilEndOfBattle
+                && (effect.target == TargetType.EnemyAllUnits || effect.target == TargetType.AllyAllUnits))
+            {
+                return true;
+            }
+
             return false;
         }
 
@@ -1857,6 +1864,7 @@ public partial class BattleGameMain
             || effect.type == EffectType.ExileFromDeck
             || effect.type == EffectType.Look
             || effect.type == EffectType.ActivateMountedCardOnMain
+            || effect.type == EffectType.ActivateMountedCardOnAction
             || effect.type == EffectType.ActivateResource
             || ((effect.type == EffectType.Damage)
                 && (effect.target == TargetType.EnemyPlayer || effect.target == TargetType.SelfPlayer)))
@@ -2441,6 +2449,15 @@ public partial class BattleGameMain
         if (effect.type == EffectType.ActivateMountedCardOnMain)
         {
             ApplyActivateMountedCardOnMain(
+                sourceCard,
+                ownerType,
+                () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.ActivateMountedCardOnAction)
+        {
+            ApplyActivateMountedCardOnAction(
                 sourceCard,
                 ownerType,
                 () => TryExecuteOnAttackPreCombatEffectChain(sourceCard, ownerType, effects, index + 1, onDone));

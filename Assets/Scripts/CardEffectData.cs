@@ -252,9 +252,9 @@ public enum EffectType
     /// </summary>
     AddFromTrashToHand,
     /// <summary>
-    /// 【メイン】解決後専用。トラッシュに置かれた発動元カード自身を、
+    /// 【メイン】／【アクション】解決後。トラッシュに置かれた発動元カード自身を、
     /// targetFeature 等で絞った味方ユニットへパイロットとしてセットしてもよい（optionalPlayerConfirm）。
-    /// OnMain チェーン中はスキップし、コマンドがトラッシュへ送られたあとに解決する。
+    /// OnMain / OnAction チェーン中はスキップし、コマンドがトラッシュへ送られたあとに解決する。
     /// </summary>
     MountSelfFromTrashAsPilot,
     /// <summary>
@@ -460,7 +460,13 @@ public enum EffectType
     /// 相手プレイヤーの配備ベース（および EX ベース層）を破壊する。
     /// 対象選択は不要。1v1 では相手1人のベースを破壊する。
     /// </summary>
-    DestroyEnemyDeployedBase
+    DestroyEnemyDeployedBase,
+    /// <summary>
+    /// 搭乗中のカード（パイロット／コマンドパイロット）の【アクション】(OnAction) を、
+    /// コスト支払いなし・セット維持のまま発動する。【リンク中】【アタック時】等で使用。
+    /// MountSelfFromTrashAsPilot はスキップする。
+    /// </summary>
+    ActivateMountedCardOnAction
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>

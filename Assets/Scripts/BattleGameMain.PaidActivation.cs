@@ -505,6 +505,19 @@ public partial class BattleGameMain
         return null;
     }
 
+    /// <summary>
+    /// コマンドパイロットの【アクション】は手札からのコマンドとして発動する。
+    /// 搭乗中はアクションステップの起動対象にしない。
+    /// シュピーゲル等の「セットカードの【アクション】を発動」は ActivateMountedCardOnAction 経由のため対象外。
+    /// </summary>
+    private static bool ShouldSuppressMountedCommandPilotOnAction(CardController source)
+    {
+        return source != null
+            && source.Data != null
+            && source.Data.type == Type.CommandPilot
+            && source.MountedUnit != null;
+    }
+
     private TimedEffectData FindFirstAvailableOnActionTimedBlock(
         PlayerType side,
         CardController source,
@@ -512,6 +525,11 @@ public partial class BattleGameMain
     {
         blockIndex = -1;
         if (source?.Data?.timedEffects == null)
+        {
+            return null;
+        }
+
+        if (ShouldSuppressMountedCommandPilotOnAction(source))
         {
             return null;
         }
