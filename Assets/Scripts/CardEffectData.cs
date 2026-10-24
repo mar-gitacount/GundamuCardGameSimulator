@@ -466,7 +466,23 @@ public enum EffectType
     /// コスト支払いなし・セット維持のまま発動する。【リンク中】【アタック時】等で使用。
     /// MountSelfFromTrashAsPilot はスキップする。
     /// </summary>
-    ActivateMountedCardOnAction
+    ActivateMountedCardOnAction,
+    /// <summary>
+    /// このバトル中、味方シールドエリアのカードが AP.value 以下の相手ユニットからダメージを受けない
+    /// （GD06-106 Presence Detected 等）。duration=UntilEndOfBattle。
+    /// </summary>
+    GrantShieldAreaImmunityFromEnemyUnitApOrLess,
+    /// <summary>
+    /// 【リンク中】パッシブ。相手は、相手の効果（EffectType.Activate）で相手ユニットをアクティブにできない
+    /// （GD06-037 レギンレイズ・ジュリア等）。ApplyEffect はマーカーのみ。
+    /// </summary>
+    PreventEnemyActivateByEnemyEffectsDuringPair,
+    /// <summary>
+    /// トラッシュにあるこのカードの印刷 Lv / Cost を value 下げる（GD06-050 レジェンド等）。
+    /// timed.activationConditions（例: OwnerHasLinkedUnitWithFeature 〔ZAFT〕）を満たすときのみ。
+    /// コスト支払い配備の判定・消費で参照する。ApplyEffect はマーカーのみ。
+    /// </summary>
+    ModifyTrashPrintedCostAndLevel
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -1049,7 +1065,20 @@ public enum EffectActivationCheckKind
     /// このターン中、オーナーが効果（Draw）で1枚以上山札から手札へ加えている。
     /// ターン開始の通常ドローは含まない（GD06-080 コウ・ウラキ等）。
     /// </summary>
-    OwnerDrewWithEffectThisTurn
+    OwnerDrewWithEffectThisTurn,
+    /// <summary>発動元ユニットが今回トラッシュから配備されていない（手札配備など）。</summary>
+    SourceNotDeployedFromTrash,
+    /// <summary>
+    /// OnAttack 時の対戦相手ユニットがダメージを受けている（現在 HP &lt; 最大 HP）。
+    /// </summary>
+    BattlingEnemyUnitDamaged,
+    /// <summary>
+    /// オーナーのバトルゾーンに、指定 Feature を持つ生存ユニットのうち、
+    /// 搭乗パイロットの実効レベルが compareOp + pilotLevelThreshold（または compareValue）を満たすものが
+    /// minimumCount 体以上いる（GD06-123 〔ネオジオン〕かつパイロット Lv3 以下等）。
+    /// Feature はホストユニット側。パイロット側の特徴は見ない。
+    /// </summary>
+    OwnerHasFeaturedUnitWithMountedPilotLevel
 }
 
 public enum EffectTurnCheckKind

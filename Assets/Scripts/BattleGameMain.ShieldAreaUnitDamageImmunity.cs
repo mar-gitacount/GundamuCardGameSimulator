@@ -13,6 +13,12 @@ public partial class BattleGameMain
     /// <summary>Enemy 側：無効化する相手ユニットの最大 Lv（未付与は -1）。</summary>
     private int _enemyShieldAreaImmunityMaxEnemyUnitLevel = -1;
 
+    /// <summary>Player 側：無効化する相手ユニットの最大 AP（未付与は -1）。</summary>
+    private int _playerShieldAreaImmunityMaxEnemyUnitAp = -1;
+
+    /// <summary>Enemy 側：無効化する相手ユニットの最大 AP（未付与は -1）。</summary>
+    private int _enemyShieldAreaImmunityMaxEnemyUnitAp = -1;
+
     /// <summary>
     /// 味方シールドエリア（シールド／配備ベース／EX）への
     /// 「相手ユニット Lv≤maxLevel」ダメージ無効を付与する（UntilEndOfBattle）。
@@ -44,6 +50,34 @@ public partial class BattleGameMain
             + $"(now:{GetShieldAreaImmunityMaxEnemyUnitLevel(ownerType)})");
     }
 
+    /// <summary>
+    /// 味方シールドエリアへの「相手ユニット AP≤maxAp」ダメージ無効を付与する（UntilEndOfBattle）。
+    /// </summary>
+    private void GrantShieldAreaImmunityFromEnemyUnitApOrLess(PlayerType ownerType, int maxEnemyUnitAp)
+    {
+        if (maxEnemyUnitAp < 0)
+        {
+            return;
+        }
+
+        if (ownerType == PlayerType.Player)
+        {
+            _playerShieldAreaImmunityMaxEnemyUnitAp =
+                Mathf.Max(_playerShieldAreaImmunityMaxEnemyUnitAp, maxEnemyUnitAp);
+        }
+        else
+        {
+            _enemyShieldAreaImmunityMaxEnemyUnitAp =
+                Mathf.Max(_enemyShieldAreaImmunityMaxEnemyUnitAp, maxEnemyUnitAp);
+        }
+
+        QueueOnlineShieldAreaUnitDamageImmunityAp(ownerType, maxEnemyUnitAp);
+
+        Debug.Log(
+            $"[ShieldAreaUnitDmgImmunity] grant AP≤{maxEnemyUnitAp} → {ownerType} "
+            + $"(now:{GetShieldAreaImmunityMaxEnemyUnitAp(ownerType)})");
+    }
+
     /// <summary>オンライン受信：送信側視点の付与サイドをローカル視点へ反転して付与する。</summary>
     private void ApplyRemoteShieldAreaUnitDamageImmunity(PlayerType senderGrantedSide, int maxEnemyUnitLevel)
     {
@@ -70,20 +104,52 @@ public partial class BattleGameMain
             + $"(now:{GetShieldAreaImmunityMaxEnemyUnitLevel(localSide)})");
     }
 
+    /// <summary>オンライン受信：AP 閾値のシールドエリア無効をローカル視点へ反転して付与する。</summary>
+    private void ApplyRemoteShieldAreaUnitDamageImmunityAp(PlayerType senderGrantedSide, int maxEnemyUnitAp)
+    {
+        if (maxEnemyUnitAp < 0)
+        {
+            return;
+        }
+
+        PlayerType localSide = MirrorOnlineZoneOwner(senderGrantedSide);
+        if (localSide == PlayerType.Player)
+        {
+            _playerShieldAreaImmunityMaxEnemyUnitAp =
+                Mathf.Max(_playerShieldAreaImmunityMaxEnemyUnitAp, maxEnemyUnitAp);
+        }
+        else
+        {
+            _enemyShieldAreaImmunityMaxEnemyUnitAp =
+                Mathf.Max(_enemyShieldAreaImmunityMaxEnemyUnitAp, maxEnemyUnitAp);
+        }
+
+        Debug.Log(
+            $"[ShieldAreaUnitDmgImmunity] Remote grant AP≤{maxEnemyUnitAp} "
+            + $"senderSide:{senderGrantedSide} → localSide:{localSide} "
+            + $"(now:{GetShieldAreaImmunityMaxEnemyUnitAp(localSide)})");
+    }
+
     private void ClearShieldAreaImmunityFromEnemyUnitLevelOrLess()
     {
         if (_playerShieldAreaImmunityMaxEnemyUnitLevel < 0
-            && _enemyShieldAreaImmunityMaxEnemyUnitLevel < 0)
+            && _enemyShieldAreaImmunityMaxEnemyUnitLevel < 0
+            && _playerShieldAreaImmunityMaxEnemyUnitAp < 0
+            && _enemyShieldAreaImmunityMaxEnemyUnitAp < 0)
         {
             return;
         }
 
         Debug.Log(
             "[ShieldAreaUnitDmgImmunity] cleared "
-            + $"(player:{_playerShieldAreaImmunityMaxEnemyUnitLevel} "
-            + $"enemy:{_enemyShieldAreaImmunityMaxEnemyUnitLevel})");
+            + $"(playerLv:{_playerShieldAreaImmunityMaxEnemyUnitLevel} "
+            + $"enemyLv:{_enemyShieldAreaImmunityMaxEnemyUnitLevel} "
+            + $"playerAp:{_playerShieldAreaImmunityMaxEnemyUnitAp} "
+            + $"enemyAp:{_enemyShieldAreaImmunityMaxEnemyUnitAp})");
         _playerShieldAreaImmunityMaxEnemyUnitLevel = -1;
         _enemyShieldAreaImmunityMaxEnemyUnitLevel = -1;
+        _playerShieldAreaImmunityMaxEnemyUnitAp = -1;
+        _enemyShieldAreaImmunityMaxEnemyUnitAp = -1;
     }
 
     private int GetShieldAreaImmunityMaxEnemyUnitLevel(PlayerType ownerType)
@@ -91,6 +157,13 @@ public partial class BattleGameMain
         return ownerType == PlayerType.Player
             ? _playerShieldAreaImmunityMaxEnemyUnitLevel
             : _enemyShieldAreaImmunityMaxEnemyUnitLevel;
+    }
+
+    private int GetShieldAreaImmunityMaxEnemyUnitAp(PlayerType ownerType)
+    {
+        return ownerType == PlayerType.Player
+            ? _playerShieldAreaImmunityMaxEnemyUnitAp
+            : _enemyShieldAreaImmunityMaxEnemyUnitAp;
     }
 
     /// <summary>
@@ -112,7 +185,8 @@ public partial class BattleGameMain
             ? PlayerType.Player
             : PlayerType.Enemy;
         int maxLevel = GetShieldAreaImmunityMaxEnemyUnitLevel(targetOwner);
-        if (maxLevel < 0)
+        int maxApEarly = GetShieldAreaImmunityMaxEnemyUnitAp(targetOwner);
+        if (maxLevel < 0 && maxApEarly < 0)
         {
             return false;
         }
@@ -124,21 +198,26 @@ public partial class BattleGameMain
             return false;
         }
 
-        // 実効 Lv（ランタイム補正込み）。印刷 Lv のみだとデバフ後が判定から外れる
+        // 実効 Lv / AP（ランタイム補正込み）。印刷値のみだとデバフ後が判定から外れる
         int unitLevel = unitSource.CurrentLevel;
-        bool ignore = unitLevel <= maxLevel;
+        int unitAp = unitSource.CurrentPower;
+        int maxAp = GetShieldAreaImmunityMaxEnemyUnitAp(targetOwner);
+        bool ignoreByLevel = maxLevel >= 0 && unitLevel <= maxLevel;
+        bool ignoreByAp = maxAp >= 0 && unitAp <= maxAp;
+        bool ignore = ignoreByLevel || ignoreByAp;
         if (ignore)
         {
             Debug.Log(
                 $"[ShieldAreaUnitDmgImmunity] ignore damage to {targetOwner} from "
                 + $"{unitSource.Data.cardName}(id:{unitSource.Data.id}) "
-                + $"Lv:{unitLevel}≤{maxLevel} (printed:{unitSource.Data.level})");
+                + $"Lv:{unitLevel}≤{maxLevel} AP:{unitAp}≤{maxAp} "
+                + $"(printed Lv:{unitSource.Data.level} AP:{unitSource.Data.power})");
         }
         else
         {
             Debug.Log(
                 $"[ShieldAreaUnitDmgImmunity] NOT ignore — {unitSource.Data.cardName} "
-                + $"Lv:{unitLevel}>{maxLevel} target:{targetOwner}");
+                + $"Lv:{unitLevel} AP:{unitAp} maxLv:{maxLevel} maxAp:{maxAp} target:{targetOwner}");
         }
 
         return ignore;

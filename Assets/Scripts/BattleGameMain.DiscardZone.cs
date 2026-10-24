@@ -867,7 +867,7 @@ public partial class BattleGameMain
         SetEffectChainReturnFromTrashBatchSize(batchSize);
         SetEffectChainLastReturnFromTrashCount(0);
 
-        if (ownerType == PlayerType.Enemy)
+        if (!IsActingSideForUi(ownerType))
         {
             BeginOnlineEffectSyncBatch(ownerType);
             int returned = ApplyReturnFromTrashToDeckAuto(

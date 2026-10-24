@@ -355,6 +355,9 @@ public partial class BattleGameMain
                 || eff.type == EffectType.CannotBeChosenAsAttackTarget
                 || eff.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction
                 || eff.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess
+                || eff.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess
+                || eff.type == EffectType.PreventEnemyActivateByEnemyEffectsDuringPair
+                || eff.type == EffectType.ModifyTrashPrintedCostAndLevel
                 || eff.type == EffectType.AllyEnemyEffectDamageImmunity
                 || eff.type == EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess
                 || eff.type == EffectType.FriendlyBasesImmunityFromEnemyUnitsLevelOrLessThanThisUnit
