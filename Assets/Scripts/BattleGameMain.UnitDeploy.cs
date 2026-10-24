@@ -18,6 +18,8 @@ public partial class BattleGameMain
     private bool _suppressOnAttackReturnToDeckBottomAfterFailedDiscard;
     /// <summary>同一攻撃宣言内で OnAttack 非戦闘効果（GrantAttackFlag 等）を解決済みか。</summary>
     private CardController _onAttackPreCombatCompletedAttacker;
+    /// <summary>OnAttack プレコンバットチェーン実行中の攻撃者。Reset で二重起動しない。</summary>
+    private EntityId _onAttackPreCombatChainInProgressAttackerId;
 
     /// <summary>1攻撃中のトラッシュ→山札返却（バンシー等）の進行フラグ。</summary>
     private struct OnAttackTrashReturnAttackState
@@ -151,12 +153,20 @@ public partial class BattleGameMain
     private void ResetOnAttackTrashReturnSession()
     {
         _onAttackTrashReturnActivateConsumed = false;
+        _onAttackPreCombatChainInProgressAttackerId = default;
         ClearOnAttackTrashReturnFollowUpState();
         ResetOnAttackPreCombatEffectsAppliedGuard();
         ClearOnAttackPreCombatCompletedForNewAttack();
         ClearOnAttackPreCombatResolvedState();
         _onAttackOptionalActivationCostPaid.Clear();
         _onAttackOptionalActivationCostDeclined.Clear();
+    }
+
+    private bool IsOnAttackPreCombatChainInProgress(CardController attacker)
+    {
+        return attacker != null
+            && _onAttackPreCombatChainInProgressAttackerId != default
+            && _onAttackPreCombatChainInProgressAttackerId == attacker.GetEntityId();
     }
 
     private bool IsOnAttackTrashReturnChainSelfActivateBlocked(CardController unit, EffectData effect)
@@ -271,7 +281,8 @@ public partial class BattleGameMain
 
         if (effect.type == EffectType.Activate)
         {
-            // アクティブ化はトラッシュ返却チェーンでは行わず、攻撃フロー完了時に適用する。
+            // 攻撃宣言の REST より前／途中で起こすと、後続の Commit が再度レストする。
+            // 攻撃セッション終了時に1回だけ適用する。
             return true;
         }
 
@@ -308,20 +319,42 @@ public partial class BattleGameMain
             return;
         }
 
+        CardController attacker = ResolveOnAttackTrashReturnAttackerUnit(state.AttackerId);
+        if (attacker == null || attacker.CurrentHp <= 0)
+        {
+            _onAttackTrashReturnActivateConsumed = true;
+            _onAttackTrashReturnAttackState.ActivateFollowUpApplied = true;
+            ClearOnAttackTrashReturnFollowUpState();
+            return;
+        }
+
+        if (!attacker.IsRestState)
+        {
+            return;
+        }
+
         _onAttackTrashReturnActivateConsumed = true;
         _onAttackTrashReturnAttackState.ActivateFollowUpApplied = true;
 
-        CardController attacker = ResolveOnAttackTrashReturnAttackerUnit(state.AttackerId);
-        if (attacker != null && attacker.CurrentHp > 0)
+        PlayerType attackerOwner = ResolveBattleZoneOwner(attacker);
+        if (TryApplyActivateByCardEffect(attackerOwner, attacker))
         {
-            if (TryApplyActivateToUnit(attacker))
+            bool nestedBatch = _onlineEffectSyncActive;
+            if (!nestedBatch)
             {
-                QueueOnlineUnitActivate(attacker);
-                SyncAllResourceViewsFromRule();
-                Debug.Log(
-                    "[OnAttackTrashReturn] Deferred Activate at attack end (once) "
-                    + $"attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id}) returned:{returned} batch:{batchSize}");
+                BeginOnlineEffectSyncBatch(PlayerType.Player);
             }
+
+            QueueOnlineUnitActivate(attacker);
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
+
+            SyncAllResourceViewsFromRule();
+            Debug.Log(
+                "[OnAttackTrashReturn] Deferred Activate (once) "
+                + $"attacker:{attacker.Data?.cardName}(id:{attacker.Data?.id}) returned:{returned} batch:{batchSize}");
         }
 
         ClearOnAttackTrashReturnFollowUpState();
@@ -491,7 +524,8 @@ public partial class BattleGameMain
         bool deployAsRested = false,
         bool fromTrash = false,
         bool bypassBattleZoneCap = false,
-        int replacedUnitInstanceId = -1)
+        int replacedUnitInstanceId = -1,
+        Action onSettled = null)
     {
         if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || rule == null)
         {
@@ -551,19 +585,22 @@ public partial class BattleGameMain
         // トークン等の効果配置直後にも、ガンダム等の自ターン盤面バフをかけ直す
         RefreshAllFieldOwnerTurnPassives();
 
+        void FinishDeploySettle()
+        {
+            NotifyAllyUnitDeployed(recipient, unit, () =>
+            {
+                RefreshAllHandsConditionalOnHandAuto();
+                onSettled?.Invoke();
+            });
+        }
+
         if (triggerOnPlayed)
         {
-            TriggerOnPlayedEffects(
-                unit,
-                recipient,
-                () =>
-                {
-                    NotifyAllyUnitDeployed(recipient, unit, RefreshAllHandsConditionalOnHandAuto);
-                });
+            TriggerOnPlayedEffects(unit, recipient, FinishDeploySettle);
         }
         else
         {
-            NotifyAllyUnitDeployed(recipient, unit, RefreshAllHandsConditionalOnHandAuto);
+            FinishDeploySettle();
         }
 
         if (IsOnlineBattle() && !_applyingRemoteBattleAction)
@@ -932,7 +969,8 @@ public partial class BattleGameMain
         bool triggerOnPlayed,
         bool deployAsRested,
         bool payCost = false,
-        PlayerType payCostOwner = PlayerType.Player)
+        PlayerType payCostOwner = PlayerType.Player,
+        Action onSettled = null)
     {
         if (trashRule == null)
         {
@@ -986,7 +1024,8 @@ public partial class BattleGameMain
             fromHand: false,
             fromTrash: true,
             deployAsRested: deployAsRested,
-            bypassBattleZoneCap: true);
+            bypassBattleZoneCap: true,
+            onSettled: onSettled);
     }
 
     private IEnumerator CoTryDeployUnitFromTrashIndexWithCap(
@@ -1015,6 +1054,7 @@ public partial class BattleGameMain
             yield break;
         }
 
+        bool settled = false;
         bool ok = TryDeployUnitFromTrashIndex(
             trashRule,
             trashOwner,
@@ -1024,8 +1064,16 @@ public partial class BattleGameMain
             triggerOnPlayed,
             deployAsRested,
             payCost,
-            payCostOwner);
-        onDone?.Invoke(ok);
+            payCostOwner,
+            () => settled = true);
+        if (!ok)
+        {
+            onDone?.Invoke(false);
+            yield break;
+        }
+
+        yield return new WaitUntil(() => settled);
+        onDone?.Invoke(true);
     }
 
     private void ApplyDeployUnitFromTrashAuto(
@@ -1247,14 +1295,17 @@ public partial class BattleGameMain
                 break;
             }
 
+            bool settled = false;
             if (DeployUnitToBattleZone(
                     pick,
                     recipient,
                     rule,
                     effect.deployUnitTriggerOnPlayed,
                     fromHand: true,
-                    bypassBattleZoneCap: true))
+                    bypassBattleZoneCap: true,
+                    onSettled: () => settled = true))
             {
+                yield return new WaitUntil(() => settled);
                 deployed++;
             }
         }
@@ -1545,16 +1596,25 @@ public partial class BattleGameMain
                         () =>
                         {
                             BeginOnlineEffectSyncBatch(ownerType);
-                            DeployUnitToBattleZone(
+                            bool placed = DeployUnitToBattleZone(
                                 pickedRef,
                                 recipient,
                                 ResolveDeployRecipientRule(recipient),
                                 effect.deployUnitTriggerOnPlayed,
                                 fromHand: true,
-                                bypassBattleZoneCap: true);
-                            FlushOnlineEffectSyncBatch();
-                            SyncAllResourceViewsFromRule();
-                            onComplete?.Invoke();
+                                bypassBattleZoneCap: true,
+                                onSettled: () =>
+                                {
+                                    FlushOnlineEffectSyncBatch();
+                                    SyncAllResourceViewsFromRule();
+                                    onComplete?.Invoke();
+                                });
+                            if (!placed)
+                            {
+                                FlushOnlineEffectSyncBatch();
+                                SyncAllResourceViewsFromRule();
+                                onComplete?.Invoke();
+                            }
                         },
                         () => onComplete?.Invoke());
                 });
@@ -1807,8 +1867,8 @@ public partial class BattleGameMain
                 });
             }
 
-            yield return new WaitUntil(() => pickedThisRound || root == null);
-            yield return new WaitUntil(() => trashCapResolved || root == null);
+            yield return new WaitUntil(() => pickedThisRound);
+            yield return new WaitUntil(() => trashCapResolved);
         }
 
         onComplete?.Invoke();
@@ -2019,6 +2079,14 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (IsOnAttackPreCombatChainInProgress(attacker))
+        {
+            Debug.Log(
+                "[OnAttackPreCombat] Chain already in progress — skip duplicate "
+                + $"(cardId:{attacker.Data?.id})");
+            return true;
+        }
+
         if (IsOnAttackTrashReturnEffectConsumedForAttack(attacker))
         {
             Debug.Log(
@@ -2033,7 +2101,7 @@ public partial class BattleGameMain
             Debug.Log(
                 "[OnAttackPreCombat] OnAttack chain already in progress — skip duplicate "
                 + $"(cardId:{attacker.Data?.id})");
-            return false;
+            return true;
         }
 
         _suppressOnAttackReturnToDeckBottomAfterFailedDiscard = false;
@@ -2057,6 +2125,7 @@ public partial class BattleGameMain
             + $"pilot:{pilot?.Data?.cardName ?? "none"}");
 
         BeginOnAttackTrashReturnAttackTracking(attacker);
+        _onAttackPreCombatChainInProgressAttackerId = attacker.GetEntityId();
         _pendingOnAttackPreCombatResolvedAttacker = attacker;
         // 前攻撃の観測リークで「除外しなくてもダメージ」が他ユニット／翌ターンへ残らないようルートを毎回新規にする。
         BeginEffectChainObservationScope(forceNewRoot: true);
@@ -2066,6 +2135,7 @@ public partial class BattleGameMain
             EndEffectChainObservationScope();
             MarkOnAttackPreCombatEffectsApplied(attacker);
             _onAttackPreCombatCompletedAttacker = attacker;
+            _onAttackPreCombatChainInProgressAttackerId = default;
             // 打撃／OnAction 中の溢れ防止判定に影響しないよう、プレコンバット終了時にクリア
             ClearOnAttackPreCombatResolvedState();
             onResolved?.Invoke();
@@ -2715,7 +2785,9 @@ public partial class BattleGameMain
     /// </summary>
     private void ApplyOnAttackPreCombatEffectsImmediately(CardController attacker, PlayerType attackerOwner)
     {
-        if (attacker == null || HasOnAttackPreCombatEffectsBeenApplied(attacker))
+        if (attacker == null
+            || HasOnAttackPreCombatEffectsBeenApplied(attacker)
+            || IsOnAttackPreCombatChainInProgress(attacker))
         {
             return;
         }
@@ -2726,6 +2798,7 @@ public partial class BattleGameMain
             return;
         }
 
+        BeginOnAttackTrashReturnAttackTracking(attacker);
         EffectActivationContext ctx = BuildOnAttackActivationContext(attackerOwner, attacker);
         BeginEffectChainObservationScope(forceNewRoot: true);
         try
@@ -2787,6 +2860,12 @@ public partial class BattleGameMain
                             break;
                         }
 
+                        continue;
+                    }
+
+                    if (effect.type == EffectType.ReturnFromTrashToDeckAndShuffle)
+                    {
+                        ApplyReturnFromTrashToDeckAndShuffleEffect(source, attackerOwner, effect);
                         continue;
                     }
 

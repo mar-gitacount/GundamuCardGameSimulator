@@ -5337,6 +5337,36 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0506d06000000000000000000000072
+    m_Address: Data/Images/GD06-050_Legend Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1236d06000000000000000000000073
+    m_Address: Data/Images/GD06-123_Endra
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0326d06000000000000000000000074
+    m_Address: Data/Images/GD06-032_Bellona
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0376d06000000000000000000000075
+    m_Address: Data/Images/GD06-037_Reginlaze Julia
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1116d06000000000000000000000076
+    m_Address: Data/Images/GD06-111_Steely Loyalty
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a1066d06000000000000000000000077
+    m_Address: Data/Images/GD06-106_Presence Detected
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 88c94ab790ec1cc4e861bd3c176475bb, type: 2}
   m_SchemaSet:

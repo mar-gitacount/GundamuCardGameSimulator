@@ -659,10 +659,10 @@ public class Gundam2024RuleScript
         return HasActiveDeployedBase != null && HasActiveDeployedBase(side);
     }
 
-    /// <summary>シールド攻撃ボタンを出すか（守りがあること、AP が 1 以上必須）。</summary>
+    /// <summary>シールド攻撃ボタンを出すか（相手にシールドエリアの守りがあること。AP0 でも宣言できる）。</summary>
     public bool CanShowUnitShieldAttackOption(PlayerState defender, int attackerPower)
     {
-        if (defender == null || attackerPower <= 0)
+        if (defender == null)
         {
             return false;
         }

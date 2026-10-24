@@ -881,6 +881,25 @@ public partial class BattleGameMain
 
     private void QueueOnlineUnitActivate(CardController target)
     {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction || target == null)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] Activate queue skipped (batch inactive) "
+                + $"unit={FormatOnlineEffectSyncUnit(target)}");
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(target);
         TryQueueOnlineUnitTargetChange(target, new OnlineBattleUnitEffectChange
         {
             changeKind = OnlineBattleEffectSyncPayload.ChangeKindActivate
@@ -968,6 +987,57 @@ public partial class BattleGameMain
             targetZoneOwnerSide = (int)grantedSide,
             // max Lv 閾値を signedStatValue に載せる
             signedStatValue = maxEnemyUnitLevel,
+            duration = (int)EffectDuration.UntilEndOfBattle
+        });
+    }
+
+    /// <summary>GD06-106 等のシールドエリア・AP 閾値ダメージ無効を相手クライアントへ同期する。</summary>
+    private void QueueOnlineShieldAreaUnitDamageImmunityAp(PlayerType grantedSide, int maxEnemyUnitAp)
+    {
+        if (!IsOnlineBattle() || _applyingRemoteBattleAction)
+        {
+            return;
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            BeginOnlineEffectSyncBatch(PlayerType.Player);
+        }
+
+        if (!_onlineEffectSyncActive)
+        {
+            Debug.LogWarning(
+                $"[EffectSync] ShieldAreaUnitDamageImmunityAp queue skipped (batch inactive) "
+                + $"side:{grantedSide} maxAp:{maxEnemyUnitAp}");
+            return;
+        }
+
+        if (_pendingOnlineEffectChanges == null)
+        {
+            _pendingOnlineEffectChanges = new List<OnlineBattleUnitEffectChange>();
+        }
+
+        for (int i = 0; i < _pendingOnlineEffectChanges.Count; i++)
+        {
+            OnlineBattleUnitEffectChange existing = _pendingOnlineEffectChanges[i];
+            if (existing != null
+                && existing.changeKind == OnlineBattleEffectSyncPayload.ChangeKindShieldAreaUnitDamageImmunityAp
+                && existing.targetZoneOwnerSide == (int)grantedSide)
+            {
+                if (maxEnemyUnitAp > existing.signedStatValue)
+                {
+                    existing.signedStatValue = maxEnemyUnitAp;
+                }
+
+                return;
+            }
+        }
+
+        _pendingOnlineEffectChanges.Add(new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindShieldAreaUnitDamageImmunityAp,
+            targetZoneOwnerSide = (int)grantedSide,
+            signedStatValue = maxEnemyUnitAp,
             duration = (int)EffectDuration.UntilEndOfBattle
         });
     }
@@ -2986,6 +3056,16 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindShieldAreaUnitDamageImmunityAp)
+            {
+                PlayerType senderSideAp =
+                    change.targetZoneOwnerSide == (int)PlayerType.Enemy
+                        ? PlayerType.Enemy
+                        : PlayerType.Player;
+                ApplyRemoteShieldAreaUnitDamageImmunityAp(senderSideAp, change.signedStatValue);
+                continue;
+            }
+
             if (change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindDestroyDeployedBase)
             {
                 PlayerType senderDestroyedOwner =
@@ -3092,6 +3172,15 @@ public partial class BattleGameMain
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindActivate:
+                    // 受信は常に相手クライアントの効果。ジュリアリンク中は相手ユニットの効果アクティブを止める。
+                    if (ShouldBlockActivateTargetByEnemyEffectsDuringPair(PlayerType.Enemy, unit))
+                    {
+                        Debug.Log(
+                            $"[EffectSync][ApplyActivate] skip During Pair PreventEnemyActivate "
+                            + $"#{i} unit={FormatOnlineEffectSyncUnit(unit)}");
+                        break;
+                    }
+
                     Debug.Log($"[EffectSync][ApplyActivate] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                     TryApplyActivateToUnit(unit);
                     break;

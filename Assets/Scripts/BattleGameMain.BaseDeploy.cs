@@ -227,8 +227,7 @@ public partial class BattleGameMain
         }
 
         Gundam2024RuleScript.PlayerSide side = ToRuleSide(ownerType);
-        int requiredLevel = data.level;
-        int cost = Mathf.Max(0, data.cost);
+        ResolveTrashDeployPrintedLevelAndCost(ownerType, data, out int requiredLevel, out int cost);
         if (!gundamRule.CanPlayCardWithAnyEx(side, requiredLevel, cost))
         {
             Gundam2024RuleScript.PlayerState state = GetRuleState(side);
@@ -273,7 +272,60 @@ public partial class BattleGameMain
             return true;
         }
 
-        return gundamRule.CanPlayCardWithAnyEx(ToRuleSide(ownerType), data.level, Mathf.Max(0, data.cost));
+        ResolveTrashDeployPrintedLevelAndCost(ownerType, data, out int requiredLevel, out int cost);
+        return gundamRule.CanPlayCardWithAnyEx(ToRuleSide(ownerType), requiredLevel, cost);
+    }
+
+    /// <summary>
+    /// トラッシュからのコスト支払い配備用。印刷 Lv/Cost に
+    /// <see cref="EffectType.ModifyTrashPrintedCostAndLevel"/> を適用する。
+    /// </summary>
+    private void ResolveTrashDeployPrintedLevelAndCost(
+        PlayerType ownerType,
+        CardData data,
+        out int requiredLevel,
+        out int cost)
+    {
+        requiredLevel = data != null ? data.level : 0;
+        cost = data != null ? Mathf.Max(0, data.cost) : 0;
+        if (data?.timedEffects == null || data.timedEffects.Count == 0)
+        {
+            return;
+        }
+
+        EffectActivationContext ctx = BuildActivationContext(ownerType, null);
+        int reduction = 0;
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int j = 0; j < effects.Count; j++)
+            {
+                EffectData effect = effects[j];
+                if (effect != null && effect.type == EffectType.ModifyTrashPrintedCostAndLevel)
+                {
+                    reduction = Mathf.Max(reduction, Mathf.Max(0, effect.value));
+                }
+            }
+        }
+
+        if (reduction <= 0)
+        {
+            return;
+        }
+
+        requiredLevel = Mathf.Max(0, requiredLevel - reduction);
+        cost = Mathf.Max(0, cost - reduction);
     }
 
     private void BeginDeployBaseFromHand(CardController cardController, PlayerType ownerType, CardGameRule ownerRule)

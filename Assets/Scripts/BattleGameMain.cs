@@ -116,6 +116,8 @@ public partial class BattleGameMain : MonoBehaviour
     private bool isOnActionPopupOpen;
     /// <summary>ActionStep でカード確定後〜コスト支払い・効果解決が終わるまで。この間はカード選択 UI を差し込まない。</summary>
     private bool _isActionStepCommandResolving;
+    /// <summary>配備時効果（OnPlayed）のネスト解決中。攻撃時アクションより先に完了させる。</summary>
+    private int _onPlayedEffectResolveDepth;
     private GameObject _activeResourcePaymentOverlay;
     private bool isShieldBreakFlowOpen;
     private bool shieldBreakQueueRunning;
@@ -1068,10 +1070,10 @@ public partial class BattleGameMain : MonoBehaviour
 
         WithEffectDrawTurnFlagSuppressed(() =>
         {
-            for (int i = 0; i < openingHandSize; i++)
-            {
-                CardAddtoHand(cardGameRule, PlayerType.Player);
-            }
+        for (int i = 0; i < openingHandSize; i++)
+        {
+            CardAddtoHand(cardGameRule, PlayerType.Player);
+        }
         });
         if (ShouldSkipEnemyOpeningHandOnline())
         {
@@ -1080,11 +1082,11 @@ public partial class BattleGameMain : MonoBehaviour
         else
         {
             WithEffectDrawTurnFlagSuppressed(() =>
+        {
+            for (int i = 0; i < openingHandSize; i++)
             {
-                for (int i = 0; i < openingHandSize; i++)
-                {
-                    CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
-                }
+                CardAddtoHand(enemyCardGameRule, PlayerType.Enemy);
+            }
             });
         }
         currentPlayerType = firstPlayerThisGame;
@@ -1342,10 +1344,10 @@ public partial class BattleGameMain : MonoBehaviour
         rule.ReturnCardIdsToDeckAndShuffle(ids);
         WithEffectDrawTurnFlagSuppressed(() =>
         {
-            for (int i = 0; i < drawCount; i++)
-            {
-                CardAddtoHand(rule, playerType);
-            }
+        for (int i = 0; i < drawCount; i++)
+        {
+            CardAddtoHand(rule, playerType);
+        }
         });
 
         RefreshAllHandsConditionalOnHandAuto();
@@ -1583,9 +1585,9 @@ public partial class BattleGameMain : MonoBehaviour
         if (isInShield && cardController.IsShieldFaceHidden)
         {
             if (!IsTestPlayBattle())
-            {
-                Debug.Log("シールドは裏向きです。破壊されると中身が表示されます。");
-                return;
+        {
+            Debug.Log("シールドは裏向きです。破壊されると中身が表示されます。");
+            return;
             }
 
             // TestPlay: 内容を見せて操作メニューへ
@@ -1728,8 +1730,8 @@ public partial class BattleGameMain : MonoBehaviour
                     HasForcedEnemyAttackTarget(ownerType, cardController)
                         ? "Attack Unit (forced target)"
                         : cardController.HasAttackActiveEnemyAbility()
-                            ? "Attack Unit (tap enemy unit)"
-                            : "Attack Unit (tap enemy REST unit)");
+                        ? "Attack Unit (tap enemy unit)"
+                        : "Attack Unit (tap enemy REST unit)");
                 RectTransform unitAtkRect = unitAttackBtn.GetComponent<RectTransform>();
                 unitAtkRect.sizeDelta = new Vector2(320, 50);
                 unitAtkRect.anchoredPosition = new Vector2(0, -70);
@@ -1796,11 +1798,11 @@ public partial class BattleGameMain : MonoBehaviour
             }
             else
             {
-                trashButton.onClick.AddListener(() =>
-                {
-                    SendCardToTrash(cardController, ownerType);
-                    Destroy(FilterPanel);
-                });
+            trashButton.onClick.AddListener(() =>
+            {
+                SendCardToTrash(cardController, ownerType);
+                Destroy(FilterPanel);
+            });
             }
 
             fieldActionY -= 60f;
@@ -1837,7 +1839,7 @@ public partial class BattleGameMain : MonoBehaviour
                 {
                     baseActionY -= 60f;
                     PinFilterCloseButton(closeBtnRect);
-                    return;
+            return;
                 }
             }
 
@@ -2029,8 +2031,8 @@ public partial class BattleGameMain : MonoBehaviour
             if (mountTargets.Count == 0)
             {
                 if (!isCommandPilot)
-                {
-                    Debug.Log("パイロットを乗せるユニットがバトルゾーンにいません。");
+            {
+                Debug.Log("パイロットを乗せるユニットがバトルゾーンにいません。");
                 }
 
                 // 兼用カードは OnMain のみ残して終了（ユニット配備へ落とさない）
@@ -2045,8 +2047,8 @@ public partial class BattleGameMain : MonoBehaviour
                     Debug.Log("リソース不足のためパイロットを配備できません。");
                 }
 
-                return;
-            }
+                    return;
+                }
 
             if (isCommandPilot)
             {
@@ -2079,11 +2081,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (!gundamRule.CanPlayCardWithAnyEx(ownerSide, cardController.CurrentLevel, cost))
-        {
-            Debug.Log("リソースポイントが足りません。EXリソースを含めても不足しています。");
+            {
+                Debug.Log("リソースポイントが足りません。EXリソースを含めても不足しています。");
             Destroy(FilterPanel);
-            return;
-        }
+                return;
+            }
 
         // 配備前に通常／EXリソースを選択して支払う
         PinFilterCloseButton(closeBtnRect);
@@ -2098,14 +2100,14 @@ public partial class BattleGameMain : MonoBehaviour
                 if (cardController.Data.type == Type.Base)
                 {
                     if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
-                    {
+                {
                         Debug.Log("リソースポイントが足りません！");
                         return;
-                    }
+                }
 
                     BeginDeployBaseFromHand(cardController, ownerType, ownerRule);
-                    SyncResourceViewsFromRule(ownerSide);
-                    Destroy(FilterPanel);
+                SyncResourceViewsFromRule(ownerSide);
+                Destroy(FilterPanel);
                     return;
                 }
 
@@ -2114,8 +2116,8 @@ public partial class BattleGameMain : MonoBehaviour
                     Debug.LogWarning(
                         $"[HandDeploy] フィールド配備対象外のカードです: "
                         + $"{cardController.Data.cardName} type:{cardController.Data.type}");
-                    return;
-                }
+            return;
+        }
 
                 // 満杯時は支払前に置換／Cancel（Cancel ならコスト未消費）
                 DeployToBattleZoneWithCapGate(
@@ -2124,20 +2126,20 @@ public partial class BattleGameMain : MonoBehaviour
                     () =>
                     {
                         if (!TryPayHandDeployCost(ownerSide, cardController, exToUse))
-                        {
-                            Debug.Log("リソースポイントが足りません！");
-                            return;
-                        }
+                {
+                    Debug.Log("リソースポイントが足りません！");
+                    return;
+                }
 
                         SendCardToField(cardController, ownerType, ownerRule);
-                        SyncResourceViewsFromRule(ownerSide);
-                        Destroy(FilterPanel);
+                SyncResourceViewsFromRule(ownerSide);
+                Destroy(FilterPanel);
                     },
                     () => Destroy(FilterPanel));
             },
             () => Destroy(FilterPanel));
-        return;
-    }
+            return;
+        }
 
     private const float CardFilterContentWidth = 480f;
     private const float CardFilterContentHeight = 800f;
@@ -2147,8 +2149,8 @@ public partial class BattleGameMain : MonoBehaviour
     {
         if (panel == null)
         {
-            return;
-        }
+                return;
+            }
 
         RectTransform rt = panel.GetComponent<RectTransform>();
         if (rt == null)
@@ -2443,47 +2445,47 @@ public partial class BattleGameMain : MonoBehaviour
                 yield break;
             }
 
-            yield return ShowPhasePauseCoroutine(currentPlayerType == PlayerType.Player ? "Player Turn" : "Enemy Turn");
+        yield return ShowPhasePauseCoroutine(currentPlayerType == PlayerType.Player ? "Player Turn" : "Enemy Turn");
             if (generation != _turnPhaseSequenceGeneration)
             {
                 yield break;
             }
 
-            currentPhase = BattlePhase.DrawPhase;
-            UpdateEndTurnButtonVisibility();
-            yield return ShowPhasePauseCoroutine("Draw Phase");
+        currentPhase = BattlePhase.DrawPhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Draw Phase");
             if (generation != _turnPhaseSequenceGeneration)
             {
                 yield break;
             }
 
-            currentPhase = BattlePhase.ResourcePhase;
-            UpdateEndTurnButtonVisibility();
-            yield return ShowPhasePauseCoroutine("Resource Phase");
+        currentPhase = BattlePhase.ResourcePhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Resource Phase");
             if (generation != _turnPhaseSequenceGeneration)
             {
                 yield break;
             }
 
-            currentPhase = BattlePhase.ActivePhase;
-            UpdateEndTurnButtonVisibility();
-            yield return ShowPhasePauseCoroutine("Card & Resource Active");
+        currentPhase = BattlePhase.ActivePhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Card & Resource Active");
             if (generation != _turnPhaseSequenceGeneration)
             {
                 yield break;
             }
 
-            ExecuteTurnStartCore();
+        ExecuteTurnStartCore();
 
-            currentPhase = BattlePhase.MainPhase;
-            UpdateEndTurnButtonVisibility();
-            yield return ShowPhasePauseCoroutine("Main Phase");
+        currentPhase = BattlePhase.MainPhase;
+        UpdateEndTurnButtonVisibility();
+        yield return ShowPhasePauseCoroutine("Main Phase");
             if (generation != _turnPhaseSequenceGeneration)
             {
                 yield break;
             }
 
-            ExcuteMainPhase();
+        ExcuteMainPhase();
         }
         finally
         {
@@ -2519,7 +2521,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (!IsTestPlayBattle())
         {
-            yield return ShowPhasePauseCoroutine("End Phase");
+        yield return ShowPhasePauseCoroutine("End Phase");
         }
 
         // 手札上限破棄・ターン切替・次ターン開始まで完了してからこのコルーチンを終える
@@ -2676,7 +2678,7 @@ public partial class BattleGameMain : MonoBehaviour
             yield return WaitForBattleFlowIdleCoroutine();
 
             yield return TryEnemyMountAllAffordablePilotsFromHandCoroutine();
-            yield return WaitForBattleFlowIdleCoroutine();
+                yield return WaitForBattleFlowIdleCoroutine();
 
             if (TryEnemyExecuteOnMainFromHand())
             {
@@ -2974,16 +2976,16 @@ public partial class BattleGameMain : MonoBehaviour
         }
         else
         {
-            for (int i = 0; i < enemies.Count; i++)
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            CardController enemy = enemies[i];
+            if (enemy == null)
             {
-                CardController enemy = enemies[i];
-                if (enemy == null)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                if (enemy.IsRestState || attacker.CanAttackerTargetActiveEnemy(enemy))
-                {
+            if (enemy.IsRestState || attacker.CanAttackerTargetActiveEnemy(enemy))
+            {
                     legal.Add(enemy);
                 }
             }
@@ -4071,6 +4073,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         return isOnActionPopupOpen
             || isEndPhaseHandLimitDiscardInProgress
+            || IsOnPlayedEffectResolving
             || _isActionStepCommandResolving
             || _activeResourcePaymentOverlay != null
             || _activeOnActionCommandRevealRoot != null
@@ -4198,14 +4201,14 @@ public partial class BattleGameMain : MonoBehaviour
             ClearStaleAttackAndShieldFlagsForEndTurn();
             // 前回の OnAction 待ちフラグ残留で Idle 待ちが永久化しないよう、タイムアウト付きで待つ。
             yield return WaitForBattleFlowIdleBeforeEndTurnCoroutine();
-            pendingUnitAttackAttacker = null;
-            pendingOnAttackEffectResolvedAttacker = null;
-            PlayerType endingTurnSide = currentPlayerType;
-            bool waitingForClose = false;
+        pendingUnitAttackAttacker = null;
+        pendingOnAttackEffectResolvedAttacker = null;
+        PlayerType endingTurnSide = currentPlayerType;
+        bool waitingForClose = false;
             bool startedOnActionStep = TryRunTurnEndOnActionPhases(endingTurnSide, () => waitingForClose = false);
-            if (startedOnActionStep)
-            {
-                waitingForClose = true;
+        if (startedOnActionStep)
+        {
+            waitingForClose = true;
                 const float turnEndActionStepTimeoutSeconds = 45f;
                 float actionStepDeadline = Time.realtimeSinceStartup + turnEndActionStepTimeoutSeconds;
                 yield return new WaitUntil(() =>
@@ -4216,18 +4219,18 @@ public partial class BattleGameMain : MonoBehaviour
                         $"turn end action step exceeded {turnEndActionStepTimeoutSeconds}s");
                     waitingForClose = false;
                 }
-            }
+        }
 
-            ApplyTurnEndRepairForAllInPlayUnits();
+        ApplyTurnEndRepairForAllInPlayUnits();
             ApplyTurnEndActivateResourceBonusesForSide(endingTurnSide);
             ClearTemporaryTurnEndRepairBonusesForAllInPlay();
             // アクション → リペアのあと、手札上限（10枚）まで捨てる（捨て札は相手に公開）
             yield return CoEnforceEndPhaseHandSizeLimit(endingTurnSide);
-            TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
-            // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
-            ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
-            ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
-            ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
+        TriggerAllTimedEffectsForSide(endingTurnSide, EffectTiming.OnTurnEnd);
+        // ターン終了時は盤面全体の「ターン終了で切れる補正」を解除する。
+        ClearTimedStatModifiersForAllInPlayCards(EffectDuration.UntilEndOfTurn);
+        ClearAttackActiveEnemyGrants(EffectDuration.UntilEndOfTurn);
+        ClearNotDirectAttackGrants(EffectDuration.UntilEndOfTurn);
             ClearCannotBeChosenAsAttackGrants(EffectDuration.UntilEndOfTurn);
             ClearFirstStrikeGrants(EffectDuration.UntilEndOfTurn);
             ClearHighMobilityUntilEndOfTurnGrantsForAllInPlayUnits();
@@ -4242,11 +4245,11 @@ public partial class BattleGameMain : MonoBehaviour
             ClearAllOwnerDrewWithEffectThisTurn();
             ClearObservedUnitWatches();
             ForceClearEffectChainObservationScope();
-            DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
-            NotifyLocalPlayerEndedTurn();
+        DumpTurnResourceUsageLogs(endingTurnSide, "end turn");
+        NotifyLocalPlayerEndedTurn();
 
-            // プレイヤーとエネミーのターンを切り替える
-            currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
+        // プレイヤーとエネミーのターンを切り替える
+        currentPlayerType = (currentPlayerType == PlayerType.Player) ? PlayerType.Enemy : PlayerType.Player;
             if (currentPlayerType != PlayerType.Player)
             {
                 _onlineLocalTurnSequenceStarted = false;
@@ -4257,16 +4260,16 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             ExpireUntilEndOfBattleModifiersAtTurnStart();
-            RefreshAllFieldOwnerTurnPassives();
-            AdvanceRuleToNextTurnStart();
-            UpdateEndTurnButtonVisibility();
+        RefreshAllFieldOwnerTurnPassives();
+        AdvanceRuleToNextTurnStart();
+        UpdateEndTurnButtonVisibility();
 
-            Debug.Log("エンドフェイズの処理を実行します。");
-            ChangePhase(BattlePhase.StartTurn);
+        Debug.Log("エンドフェイズの処理を実行します。");
+        ChangePhase(BattlePhase.StartTurn);
         }
         finally
         {
-            isEndTurnFlowRunning = false;
+        isEndTurnFlowRunning = false;
         }
     }
 
@@ -4322,13 +4325,13 @@ public partial class BattleGameMain : MonoBehaviour
         if (side == Gundam2024RuleScript.PlayerSide.Player)
         {
             if (PlayerlevelText != null)
-            {
-                PlayerlevelText.text = $"LV:{state.TotalLevel}";
+        {
+            PlayerlevelText.text = $"LV:{state.TotalLevel}";
             }
 
             if (PlayerresourcePointText != null)
             {
-                PlayerresourcePointText.text = state.resource.ToString();
+            PlayerresourcePointText.text = state.resource.ToString();
             }
 
             if (ExresourcePointText != null)
@@ -4382,7 +4385,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         Gundam2024RuleScript.PlayerSide side = ToRuleSide(target);
-        gundamRule.AddExResource(side, amount);
+            gundamRule.AddExResource(side, amount);
         SyncResourceViewsFromRule(side);
         NotifyLocalExResourceDeltaIfNeeded(target, amount);
         Debug.Log($"[Effect] AddExResource delta:{amount} target:{target} side:{side}");
@@ -4845,7 +4848,7 @@ public partial class BattleGameMain : MonoBehaviour
                     destroyedByBattleDamage,
                     destroyedByEffectDamage,
                     () =>
-                {
+            {
                 if (TryResolveEnemyUnitKillContext(
                         cardController,
                         ownerType,
@@ -4972,10 +4975,10 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (ownerType == PlayerType.Player)
-        {
-            playerHandCards.Add(card.Data);
+            {
+                playerHandCards.Add(card.Data);
             NotifyLocalPlayerHandDeckSnapshotAfterHandListChange();
-        }
+            }
         else
         {
             enemyHandCards.Add(card.Data);
@@ -5672,10 +5675,10 @@ public partial class BattleGameMain : MonoBehaviour
                 StartCoroutine(FlushPendingExResourceRemovedAndApReducedWatchesCoroutine());
                 RefreshAllFieldOwnerTurnPassives();
                 postMountChainDone = true;
-            });
-        });
+                    });
+                });
         yield return new WaitUntil(() => postMountChainDone);
-        SyncResourceViewsFromRule(ownerSide);
+                SyncResourceViewsFromRule(ownerSide);
     }
 
     /// <summary>
@@ -5844,6 +5847,7 @@ public partial class BattleGameMain : MonoBehaviour
         FinishDeferredShieldAttackBlockFlow();
         pendingUnitAttackAttacker = null;
         pendingOnAttackEffectResolvedAttacker = null;
+        ApplyDeferredOnAttackTrashReturnActivate();
         ResetOnAttackTrashReturnSession();
         blockExchangeCancelledForCurrentAttack = false;
         shieldStrikeAbortedAfterBlockInterrupt = false;
@@ -6594,8 +6598,8 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log("That unit cannot be chosen as an attack target this turn.");
             }
             else
-            {
-                Debug.Log("Only REST enemy units can be selected as attack targets (unless attacker has AttackActiveEnemyUnit).");
+        {
+            Debug.Log("Only REST enemy units can be selected as attack targets (unless attacker has AttackActiveEnemyUnit).");
             }
 
             return true;
@@ -6644,8 +6648,8 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log(HasForcedEnemyAttackTarget(attackerOwner, attacker)
                 ? "Forced attack target is not attackable."
                 : attacker.HasAttackActiveEnemyAbility()
-                    ? "No enemy units to attack."
-                    : "No REST enemy units to attack.");
+                ? "No enemy units to attack."
+                : "No REST enemy units to attack.");
             return;
         }
 
@@ -7362,7 +7366,7 @@ public partial class BattleGameMain : MonoBehaviour
                         }
 
                         System.Action applyAttackedTarget = () =>
-                            ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
+                        ApplyEffectToSpecificTargets(sourceCard, attackerOwner, effect, singleTarget);
                         if (attackerOwner == PlayerType.Player)
                         {
                             InvokePlayerManualUnitSelectionCallback(applyAttackedTarget);
@@ -7783,11 +7787,11 @@ public partial class BattleGameMain : MonoBehaviour
 
                 System.Action applyPicks = () =>
                 {
-                    ApplyEffectToSpecificTargets(effectSourceCard, attackerOwner, effect, selected);
-                    Debug.Log(
+                ApplyEffectToSpecificTargets(effectSourceCard, attackerOwner, effect, selected);
+                Debug.Log(
                         $"[OnAttack] 効果対象を複数選択 ({effectSourceCard?.Data?.cardName})。");
-                    ReleaseOnActionPopupState(root);
-                    Destroy(root);
+                ReleaseOnActionPopupState(root);
+                Destroy(root);
                     ContinueOnAttackAfterAppliedEffect(attackUnit, effect, onResolved);
                 };
                 InvokePlayerManualUnitSelectionCallback(applyPicks);
@@ -7803,14 +7807,14 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (showCancel)
         {
-            Button cancel = root.CreateChildButton("Cancel");
-            RectTransform cancelRt = cancel.GetComponent<RectTransform>();
-            cancelRt.sizeDelta = new Vector2(180f, 46f);
-            cancelRt.anchoredPosition = new Vector2(100f, 48f);
-            cancel.onClick.AddListener(() =>
-            {
-                ReleaseOnActionPopupState(root);
-                Destroy(root);
+        Button cancel = root.CreateChildButton("Cancel");
+        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(180f, 46f);
+        cancelRt.anchoredPosition = new Vector2(100f, 48f);
+        cancel.onClick.AddListener(() =>
+        {
+            ReleaseOnActionPopupState(root);
+            Destroy(root);
 
                 if (optionalSkip)
                 {
@@ -7832,8 +7836,8 @@ public partial class BattleGameMain : MonoBehaviour
 
                 pendingUnitAttackAttacker = null;
                 pendingOnAttackEffectResolvedAttacker = null;
-                CancelPendingUnitAttackFlow();
-            });
+            CancelPendingUnitAttackFlow();
+        });
         }
     }
 
@@ -8300,6 +8304,21 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess)
+        {
+            int maxAp = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (maxAp <= 0)
+            {
+                maxAp = effect.value > 0 ? effect.value : 6;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaImmunityFromEnemyUnitApOrLess(ownerType, maxAp);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction)
         {
             int reduction = ResolveEffectMagnitude(effect, ownerType, sourceCard);
@@ -8338,7 +8357,7 @@ public partial class BattleGameMain : MonoBehaviour
         bool nestedBatch = _onlineEffectSyncActive;
         if (!nestedBatch)
         {
-            BeginOnlineEffectSyncBatch(ownerType);
+        BeginOnlineEffectSyncBatch(ownerType);
         }
 
         if (effect.type == EffectType.Draw)
@@ -8355,7 +8374,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             if (!nestedBatch)
             {
-                FlushOnlineEffectSyncBatch();
+            FlushOnlineEffectSyncBatch();
             }
 
             return;
@@ -8551,6 +8570,14 @@ public partial class BattleGameMain : MonoBehaviour
                         ownerType,
                         magnitude > 0 ? magnitude : 4);
                     break;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess:
+                    GrantShieldAreaImmunityFromEnemyUnitApOrLess(
+                        ownerType,
+                        magnitude > 0 ? magnitude : 6);
+                    break;
+                case EffectType.PreventEnemyActivateByEnemyEffectsDuringPair:
+                case EffectType.ModifyTrashPrintedCostAndLevel:
+                    break;
                 case EffectType.AllyEnemyEffectDamageImmunity:
                     break;
                 case EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess:
@@ -8671,8 +8698,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (!nestedBatch)
         {
-            FlushOnlineEffectSyncBatch();
-        }
+        FlushOnlineEffectSyncBatch();
+    }
 
         SyncAllResourceViewsFromRule();
     }
@@ -8683,7 +8710,7 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
-    /// シールド攻撃。AP が 1 未満のときは何もしない。
+    /// シールド攻撃。AP0 でも宣言できる（与ダメージ 0。シールド／EX／ベースは割らない）。
     /// EXベースありなら power を EX ベースに与え、無いならシールド 1 枚のみ破壊（<see cref="Gundam2024RuleScript.TryApplyUnitShieldAttack"/>）。
     /// </summary>
     private void TryUnitShieldAttackFromUnit(
@@ -8726,24 +8753,24 @@ public partial class BattleGameMain : MonoBehaviour
         // OnAttack 再開時はパネル残留フラグで黙って return しない（Master Gundam 等が止まる原因）
         if (!skipOnAttackSelection)
         {
-            if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
-            {
+        if (isAttackedSidePanelOpen && !skipAttackedSidePanelPause)
+        {
                 if (enableShieldAttackFlowDebugLog)
                 {
                     Debug.Log("[TryUnitShieldAttackFromUnit] skipped — attacked-side panel open.");
                 }
 
-                return;
-            }
+            return;
+        }
 
-            if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
-            {
+        if (isActionThinkPauseOpen && !skipAttackedSidePanelPause)
+        {
                 if (enableShieldAttackFlowDebugLog)
                 {
                     Debug.Log("[TryUnitShieldAttackFromUnit] skipped — action-think pause open.");
                 }
 
-                return;
+            return;
             }
         }
 
@@ -8815,7 +8842,7 @@ public partial class BattleGameMain : MonoBehaviour
             _armedInterventionIgnoreRemoteShieldAttack = false;
 
             hadExBaseLayerAtShieldAttackStart = defender.exBase > 0
-                || HasActiveDeployedBaseForRuleSide(targetSide);
+            || HasActiveDeployedBaseForRuleSide(targetSide);
             _shieldAttackHadExOrBaseAtDeclaration = hadExBaseLayerAtShieldAttackStart;
             _shieldAttackHadExOrBaseAtDeclarationValid = true;
         }
@@ -8844,6 +8871,14 @@ public partial class BattleGameMain : MonoBehaviour
         {
             if (!HasOnAttackPreCombatEffectsBeenApplied(attacker))
             {
+                if (IsOnAttackPreCombatChainInProgress(attacker))
+                {
+                    Debug.Log(
+                        "[ShieldAttack] OnAttack chain already running — ignore re-entry "
+                        + $"(cardId:{attacker.Data?.id})");
+                    return;
+                }
+
                 ResetOnAttackTrashReturnSession();
             }
 
@@ -9085,7 +9120,7 @@ public partial class BattleGameMain : MonoBehaviour
                 TryAbortRemainingAttackAfterArmedIntervention();
                 if (attackFlowStrikeKind != AttackFlowStrikeKind.None)
                 {
-                    FinalizeBlockInterruptWithoutExchange();
+                FinalizeBlockInterruptWithoutExchange();
                 }
 
                 return;
@@ -9130,16 +9165,6 @@ public partial class BattleGameMain : MonoBehaviour
             int shieldStrikeAp = Mathf.Max(
                 0,
                 GetUnitStrikeDamagePower(attacker) + ComputeOnAttackSelfApBonus(attacker, attackerOwner));
-
-            if (shieldStrikeAp <= 0)
-            {
-                Debug.Log("[ShieldAttack] AP is 0 — cannot break shields or direct attack.");
-                pendingUnitAttackAttacker = null;
-                pendingOnAttackEffectResolvedAttacker = null;
-                ClearEndOfBattleCombatModifiers("shield attack aborted (AP0)");
-                ClearAttackFlowContext();
-                return;
-            }
 
             if (!gundamRule.HasShieldZoneProtection(targetSide))
             {
@@ -9387,15 +9412,15 @@ public partial class BattleGameMain : MonoBehaviour
             for (int j = 0; j < effects.Count; j++)
             {
                 EffectData effect = effects[j];
-                if (effect == null || effect.type != EffectType.Suppress)
-                {
-                    continue;
-                }
+            if (effect == null || effect.type != EffectType.Suppress)
+            {
+                continue;
+            }
 
-                int breaks = effect.value > 0 ? effect.value : DefaultSuppressShieldBreakCount;
-                if (breaks > maxBreaks)
-                {
-                    maxBreaks = breaks;
+            int breaks = effect.value > 0 ? effect.value : DefaultSuppressShieldBreakCount;
+            if (breaks > maxBreaks)
+            {
+                maxBreaks = breaks;
                 }
             }
         }
@@ -9631,7 +9656,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (strikeAp <= 0)
         {
-            return false;
+            logMessage = "[Attack] AP 0 — attack declared, no shield-area damage.";
+            return true;
         }
 
         if (!gundamRule.TryApplyUnitShieldAttack(targetSide, strikeAp, overflowGuardAsExLayer))
@@ -9704,7 +9730,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (_pendingOnAttackPreCombatResolvedAttacker == null
             || !IsSameBattleUnit(_pendingOnAttackPreCombatResolvedAttacker, attacker))
         {
-            ClearOnAttackPreCombatResolvedState();
+        ClearOnAttackPreCombatResolvedState();
         }
 
         Debug.Log($"[AttackDeclare] {attacker.Data.cardName} attack declared — REST + attack right consumed.");
@@ -9900,6 +9926,14 @@ public partial class BattleGameMain : MonoBehaviour
         // 攻撃前 OnAttack（Draw / トラッシュ返却等）を1回だけ解決してから宣言する
         if (!resumeAfterPreCombatOnAttack && !HasOnAttackPreCombatEffectsBeenApplied(attacker))
         {
+            if (IsOnAttackPreCombatChainInProgress(attacker))
+            {
+                Debug.Log(
+                    "[UnitAttack] OnAttack chain already running — ignore re-entry "
+                    + $"(cardId:{attacker.Data?.id})");
+                return;
+            }
+
             ResetOnAttackTrashReturnSession();
 
             // SourceAttackingEnemyUnit 等は攻撃コンテキスト必須（AI 直呼びでも登録する）
@@ -9962,25 +9996,25 @@ public partial class BattleGameMain : MonoBehaviour
         // 攻撃宣言後に、OnAttackの非戦闘効果（GrantAttackFlag 等）→対象選択(デバフ等)を行う。
         if (!resumeAfterPreCombatOnAttack)
         {
-            if (_onAttackPreCombatCompletedAttacker != attacker)
-            {
-                TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, null);
-                _onAttackPreCombatCompletedAttacker = attacker;
-            }
+        if (_onAttackPreCombatCompletedAttacker != attacker)
+        {
+            TryOpenOnAttackAllyGrantAttackFlagSelection(attacker, attackerOwner, null);
+            _onAttackPreCombatCompletedAttacker = attacker;
+        }
 
             if (!IsPendingOnAttackEffectResolvedForAttacker(attacker))
-            {
+        {
                 if (TryOpenOnAttackEnemySelectionPanel(
-                        attacker,
-                        attackerOwner,
-                        defender,
+                attacker,
+                attackerOwner,
+                defender,
                         () => ContinueUnitAttackAfterOnAttackEffects(
                             attacker,
                             attackerOwner,
                             defender,
                             skipOnActionPause)))
                 {
-                    return;
+            return;
                 }
 
                 pendingOnAttackEffectResolvedAttacker = attacker;
@@ -12646,7 +12680,7 @@ public partial class BattleGameMain : MonoBehaviour
             NotifyAllyPilotMounted(ownerType, hostUnit, pilot, () =>
             {
                 RefreshAllFieldOwnerTurnPassives();
-                onComplete?.Invoke();
+            onComplete?.Invoke();
             });
         }
 
@@ -12951,9 +12985,22 @@ public partial class BattleGameMain : MonoBehaviour
                 mountPilot));
     }
 
+    private bool IsOnPlayedEffectResolving => _onPlayedEffectResolveDepth > 0;
+
     /// <summary>場に出した時（OnPlayed）。条件付きブロック内の効果を順に解決し、敵ユニット選択が必要なら UI を出す。</summary>
     private void TriggerOnPlayedEffects(CardController sourceCard, PlayerType ownerType, System.Action onComplete)
     {
+        _onPlayedEffectResolveDepth++;
+        System.Action finish = () =>
+        {
+            if (_onPlayedEffectResolveDepth > 0)
+            {
+                _onPlayedEffectResolveDepth--;
+            }
+
+            onComplete?.Invoke();
+        };
+
         bool skipNonLookAutosInTestPlay = ShouldSkipAutomaticEffectsInTestPlay();
 
         // ST12-001【配備時】はカードデータの汎用対象解決を介さず、ベース領域へ直接解決する。
@@ -12962,7 +13009,7 @@ public partial class BattleGameMain : MonoBehaviour
         {
             if (skipNonLookAutosInTestPlay)
             {
-                onComplete?.Invoke();
+                finish();
                 return;
             }
 
@@ -12973,13 +13020,13 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log("[ST12-001] 相手に配備ベースもEXベースもないため、配備時5ダメージをスキップ。");
             }
 
-            onComplete?.Invoke();
+            finish();
             return;
         }
 
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
-            onComplete?.Invoke();
+            finish();
             return;
         }
 
@@ -13015,7 +13062,7 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log(
                 $"[OnPlayed] 解決対象ブロックなし: {sourceCard.Data.cardName}(id:{sourceCard.Data.id}) "
                 + $"(手札パッシブ専用・効果未設定・発動条件未達のいずれか)");
-            onComplete?.Invoke();
+            finish();
             return;
         }
 
@@ -13025,7 +13072,7 @@ public partial class BattleGameMain : MonoBehaviour
         RunOnPlayedTimedBlocks(sourceCard, ownerType, blocks, 0, () =>
         {
             EndEffectChainObservationScope();
-            onComplete?.Invoke();
+            finish();
         });
     }
 
@@ -13352,7 +13399,7 @@ public partial class BattleGameMain : MonoBehaviour
                     // （Look OK と同様。完了はチェーン終了時にも送るが二重送信はガード済み）
                     NotifyOnlineOnDestroyedPlayerAcknowledged();
 
-                    TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            TryExecuteOnDestroyedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
                 });
             return;
         }
@@ -13483,10 +13530,10 @@ public partial class BattleGameMain : MonoBehaviour
             ordered =>
             {
                 if (ordered == null || ordered.Count == 0)
-                {
-                    onComplete?.Invoke();
-                    return;
-                }
+        {
+            onComplete?.Invoke();
+            return;
+        }
 
                 // パイロット効果も Self＝ホストユニットとして解決する
                 RunOrderedOnEnemyUnitDestroyedEntries(killer, killerOwner, ordered, 0, onComplete);
@@ -13650,17 +13697,17 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             if (beneficiary == PlayerType.Enemy)
+            {
+                EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(beneficiary, sourceCard, null, null);
+                CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
+                if (picked != null)
                 {
-                    EnemyAiEffectPickContext pickCtx = BuildEnemyAiEffectPickContext(beneficiary, sourceCard, null, null);
-                    CardController picked = PickEnemyAiEffectTarget(effect, pickCtx, candidates);
-                    if (picked != null)
-                    {
-                        ApplyEffectToSpecificTargets(sourceCard, beneficiary, effect, new List<CardController> { picked });
-                    }
-
-                    TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
-                    return;
+                    ApplyEffectToSpecificTargets(sourceCard, beneficiary, effect, new List<CardController> { picked });
                 }
+
+                TryExecuteOnEnemyUnitDestroyedEffectChain(sourceCard, beneficiary, effects, index + 1, onDone);
+                return;
+            }
 
                 bool abortRemainingOnSkip = effect.abortRemainingChainOnSkip;
                 TryExecuteManualUnitSelectionEffect(
@@ -13682,8 +13729,8 @@ public partial class BattleGameMain : MonoBehaviour
                                 sourceCard, beneficiary, effects, index + 1, onDone);
                         }
                     });
-                return;
-            }
+            return;
+        }
 
         ApplyEffectRespectingLookAsync(
             sourceCard,
@@ -13868,12 +13915,12 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             void RunManualSelection()
-            {
-                TryExecuteManualUnitSelectionEffect(
-                    sourceCard,
-                    ownerType,
-                    effect,
-                    null,
+        {
+            TryExecuteManualUnitSelectionEffect(
+                sourceCard,
+                ownerType,
+                effect,
+                null,
                     () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone),
                     () =>
                     {
@@ -13939,7 +13986,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         // 対象を選んでダメージ効果を解決した時点でフラグを立てる。
         // 無効化・軽減で実ダメージ0でも、後続の自傷（鉄華団等）は「選択できれば」続行する。
-        MarkEffectChainDealtDamage();
+            MarkEffectChainDealtDamage();
 
         if (damageAmount <= 0)
         {
@@ -14102,7 +14149,7 @@ public partial class BattleGameMain : MonoBehaviour
                     if (picked != null)
                     {
                         ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
-                        onDone?.Invoke();
+                    onDone?.Invoke();
                     }
                     else
                     {
@@ -14166,7 +14213,7 @@ public partial class BattleGameMain : MonoBehaviour
                 if (picked != null)
                 {
                     ApplyEffectToSpecificTargets(sourceCard, ownerType, effect, new List<CardController> { picked });
-                    onDone?.Invoke();
+                onDone?.Invoke();
                 }
                 else
                 {
@@ -14496,25 +14543,25 @@ public partial class BattleGameMain : MonoBehaviour
         if (!mandatoryUnitPick)
         {
             Button cancel = root.CreateChildButton(GameLocale.T("キャンセル", "Cancel"));
-            RectTransform cancelRt = cancel.GetComponent<RectTransform>();
-            cancelRt.sizeDelta = new Vector2(160f, 44f);
-            cancelRt.anchorMin = new Vector2(0.5f, 0f);
-            cancelRt.anchorMax = new Vector2(0.5f, 0f);
-            cancelRt.pivot = new Vector2(0.5f, 0f);
-            cancelRt.anchoredPosition = new Vector2(0f, 36f);
-            cancel.onClick.AddListener(() =>
+        RectTransform cancelRt = cancel.GetComponent<RectTransform>();
+        cancelRt.sizeDelta = new Vector2(160f, 44f);
+        cancelRt.anchorMin = new Vector2(0.5f, 0f);
+        cancelRt.anchorMax = new Vector2(0.5f, 0f);
+        cancelRt.pivot = new Vector2(0.5f, 0f);
+        cancelRt.anchoredPosition = new Vector2(0f, 36f);
+        cancel.onClick.AddListener(() =>
+        {
+            if (resolved)
             {
-                if (resolved)
-                {
-                    return;
-                }
+                return;
+            }
 
-                resolved = true;
-                Destroy(root);
-                activeOnActionPopupRoot = null;
-                isOnActionPopupOpen = false;
-                onPicked?.Invoke(null);
-            });
+            resolved = true;
+            Destroy(root);
+            activeOnActionPopupRoot = null;
+            isOnActionPopupOpen = false;
+            onPicked?.Invoke(null);
+        });
         }
     }
 
@@ -15683,6 +15730,21 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess)
+        {
+            int maxAp = ResolveEffectMagnitude(effect, ownerType, sourceCard);
+            if (maxAp <= 0)
+            {
+                maxAp = effect.value > 0 ? effect.value : 6;
+            }
+
+            BeginOnlineEffectSyncBatch(ownerType);
+            GrantShieldAreaImmunityFromEnemyUnitApOrLess(ownerType, maxAp);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.GrantShieldAreaEnemyEffectDamageReduction)
         {
             int reduction = ResolveEffectMagnitude(effect, ownerType, sourceCard);
@@ -15753,7 +15815,7 @@ public partial class BattleGameMain : MonoBehaviour
         bool nestedBatch = _onlineEffectSyncActive;
         if (!nestedBatch)
         {
-            BeginOnlineEffectSyncBatch(ownerType);
+        BeginOnlineEffectSyncBatch(ownerType);
             if (!_onlineEffectSyncActive)
             {
                 Debug.LogWarning(
@@ -15989,7 +16051,7 @@ public partial class BattleGameMain : MonoBehaviour
                 else
                 {
                     // Permanent は攻撃フロー分岐で解釈するため、ここでは何もしない。
-                    Debug.Log($"[Effect] HighMobility marker by cardId:{sourceCard.Data.id}");
+                Debug.Log($"[Effect] HighMobility marker by cardId:{sourceCard.Data.id}");
                 }
 
                 break;
@@ -16066,6 +16128,28 @@ public partial class BattleGameMain : MonoBehaviour
 
                 break;
             }
+
+            case EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess:
+            {
+                int maxAp = magnitude > 0 ? magnitude : 6;
+                if (effect.duration == EffectDuration.UntilEndOfBattle)
+                {
+                    GrantShieldAreaImmunityFromEnemyUnitApOrLess(ownerType, maxAp);
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[Effect] GrantShieldAreaImmunityFromEnemyUnitApOrLess は UntilEndOfBattle 想定 "
+                        + $"(cardId:{sourceCard?.Data?.id} duration:{effect.duration})");
+                    GrantShieldAreaImmunityFromEnemyUnitApOrLess(ownerType, maxAp);
+                }
+
+                break;
+            }
+
+            case EffectType.PreventEnemyActivateByEnemyEffectsDuringPair:
+            case EffectType.ModifyTrashPrintedCostAndLevel:
+                break;
 
             case EffectType.Suppress:
                 ApplyTimedSuppressGrant(sourceCard, ownerType, effect, targets);
@@ -16188,7 +16272,7 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (!nestedBatch)
         {
-            FlushOnlineEffectSyncBatch();
+        FlushOnlineEffectSyncBatch();
         }
 
         SyncAllResourceViewsFromRule();
@@ -16485,7 +16569,7 @@ public partial class BattleGameMain : MonoBehaviour
                 // Unset（盤面オーラ等）は他の味方全員。SelectSingle の自動解決だけ従来どおり先頭1体。
                 if (effect.selectionMode.RequiresManualUnitPick())
                 {
-                    AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
+                AddFirstAliveUnit(allies, result, sourceCard, requiredFeatures);
                 }
                 else
                 {
@@ -16551,6 +16635,11 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect.type == EffectType.Activate && effect.target != TargetType.Self)
         {
             FilterOutNonRestedUnits(result);
+        }
+
+        if (effect.type == EffectType.Activate)
+        {
+            FilterOutActivateBlockedByDuringPair(result, ownerType);
         }
 
         if (effect.requireTargetIsRest)
@@ -16671,18 +16760,18 @@ public partial class BattleGameMain : MonoBehaviour
 
         card.EnsureFeaturesResolved();
         return card.HasAnyFeature(requiredFeatures);
-    }
+        }
 
     private static bool MatchesRequiredFeatures(CardController unit, IReadOnlyList<CardFeatureData> requiredFeatures)
-    {
-        if (requiredFeatures == null || requiredFeatures.Count == 0)
         {
-            return true;
+        if (requiredFeatures == null || requiredFeatures.Count == 0)
+            {
+                return true;
         }
 
         if (unit?.Data == null)
         {
-            return false;
+        return false;
         }
 
         return unit.HasAnyFeature(requiredFeatures);
@@ -16948,8 +17037,8 @@ public partial class BattleGameMain : MonoBehaviour
         if (sourceCard.Data.IsPilot())
         {
             if (sourceCard.MountedUnit != null)
-            {
-                return sourceCard.MountedUnit;
+        {
+            return sourceCard.MountedUnit;
             }
 
             if (_pilotMountEffectHostUnit != null
@@ -17188,7 +17277,36 @@ public partial class BattleGameMain : MonoBehaviour
                 + $"(defender:{defenderSide} attacker:{attackerSide})");
         }
 
+        if (IsOnPlayedEffectResolving)
+        {
+            Debug.Log(
+                "[AttackFlow] Defer opponent action step until OnPlayed (attack-time deploy effects) settle.");
+            StartCoroutine(CoTryRunAttackActionStepsAfterOnPlayedSettled(
+                defenderSide,
+                attackerSide,
+                onComplete,
+                attackingUnitInAttackFlow,
+                defendingUnitInAttackFlow));
+            return true;
+        }
+
         return TryRunAttackOnActionPhasesAfterBlock(
+            defenderSide,
+            attackerSide,
+            onComplete,
+            attackingUnitInAttackFlow,
+            defendingUnitInAttackFlow);
+    }
+
+    private IEnumerator CoTryRunAttackActionStepsAfterOnPlayedSettled(
+        PlayerType defenderSide,
+        PlayerType attackerSide,
+        System.Action onComplete,
+        CardController attackingUnitInAttackFlow,
+        CardController defendingUnitInAttackFlow)
+    {
+        yield return new WaitUntil(() => !IsOnPlayedEffectResolving);
+        TryRunAttackOnActionPhasesAfterBlock(
             defenderSide,
             attackerSide,
             onComplete,
@@ -18279,6 +18397,9 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
                     notes.Append("[ShieldAreaUnitDmgImmunity Lv≤").Append(magnitude).Append("] ");
                     continue;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess:
+                    notes.Append("[ShieldAreaUnitDmgImmunity AP≤").Append(magnitude).Append("] ");
+                    continue;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     notes.Append("[PreventStartPhaseActiveLowestRest] ");
                     continue;
@@ -18454,6 +18575,9 @@ public partial class BattleGameMain : MonoBehaviour
                     continue;
                 case EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess:
                     notes.Append("[ShieldAreaUnitDmgImmunity Lv≤").Append(magnitude).Append("] ");
+                    continue;
+                case EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess:
+                    notes.Append("[ShieldAreaUnitDmgImmunity AP≤").Append(magnitude).Append("] ");
                     continue;
                 case EffectType.PreventOpponentStartPhaseActiveLowestRestUnits:
                     notes.Append("[PreventStartPhaseActiveLowestRest] ");
@@ -20154,9 +20278,9 @@ public partial class BattleGameMain : MonoBehaviour
         }
         else
         {
-            title.text = hasSelectableCards
-                ? $"Action Step — {roleLabel}"
-                : $"Action Step — {roleLabel} (no playable cards)";
+        title.text = hasSelectableCards
+            ? $"Action Step — {roleLabel}"
+            : $"Action Step — {roleLabel} (no playable cards)";
         }
         title.color = Color.white;
         title.fontSize = 22;
@@ -20263,8 +20387,8 @@ public partial class BattleGameMain : MonoBehaviour
                 Debug.Log(
                     $"[ForcedOnAction] Block {passKind} — pending forced OnAction "
                     + $"count:{CollectPendingForcedOnActionSources(side).Count} side:{side}");
-                return;
-            }
+                    return;
+                }
 
             if (!IsOnlineBattle())
             {
@@ -20282,12 +20406,12 @@ public partial class BattleGameMain : MonoBehaviour
                     if (passKind == ActionStepPassKind.Pass && selectedCommands.Count > 0)
                     {
                         BeginActionStepCommandResolve(root);
-                        ExecuteOnActionCommandQueue(
-                            side,
-                            selectedCommands,
-                            0,
-                            () =>
-                            {
+                ExecuteOnActionCommandQueue(
+                    side,
+                    selectedCommands,
+                    0,
+                    () =>
+                    {
                                 EndActionStepCommandResolve();
                                 _actionStepHiddenSelectionRoot = null;
                                 ResolveActionStepUi(side, passKind, root);
@@ -20315,14 +20439,14 @@ public partial class BattleGameMain : MonoBehaviour
                         {
                             EndActionStepCommandResolve();
                             _actionStepHiddenSelectionRoot = null;
-                            _onlineOnActionActiveContext = null;
-                            isOnActionPopupOpen = false;
-                            activeOnActionPopupRoot = null;
-                            Destroy(root);
+                        _onlineOnActionActiveContext = null;
+                        isOnActionPopupOpen = false;
+                        activeOnActionPopupRoot = null;
+                        Destroy(root);
                             SendOnlineActionStepResolution(requestId, side, passKind);
-                            onStepDone?.Invoke();
-                        },
-                        attackingUnitInAttackFlow);
+                        onStepDone?.Invoke();
+                    },
+                    attackingUnitInAttackFlow);
                     return;
                 }
 
@@ -20624,15 +20748,15 @@ public partial class BattleGameMain : MonoBehaviour
                     commandQueueCount);
             }
             else
-            {
-                OpenOnActionUnitTargetSelection(
-                    side,
-                    command,
-                    manualTargetEffect,
-                    onDone,
-                    attackingUnitInAttackFlow,
-                    commandQueueIndex,
-                    commandQueueCount);
+        {
+            OpenOnActionUnitTargetSelection(
+                side,
+                command,
+                manualTargetEffect,
+                onDone,
+                attackingUnitInAttackFlow,
+                commandQueueIndex,
+                commandQueueCount);
             }
 
             return;
@@ -21325,14 +21449,14 @@ public partial class BattleGameMain : MonoBehaviour
         if (!paymentOk || !TryConsumeResourceForCommandPlay(side, command, "OnAction", exToUse))
         {
             EndOnDestroyedLatencyHold();
-            LogCommandUseResultWithBoard(
-                "OnAction_Failed_InsufficientResource",
-                side,
-                command,
-                attackingUnitInAttackFlow,
-                commandQueueIndex,
-                commandQueueCount,
-                "phase:unit_target_ui cost not consumed");
+                    LogCommandUseResultWithBoard(
+                        "OnAction_Failed_InsufficientResource",
+                        side,
+                        command,
+                        attackingUnitInAttackFlow,
+                        commandQueueIndex,
+                        commandQueueCount,
+                        "phase:unit_target_ui cost not consumed");
             FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: false);
             yield break;
         }
@@ -21352,20 +21476,20 @@ public partial class BattleGameMain : MonoBehaviour
         MarkOnActionOncePerTurnUsedIfNeeded(side, command);
         string consumedSummary = $"{command.Data.cardName}(id:{command.Data.id})";
         string pickedSummary = FormatOnActionPickedTargetsSummary(pickedTargets);
-        string detail =
+                string detail =
             $"consumed:{consumedSummary}|effect:{effect.type} target:{effect.target} value:{effect.value}|picked:{pickedSummary}";
         List<UnitStatSnapForCommandLog> beforeSnapsPick = SnapUnitStatsForOnActionCommandLog(pickedTargets);
 
-        if (IsCloseCombatCard(command) && attackFlowBlockRedirectFromShieldStrike)
-        {
-            LogArgamaShieldBlockCloseCombatDebug(
-                "CloseCombatOnActionPick",
-                $"side:{side} {detail} redirectBlocker:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)} "
+                if (IsCloseCombatCard(command) && attackFlowBlockRedirectFromShieldStrike)
+                {
+                    LogArgamaShieldBlockCloseCombatDebug(
+                        "CloseCombatOnActionPick",
+                        $"side:{side} {detail} redirectBlocker:{FormatUnitDebugSnap(attackFlowBlockRedirectUnit)} "
                 + $"pickedContainsBlocker:{pickedTargets.Contains(attackFlowBlockRedirectUnit)}",
-                attackFlowAttackerUnit,
-                attackFlowBlockRedirectUnit,
-                command);
-        }
+                        attackFlowAttackerUnit,
+                        attackFlowBlockRedirectUnit,
+                        command);
+                }
 
         TryApplyOnActionRestSelfCostIfPresent(command, side);
         if (IsMagicBulletOfDuskCard(command.Data))
@@ -21443,7 +21567,7 @@ public partial class BattleGameMain : MonoBehaviour
 
                 FlushOnlineEffectSyncBatch();
                 SyncAllResourceViewsFromRule();
-                Debug.Log(
+                    Debug.Log(
                     $"[OnAction] BattleDamageImmunity applied:{applied} "
                     + $"picked:{FormatOnActionPickedTargetsSummary(pickedTargets)} "
                     + $"value:{effect.value} duration:{effect.duration}");
@@ -21582,18 +21706,18 @@ public partial class BattleGameMain : MonoBehaviour
         yield return WaitUntilBlockingChoiceOrTrashUiCleared(8f);
         yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
 
-        LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
+                LogOnActionCommandAppliedToUnitsBattleOutcome(command, side, effect, "OnAction_AfterApplyUnitTarget", beforeSnapsPick);
         yield return CoFinalizeOnActionSourceCardAndWaitSpecialMoveWatch(command, side);
         List<CardController> pickedForEval = BuildOnActionUnitTargetListAfterApply(pickedTargets);
-        LogCommandUseResultWithBoard(
-            "OnAction_AfterApplyUnitTarget",
-            side,
-            null,
-            attackingUnitInAttackFlow,
-            commandQueueIndex,
-            commandQueueCount,
-            detail,
-            pickedForEval);
+                LogCommandUseResultWithBoard(
+                    "OnAction_AfterApplyUnitTarget",
+                    side,
+                    null,
+                    attackingUnitInAttackFlow,
+                    commandQueueIndex,
+                    commandQueueCount,
+                    detail,
+                    pickedForEval);
         FinishOnActionCommandAttempt(side, onDone, resolvedSuccessfully: true);
     }
     private void ApplyRemainingOnActionEffectsAfterManualTarget(
@@ -21710,7 +21834,7 @@ public partial class BattleGameMain : MonoBehaviour
                     side,
                     command,
                     next,
-                    onDone,
+            onDone,
                     attackingUnitInAttackFlow,
                     commandQueueIndex,
                     commandQueueCount);
@@ -22101,8 +22225,8 @@ public partial class BattleGameMain : MonoBehaviour
     {
         yield return FlushPendingExResourceRemovedAndApReducedWatchesCoroutine();
 
-        if (trashHandCardAfter)
-        {
+                if (trashHandCardAfter)
+                {
             int sourceCardId = source != null && source.Data != null ? source.Data.id : 0;
             CardData sourceData = source != null ? source.Data : null;
             List<EffectData> deferredMountEffects = CollectMountSelfFromTrashAsPilotEffects(
@@ -22120,9 +22244,9 @@ public partial class BattleGameMain : MonoBehaviour
                     () => TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone));
                 yield break;
             }
-        }
+                }
 
-        TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
+                TryExecuteOnMainBlocks(side, source, blocks, blockIndex + 1, onDone);
     }
 
     private EffectActivationContext BuildOnMainChainActivationContext(PlayerType side, CardController source)
@@ -22621,6 +22745,11 @@ public partial class BattleGameMain : MonoBehaviour
             FilterOutNonRestedUnits(result);
         }
 
+        if (effect.type == EffectType.Activate)
+        {
+            FilterOutActivateBlockedByDuringPair(result, ownerType);
+        }
+
         if (effect.requireTargetIsRest)
         {
             FilterOutNonRestedUnits(result);
@@ -22842,8 +22971,8 @@ public partial class BattleGameMain : MonoBehaviour
             else
             {
                 string mid = featureLabel;
-                if (!string.IsNullOrEmpty(typeLabel))
-                {
+            if (!string.IsNullOrEmpty(typeLabel))
+            {
                     mid = string.IsNullOrEmpty(mid) ? typeLabel : $"{mid}・{typeLabel}";
                 }
 
@@ -23123,7 +23252,7 @@ public partial class BattleGameMain : MonoBehaviour
                 }
 
                 System.Action applyPick = () =>
-                    ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
+                ApplyEffectToSpecificTargets(source, side, effect, new List<CardController> { picked });
                 if (side == PlayerType.Player)
                 {
                     InvokePlayerManualUnitSelectionCallback(applyPick);
@@ -23300,7 +23429,7 @@ public partial class BattleGameMain : MonoBehaviour
             int sourceCardId = commandData.id;
             NotifyOwnerSpecialMoveCommandActivated(side, commandData, () =>
             {
-                SendUsedCommandToTrash(source, side);
+            SendUsedCommandToTrash(source, side);
                 if (deferredMountEffects.Count > 0 && sourceCardId > 0)
                 {
                     TryExecuteDeferredMountSelfFromTrashChain(

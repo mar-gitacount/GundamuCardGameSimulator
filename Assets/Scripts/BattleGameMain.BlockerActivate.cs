@@ -100,6 +100,26 @@ public partial class BattleGameMain
         return true;
     }
 
+    /// <summary>
+    /// カード効果（EffectType.Activate）による REST→ACTIVE。
+    /// GD06-037 リンク中は、相手効果で相手ユニットをアクティブにしない。
+    /// </summary>
+    private bool TryApplyActivateByCardEffect(
+        PlayerType effectOwner,
+        CardController target,
+        bool grantAttack = true)
+    {
+        if (ShouldBlockActivateTargetByEnemyEffectsDuringPair(effectOwner, target))
+        {
+            Debug.Log(
+                $"[Effect] Activate skipped by During Pair (PreventEnemyActivate) "
+                + $"effectOwner:{effectOwner} target:{target?.Data?.cardName}");
+            return false;
+        }
+
+        return TryApplyActivateToUnit(target, grantAttack);
+    }
+
     private void ApplyActivateEffect(EffectData effect, PlayerType ownerType, List<CardController> targets)
     {
         // 後続の UsePriorChainPickedTarget は「実際に ACTIVE になったユニット」だけを参照する。
@@ -121,7 +141,10 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (TryApplyActivateToUnit(target, grantAttack: !effect.activateWithoutGrantingAttack))
+            if (TryApplyActivateByCardEffect(
+                    ownerType,
+                    target,
+                    grantAttack: !effect.activateWithoutGrantingAttack))
             {
                 QueueOnlineUnitActivate(target);
                 activated.Add(target);
@@ -2063,5 +2086,138 @@ public partial class BattleGameMain
                 targets.RemoveAt(i);
             }
         }
+    }
+
+    private void FilterOutActivateBlockedByDuringPair(List<CardController> targets, PlayerType effectOwner)
+    {
+        if (targets == null || targets.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = targets.Count - 1; i >= 0; i--)
+        {
+            if (ShouldBlockActivateTargetByEnemyEffectsDuringPair(effectOwner, targets[i]))
+            {
+                targets.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// GD06-037：リンク中、相手の効果は相手ユニットをアクティブにできない。
+    /// バンシィは自身（自軍）をアクティブにするだけなので、ジュリア側のバンシィは通す。
+    /// </summary>
+    private bool ShouldBlockActivateTargetByEnemyEffectsDuringPair(PlayerType effectOwner, CardController target)
+    {
+        if (target == null)
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = ResolveBattleZoneOwner(target);
+        if (ZoneHasLinkedPreventEnemyActivate(playerBattleZoneCards, PlayerType.Player)
+            && effectOwner != PlayerType.Player
+            && targetOwner != PlayerType.Player)
+        {
+            return true;
+        }
+
+        if (ZoneHasLinkedPreventEnemyActivate(enemyBattleZoneCards, PlayerType.Enemy)
+            && effectOwner != PlayerType.Enemy
+            && targetOwner != PlayerType.Enemy)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 効果オーナー不明時。対象ゾーンの所有者を効果オーナーとして判定する。
+    /// </summary>
+    private bool ShouldBlockActivateTargetByEnemyEffectsDuringPair(CardController target)
+    {
+        if (target == null)
+        {
+            return false;
+        }
+
+        return ShouldBlockActivateTargetByEnemyEffectsDuringPair(
+            ResolveBattleZoneOwner(target),
+            target);
+    }
+
+    private PlayerType ResolveBattleZoneOwner(CardController unit)
+    {
+        if (unit != null && playerBattleZoneCards != null && playerBattleZoneCards.Contains(unit))
+        {
+            return PlayerType.Player;
+        }
+
+        if (unit != null && enemyBattleZoneCards != null && enemyBattleZoneCards.Contains(unit))
+        {
+            return PlayerType.Enemy;
+        }
+
+        return unit != null ? ResolveCardOwner(unit.transform) : PlayerType.Player;
+    }
+
+    private bool ZoneHasLinkedPreventEnemyActivate(List<CardController> zone, PlayerType zoneOwner)
+    {
+        if (zone == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (unit == null || unit.Data == null || !unit.Data.IsUnitLike() || unit.CurrentHp <= 0)
+            {
+                continue;
+            }
+
+            if (unit.Data.timedEffects == null)
+            {
+                continue;
+            }
+
+            EffectActivationContext ctx = BuildActivationContext(zoneOwner, unit);
+            for (int t = 0; t < unit.Data.timedEffects.Count; t++)
+            {
+                TimedEffectData timed = unit.Data.timedEffects[t];
+                if (timed == null || !timed.HasResolvedEffects())
+                {
+                    continue;
+                }
+
+                if (!TimedBlockHasPreventEnemyActivate(timed))
+                {
+                    continue;
+                }
+
+                if (EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TimedBlockHasPreventEnemyActivate(TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (effects[i] != null && effects[i].type == EffectType.PreventEnemyActivateByEnemyEffectsDuringPair)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

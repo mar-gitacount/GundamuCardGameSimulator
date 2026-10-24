@@ -7368,6 +7368,118 @@
                     "targetUnitStatCompareValue": 4
                 }
             ]
+        },
+        {
+            "effectSetName": "TrashPrintedLvCostMinus3",
+            "displayName": "トラッシュにあるこのカードの印刷Lv/Costを3下げる",
+            "effects": [
+                {
+                    "type": 80,
+                    "value": 3,
+                    "target": 0,
+                    "selectionMode": -1
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyUnit_Lv3OrLess_Select1to2",
+            "displayName": "敵ユニット(Lv3以下)1～2体を破壊（選択UI）",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 5,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3,
+                    "selectMinCount": 1,
+                    "selectMaxCount": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenDestroyEnemyBlockerAp3OrLess_IfNeoZeonPairedPilotLv3OrLess",
+            "displayName": "ベース配備：シールド1枚を手札へ。自分のターンかつ〔ネオジオン〕にLv3以下パイロットがいるなら《ブロッカー》AP3以下の敵1体を破壊",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3,
+                    "filterTargetIsBlocker": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": -1,
+                            "turnCheck": 0,
+                            "minimumCount": 1
+                        },
+                        {
+                            "boardSide": 0,
+                            "checkKind": 61,
+                            "turnCheck": -1,
+                            "featureId": 6,
+                            "minimumCount": 1,
+                            "compareOp": 3,
+                            "compareValue": 3,
+                            "pilotLevelThreshold": 3
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLook_AddGhingnhamOrDiannaUnit1_Reveal_Optional",
+            "displayName": "OnLook：〔ギンガム艦隊〕／〔ダイアナ・カウンター〕ユニット1枚を公開して手札へ加えてもよい",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "targetFeatureIds": [83, 79],
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "revealDiscardedToOpponent": true,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "PreventEnemyActivateByEnemyEffects_DuringPair",
+            "displayName": "【リンク中】相手は相手の効果でユニットをアクティブにできない",
+            "effects": [
+                {
+                    "type": 79,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "duration": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantShieldAreaImmunity_FromEnemyUnitAp6OrLess_UntilEndOfBattle",
+            "displayName": "このバトル中：シールドエリアは相手AP6以下ユニットからダメージを受けない",
+            "effects": [
+                {
+                    "type": 78,
+                    "value": 6,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "duration": 2
+                }
+            ]
         }
     ]
 }

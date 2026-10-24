@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -267,6 +268,13 @@ public partial class BattleGameMain
         string context = _actionStepSession.ContextFor(side);
         CardController attackingUnit = _actionStepSession.AttackingUnit;
 
+        if (_actionStepSession.IsAttackContext && IsOnPlayedEffectResolving)
+        {
+            Debug.Log($"[ActionStep] Defer {side} until OnPlayed settle.");
+            StartCoroutine(CoRunActionStepForSideAfterOnPlayedSettled(side, _actionStepSession.SessionId));
+            return;
+        }
+
         // GD06-001 被攻撃ドロー等をこのサイドのアクション開始時に解決する。
         TryResolveWhenAttackedDrawsAtActionStep(side);
 
@@ -312,6 +320,17 @@ public partial class BattleGameMain
             Debug.LogWarning($"[ActionStep] UI could not open for {side} — treating as ActionEnd.");
             AdvanceActionStepSession(side, ActionStepPassKind.ActionEnd);
         }
+    }
+
+    private IEnumerator CoRunActionStepForSideAfterOnPlayedSettled(PlayerType side, int sessionId)
+    {
+        yield return new WaitUntil(() => !IsOnPlayedEffectResolving);
+        if (_actionStepSession == null || _actionStepSession.SessionId != sessionId)
+        {
+            yield break;
+        }
+
+        RunActionStepForSide(side);
     }
 
     private void ResolveActionStepUi(PlayerType side, ActionStepPassKind passKind, GameObject popupRoot)

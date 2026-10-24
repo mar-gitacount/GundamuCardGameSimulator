@@ -510,6 +510,21 @@ public static class EffectActivationEvaluator
             return ctx != null && ctx.SourceCard != null && ctx.SourceCard.WasDeployedFromTrash;
         }
 
+        if (c.checkKind == EffectActivationCheckKind.SourceNotDeployedFromTrash)
+        {
+            return ctx == null || ctx.SourceCard == null || !ctx.SourceCard.WasDeployedFromTrash;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.BattlingEnemyUnitDamaged)
+        {
+            return EvaluateBattlingEnemyUnitDamaged(ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerHasFeaturedUnitWithMountedPilotLevel)
+        {
+            return EvaluateOwnerHasFeaturedUnitWithMountedPilotLevel(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.SourceAttackingEnemyUnit)
         {
             return ctx != null && ctx.SourceAttackingEnemyUnit;
@@ -1209,6 +1224,75 @@ public static class EffectActivationEvaluator
 
         int statValue = GetActivationStatValue(ctx.BattlingEnemyUnit, c.activationStatTarget);
         return CompareInts(statValue, c.compareValue, c.compareOp);
+    }
+
+    private static bool EvaluateBattlingEnemyUnitDamaged(EffectActivationContext ctx)
+    {
+        if (ctx?.BattlingEnemyUnit == null || ctx.BattlingEnemyUnit.Data == null)
+        {
+            return false;
+        }
+
+        CardController enemy = ctx.BattlingEnemyUnit;
+        if (!enemy.Data.IsUnitLike() || enemy.CurrentHp <= 0)
+        {
+            return false;
+        }
+
+        return enemy.CurrentHp < enemy.GetRepairHpCap();
+    }
+
+    /// <summary>
+    /// ホストが指定 Feature を持ち、搭乗パイロットのレベル条件を満たす生存ユニットがいるか。
+    /// </summary>
+    private static bool EvaluateOwnerHasFeaturedUnitWithMountedPilotLevel(
+        EffectActivationCondition c,
+        EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        EffectBoardSide side = c.boardSide == EffectBoardSide.Unset
+            ? EffectBoardSide.OwnerBattleZone
+            : c.boardSide;
+        IReadOnlyList<CardController> zone = ResolveZone(ctx, side);
+        if (zone == null)
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        int matched = 0;
+        int levelThreshold = ResolveMountedPilotLevelThreshold(c);
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (!IsAliveUnit(unit) || !UnitMatchesActivationFeature(unit, c))
+            {
+                continue;
+            }
+
+            CardController pilot = unit.MountedPilot;
+            if (pilot == null || pilot.Data == null || !pilot.Data.IsPilot())
+            {
+                continue;
+            }
+
+            if (levelThreshold > 0 && !CompareInts(pilot.CurrentLevel, levelThreshold, c.compareOp))
+            {
+                continue;
+            }
+
+            matched++;
+            if (matched >= need)
+            {
+                return true;
+            }
+        }
+
+        return matched >= need;
     }
 
     private static CardController ResolveOnAttackConditionUnit(EffectActivationContext ctx)

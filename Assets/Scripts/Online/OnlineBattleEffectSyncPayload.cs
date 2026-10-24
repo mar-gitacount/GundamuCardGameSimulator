@@ -127,6 +127,8 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindSkipNextStartPhaseActive = "SkipNextStartPhaseActive";
     /// <summary>ST02-013 等：このバトル中、シールドエリアが相手 Lv≤N ユニットからダメージを受けない。</summary>
     public const string ChangeKindShieldAreaUnitDamageImmunity = "ShieldAreaUnitDamageImmunity";
+    /// <summary>GD06-106 等：このバトル中、シールドエリアが相手 AP≤N ユニットからダメージを受けない。</summary>
+    public const string ChangeKindShieldAreaUnitDamageImmunityAp = "ShieldAreaUnitDamageImmunityAp";
     /// <summary>GD06-049 等：送信側視点の配備ベース層（カード／EX）を破壊する。</summary>
     public const string ChangeKindDestroyDeployedBase = "DestroyDeployedBase";
 
