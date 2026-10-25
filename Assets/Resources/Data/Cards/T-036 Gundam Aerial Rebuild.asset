@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/GD01-067_Gundam Aerial Rebuild
+  imageAddress: Data/Images/T-036_Gundam Aerial Rebuild
   version: 6
   sourceType: 1
   productLine: 1

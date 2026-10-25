@@ -795,6 +795,11 @@ public partial class BattleGameMain : MonoBehaviour
             AssignBattleInstanceIdIfNeeded(blockRedirectUnitOrNull);
         }
 
+        if (strike == AttackFlowStrikeKind.UnitVsUnit || strike == AttackFlowStrikeKind.Shield)
+        {
+            MarkUnitAttackDeclaredThisTurn(attackerOwner);
+        }
+
         attackFlowDefenderShieldCountAtStrike = -1;
         if (strike == AttackFlowStrikeKind.Shield && gundamRule != null)
         {
@@ -2586,6 +2591,7 @@ public partial class BattleGameMain : MonoBehaviour
         ClearPilotSetBattleDamageKillThisTurn();
         // 前ターンの効果ドロー記録を切る（オンライン相手ターン終了スキップ時の残留防止）。
         ClearAllOwnerDrewWithEffectThisTurn();
+        ClearAllUnitAttackDeclaredThisTurn();
         ClearAllQubeleyOncePerTurnBecauseTurnChanged();
         RefreshAllFieldOwnerTurnPassives();
 
@@ -5414,6 +5420,7 @@ public partial class BattleGameMain : MonoBehaviour
         cardController.SetEligibleForShieldZoneDeploy(false);
 
         // ユニット配備直後はアクティブ（起き状態）で配置する。
+        bool restSelfOnPlayed = false;
         if (cardController.Data.IsUnitLike())
         {
             cardController.ResetRuntimeStatsFromData();
@@ -5421,6 +5428,13 @@ public partial class BattleGameMain : MonoBehaviour
             AssignBattleInstanceIdIfNeeded(cardController);
             ApplyPilotMountFieldAurasToDeployedUnit(cardController, ownerType);
             cardController.SetDeployedFromTrash(false);
+            restSelfOnPlayed = ShouldApplyOnPlayedRestSelfAtDeploy(cardController, ownerType);
+            if (restSelfOnPlayed)
+            {
+                // 【配備時】自身 REST は PlayCard.deployAsRested で相手盤面へ載せる。
+                // EffectSync Rest が配備パケットより先に着くと相手側で見つからず ACTIVE のまま残る。
+                ApplyDeployedUnitRestedState(cardController);
+            }
         }
 
         StartCoroutine(TriggerOnPlayedEffectsAfterDeployCoroutine(cardController, ownerType));
@@ -5428,7 +5442,7 @@ public partial class BattleGameMain : MonoBehaviour
         ownerRule.RefreshHandCountDisplay();
         if (ownerType == PlayerType.Player)
         {
-            NotifyLocalPlayCardDeployed(cardController);
+            NotifyLocalPlayCardDeployed(cardController, deployAsRested: restSelfOnPlayed);
             NotifyLocalPlayerHandDeckSnapshot();
         }
     }
@@ -5437,6 +5451,8 @@ public partial class BattleGameMain : MonoBehaviour
     private IEnumerator TriggerOnPlayedEffectsAfterDeployCoroutine(CardController sourceCard, PlayerType ownerType)
     {
         yield return null;
+        // オンラインは相手が配備を盤面に載せたあとで【配備時】を解決し、バフ／アクティブ同期の対象欠けを防ぐ。
+        yield return CoWaitPendingOnlineOpponentCardConfirmIfNeeded();
         bool finished = false;
         TriggerOnPlayedEffects(sourceCard, ownerType, () => finished = true);
         yield return new WaitUntil(() => finished);
@@ -9713,6 +9729,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (attacker.AttackFlgState == AttackFlg.False && attacker.IsRestState)
         {
+            // 攻撃権消費済みでも、このターンにアタックした事実は残す（GD06-102 等）
+            MarkUnitAttackDeclaredThisTurn(attackerOwner);
             return;
         }
 
@@ -9724,6 +9742,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         attacker.SetAttackFlg(AttackFlg.False);
+        MarkUnitAttackDeclaredThisTurn(attackerOwner);
         SetUnitRestAndTriggerEffects(attacker, attackerOwner);
         SyncOnlineRestFromAttackAuthority(attacker);
         // OnAttack プレコンバット中は pending を残す（効果ダメージのシールド破壊許可に使う）
@@ -12067,7 +12086,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
             ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
-            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
         return true;
     }
 
@@ -12084,7 +12104,7 @@ public partial class BattleGameMain : MonoBehaviour
             enemyBattleZoneCards,
             CollectHandControllers(cardGameRule),
             CollectHandControllers(enemyCardGameRule),
-            isOwnerTurn: ownerType == currentPlayerType,
+            isOwnerTurn: IsOwnerTurnForEffectActivation(ownerType),
             observedCards: GetActiveObservedCardsForActivation(),
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
@@ -12095,7 +12115,9 @@ public partial class BattleGameMain : MonoBehaviour
             ownerExResource: ownerState.exResource,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
-            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
     }
 
     /// <summary>
@@ -12134,7 +12156,7 @@ public partial class BattleGameMain : MonoBehaviour
             enemyBattleZoneCards,
             CollectHandControllers(cardGameRule),
             CollectHandControllers(enemyCardGameRule),
-            isOwnerTurn: ownerType == currentPlayerType,
+            isOwnerTurn: IsOwnerTurnForEffectActivation(ownerType),
             mountHostUnit: mountHost,
             mountedPilot: mountedPilot,
             observedCards: GetActiveObservedCardsForActivation(),
@@ -12150,7 +12172,9 @@ public partial class BattleGameMain : MonoBehaviour
             ownerExResource: ownerState != null ? ownerState.exResource : -1,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
-            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -12174,7 +12198,7 @@ public partial class BattleGameMain : MonoBehaviour
             enemyBattleZoneCards,
             CollectHandControllers(cardGameRule),
             CollectHandControllers(enemyCardGameRule),
-            isOwnerTurn: ownerType == currentPlayerType,
+            isOwnerTurn: IsOwnerTurnForEffectActivation(ownerType),
             mountHostUnit: host,
             mountedPilot: pilot,
             observedCards: GetActiveObservedCardsForActivation(),
@@ -12190,7 +12214,9 @@ public partial class BattleGameMain : MonoBehaviour
             ownerExResource: ownerState != null ? ownerState.exResource : -1,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
-            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
+            ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
     }
 
     /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
@@ -14615,6 +14641,7 @@ public partial class BattleGameMain : MonoBehaviour
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
+        EnsureOnActionPopupOverlayCanvas(root);
         Image dim = root.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.55f);
         dim.raycastTarget = true;
@@ -15191,6 +15218,7 @@ public partial class BattleGameMain : MonoBehaviour
         IReadOnlyList<int> trashIdsForMatch = null;
         if (effect.relaxTargetUnitStatFilterWhenTrashHasSourceCopies
             || effect.relaxTargetUnitStatFilterWhenTrashHasCommands
+            || effect.relaxTargetUnitStatFilterWhenTrashHasFeature
             || IsBlazingMobileSuitRiderTrashRelaxEffect(sourceCard, effect))
         {
             trashIdsForMatch = ownerTrashIds;
@@ -17189,12 +17217,6 @@ public partial class BattleGameMain : MonoBehaviour
     /// </summary>
     private bool TryRunTurnEndOnActionPhases(PlayerType endingTurnSide, System.Action onComplete)
     {
-        if (IsTestPlayBattle())
-        {
-            onComplete?.Invoke();
-            return false;
-        }
-
         PlayerType nonTurnSide = OpponentSide(endingTurnSide);
         BeginActionStepSession(
             endingTurnSide,
@@ -20260,6 +20282,7 @@ public partial class BattleGameMain : MonoBehaviour
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
+        EnsureOnActionPopupOverlayCanvas(root);
         Image dim = root.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.55f);
         dim.raycastTarget = true;
@@ -20498,29 +20521,21 @@ public partial class BattleGameMain : MonoBehaviour
         if (confirmLabel != null)
         {
             confirmLabel.text = hasPendingForced ? "OK" : "Confirm";
+            confirmLabel.raycastTarget = false;
         }
 
-        SetActionStepButtonInteractable(confirmBtn, hasSelectableCards);
-        confirmBtn.onClick.AddListener(() =>
+        SetActionStepButtonInteractable(confirmBtn, hasSelectableCards || hasPendingForced);
+
+        bool confirmStarted = false;
+        void onConfirmPressed()
         {
-            if (!hasSelectableCards)
+            if (confirmStarted)
             {
                 return;
             }
 
             selectedCommands.Clear();
             selectedCommands.AddRange(selectedSet);
-            // 選択可能カードが1枚だけのときは、カード画像の Button が
-            // Prefab 上の Raycast 設定で選択を取りこぼしても Confirm で確定できるようにする。
-            if (selectedCommands.Count == 0 && onActionSelectableSources.Count == 1)
-            {
-                CardController sole = onActionSelectableSources[0];
-                if (!IsActionStepCardUsedForSide(side, sole))
-                {
-                    selectedCommands.Add(sole);
-                }
-            }
-
             if (selectedCommands.Count == 0)
             {
                 Debug.Log("OnAction: Select at least one card.");
@@ -20533,8 +20548,11 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
+            confirmStarted = true;
             finishUi(ActionStepPassKind.Pass);
-        });
+        }
+
+        confirmBtn.onClick.AddListener(onConfirmPressed);
 
         Button cancelBtn = root.CreateChildButton("Cancel");
         RectTransform cancelRt = cancelBtn.GetComponent<RectTransform>();
@@ -20547,6 +20565,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (cancelLabel != null)
         {
             cancelLabel.text = "Cancel";
+            cancelLabel.raycastTarget = false;
         }
 
         // 強制アクション未消化時は Cancel / ActionEnd 不可（Confirm/OK のみ）
@@ -20573,6 +20592,7 @@ public partial class BattleGameMain : MonoBehaviour
         if (actionEndLabel != null)
         {
             actionEndLabel.text = "ActionEnd";
+            actionEndLabel.raycastTarget = false;
         }
 
         SetActionStepButtonInteractable(actionEndBtn, !hasPendingForced);
@@ -20586,6 +20606,11 @@ public partial class BattleGameMain : MonoBehaviour
             selectedCommands.Clear();
             finishUi(ActionStepPassKind.ActionEnd);
         });
+
+        cancelBtn.transform.SetAsLastSibling();
+        actionEndBtn.transform.SetAsLastSibling();
+        confirmBtn.transform.SetAsLastSibling();
+        StartCoroutine(CoEnableActionStepUiAfterPointerRelease(root));
 
         return true;
     }
@@ -20630,6 +20655,12 @@ public partial class BattleGameMain : MonoBehaviour
         if (command == null || command.Data == null)
         {
             onDone?.Invoke();
+            return;
+        }
+
+        if (IsGd06102AMiracle(command))
+        {
+            StartCoroutine(CoExecuteGd06102AMiracle(side, command, onDone));
             return;
         }
 
@@ -21025,11 +21056,16 @@ public partial class BattleGameMain : MonoBehaviour
     {
         // 了承表示〜効果適用まで破壊時効果を保留し、OK 後の適用直後に Look／回収をフラッシュ
         BeginOnDestroyedLatencyHold();
-        yield return ShowCommandUseAcknowledgementCoroutine(
-            command,
-            attackingUnitInAttackFlow,
-            resolvedBeforeApply,
-            GameLocale.T("コマンド発動", "Command activated"));
+        bool showAckPreview = attackingUnitInAttackFlow != null
+            || (resolvedBeforeApply != null && resolvedBeforeApply.Count > 0);
+        if (showAckPreview)
+        {
+            yield return ShowCommandUseAcknowledgementCoroutine(
+                command,
+                attackingUnitInAttackFlow,
+                resolvedBeforeApply,
+                GameLocale.T("コマンド発動", "Command activated"));
+        }
 
         bool paymentOk = false;
         int exToUse = 0;
@@ -23609,6 +23645,12 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
+        if (CardRequiresOpponentUnitsHaveNotAttackedThisTurn(card.Data)
+            && (IsAttackOnActionUiContext() || HasOpponentUnitsAttackedThisTurn(ownerType)))
+        {
+            return false;
+        }
+
         return FindFirstAvailableOnActionTimedBlock(ownerType, card, out _) != null;
     }
 
@@ -23697,7 +23739,8 @@ public partial class BattleGameMain : MonoBehaviour
     }
 
     /// <summary>
-    /// 支払い overlay（sortingOrder 520）より前面に出し、クリックが奥の Canvas に吸われないようにする。
+    /// 支払い overlay より前面に出し、クリックが奥の Canvas に吸われないようにする。
+    /// 親が Screen Space Camera のときは子も同じモード／カメラに合わせる（Overlay 入れ子はレイキャストが死ぬ）。
     /// </summary>
     private static void EnsureOnActionPopupOverlayCanvas(GameObject root, int sortingOrder = 530)
     {
@@ -23712,16 +23755,42 @@ public partial class BattleGameMain : MonoBehaviour
             overlayCanvas = root.AddComponent<Canvas>();
         }
 
+        // GetComponentInParent は自分の Canvas を返すので、親を辿る。
+        Canvas parentCanvas = null;
+        Transform parentTransform = root.transform.parent;
+        while (parentTransform != null)
+        {
+            parentCanvas = parentTransform.GetComponent<Canvas>();
+            if (parentCanvas != null)
+            {
+                break;
+            }
+
+            parentTransform = parentTransform.parent;
+        }
+
+        if (parentCanvas != null)
+        {
+            overlayCanvas.renderMode = parentCanvas.renderMode;
+            overlayCanvas.worldCamera = parentCanvas.worldCamera;
+            overlayCanvas.planeDistance = parentCanvas.planeDistance;
+            overlayCanvas.sortingLayerID = parentCanvas.sortingLayerID;
+        }
+
         overlayCanvas.overrideSorting = true;
         overlayCanvas.sortingOrder = sortingOrder;
         overlayCanvas.additionalShaderChannels = AdditionalCanvasShaderChannels.TexCoord1
             | AdditionalCanvasShaderChannels.Normal
             | AdditionalCanvasShaderChannels.Tangent;
 
-        if (root.GetComponent<GraphicRaycaster>() == null)
+        GraphicRaycaster raycaster = root.GetComponent<GraphicRaycaster>();
+        if (raycaster == null)
         {
-            root.AddComponent<GraphicRaycaster>();
+            raycaster = root.AddComponent<GraphicRaycaster>();
         }
+
+        raycaster.ignoreReversedGraphics = true;
+        raycaster.blockingObjects = GraphicRaycaster.BlockingObjects.None;
     }
 
     private void DestroyActiveOnActionPopupIfAny()
@@ -23821,11 +23890,24 @@ public partial class BattleGameMain : MonoBehaviour
         bool isMyTurn = IsTestPlayBattle()
             || currentPlayerType == PlayerType.Player;
         EndTurnButton.gameObject.SetActive(true);
+        EndTurnButton.enabled = true;
         EndTurnButton.interactable = isMyTurn;
 
         if (IsTestPlayBattle())
         {
             RefreshTestPlayDeckDrawButtonStates();
+        }
+
+        Graphic[] endTurnGraphics = EndTurnButton.GetComponentsInChildren<Graphic>(true);
+        for (int gi = 0; gi < endTurnGraphics.Length; gi++)
+        {
+            Graphic g = endTurnGraphics[gi];
+            if (g == null || g is TextMeshProUGUI)
+            {
+                continue;
+            }
+
+            g.raycastTarget = true;
         }
 
         Image buttonImage = EndTurnButton.GetComponent<Image>();

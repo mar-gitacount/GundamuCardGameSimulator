@@ -7480,6 +7480,222 @@
                     "duration": 2
                 }
             ]
+        },
+        {
+            "effectSetName": "Damage2_RestEnemyUnit_SelectSingle",
+            "displayName": "レストの相手ユニット1体に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 7,
+                    "selectionMode": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantTurnEndRepair1_AllAlly_UntilEOT_OnLink",
+            "displayName": "【リンク時】味方ユニットすべてに《リペア1》（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 55,
+                    "value": 1,
+                    "target": 3,
+                    "selectionMode": -1,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestSelf_BuffAllyNeoZeonLv3PlusAp1_ActivateSelfIfBuffedLinked_OnPlayed",
+            "displayName": "【配備時】自身REST→味方〔ネオジオン〕Lv3以上1体AP+1。リンクユニットなら自身をアクティブ",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "targetFeatureId": 6,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 3
+                },
+                {
+                    "type": 25,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "requireChainObservationContext": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 62,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAttackActiveEnemy_AllyNeoZeon_EnemyAp4OrLess_UntilEOT",
+            "displayName": "味方〔ネオジオン〕1体に、AP4以下のACTIVE敵への攻撃許可（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "targetFeatureId": 6,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_EnemyUnit_Lv2OrLess_SelectSingle",
+            "displayName": "Lv.2以下の敵ユニット1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_EnemyLv2OrLess_OrAnyIfTrashGjallarhorn4_OnPlayed",
+            "displayName": "【配備時】Lv.2以下の敵1体に1ダメージ。墓地〔ギャラルホルン〕4枚以上なら敵ユニットなら誰でも可",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2,
+                    "relaxTargetUnitStatFilterWhenTrashHasFeature": true,
+                    "trashRelaxFeatureId": 43,
+                    "trashRelaxFilterMinCopies": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestSelf_RestEnemyLv4OrLess_IfOtherDiannaCounter_OnMain",
+            "displayName": "起動・メイン：自身REST→他に〔ディアナ・カウンター〕がいればLv4以下の敵1体をREST",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "Draw2_Self",
+            "displayName": "2枚ドロー",
+            "effects": [
+                {
+                    "type": 1,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenDamage1_DamagedEnemy_IfOwnerHasGjallarhorn_OnBaseDeployed",
+            "displayName": "【配備時】シールド1枚を手札へ。味方〔ギャラルホルン〕がいればダメージ中の敵1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "requireTargetDamaged": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": 0,
+                            "checkKind": 0,
+                            "featureId": 43,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenMill2_DestroyEnemyAp2OrLess_IfMilledAlphacide_OwnerTurn_OnBaseDeployed",
+            "displayName": "【配備時】シールド1枚を手札へ。自分ターンなら山札上2枚トラッシュ。〔Alphacide〕ならAP2以下の敵1体を破壊",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 19,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": -1,
+                            "turnCheck": 0
+                        }
+                    ]
+                },
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2,
+                    "requireChainObservationContext": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 7,
+                            "featureId": 78,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

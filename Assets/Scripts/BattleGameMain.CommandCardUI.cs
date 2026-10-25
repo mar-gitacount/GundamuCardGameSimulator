@@ -736,7 +736,8 @@ public partial class BattleGameMain
         CardController liveCard,
         string typeLabel,
         HashSet<CardController> selectedSet,
-        bool alreadyUsedInActionStep = false)
+        bool alreadyUsedInActionStep = false,
+        System.Action<CardController> onPicked = null)
     {
         if (content == null || liveCard == null || liveCard.Data == null || CardImagePrefab == null)
         {
@@ -759,6 +760,15 @@ public partial class BattleGameMain
             tag.fontSize = 12;
             tag.color = new Color(0.9f, 0.95f, 1f, 1f);
             tag.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -6f);
+        }
+
+        Graphic[] childGraphics = go.GetComponentsInChildren<Graphic>(true);
+        for (int gi = 0; gi < childGraphics.Length; gi++)
+        {
+            if (childGraphics[gi] != null && childGraphics[gi].gameObject != go)
+            {
+                childGraphics[gi].raycastTarget = false;
+            }
         }
 
         Image baseImage = go.GetComponent<Image>();
@@ -816,6 +826,8 @@ public partial class BattleGameMain
                 {
                     baseImage.color = new Color(0.7f, 1f, 0.7f, 1f);
                 }
+
+                onPicked?.Invoke(captured);
             }
 
         });

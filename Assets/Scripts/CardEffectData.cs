@@ -1078,7 +1078,16 @@ public enum EffectActivationCheckKind
     /// minimumCount 体以上いる（GD06-123 〔ネオジオン〕かつパイロット Lv3 以下等）。
     /// Feature はホストユニット側。パイロット側の特徴は見ない。
     /// </summary>
-    OwnerHasFeaturedUnitWithMountedPilotLevel
+    OwnerHasFeaturedUnitWithMountedPilotLevel,
+    /// <summary>
+    /// 直前チェーンで手動選択したユニットのうち、リンク中（Link 条件を満たすパイロット搭乗中）が1体以上。
+    /// GD06-023 ガルスJ 等「リンクユニットの AP を増やしたなら自身をアクティブ」。
+    /// </summary>
+    PriorChainPickedIsLinked,
+    /// <summary>
+    /// このターン中、相手ユニットが1度もアタックしていない（GD06-102 A Miracle 等）。
+    /// </summary>
+    EnemyUnitsHaveNotAttackedThisTurn
 }
 
 public enum EffectTurnCheckKind
@@ -1639,8 +1648,21 @@ public class EffectData
     public bool relaxTargetUnitStatFilterWhenTrashHasCommands;
 
     [Tooltip(
+        "true のとき、オーナー墓地に trashRelaxFeature / trashRelaxFeatureId を持つカードが "
+        + "trashRelaxFilterMinCopies 枚以上あると、対象ユニットのステータス絞り込み（Lv 等）を無効化する。"
+        + "GD06-048 ヘルムヴィーゲ・リンカー：〔ギャラルホルン〕4枚以上なら敵ユニットなら誰でも可。")]
+    public bool relaxTargetUnitStatFilterWhenTrashHasFeature;
+
+    [Tooltip("relaxTargetUnitStatFilterWhenTrashHasFeature 時の Feature（Inspector）。")]
+    public CardFeatureData trashRelaxFeature;
+
+    [Tooltip("JSON 用。trashRelaxFeature 未設定時に ID で解決（0=未指定）。43=Gjallarhorn。")]
+    public int trashRelaxFeatureId;
+
+    [Tooltip(
         "relaxTargetUnitStatFilterWhenTrashHasSourceCopies 時は同 ID 必要枚数（0 以下は 2）。"
-        + "relaxTargetUnitStatFilterWhenTrashHasCommands 時はコマンド必要枚数（0 以下は 4）。")]
+        + "relaxTargetUnitStatFilterWhenTrashHasCommands 時はコマンド必要枚数（0 以下は 4）。"
+        + "relaxTargetUnitStatFilterWhenTrashHasFeature 時は Feature 必要枚数（0 以下は 4）。")]
     public int trashRelaxFilterMinCopies = 2;
 
     [Tooltip(
@@ -1804,6 +1826,36 @@ public static class EffectDataExtensions
                     TryAdd(CardFeatureRegistry.GetById(featureId));
                 }
             }
+        }
+
+        return result;
+    }
+
+    /// <summary>墓地 Feature 枚数で対象 Lv 制限を外すときの Feature（OR）。</summary>
+    public static IReadOnlyList<CardFeatureData> GetTrashRelaxFeatures(this EffectData effect)
+    {
+        List<CardFeatureData> result = new List<CardFeatureData>();
+        if (effect == null)
+        {
+            return result;
+        }
+
+        HashSet<int> seenIds = new HashSet<int>();
+        void TryAdd(CardFeatureData feature)
+        {
+            if (feature == null || !seenIds.Add(feature.id))
+            {
+                return;
+            }
+
+            result.Add(feature);
+        }
+
+        TryAdd(effect.trashRelaxFeature);
+        if (effect.trashRelaxFeatureId > 0)
+        {
+            CardFeatureRegistry.EnsureLoaded();
+            TryAdd(CardFeatureRegistry.GetById(effect.trashRelaxFeatureId));
         }
 
         return result;
@@ -2220,6 +2272,21 @@ public static class EffectDataExtensions
                     ? effect.trashRelaxFilterMinCopies
                     : 2;
                 if (TrashCardQuery.HasAtLeast(ownerTrashCardIds, cardId, needCopies))
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (effect.relaxTargetUnitStatFilterWhenTrashHasFeature)
+        {
+            IReadOnlyList<CardFeatureData> relaxFeatures = effect.GetTrashRelaxFeatures();
+            if (relaxFeatures.Count > 0)
+            {
+                int needFeature = effect.trashRelaxFilterMinCopies > 0
+                    ? effect.trashRelaxFilterMinCopies
+                    : 4;
+                if (TrashCardQuery.CountByAnyFeature(ownerTrashCardIds, relaxFeatures) >= needFeature)
                 {
                     return true;
                 }
