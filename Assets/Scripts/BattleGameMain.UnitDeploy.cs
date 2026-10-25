@@ -645,6 +645,53 @@ public partial class BattleGameMain
         unit.SetAttackFlg(AttackFlg.False);
     }
 
+    /// <summary>
+    /// 【配備時】先頭が自身 REST なら、配備パケットに REST を載せる／ローカルも REST で出す。
+    /// ガルスJ 等。後続のリンク時アクティブは EffectSync で上書きする。
+    /// </summary>
+    private bool ShouldApplyOnPlayedRestSelfAtDeploy(CardController unit, PlayerType ownerType)
+    {
+        if (unit == null || unit.Data == null || unit.Data.timedEffects == null)
+        {
+            return false;
+        }
+
+        EffectActivationContext activationContext = BuildActivationContext(ownerType, unit);
+        for (int i = 0; i < unit.Data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = unit.Data.timedEffects[i];
+            if (timed == null || !timed.IsOnFieldPlayedResolutionBlock() || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!timed.ShouldDeferActivationToRunTime()
+                && !EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            if (effects == null)
+            {
+                continue;
+            }
+
+            for (int j = 0; j < effects.Count; j++)
+            {
+                EffectData effect = effects[j];
+                if (effect == null)
+                {
+                    continue;
+                }
+
+                return effect.type == EffectType.Rest && effect.target == TargetType.Self;
+            }
+        }
+
+        return false;
+    }
+
     private bool TryDeployTokenUnit(
         EffectData effect,
         int resolvedMagnitude,

@@ -100,6 +100,12 @@ public partial class BattleGameMain
             return false;
         }
 
+        if (CardRequiresOpponentUnitsHaveNotAttackedThisTurn(cc.Data)
+            && (IsAttackOnActionUiContext() || HasOpponentUnitsAttackedThisTurn(side)))
+        {
+            return false;
+        }
+
         return HasEffectTiming(cc.Data, EffectTiming.OnAction) && CanExecuteOnActionCardNow(side, cc);
     }
 

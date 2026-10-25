@@ -217,8 +217,17 @@ public partial class BattleGameMain
         dim.raycastTarget = true;
 
         Canvas overlayCanvas = overlay.GetComponent<Canvas>();
+        Canvas parentCanvas = canvas != null ? canvas : overlay.GetComponentInParent<Canvas>();
+        if (parentCanvas != null && parentCanvas.gameObject != overlay)
+        {
+            overlayCanvas.renderMode = parentCanvas.renderMode;
+            overlayCanvas.worldCamera = parentCanvas.worldCamera;
+            overlayCanvas.planeDistance = parentCanvas.planeDistance;
+            overlayCanvas.sortingLayerID = parentCanvas.sortingLayerID;
+        }
+
         overlayCanvas.overrideSorting = true;
-        overlayCanvas.sortingOrder = 520;
+        overlayCanvas.sortingOrder = 540;
         overlayCanvas.additionalShaderChannels = AdditionalCanvasShaderChannels.TexCoord1
             | AdditionalCanvasShaderChannels.Normal
             | AdditionalCanvasShaderChannels.Tangent;

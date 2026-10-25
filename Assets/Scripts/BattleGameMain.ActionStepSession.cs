@@ -116,6 +116,19 @@ public partial class BattleGameMain
         return side == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
     }
 
+    /// <summary>
+    /// ターン終了アクションは切替前のターンプレイヤーを正とする（奇跡の「相手のターン」判定用）。
+    /// </summary>
+    private bool IsOwnerTurnForEffectActivation(PlayerType ownerType)
+    {
+        if (IsActionStepSessionActive && _actionStepSession != null)
+        {
+            return ownerType == _actionStepSession.TurnPlayerSide;
+        }
+
+        return ownerType == currentPlayerType;
+    }
+
     private void BeginActionStepSession(
         PlayerType turnPlayerSide,
         PlayerType firstActorSide,
@@ -226,6 +239,38 @@ public partial class BattleGameMain
             || _activeLookDeckPopupRoot != null
             || _isActionStepCommandResolving
             || _activeResourcePaymentOverlay != null;
+        UpdateEndTurnButtonVisibility();
+    }
+
+    /// <summary>EndTurn の押しっぱなしが、開いた直後の ActionEnd／Confirm に乗らないようにする。</summary>
+    private IEnumerator CoEnableActionStepUiAfterPointerRelease(GameObject root)
+    {
+        if (root == null)
+        {
+            yield break;
+        }
+
+        CanvasGroup group = root.GetComponent<CanvasGroup>();
+        if (group == null)
+        {
+            group = root.AddComponent<CanvasGroup>();
+        }
+
+        group.blocksRaycasts = false;
+        group.interactable = false;
+        while (Input.GetMouseButton(0) || Input.touchCount > 0)
+        {
+            yield return null;
+        }
+
+        yield return null;
+        if (root == null || group == null)
+        {
+            yield break;
+        }
+
+        group.blocksRaycasts = true;
+        group.interactable = true;
     }
 
     private static void SetActionStepButtonInteractable(Button btn, bool interactable)

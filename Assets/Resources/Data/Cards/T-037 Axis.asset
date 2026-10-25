@@ -21,7 +21,7 @@ MonoBehaviour:
   hp: 5
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/104_Axis
+  imageAddress: Data/Images/T-037_Axis
   version: 6
   sourceType: 1
   productLine: 1

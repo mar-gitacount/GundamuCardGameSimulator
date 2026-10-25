@@ -1682,7 +1682,7 @@ public partial class BattleGameMain
                 HandleRemoteBlockResponse(message.payload);
                 break;
             case "EffectSync":
-                HandleRemoteEffectSync(message.payload);
+                EnqueueRemoteEffectSync(message.payload);
                 break;
             case "MountPilot":
                 StartCoroutine(HandleRemoteMountPilotCoroutine(message.payload));
@@ -2147,6 +2147,9 @@ public partial class BattleGameMain
     }
 
     private readonly Queue<string> _pendingRemotePlayCardPayloads = new Queue<string>();
+    private readonly Queue<string> _pendingRemoteEffectSyncPayloads = new Queue<string>();
+    private readonly List<OnlineBattleUnitEffectChange> _pendingMissingUnitEffectSyncChanges =
+        new List<OnlineBattleUnitEffectChange>();
     private bool _remotePlayCardPumpRunning;
 
     /// <summary>
@@ -2182,6 +2185,7 @@ public partial class BattleGameMain
             {
                 string payload = _pendingRemotePlayCardPayloads.Dequeue();
                 yield return HandleRemotePlayCardCoroutine(payload);
+                FlushPendingRemoteEffectSyncPayloads();
                 // Destroy の親子解除を次フレームまで待たせ、連続配備の枠判定を安定させる
                 yield return null;
             }
@@ -2189,6 +2193,35 @@ public partial class BattleGameMain
         finally
         {
             _remotePlayCardPumpRunning = false;
+            FlushPendingRemoteEffectSyncPayloads();
+        }
+    }
+
+    /// <summary>
+    /// PlayCard 直列処理中は EffectSync を後ろへ回す。
+    /// 配備より先に REST が着くと相手盤面のユニットが見つからず ACTIVE のまま残る。
+    /// </summary>
+    private void EnqueueRemoteEffectSync(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return;
+        }
+
+        if (_remotePlayCardPumpRunning || _pendingRemotePlayCardPayloads.Count > 0)
+        {
+            _pendingRemoteEffectSyncPayloads.Enqueue(payload);
+            return;
+        }
+
+        HandleRemoteEffectSync(payload);
+    }
+
+    private void FlushPendingRemoteEffectSyncPayloads()
+    {
+        while (_pendingRemoteEffectSyncPayloads.Count > 0)
+        {
+            HandleRemoteEffectSync(_pendingRemoteEffectSyncPayloads.Dequeue());
         }
     }
 
@@ -2413,6 +2446,7 @@ public partial class BattleGameMain
             + $"forceUnit:{temporaryBurstUnit} AP:{cardData.power} HP:{cardData.hp} "
             + $"rested:{(extras != null && extras.deployAsRested)} "
             + $"includeRes:{action.includeResourceSnapshot} resource:{action.resourceAfter}");
+        FlushPendingMissingUnitEffectSyncForInstance(controller.BattleInstanceId);
         return controller;
     }
 
@@ -2939,6 +2973,80 @@ public partial class BattleGameMain
             + $"baseHp={action.defenderDeployedBaseHpAfter}");
     }
 
+    private static bool ShouldDeferMissingEffectSyncChange(OnlineBattleUnitEffectChange change)
+    {
+        if (change == null || change.targetInstanceId <= 0)
+        {
+            return false;
+        }
+
+        return change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindRest
+            || change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindActivate
+            || change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindStat
+            || change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindAttackActiveEnemy
+            || change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindCannotBeChosenAsAttackTarget
+            || change.changeKind == OnlineBattleEffectSyncPayload.ChangeKindSkipNextStartPhaseActive;
+    }
+
+    private bool TryDeferMissingEffectSyncChange(OnlineBattleUnitEffectChange change)
+    {
+        if (!ShouldDeferMissingEffectSyncChange(change))
+        {
+            return false;
+        }
+
+        const int maxPending = 32;
+        while (_pendingMissingUnitEffectSyncChanges.Count >= maxPending)
+        {
+            _pendingMissingUnitEffectSyncChanges.RemoveAt(0);
+        }
+
+        _pendingMissingUnitEffectSyncChanges.Add(change);
+        return true;
+    }
+
+    private void FlushPendingMissingUnitEffectSyncForInstance(int instanceId)
+    {
+        if (instanceId <= 0 || _pendingMissingUnitEffectSyncChanges.Count == 0)
+        {
+            return;
+        }
+
+        List<OnlineBattleUnitEffectChange> due = null;
+        for (int i = 0; i < _pendingMissingUnitEffectSyncChanges.Count; i++)
+        {
+            OnlineBattleUnitEffectChange change = _pendingMissingUnitEffectSyncChanges[i];
+            if (change == null || change.targetInstanceId != instanceId)
+            {
+                continue;
+            }
+
+            due ??= new List<OnlineBattleUnitEffectChange>();
+            due.Add(change);
+            _pendingMissingUnitEffectSyncChanges.RemoveAt(i);
+            i--;
+        }
+
+        if (due == null || due.Count == 0)
+        {
+            return;
+        }
+
+        bool wasApplying = _applyingRemoteBattleAction;
+        _applyingRemoteBattleAction = true;
+        try
+        {
+            ApplyRemoteEffectSync(new OnlineBattleEffectSyncPayload
+            {
+                unitChanges = due.ToArray()
+            });
+        }
+        finally
+        {
+            _applyingRemoteBattleAction = wasApplying;
+        }
+    }
+
     private void HandleRemoteEffectSync(string payload)
     {
         if (!IsOnlineBattle())
@@ -3080,10 +3188,21 @@ public partial class BattleGameMain
             Debug.Log($"[EffectSync][TargetResolved] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
             if (unit == null)
             {
-                Debug.LogWarning(
-                    $"[OnlineBattle] Effect sync target not found: instanceId={change.targetInstanceId} "
-                    + $"cardId={change.targetCardId} zoneIndex={change.targetZoneIndex} "
-                    + $"zone={change.targetZoneOwnerSide} kind={change.changeKind}");
+                if (TryDeferMissingEffectSyncChange(change))
+                {
+                    Debug.LogWarning(
+                        $"[OnlineBattle] Effect sync target missing — deferred until deploy "
+                        + $"instanceId={change.targetInstanceId} cardId={change.targetCardId} "
+                        + $"kind={change.changeKind}");
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[OnlineBattle] Effect sync target not found: instanceId={change.targetInstanceId} "
+                        + $"cardId={change.targetCardId} zoneIndex={change.targetZoneIndex} "
+                        + $"zone={change.targetZoneOwnerSide} kind={change.changeKind}");
+                }
+
                 continue;
             }
 

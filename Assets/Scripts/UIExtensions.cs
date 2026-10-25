@@ -402,12 +402,41 @@ public static GameObject CreateChildImageFrom(this GameObject parent, GameObject
     
     return newImgObj; // あとでサイズ調整できるように戻り値を返す
 }
+    private static Sprite _uiWhiteSprite;
+
+    /// <summary>生成ボタン用。sprite 無し Image は機種によってレイキャストが無視される。</summary>
+    public static Sprite GetUiWhiteSprite()
+    {
+        if (_uiWhiteSprite == null)
+        {
+            Texture2D tex = Texture2D.whiteTexture;
+            _uiWhiteSprite = Sprite.Create(
+                tex,
+                new Rect(0f, 0f, tex.width, tex.height),
+                new Vector2(0.5f, 0.5f),
+                100f);
+            _uiWhiteSprite.name = "UiWhiteSprite";
+        }
+
+        return _uiWhiteSprite;
+    }
+
     public static Button CreateChildButton(this GameObject parent, string labelText)
     {
         // 1. ボタン本体の作成（Imageがないとクリックに反応しません）
         GameObject btnObj = new GameObject("GeneratedButton", 
             typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
         btnObj.transform.SetParent(parent.transform, false);
+
+        Image img = btnObj.GetComponent<Image>();
+        img.sprite = GetUiWhiteSprite();
+        img.type = Image.Type.Simple;
+        img.color = Color.white;
+        img.raycastTarget = true;
+
+        Button btn = btnObj.GetComponent<Button>();
+        btn.targetGraphic = img;
+        btn.transition = Selectable.Transition.ColorTint;
 
         // 2. テキスト（子要素）の作成
         GameObject textObj = new GameObject("Text (TMP)", 
@@ -420,12 +449,12 @@ public static GameObject CreateChildImageFrom(this GameObject parent, GameObject
         tmp.fontSize = 24;
         tmp.color = Color.black;
         tmp.alignment = TextAlignmentOptions.Center;
+        tmp.raycastTarget = false;
         
         // テキストをボタンいっぱいに広げる
         textObj.GetComponent<RectTransform>().SetFullSize();
 
-        // 4. ボタンのコンポーネントを返す（あとで onClick を設定するため）
-        return btnObj.GetComponent<Button>();
+        return btn;
     }
 
     

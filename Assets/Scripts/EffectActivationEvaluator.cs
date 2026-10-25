@@ -81,6 +81,9 @@ public sealed class EffectActivationContext
     /// <summary>このターン中、オーナーが効果で1枚以上ドローしたか。</summary>
     public bool OwnerDrewWithEffectThisTurn { get; }
 
+    /// <summary>このターン中、相手ユニットが1度以上アタック宣言したか。</summary>
+    public bool OpponentUnitsHaveAttackedThisTurn { get; }
+
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
@@ -128,7 +131,8 @@ public sealed class EffectActivationContext
         bool ownerActivatedResourceByEffectThisTurn = false,
         int ownerPaidUnitEffectCostThisTurn = -1,
         bool ownerDrewWithEffectThisTurn = false,
-        CardController ownerDeployedBase = null)
+        CardController ownerDeployedBase = null,
+        bool opponentUnitsHaveAttackedThisTurn = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -162,6 +166,7 @@ public sealed class EffectActivationContext
         OwnerPaidUnitEffectCostThisTurn = ownerPaidUnitEffectCostThisTurn;
         OwnerDrewWithEffectThisTurn = ownerDrewWithEffectThisTurn;
         OwnerDeployedBase = ownerDeployedBase;
+        OpponentUnitsHaveAttackedThisTurn = opponentUnitsHaveAttackedThisTurn;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -234,7 +239,8 @@ public sealed class EffectActivationContext
             OwnerActivatedResourceByEffectThisTurn,
             OwnerPaidUnitEffectCostThisTurn,
             OwnerDrewWithEffectThisTurn,
-            OwnerDeployedBase);
+            OwnerDeployedBase,
+            OpponentUnitsHaveAttackedThisTurn);
     }
 }
 
@@ -270,7 +276,9 @@ public static class EffectActivationEvaluator
         for (int i = 0; i < conditions.Count; i++)
         {
             EffectActivationCondition c = conditions[i];
-            if (c != null && c.checkKind == EffectActivationCheckKind.PriorChainPickedHasFeature)
+            if (c != null
+                && (c.checkKind == EffectActivationCheckKind.PriorChainPickedHasFeature
+                    || c.checkKind == EffectActivationCheckKind.PriorChainPickedIsLinked))
             {
                 return true;
             }
@@ -308,14 +316,60 @@ public static class EffectActivationEvaluator
         return true;
     }
 
+    public static bool AreAllConditionsMet(
+        IList<EffectActivationCondition> conditions,
+        EffectActivationContext ctx,
+        bool ignoreOpponentUnitsAttackedCheck)
+    {
+        if (conditions == null || conditions.Count == 0)
+        {
+            return true;
+        }
+
+        if (ctx == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < conditions.Count; i++)
+        {
+            EffectActivationCondition c = conditions[i];
+            if (c == null)
+            {
+                continue;
+            }
+
+            if (ignoreOpponentUnitsAttackedCheck
+                && c.checkKind == EffectActivationCheckKind.EnemyUnitsHaveNotAttackedThisTurn)
+            {
+                continue;
+            }
+
+            if (!EvaluateSingle(c, ctx))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static bool AreTimedConditionsMet(TimedEffectData timed, EffectActivationContext ctx)
+    {
+        return AreTimedConditionsMet(timed, ctx, ignoreOpponentUnitsAttackedCheck: false);
+    }
+
+    public static bool AreTimedConditionsMet(
+        TimedEffectData timed,
+        EffectActivationContext ctx,
+        bool ignoreOpponentUnitsAttackedCheck)
     {
         if (timed == null || !timed.HasActivationConditions())
         {
             return true;
         }
 
-        return AreAllConditionsMet(timed.activationConditions, ctx);
+        return AreAllConditionsMet(timed.activationConditions, ctx, ignoreOpponentUnitsAttackedCheck);
     }
 
     private static bool EvaluateSingle(EffectActivationCondition c, EffectActivationContext ctx)
@@ -463,6 +517,16 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.PriorChainPickedHasFeature)
         {
             return EvaluatePriorChainPickedHasFeature(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.PriorChainPickedIsLinked)
+        {
+            return EvaluatePriorChainPickedIsLinked(ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.EnemyUnitsHaveNotAttackedThisTurn)
+        {
+            return ctx != null && !ctx.OpponentUnitsHaveAttackedThisTurn;
         }
 
         if (c.checkKind == EffectActivationCheckKind.OwnerActivatedSpecialMoveCommandThisTurn)
@@ -1202,6 +1266,28 @@ public static class EffectActivationEvaluator
         {
             CardController unit = picks[i];
             if (unit?.Data != null && CardMatchesAnyActivationFeature(unit.Data, required))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool EvaluatePriorChainPickedIsLinked(EffectActivationContext ctx)
+    {
+        IReadOnlyList<CardController> picks = ctx?.PriorChainPickedUnits;
+        if (picks == null || picks.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < picks.Count; i++)
+        {
+            CardController unit = picks[i];
+            if (unit?.Data != null
+                && unit.Data.IsUnitLike()
+                && UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
             {
                 return true;
             }

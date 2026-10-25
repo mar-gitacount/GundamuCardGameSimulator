@@ -521,7 +521,8 @@ public partial class BattleGameMain
     private TimedEffectData FindFirstAvailableOnActionTimedBlock(
         PlayerType side,
         CardController source,
-        out int blockIndex)
+        out int blockIndex,
+        bool ignoreOpponentAttackCheck = false)
     {
         blockIndex = -1;
         if (source?.Data?.timedEffects == null)
@@ -543,7 +544,13 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (!IsOnActionTimedBlockAvailableNow(side, source, timed, i, activationContext))
+            if (!IsOnActionTimedBlockAvailableNow(
+                    side,
+                    source,
+                    timed,
+                    i,
+                    activationContext,
+                    ignoreOpponentAttackCheck))
             {
                 continue;
             }
@@ -560,7 +567,8 @@ public partial class BattleGameMain
         CardController source,
         TimedEffectData timed,
         int blockIndex,
-        EffectActivationContext activationContext)
+        EffectActivationContext activationContext,
+        bool ignoreOpponentAttackCheck = false)
     {
         if (timed == null || !timed.HasResolvedEffects())
         {
@@ -576,6 +584,23 @@ public partial class BattleGameMain
             }
 
             return OwnerHasBitFunnelOrUnitTokenNow(side) || OwnerHasNeoZeonBaseNow(side);
+        }
+
+        if (IsGd06102AMiracle(source))
+        {
+            if (timed.timing != EffectTiming.OnAction || !CanActivateGd06102AMiracleNow(side))
+            {
+                return false;
+            }
+
+            int miracleCost = timed.activationCost > 0 ? timed.activationCost : source.CurrentCost;
+            if (miracleCost <= 0)
+            {
+                return true;
+            }
+
+            return gundamRule != null
+                && gundamRule.CanPlayCardWithAnyEx(ToRuleSide(side), source.CurrentLevel, miracleCost);
         }
 
         if (timed.oncePerTurn)
@@ -636,7 +661,10 @@ public partial class BattleGameMain
             }
         }
 
-        if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+        if (!EffectActivationEvaluator.AreTimedConditionsMet(
+                timed,
+                activationContext,
+                ignoreOpponentAttackCheck))
         {
             return false;
         }
