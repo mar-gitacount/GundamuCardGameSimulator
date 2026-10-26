@@ -60,48 +60,6 @@ public static class UIExtensions
         tmp.ForceMeshUpdate(true);
     }
 
-    private static TMP_FontAsset GetJapaneseFontAsset()
-    {
-        return GameLocale.GetJapaneseFont();
-    }
-
-    private static TMP_FontAsset TryCreateOsJapaneseFontAsset()
-    {
-        string[] candidates =
-        {
-            "Yu Gothic UI",
-            "Yu Gothic",
-            "Meiryo UI",
-            "Meiryo",
-            "MS Gothic",
-            "Noto Sans CJK JP",
-            "Hiragino Sans"
-        };
-
-        try
-        {
-            Font osFont = Font.CreateDynamicFontFromOSFont(candidates, 40);
-            if (osFont == null)
-            {
-                return null;
-            }
-
-            TMP_FontAsset asset = TMP_FontAsset.CreateFontAsset(osFont);
-            if (asset != null)
-            {
-                asset.name = "RuntimeOsJapaneseFont";
-                Debug.Log("[UIExtensions] OS 日本語フォントを使用: " + osFont.name);
-            }
-
-            return asset;
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogWarning("[UIExtensions] OS 日本語フォント生成に失敗: " + ex.Message);
-            return null;
-        }
-    }
-
     /// <summary>
     /// UIを親要素いっぱいに広げる（Stretch設定）
     /// </summary>

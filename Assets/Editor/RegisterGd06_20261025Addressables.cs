@@ -36,6 +36,8 @@ public static class RegisterGd06_20261025Addressables
         "Data/Images/GD06-127_Yomagn'tho",
         "Data/Images/T-030_Gozzo",
         "Data/Images/T-031_Turn X (Arms)",
+        "Data/Images/T-032_Turn X (Legs)",
+        "Data/Images/T-033_Sazabi",
         "Data/Images/T-034_Nu Gundam",
         "Data/Images/T-035_Gundam Calibarn",
         "Data/Images/T-036_Gundam Aerial Rebuild",

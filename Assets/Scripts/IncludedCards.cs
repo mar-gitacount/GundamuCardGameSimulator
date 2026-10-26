@@ -713,7 +713,6 @@ public List<CardData> GetSelectedCards(List<CardData> cards)
             CardColor.Red,
             CardColor.Green,
             CardColor.Blue,
-            CardColor.Yellow,
             CardColor.White,
             CardColor.Purple,
         };
@@ -1568,6 +1567,11 @@ public List<CardData> GetSelectedCards(List<CardData> cards)
         }
 
         if (toggleScope == CardSetToggleScope.ColorOnly && set.filterType != FilterType.Color)
+        {
+            return false;
+        }
+
+        if (set.filterType == FilterType.Color && set.color == CardColor.Yellow)
         {
             return false;
         }

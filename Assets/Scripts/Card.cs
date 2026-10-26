@@ -271,6 +271,7 @@ public class Card : MonoBehaviour
     }
 
     private const string NotUsedOnlineLabelName = "NotUsedOnlineLabel";
+    private const string CardIdLabelName = "CardIdLabel";
 
     /// <summary>カード一覧／サムネ上部に Not Used Online ラベルを付ける（対象カードのみ）。</summary>
     public static void EnsureNotUsedOnlineLabel(GameObject cardObject, CardData data)
@@ -319,6 +320,87 @@ public class Card : MonoBehaviour
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color32(255, 90, 90, 255);
         label.enableWordWrapping = true;
+        label.raycastTarget = false;
+
+        if (TMP_Settings.defaultFontAsset != null)
+        {
+            label.font = TMP_Settings.defaultFontAsset;
+        }
+
+        RectTransform rt = label.rectTransform;
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.anchoredPosition = new Vector2(0f, -4f);
+        rt.sizeDelta = new Vector2(0f, 28f);
+        label.transform.SetAsLastSibling();
+    }
+
+    /// <summary>
+    /// Not Used Online と同じ形式で、Inspector の Id（CardData.id。例: 1000884）をカード上部に出す。
+    /// 公式ID（GD06-113）は出さない。
+    /// </summary>
+    public static void EnsureCardIdLabel(GameObject cardObject, CardData data)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        int inspectorId = 0;
+        if (data != null)
+        {
+            inspectorId = data.id;
+        }
+
+        if (inspectorId <= 0)
+        {
+            Card card = cardObject.GetComponent<Card>();
+            if (card != null)
+            {
+                inspectorId = card.CardId;
+            }
+        }
+
+        Transform existing = cardObject.transform.Find(CardIdLabelName);
+        if (inspectorId <= 0)
+        {
+            if (existing != null)
+            {
+                existing.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        TextMeshProUGUI label;
+        if (existing != null)
+        {
+            label = existing.GetComponent<TextMeshProUGUI>();
+            if (label == null)
+            {
+                existing.gameObject.SetActive(true);
+                return;
+            }
+        }
+        else
+        {
+            GameObject labelGo = new GameObject(
+                CardIdLabelName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI));
+            labelGo.transform.SetParent(cardObject.transform, false);
+            label = labelGo.GetComponent<TextMeshProUGUI>();
+        }
+
+        label.gameObject.SetActive(true);
+        label.text = inspectorId.ToString();
+        label.fontSize = 14f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color32(255, 90, 90, 255);
+        label.enableWordWrapping = false;
         label.raycastTarget = false;
 
         if (TMP_Settings.defaultFontAsset != null)
