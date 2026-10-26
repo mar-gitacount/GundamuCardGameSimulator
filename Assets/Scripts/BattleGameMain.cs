@@ -19591,7 +19591,8 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        if (unit.Data.id == St13001QubeleyCardId || unit.Data.id == Gd06018QubeleyMkIiCardId)
+        // ST13-001 は【メイン】のみ。アクション起動は GD06-018 等。
+        if (unit.Data.id == Gd06018QubeleyMkIiCardId)
         {
             return true;
         }
@@ -20701,18 +20702,6 @@ public partial class BattleGameMain : MonoBehaviour
                 attackingUnitInAttackFlow,
                 commandQueueIndex,
                 commandQueueCount);
-            return;
-        }
-
-        if (IsSt13001Qubeley(command))
-        {
-            StartCoroutine(CoExecuteQubeleyTokenEffectBattleOnAction(
-                side,
-                command,
-                onDone,
-                attackingUnitInAttackFlow,
-                commandQueueIndex,
-                commandQueueCount));
             return;
         }
 

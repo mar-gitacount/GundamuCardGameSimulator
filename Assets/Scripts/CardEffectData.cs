@@ -3759,6 +3759,36 @@ public static class TimedEffectDataExtensions
         return !timed.IsHandConditionalPassiveBlock();
     }
 
+    /// <summary>
+    /// 破壊者以外の場のユニットが監視するシールドエリア破壊か。
+    /// DestroyedByHasFeature で破壊者を見るカード（GD02-001 等）のみ。
+    /// 条件なしの「このユニットが破壊したとき」（ST03-001 等）は含めない。
+    /// </summary>
+    public static bool IsOnOpponentShieldAreaCardDestroyedOtherUnitWatchBlock(this TimedEffectData timed)
+    {
+        if (!timed.IsOnOpponentShieldAreaCardDestroyedResolutionBlock())
+        {
+            return false;
+        }
+
+        if (timed.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition condition = timed.activationConditions[i];
+            if (condition != null
+                && condition.checkKind == EffectActivationCheckKind.DestroyedByHasFeature)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>自分の必殺技コマンド発動時（OnOwnerSpecialMoveCommandActivated）に解決するブロック。</summary>
     public static bool IsOnOwnerSpecialMoveCommandActivatedResolutionBlock(this TimedEffectData timed)
     {

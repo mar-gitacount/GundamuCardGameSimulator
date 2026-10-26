@@ -1357,6 +1357,28 @@
             ]
         },
         {
+            "effectSetName": "OnPilotMounted_MayDeployHandLv4OrLessZeonOrNeoZeonUnit",
+            "displayName": "【セット時】手札のLv.4以下〔ネオジオン〕／〔ジオン〕ユニット1枚を配備してもよい",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "deployUnitSource": 1,
+                    "filterDeployCandidateByFeature": true,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "targetFeatureIds": [5, 6],
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4,
+                    "deployUnitTriggerOnPlayed": true,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
             "effectSetName": "DeploySelfAsUnitAp3Hp3_OnBurst",
             "displayName": "バースト：自身をAP3/HP3ユニットとして配備",
             "effects": [
