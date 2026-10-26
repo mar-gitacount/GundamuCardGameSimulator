@@ -1305,7 +1305,10 @@ public partial class BattleGameMain
             return;
         }
 
-        if (!effect.RequiresDeployUnitZoneSelection() && candidates.Count == 1)
+        // 「してもよい」は候補1枚でも選択／スキップ UI を出す
+        if (!effect.RequiresDeployUnitZoneSelection()
+            && candidates.Count == 1
+            && !effect.optionalPlayerConfirm)
         {
             StartCoroutine(CoDeployUnitsFromHandWithCap(
                 sourceCard,

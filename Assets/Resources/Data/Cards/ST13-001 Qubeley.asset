@@ -78,21 +78,6 @@ MonoBehaviour:
     activationCost: 1
     oncePerTurn: 1
     observedUnitTriggerKind: -1
-  - timing: 8
-    activationConditions: []
-    requireChainObservationContext: 0
-    effectsName: Qubeley_TokenEffectBattle_OnAction
-    effects:
-    - type: 30
-      value: 1
-      target: 2
-      selectionMode: 1
-      statTarget: 0
-      duration: 0
-      valueMode: 0
-    activationCost: 1
-    oncePerTurn: 1
-    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: aa2431a17f68b1240a0396adc328a405, type: 2}
   pilotIds: []

@@ -5,7 +5,9 @@ using UnityEngine;
 
 /// <summary>
 /// 相手シールドエリアのカードをダメージ破壊したとき（OnOpponentShieldAreaCardDestroyed）。
-/// 破壊したユニット／搭乗パイロットに加え、場の味方監視ユニット（例: GD02-001 サイコ・ガンダム）も解決する。
+/// 破壊したユニット／搭乗パイロットに加え、DestroyedByHasFeature で破壊者を見る
+/// 場の味方監視ユニット（例: GD02-001 サイコ・ガンダム）も解決する。
+/// ST03-001 のように「このユニットが破壊したとき」の効果は破壊者自身のみ。
 /// </summary>
 public partial class BattleGameMain
 {
@@ -63,7 +65,7 @@ public partial class BattleGameMain
                 blocks);
         }
 
-        // 場の味方監視ユニット（破壊者以外）。DestroyingCard に破壊者を載せる。
+        // 場の味方監視（破壊者以外）。「このユニットが破壊したとき」は含めない。
         List<CardController> zone = ownerType == PlayerType.Player
             ? playerBattleZoneCards
             : enemyBattleZoneCards;
@@ -151,7 +153,7 @@ public partial class BattleGameMain
 
         for (int t = 0; t < card.Data.timedEffects.Count; t++)
         {
-            if (card.Data.timedEffects[t].IsOnOpponentShieldAreaCardDestroyedResolutionBlock())
+            if (card.Data.timedEffects[t].IsOnOpponentShieldAreaCardDestroyedOtherUnitWatchBlock())
             {
                 return true;
             }

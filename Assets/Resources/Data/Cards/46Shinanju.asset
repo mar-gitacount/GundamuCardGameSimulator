@@ -78,8 +78,9 @@ MonoBehaviour:
   pilotIds: []
   link:
   - pilotCardId: 0
-    linkPilotIds: []
-    linkPilotIdIds: 
+    linkPilotIds:
+    - {fileID: 11400000, guid: 70c0dd97356b4c1a9fe96859ab11a9cf, type: 2}
+    linkPilotIdIds: 43000000
     pilotFeatures: []
     pilotFeatureIds: 
   pilotMountOnPilotMountedSource: 0
