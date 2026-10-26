@@ -63,13 +63,13 @@ public class CardDatabase : MonoBehaviour
         return new List<CardData>(cardDict.Values);
     }
 
-    /// <summary>カード一覧／検索用。hideFromCardList のカードは含めない。</summary>
+    /// <summary>カード一覧／検索用。hideFromCardList および Id 未設定（0）のカードは含めない。</summary>
     public List<CardData> GetCardListCards()
     {
         List<CardData> list = new List<CardData>();
         foreach (CardData card in cardDict.Values)
         {
-            if (card != null && !card.hideFromCardList)
+            if (IsVisibleInCardList(card))
             {
                 list.Add(card);
             }
@@ -80,7 +80,7 @@ public class CardDatabase : MonoBehaviour
 
     private static bool IsVisibleInCardList(CardData card)
     {
-        return card != null && !card.hideFromCardList;
+        return card != null && card.id > 0 && !card.hideFromCardList;
     }
 
     public int LoadCardsCount()

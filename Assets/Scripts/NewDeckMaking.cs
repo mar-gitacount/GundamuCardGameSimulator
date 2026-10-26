@@ -638,6 +638,7 @@ public class NewDeckMaking : MonoBehaviour
             layout.preferredHeight = 140f;
 
             Card.EnsureNotUsedOnlineLabel(cardGo, data);
+            Card.EnsureCardIdLabel(cardGo, data);
         }
 
         Button okBtn = _notUsedOnlineAlertRoot.CreateChildButton("OK");

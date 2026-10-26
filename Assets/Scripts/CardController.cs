@@ -869,6 +869,7 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         
         this.onClickCallback = callback;
         BeginResolveCardSprite(carddata);
+        Card.EnsureCardIdLabel(gameObject, carddata);
 
         // 手札・新規生成時は常に False（ユニット以外は攻撃フラグを使わない）
         _attackFlg = AttackFlg.False;

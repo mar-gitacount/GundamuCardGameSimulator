@@ -643,6 +643,7 @@ public class ScrollBottomChecker : MonoBehaviour
             }
 
             Card.EnsureNotUsedOnlineLabel(obj, carddata);
+            Card.EnsureCardIdLabel(obj, carddata);
 
             Button button = obj.GetComponent<Button>();
             if (button != null)

@@ -211,6 +211,18 @@ public static class CardSpriteLoader
             Add(cardData.imageAddress);
         }
 
+        // 1b) 公式 ID（T-033_Sazabi）。同名の 91_Sazabi 等へ落とさない
+        string officialId = cardData.gcgOfficialId != null ? cardData.gcgOfficialId.Trim() : string.Empty;
+        if (!string.IsNullOrWhiteSpace(officialId))
+        {
+            if (!string.IsNullOrWhiteSpace(cardData.cardName))
+            {
+                Add(DefaultImageFolderPrefix + officialId + "_" + cardData.cardName.Trim());
+            }
+
+            Add(DefaultImageFolderPrefix + officialId);
+        }
+
         // 2) カタログ: カード ID 先頭一致（90_Kayra''s Re-GZ など）
         if (_catalogReady && cardData.id > 0 &&
             s_addressByCardId.TryGetValue(cardData.id, out string byId))
@@ -230,6 +242,12 @@ public static class CardSpriteLoader
             {
                 string addr = s_allImageAddresses[i];
                 string leaf = addr.Substring(DefaultImageFolderPrefix.Length);
+                if (!string.IsNullOrWhiteSpace(officialId)
+                    && leaf.IndexOf(officialId, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
                 if (string.Equals(leaf, name, StringComparison.OrdinalIgnoreCase))
                 {
                     bestExact = addr;
@@ -320,6 +338,8 @@ public static class CardSpriteLoader
         {
             return;
         }
+
+        Card.EnsureCardIdLabel(image.gameObject, cardData);
 
         Sprite embedded = ResolveEmbeddedSprite(cardData);
         if (embedded != null)

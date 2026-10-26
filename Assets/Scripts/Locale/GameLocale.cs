@@ -146,7 +146,6 @@ public static class GameLocale
     {
         if (_japaneseFont != null)
         {
-            EnsureJapaneseFallback(_japaneseFont);
             return _japaneseFont;
         }
 
@@ -168,6 +167,8 @@ public static class GameLocale
 
     /// <summary>
     /// SourceHan のアトラスに無い漢字・かなを OS フォントで埋める（□化け対策）。
+    /// Android では Yu Gothic 等が無いため、失敗した CreateFontAsset を毎フレーム繰り返すと
+    /// ALLOC_TEMP リークでプロセスが落ちる。試行は一度だけにする。
     /// </summary>
     private static void EnsureJapaneseFallback(TMP_FontAsset primary)
     {
@@ -184,13 +185,13 @@ public static class GameLocale
 
         primary.isMultiAtlasTexturesEnabled = true;
 
-        TMP_FontAsset fallback = _japaneseOsFallbackFont;
-        if (fallback == null)
+        if (!_japaneseOsFallbackTried)
         {
-            fallback = CreateOsJapaneseFontAsset();
-            _japaneseOsFallbackFont = fallback;
+            _japaneseOsFallbackTried = true;
+            _japaneseOsFallbackFont = CreateOsJapaneseFontAsset();
         }
 
+        TMP_FontAsset fallback = _japaneseOsFallbackFont;
         if (fallback == null || fallback == primary)
         {
             return;
@@ -208,10 +209,19 @@ public static class GameLocale
     }
 
     private static TMP_FontAsset _japaneseOsFallbackFont;
+    private static bool _japaneseOsFallbackTried;
 
     private static TMP_FontAsset CreateOsJapaneseFontAsset()
     {
-        string[] candidates =
+        // 実機（特に Redmi）に Windows フォントは無い。
+        // TMP_FontAsset.CreateFontAsset が face 読込に失敗すると
+        // TLS Allocator ALLOC_TEMP_TLS 未解放（size 66）が積み、fg TOP で落ちる。
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return null;
+#elif UNITY_IOS && !UNITY_EDITOR
+        return TryCreateOsJapaneseFontAsset(new[] { "Hiragino Sans", "Hiragino Kaku Gothic ProN" });
+#else
+        return TryCreateOsJapaneseFontAsset(new[]
         {
             "Yu Gothic UI",
             "Yu Gothic",
@@ -220,7 +230,16 @@ public static class GameLocale
             "MS Gothic",
             "Hiragino Sans",
             "Noto Sans CJK JP"
-        };
+        });
+#endif
+    }
+
+    private static TMP_FontAsset TryCreateOsJapaneseFontAsset(string[] candidates)
+    {
+        if (candidates == null || candidates.Length == 0)
+        {
+            return null;
+        }
 
         try
         {
@@ -231,14 +250,16 @@ public static class GameLocale
             }
 
             TMP_FontAsset asset = TMP_FontAsset.CreateFontAsset(osFont);
-            if (asset != null)
+            if (asset == null)
             {
-                asset.name = "RuntimeOsJapaneseFallback";
-                asset.atlasPopulationMode = AtlasPopulationMode.Dynamic;
-                asset.isMultiAtlasTexturesEnabled = true;
-                Debug.Log("[GameLocale] OS JP fallback font: " + osFont.name);
+                Debug.LogWarning("[GameLocale] OS JP fallback skipped: font face unavailable (" + osFont.name + ")");
+                return null;
             }
 
+            asset.name = "RuntimeOsJapaneseFallback";
+            asset.atlasPopulationMode = AtlasPopulationMode.Dynamic;
+            asset.isMultiAtlasTexturesEnabled = true;
+            Debug.Log("[GameLocale] OS JP fallback font: " + osFont.name);
             return asset;
         }
         catch (Exception ex)

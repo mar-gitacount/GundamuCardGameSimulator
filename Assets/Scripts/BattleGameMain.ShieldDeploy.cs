@@ -661,79 +661,134 @@ public partial class BattleGameMain
 
         List<EffectData> pendingManualEffects = new List<EffectData>();
         EffectActivationContext activationContext = BuildActivationContext(ownerType, sourceCard);
-        for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
+        // Mill→ObservedCardHasFeature（GD06-127 等）はチェーン観測が必要。
+        // 条件判定はミル完了後に ShouldApplyChainedEffect でやり直す。
+        BeginEffectChainObservationScope();
+        bool holdChainObservationForPending = false;
+        try
         {
-            TimedEffectData timed = sourceCard.Data.timedEffects[i];
-            if (timed == null || timed.timing != timing || !timed.HasResolvedEffects())
+            for (int i = 0; i < sourceCard.Data.timedEffects.Count; i++)
             {
-                continue;
+                TimedEffectData timed = sourceCard.Data.timedEffects[i];
+                if (timed == null || timed.timing != timing || !timed.HasResolvedEffects())
+                {
+                    continue;
+                }
+
+                if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+                {
+                    continue;
+                }
+
+                IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+                for (int j = 0; j < resolved.Count; j++)
+                {
+                    EffectData effect = resolved[j];
+                    if (effect == null)
+                    {
+                        continue;
+                    }
+
+                    if (skipDeployShieldFromHandOnBaseReplace
+                        && effect.type == EffectType.DeployShieldFromHand)
+                    {
+                        continue;
+                    }
+
+                    bool deferUntilAfterMillObservation =
+                        effect.requireChainObservationContext
+                        || (effect.HasEffectActivationConditions()
+                            && EffectActivationEvaluator.ContainsObservedCardCondition(
+                                effect.effectActivationConditions));
+
+                    if (effect.type == EffectType.MillTopToTrash)
+                    {
+                        if (!ShouldApplyChainedEffect(effect, activationContext, "TimedEffect"))
+                        {
+                            continue;
+                        }
+
+                        pendingManualEffects.Add(effect);
+                        continue;
+                    }
+
+                    if (deferUntilAfterMillObservation)
+                    {
+                        pendingManualEffects.Add(effect);
+                        continue;
+                    }
+
+                    if (!ShouldApplyChainedEffect(effect, activationContext, "TimedEffect"))
+                    {
+                        continue;
+                    }
+
+                    // 手札／トラッシュ選択、およびトークン配備（6体上限の置換 UI あり）は非同期
+                    if (effect.type == EffectType.DeployUnit
+                        && (effect.RequiresDeployUnitZoneSelection()
+                            || effect.deployUnitSource == DeployUnitSource.Token))
+                    {
+                        pendingManualEffects.Add(effect);
+                        continue;
+                    }
+
+                    // Look / OnLook UI は完了待ちが必要（配備時の上に戻す／下に戻す等）
+                    if (effect.type == EffectType.Look)
+                    {
+                        pendingManualEffects.Add(effect);
+                        continue;
+                    }
+
+                    // 手動選択以外は即時解決（バースト配備→AddShieldToHand がコミット前に終わるようにする）
+                    if (!EffectRequiresManualUnitSelection(effect))
+                    {
+                        ApplyEffect(sourceCard, ownerType, effect);
+                    }
+                    else
+                    {
+                        pendingManualEffects.Add(effect);
+                    }
+                }
             }
 
-            if (!EffectActivationEvaluator.AreTimedConditionsMet(timed, activationContext))
+            if (pendingManualEffects.Count > 0)
             {
-                continue;
+                holdChainObservationForPending = true;
+                StartCoroutine(ResolveTimedEffectsForCardThenEndChainObservationCoroutine(
+                    sourceCard,
+                    ownerType,
+                    timing,
+                    pendingManualEffects));
             }
-
-            IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
-            for (int j = 0; j < resolved.Count; j++)
+            else if (timing == EffectTiming.OnBaseDeployed
+                || timing == EffectTiming.OnShieldDeployed
+                || timing == EffectTiming.OnRest)
             {
-                EffectData effect = resolved[j];
-                if (effect == null)
-                {
-                    continue;
-                }
-
-                if (skipDeployShieldFromHandOnBaseReplace
-                    && effect.type == EffectType.DeployShieldFromHand)
-                {
-                    continue;
-                }
-
-                if (effect.HasEffectActivationConditions()
-                    && !EffectActivationEvaluator.AreAllConditionsMet(
-                        effect.effectActivationConditions,
-                        activationContext))
-                {
-                    continue;
-                }
-
-                // 手札／トラッシュ選択、およびトークン配備（6体上限の置換 UI あり）は非同期
-                if (effect.type == EffectType.DeployUnit
-                    && (effect.RequiresDeployUnitZoneSelection()
-                        || effect.deployUnitSource == DeployUnitSource.Token))
-                {
-                    pendingManualEffects.Add(effect);
-                    continue;
-                }
-
-                // Look / OnLook UI は完了待ちが必要（配備時の上に戻す／下に戻す等）
-                if (effect.type == EffectType.Look)
-                {
-                    pendingManualEffects.Add(effect);
-                    continue;
-                }
-
-                // 手動選択以外は即時解決（バースト配備→AddShieldToHand がコミット前に終わるようにする）
-                if (!EffectRequiresManualUnitSelection(effect))
-                {
-                    ApplyEffect(sourceCard, ownerType, effect);
-                }
-                else
-                {
-                    pendingManualEffects.Add(effect);
-                }
+                SyncAllResourceViewsFromRule();
             }
         }
-
-        if (pendingManualEffects.Count > 0)
+        finally
         {
-            StartCoroutine(ResolveTimedEffectsForCardCoroutine(sourceCard, ownerType, timing, pendingManualEffects));
+            if (!holdChainObservationForPending)
+            {
+                EndEffectChainObservationScope();
+            }
         }
-        else if (timing == EffectTiming.OnBaseDeployed
-            || timing == EffectTiming.OnShieldDeployed
-            || timing == EffectTiming.OnRest)
+    }
+
+    private IEnumerator ResolveTimedEffectsForCardThenEndChainObservationCoroutine(
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectTiming timing,
+        List<EffectData> effects)
+    {
+        try
         {
-            SyncAllResourceViewsFromRule();
+            yield return ResolveTimedEffectsForCardCoroutine(sourceCard, ownerType, timing, effects);
+        }
+        finally
+        {
+            EndEffectChainObservationScope();
         }
     }
 
@@ -771,6 +826,20 @@ public partial class BattleGameMain
         {
             EffectData effect = effects[i];
             if (effect == null)
+            {
+                continue;
+            }
+
+            if (effect.type == EffectType.MillTopToTrash)
+            {
+                bool millDone = false;
+                ApplyMillTopToTrashEffect(sourceCard, ownerType, effect, () => millDone = true);
+                yield return new WaitUntil(() => millDone);
+                continue;
+            }
+
+            EffectActivationContext chainContext = BuildActivationContext(ownerType, sourceCard);
+            if (!ShouldApplyChainedEffect(effect, chainContext, "TimedEffect"))
             {
                 continue;
             }

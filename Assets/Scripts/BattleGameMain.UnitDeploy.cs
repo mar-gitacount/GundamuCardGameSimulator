@@ -714,27 +714,31 @@ public partial class BattleGameMain
     }
 
     /// <summary>
-    /// トークン配備先。内部 id のほか、Inspector で T-006 を 6 と入れた場合も公式 ID で解決する。
+    /// トークン配備先。内部 id 一致の UnitToken を優先し、同名ユニット（91 Sazabi 等）へ落とさない。
+    /// Inspector で T-006 を 6 と入れた場合は公式 ID でも解決する。
     /// </summary>
     private static CardData ResolveDeployTokenCardData(int cardId)
     {
-        if (cardId <= 0 || DeckSettinObject.Instance == null)
+        if (cardId <= 0)
         {
             return null;
         }
 
-        CardData byId = DeckSettinObject.Instance.GetCardDataById(cardId);
-        if (byId != null && byId.IsUnitLike())
-        {
-            return byId;
-        }
-
-        string officialTokenId = "T-" + cardId.ToString("000");
         CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
-        if (all == null)
+        if (all == null || all.Length == 0)
         {
-            return null;
+            CardData fallback = DeckSettinObject.Instance != null
+                ? DeckSettinObject.Instance.GetCardDataById(cardId)
+                : null;
+            return fallback != null && fallback.IsUnitLike() ? fallback : null;
         }
+
+        CardData exactToken = null;
+        CardData exactUnit = null;
+        CardData officialToken = null;
+        string paddedOfficial = cardId > 0 && cardId < 1000
+            ? "T-" + cardId.ToString("000")
+            : null;
 
         for (int i = 0; i < all.Length; i++)
         {
@@ -744,14 +748,34 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (string.Equals(card.gcgOfficialId, officialTokenId, StringComparison.OrdinalIgnoreCase))
+            if (card.id == cardId)
             {
-                card.EnsureFeaturesResolved();
-                return card;
+                if (card.IsUnitToken())
+                {
+                    exactToken = card;
+                }
+                else if (exactUnit == null)
+                {
+                    exactUnit = card;
+                }
+            }
+
+            if (paddedOfficial != null
+                && card.IsUnitToken()
+                && string.Equals(card.gcgOfficialId, paddedOfficial, StringComparison.OrdinalIgnoreCase))
+            {
+                officialToken = card;
             }
         }
 
-        return null;
+        CardData resolved = exactToken ?? officialToken ?? exactUnit;
+        if (resolved == null)
+        {
+            return null;
+        }
+
+        resolved.EnsureFeaturesResolved();
+        return resolved;
     }
 
     private bool TryDeployTokenUnitImmediate(

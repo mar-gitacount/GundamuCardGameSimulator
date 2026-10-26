@@ -1096,6 +1096,7 @@ public void cardObj(int cardId, GameObject preferredTemplate = null)
             ? CardDatabase.Instance.FindById(cardId)
             : null;
         Card.EnsureNotUsedOnlineLabel(existing, existingData);
+        Card.EnsureCardIdLabel(existing, existingData);
         OnDeckCompositionChanged();
         return;
     }
@@ -1134,6 +1135,7 @@ public void cardObj(int cardId, GameObject preferredTemplate = null)
 
     EnsureCardCountBadge(copy, count);
     Card.EnsureNotUsedOnlineLabel(copy, cardDataAsset);
+    Card.EnsureCardIdLabel(copy, cardDataAsset);
     Debug.Log($"サムネid{cardId}");
     RectTransform rect = copy.GetComponent<RectTransform>();
     rect.anchoredPosition = Vector2.zero;
