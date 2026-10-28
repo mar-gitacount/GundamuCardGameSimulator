@@ -119,6 +119,8 @@ public class CardDatabase : MonoBehaviour
         boosterSet = (int)card.boosterSet,
         starterSet = (int)card.starterSet,
         eternalBoosterSet = (int)card.eternalBoosterSet,
+        reprintBoosterSet = (int)card.reprintBoosterSet,
+        reprintStarterSet = (int)card.reprintStarterSet,
         sourceTitle = (int)card.sourceTitle,
         color = (int)card.color, // カードの色を追加
         type = (int)card.type,

@@ -73,6 +73,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
+  hideFromCardList: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 1

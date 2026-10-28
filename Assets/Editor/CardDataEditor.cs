@@ -17,6 +17,8 @@ public class CardDataEditor : Editor
             "boosterSet",
             "starterSet",
             "eternalBoosterSet",
+            "reprintBoosterSet",
+            "reprintStarterSet",
             "sourceTitle");
 
         EditorGUILayout.Space(8f);

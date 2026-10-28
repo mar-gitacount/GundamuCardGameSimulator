@@ -99,62 +99,104 @@ public enum EternalBoosterProductSet
 /// <summary>収録セット名の表示・検索用ヘルパー。</summary>
 public static class CardProductSetNames
 {
+    /// <summary>一覧／ドロップダウン用。例: 4. SEED Strike</summary>
+    public static string FormatNumberedName(int number, string name)
+    {
+        if (string.IsNullOrEmpty(name) || name == "-")
+        {
+            return name ?? string.Empty;
+        }
+
+        if (number <= 0)
+        {
+            return name;
+        }
+
+        return number.ToString() + ". " + name;
+    }
+
     public static string GetBoosterDisplay(BoosterProductSet set, bool japanese)
     {
+        string name;
         switch (set)
         {
             case BoosterProductSet.NewTypeRising:
-                return japanese ? "NewType Rising" : "NewType Rising";
+                name = japanese ? "ニュータイプライジング" : "NewType Rising";
+                break;
             case BoosterProductSet.DualImpact:
-                return japanese ? "Dual Impact" : "Dual Impact";
+                name = japanese ? "デュアルインパクト" : "Dual Impact";
+                break;
             case BoosterProductSet.StealRequiem:
-                return japanese ? "Steal Requiem" : "Steal Requiem";
+                name = "Steal Requiem";
+                break;
             case BoosterProductSet.PhantomAria:
-                return japanese ? "Phantom Aria" : "Phantom Aria";
+                name = "Phantom Aria";
+                break;
             case BoosterProductSet.FreedomAscension:
-                return japanese ? "Freedom Ascension" : "Freedom Ascension";
+                name = "Freedom Ascension";
+                break;
             case BoosterProductSet.StardustTrails:
-                return japanese ? "Stardust Trails" : "Stardust Trails";
+                name = "Stardust Trails";
+                break;
             default:
                 return "-";
         }
+
+        return FormatNumberedName((int)set, name);
     }
 
     public static string GetStarterDisplay(StarterProductSet set, bool japanese)
     {
+        string name;
         switch (set)
         {
             case StarterProductSet.HeroicBeginnings:
-                return "Heroic Beginnings";
+                name = "Heroic Beginnings";
+                break;
             case StarterProductSet.WingsOfAdvance:
-                return "Wings of Advance";
+                name = "Wings of Advance";
+                break;
             case StarterProductSet.ZeonsRush:
-                return "Zeon's Rush";
+                name = "Zeon's Rush";
+                break;
             case StarterProductSet.SeedStrike:
-                return "SEED Strike";
+                name = "SEED Strike";
+                break;
             case StarterProductSet.IronBloom:
-                return "Iron Bloom";
+                name = "Iron Bloom";
+                break;
             case StarterProductSet.ClanUnity:
-                return "Clan Unity";
+                name = "Clan Unity";
+                break;
             case StarterProductSet.CelestialDrive:
-                return "Celestial Drive";
+                name = "Celestial Drive";
+                break;
             case StarterProductSet.FlashOfRadiance:
-                return "Flash of Radiance";
+                name = "Flash of Radiance";
+                break;
             case StarterProductSet.DestinyIgnition:
-                return "Destiny Ignition";
+                name = "Destiny Ignition";
+                break;
             case StarterProductSet.GenerationPulse:
-                return "Generation Pulse";
+                name = "Generation Pulse";
+                break;
             case StarterProductSet.AquaticAssault:
-                return "Aquatic Assault";
+                name = "Aquatic Assault";
+                break;
             case StarterProductSet.RagingOnslaught:
-                return "Raging Onslaught";
+                name = "Raging Onslaught";
+                break;
             case StarterProductSet.SilentBarrage:
-                return "Silent Barrage";
+                name = "Silent Barrage";
+                break;
             case StarterProductSet.HeavyDominion:
-                return "Heavy Dominion";
+                name = "Heavy Dominion";
+                break;
             default:
                 return "-";
         }
+
+        return FormatNumberedName((int)set, name);
     }
 
     public static string GetEternalDisplay(EternalBoosterProductSet set, bool japanese)
@@ -275,6 +317,11 @@ public static class CardProductSetNames
             return true;
         }
 
+        if (card.reprintBoosterSet == set)
+        {
+            return true;
+        }
+
         if (card.boosterSet != BoosterProductSet.None)
         {
             return card.productLine == CardProductLine.Booster && card.boosterSet == set;
@@ -295,6 +342,11 @@ public static class CardProductSetNames
     public static bool MatchesStarter(CardData card, StarterProductSet set)
     {
         if (card == null || set == StarterProductSet.None)
+        {
+            return true;
+        }
+
+        if (card.reprintStarterSet == set)
         {
             return true;
         }

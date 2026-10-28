@@ -338,12 +338,23 @@ public class Card : MonoBehaviour
 
     /// <summary>
     /// Not Used Online と同じ形式で、Inspector の Id（CardData.id。例: 1000884）をカード上部に出す。
-    /// 公式ID（GD06-113）は出さない。
+    /// 公式ID（GD06-113）は出さない。Editor および許可端末の開発者モード時のみ表示する。
     /// </summary>
     public static void EnsureCardIdLabel(GameObject cardObject, CardData data)
     {
         if (cardObject == null)
         {
+            return;
+        }
+
+        if (!DeveloperModeAccess.IsAuthorized)
+        {
+            Transform hidden = cardObject.transform.Find(CardIdLabelName);
+            if (hidden != null)
+            {
+                hidden.gameObject.SetActive(false);
+            }
+
             return;
         }
 

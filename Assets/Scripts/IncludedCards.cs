@@ -1784,6 +1784,11 @@ public List<CardData> GetSelectedCards(List<CardData> cards)
         }
 
         GetVersionSetNameTexts(set.setName, out ja, out en);
+        if (set.setId > 0)
+        {
+            ja = CardProductSetNames.FormatNumberedName(set.setId, ja);
+            en = CardProductSetNames.FormatNumberedName(set.setId, en);
+        }
     }
 
     private static void GetVersionSetNameTexts(string setName, out string ja, out string en)

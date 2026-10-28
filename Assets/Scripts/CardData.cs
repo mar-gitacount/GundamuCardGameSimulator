@@ -33,6 +33,13 @@ public class CardData : ScriptableObject
     public StarterProductSet starterSet;
     [Tooltip("productLine が Eternal Booster のとき設定する。")]
     public EternalBoosterProductSet eternalBoosterSet;
+
+    [Tooltip("再録ブースター。初版と別弾でも検索に出す（同一カード・公式番号は初版のまま）。")]
+    public BoosterProductSet reprintBoosterSet;
+
+    [Tooltip("再録スターター。初版と別弾でも検索に出す（同一カード・公式番号は初版のまま）。")]
+    public StarterProductSet reprintStarterSet;
+
     [Tooltip("作品（シリーズ）タイトル。")]
     public CardSourceTitle sourceTitle;
 
@@ -382,6 +389,8 @@ public class CardJson
     public int boosterSet;
     public int starterSet;
     public int eternalBoosterSet;
+    public int reprintBoosterSet;
+    public int reprintStarterSet;
     public int sourceTitle;
     public int color; // カードの色を追加
     public int type;

@@ -22,11 +22,11 @@ MonoBehaviour:
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/36_Aegis Gundam
-  version: 3
-  sourceType: 1
-  productLine: 1
-  boosterSet: 3
-  starterSet: 0
+  version: 4
+  sourceType: 2
+  productLine: 2
+  boosterSet: 0
+  starterSet: 4
   eternalBoosterSet: 0
   sourceTitle: 11
   filterType: 0

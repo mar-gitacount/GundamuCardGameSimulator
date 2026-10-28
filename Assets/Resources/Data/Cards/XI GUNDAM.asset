@@ -22,11 +22,11 @@ MonoBehaviour:
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: Data/Images/24_XI GUNDAM
-  version: 4
+  version: 8
   sourceType: 2
-  productLine: 0
+  productLine: 2
   boosterSet: 0
-  starterSet: 0
+  starterSet: 8
   eternalBoosterSet: 0
   sourceTitle: 0
   filterType: 0
@@ -502,7 +502,7 @@ MonoBehaviour:
   isRepair: 0
   repairAmount: 0
   notUsedOnline: 0
-  hideFromCardList: 0
+  hideFromCardList: 1
   cannotMountPilot: 0
   gcgId:
     setKind: 0
