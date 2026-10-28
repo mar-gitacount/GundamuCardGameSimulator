@@ -22,12 +22,14 @@ MonoBehaviour:
   imageName: {fileID: 0}
   image: {fileID: 0}
   imageAddress: "Data/Images/15_\u6EA2\u308C\u308B\u6148\u611B"
-  version: 9
-  sourceType: 2
-  productLine: 2
-  boosterSet: 0
-  starterSet: 9
+  version: 1
+  sourceType: 1
+  productLine: 1
+  boosterSet: 1
+  starterSet: 0
   eternalBoosterSet: 0
+  reprintBoosterSet: 0
+  reprintStarterSet: 10
   sourceTitle: 12
   filterType: 0
   color: 5

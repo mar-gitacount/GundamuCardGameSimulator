@@ -23,9 +23,9 @@ MonoBehaviour:
   image: {fileID: 0}
   imageAddress: "Data/Images/T-033_Sazabi"
   version: 6
-  sourceType: 2
-  productLine: 2
-  boosterSet: 0
+  sourceType: 1
+  productLine: 1
+  boosterSet: 6
   starterSet: 0
   eternalBoosterSet: 0
   sourceTitle: 3
