@@ -31,13 +31,22 @@ MonoBehaviour:
   sourceTitle: 15
   filterType: 0
   color: 1
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 8
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: GrantShieldAreaImmunity_FromEnemyUnitLv3OrLess_UntilEndOfBattle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: bc4ab29b2cefd89469a4694cad1690ab, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: 4817c5b7faef47a881bc982b9e8d8a41, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
@@ -47,7 +56,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

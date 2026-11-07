@@ -127,7 +127,9 @@ public static class CardPrintedKeywordExtensions
                     result.HasHighMobility = true;
                 }
 
-                if (effect.type == EffectType.Suppress)
+                if (effect.type == EffectType.Suppress
+                    && effect.duration == EffectDuration.Permanent
+                    && !timed.HasActivationConditions())
                 {
                     result.HasSuppress = true;
                     int breaks = effect.value > 0 ? effect.value : 2;
@@ -137,7 +139,7 @@ public static class CardPrintedKeywordExtensions
                     }
                 }
 
-                if (effect.type == EffectType.Breach)
+                if (effect.type == EffectType.Breach && !timed.HasActivationConditions())
                 {
                     int amount = effect.value > 0 ? effect.value : 0;
                     if (amount > 0)

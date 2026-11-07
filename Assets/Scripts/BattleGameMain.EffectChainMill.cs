@@ -255,7 +255,7 @@ public partial class BattleGameMain
         string sideLabel = effect.target == TargetType.EnemyAllUnits
             ? GameLocale.T("相手", "Opponent")
             : GameLocale.T("自分", "Your");
-        GameObject root = BuildFieldDamagePreviewPanel(sideLabel, targets, magnitude, sourceCard, ownerType);
+        GameObject root = BuildFieldDamagePreviewPanel(sideLabel, targets, magnitude, sourceCard, ownerType, effect);
         if (root == null)
         {
             ApplyEffect(sourceCard, ownerType, effect);
@@ -295,7 +295,8 @@ public partial class BattleGameMain
         List<CardController> targets,
         int magnitude,
         CardController sourceCard,
-        PlayerType effectSourceOwner)
+        PlayerType effectSourceOwner,
+        EffectData effect = null)
     {
         Canvas canvas = ResolveBattleCanvas();
         if (canvas == null)
@@ -386,7 +387,7 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                int resolvedDamage = ResolveEffectDamageAmount(magnitude, unit, effectSourceOwner);
+                int resolvedDamage = ResolveEffectDamageAmount(magnitude, unit, effectSourceOwner, sourceCard, effect);
                 if (resolvedDamage > 0)
                 {
                     resolvedDamage += ResolveAllyFeatureOutgoingDamageBonus(

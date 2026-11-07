@@ -537,6 +537,7 @@ public partial class BattleGameMain
         }
 
         NotifyLocalDeployBaseSynced(cardController, ownerType);
+        RefreshAllFieldOwnerTurnPassives();
         StartCoroutine(FlushPendingExResourceRemovedAndApReducedWatchesCoroutine());
     }
 

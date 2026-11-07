@@ -73,6 +73,8 @@ public static class AndroidReleaseBuildMenu
             }
         }
 
+        AndroidKeystorePasswordLoader.ApplyFromLocalFileIfPresent();
+
         EditorUserBuildSettings.buildAppBundle = appBundle;
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
         EditorUserBuildSettings.development = false;

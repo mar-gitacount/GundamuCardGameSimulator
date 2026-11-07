@@ -100,9 +100,20 @@ public partial class BattleGameMain
         EffectData effect,
         Action<bool> onDone)
     {
-        if (effect == null
-            || (effect.type != EffectType.DiscardFromHand
-                && effect.type != EffectType.ReturnFromHandToDeckBottom))
+        if (effect == null)
+        {
+            onDone?.Invoke(false);
+            return;
+        }
+
+        if (effect.type == EffectType.MountPilotFromHand)
+        {
+            StartCoroutine(ExecuteMountPilotFromHandCoroutine(sourceCard, ownerType, effect, onDone));
+            return;
+        }
+
+        if (effect.type != EffectType.DiscardFromHand
+            && effect.type != EffectType.ReturnFromHandToDeckBottom)
         {
             onDone?.Invoke(false);
             return;
@@ -639,6 +650,17 @@ public partial class BattleGameMain
             ? " (reveal to opponent)"
             : string.Empty;
         string sourceName = source != null && source.Data != null ? source.Data.cardName : string.Empty;
+        if (effect != null && effect.type == EffectType.MountPilotFromHand)
+        {
+            return string.IsNullOrEmpty(sourceName)
+                ? GameLocale.T(
+                    "手札のパイロット1枚をこのユニットにセット（キャンセル可）",
+                    "Set 1 Pilot from hand onto this Unit (optional)")
+                : GameLocale.T(
+                    $"手札のパイロット1枚をセット（キャンセル可） — {sourceName}",
+                    $"Set 1 Pilot from hand (optional) — {sourceName}");
+        }
+
         if (effect != null && effect.type == EffectType.ReturnFromHandToDeckBottom)
         {
             return string.IsNullOrEmpty(sourceName)
@@ -650,13 +672,28 @@ public partial class BattleGameMain
                     $"Reveal {count} card(s) from hand and put on deck bottom{revealHintEn} — {sourceName}");
         }
 
+        string colorHintJa = string.Empty;
+        string colorHintEn = string.Empty;
+        if (effect != null && effect.filterTargetUnitColor)
+        {
+            colorHintJa = effect.filterTargetUnitColorValue == 0 ? "赤の" : string.Empty;
+            colorHintEn = effect.filterTargetUnitColorValue == 0 ? " red" : string.Empty;
+        }
+
+        string optionalJa = effect != null && !effect.forbidSkipHandDiscard
+            ? "（捨てなくてもよい）"
+            : string.Empty;
+        string optionalEn = effect != null && !effect.forbidSkipHandDiscard
+            ? " (optional)"
+            : string.Empty;
+
         return string.IsNullOrEmpty(sourceName)
             ? GameLocale.T(
-                $"手札から{count}枚をトラッシュに捨てる{revealHintJa}",
-                $"Discard {count} card(s) from hand to Trash{revealHintEn}")
+                $"手札の{colorHintJa}カード{count}枚を捨てる{optionalJa}{revealHintJa}",
+                $"Discard {count}{colorHintEn} card(s) from hand{optionalEn}{revealHintEn}")
             : GameLocale.T(
-                $"手札から{count}枚をトラッシュに捨てる{revealHintJa} — {sourceName}",
-                $"Discard {count} card(s) from hand to Trash{revealHintEn} — {sourceName}");
+                $"手札の{colorHintJa}カード{count}枚を捨てる{optionalJa}{revealHintJa} — {sourceName}",
+                $"Discard {count}{colorHintEn} card(s) from hand{optionalEn}{revealHintEn} — {sourceName}");
     }
 
     private IEnumerator ShowHandDiscardRevealPanelCoroutine(

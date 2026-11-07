@@ -34,7 +34,15 @@ MonoBehaviour:
   type: 0
   battleZones: 2
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: SelfEnemyCommandEffectDamageImmunity_OwnerTurn_Trash7
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 0181ba0978224109a14526f94b37301b, type: 2}
   pilotIds: []
@@ -53,7 +61,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

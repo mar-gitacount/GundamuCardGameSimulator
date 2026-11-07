@@ -120,6 +120,14 @@ public static class CardPilotBattleDamageImmunityExtensions
                 continue;
             }
 
+            if (effect.GrantsBattleDamageImmunityFromAnyEnemyUnit())
+            {
+                Debug.Log(
+                    $"[BattleDamageImmunity] grant {damageTarget.Data?.cardName} ignores battle dmg "
+                    + $"from {damageSource.Data?.cardName} (any enemy Unit)");
+                return true;
+            }
+
             int threshold = ResolveImmunityThreshold(effect, damageTarget);
             int attackerStat = ResolveAttackerStatForImmunity(damageSource, effect);
             if (attackerStat > threshold)
@@ -127,7 +135,7 @@ public static class CardPilotBattleDamageImmunityExtensions
                 continue;
             }
 
-            string statLabel = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+            string statLabel = FormatImmunityStatLabel(effect);
             Debug.Log(
                 $"[BattleDamageImmunity] grant {damageTarget.Data?.cardName} ignores {attackerStat} dmg "
                 + $"from {damageSource.Data?.cardName} (max{statLabel}:{threshold})");
@@ -162,6 +170,23 @@ public static class CardPilotBattleDamageImmunityExtensions
                     continue;
                 }
 
+                if (effect.GrantsBattleDamageImmunityFromAnyEnemyUnit())
+                {
+                    if (timed.oncePerTurn)
+                    {
+                        if (canConsumeOncePerTurnBlock == null || !canConsumeOncePerTurnBlock(timed, ti))
+                        {
+                            continue;
+                        }
+                    }
+
+                    Debug.Log(
+                        $"[BattleDamageImmunity] {ctx.SourceCard?.Data?.cardName} ignores battle dmg "
+                        + $"from {damageSource.Data.cardName} (owner:{ownerLabel}, any enemy Unit"
+                        + (timed.oncePerTurn ? ", oncePerTurn" : string.Empty) + ")");
+                    return true;
+                }
+
                 int threshold = ResolveImmunityThreshold(effect, ctx.SourceCard);
                 int attackerStat = ResolveAttackerStatForImmunity(damageSource, effect);
                 if (attackerStat > threshold)
@@ -177,7 +202,7 @@ public static class CardPilotBattleDamageImmunityExtensions
                     }
                 }
 
-                string statLabel = effect.statTarget == EffectStatTarget.Level ? "Lv" : "AP";
+                string statLabel = FormatImmunityStatLabel(effect);
                 Debug.Log(
                     $"[BattleDamageImmunity] {ctx.SourceCard?.Data?.cardName} ignores {attackerStat} dmg "
                     + $"from {damageSource.Data.cardName} (owner:{ownerLabel}, max{statLabel}:{threshold}"
@@ -191,6 +216,11 @@ public static class CardPilotBattleDamageImmunityExtensions
 
     private static int ResolveImmunityThreshold(EffectData effect, CardController damageTarget)
     {
+        if (effect != null && effect.GrantsBattleDamageImmunityFromAnyEnemyUnit())
+        {
+            return int.MaxValue;
+        }
+
         if (effect != null && effect.compareTargetStatToSource && damageTarget != null)
         {
             return damageTarget.CurrentPower;
@@ -211,7 +241,27 @@ public static class CardPilotBattleDamageImmunityExtensions
             return attacker != null ? attacker.CurrentLevel : 0;
         }
 
+        if (effect != null && effect.statTarget == EffectStatTarget.HP)
+        {
+            return attacker != null ? attacker.CurrentHp : 0;
+        }
+
         return attacker != null ? attacker.CurrentPower : 0;
+    }
+
+    private static string FormatImmunityStatLabel(EffectData effect)
+    {
+        if (effect != null && effect.statTarget == EffectStatTarget.Level)
+        {
+            return "Lv";
+        }
+
+        if (effect != null && effect.statTarget == EffectStatTarget.HP)
+        {
+            return "HP";
+        }
+
+        return "AP";
     }
 
     private static EffectActivationContext BuildCombatImmunityContext(

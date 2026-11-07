@@ -34,7 +34,35 @@ MonoBehaviour:
   type: 0
   battleZones: 2
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 9
+    activationConditions:
+    - boardSide: -1
+      checkKind: -1
+      turnCheck: 1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: ActivateAllyGjallarhorn_SelectSingle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 12cd7876f4ab43c3b9b0ba524711392d, type: 2}
   pilotIds: []
@@ -47,7 +75,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

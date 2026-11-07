@@ -60,7 +60,8 @@ public static class TrashCardQuery
                 continue;
             }
 
-            if (cardType == Type.Command)
+            // コマンド指定は CommandPilot（兼用）もコマンドカードとして数える
+            if (cardType == Type.Command || cardType == Type.CommandPilot)
             {
                 if (data.IsCommand())
                 {

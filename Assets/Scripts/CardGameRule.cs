@@ -2455,6 +2455,7 @@ public class CardGameRule
         trashList.Add(cardId);
         UpdateDeckAndTrashTexts();
         OnCardAddedToTrash?.Invoke(cardId);
+        OnTrashChanged?.Invoke();
     }
 
     /// <summary>トラッシュから指定 ID のカードを1枚除去（同 ID が複数あれば先頭1枚）。</summary>
@@ -2475,6 +2476,7 @@ public class CardGameRule
         removedCardId = trashList[index];
         trashList.RemoveAt(index);
         UpdateDeckAndTrashTexts();
+        OnTrashChanged?.Invoke();
         return true;
     }
 
@@ -2490,6 +2492,7 @@ public class CardGameRule
         removedCardId = trashList[index];
         trashList.RemoveAt(index);
         UpdateDeckAndTrashTexts();
+        OnTrashChanged?.Invoke();
         return true;
     }
 
@@ -2522,6 +2525,9 @@ public class CardGameRule
 
     /// <summary>カードがトラッシュに追加されたとき（cardId）。プレイヤー側 AI 観測用。</summary>
     public event Action<int> OnCardAddedToTrash;
+
+    /// <summary>トラッシュ枚数が増減したとき（追加・除去の両方）。盤面パッシブ再評価用。</summary>
+    public event Action OnTrashChanged;
 
     /// <summary>カードが除外ゾーンに追加されたとき（cardId）。</summary>
     public event Action<int> OnCardAddedToExile;

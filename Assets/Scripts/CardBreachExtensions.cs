@@ -95,45 +95,24 @@ public static class CardBreachExtensions
             return false;
         }
 
-        List<CardController> zone = CollectAliveSiblingUnits(runtimeUnit);
+        BattleGameMain battle = UnityEngine.Object.FindObjectOfType<BattleGameMain>();
+        if (battle != null
+            && battle.TryBuildHighMobilityActivationContext(runtimeUnit, out EffectActivationContext filled)
+            && filled != null)
+        {
+            return EffectActivationEvaluator.AreTimedConditionsMet(timed, filled);
+        }
+
         EffectActivationContext ctx = new EffectActivationContext(
             BattleGameMain.PlayerType.Player,
             runtimeUnit,
-            zone,
-            System.Array.Empty<CardController>(),
-            System.Array.Empty<CardController>(),
-            System.Array.Empty<CardController>(),
+            null,
+            null,
+            null,
+            null,
             isOwnerTurn: true,
             mountHostUnit: runtimeUnit,
             mountedPilot: runtimeUnit.MountedPilot);
         return EffectActivationEvaluator.AreTimedConditionsMet(timed, ctx);
-    }
-
-    private static List<CardController> CollectAliveSiblingUnits(CardController unit)
-    {
-        List<CardController> zone = new List<CardController>();
-        Transform parent = unit != null ? unit.transform.parent : null;
-        if (parent == null)
-        {
-            if (unit != null)
-            {
-                zone.Add(unit);
-            }
-
-            return zone;
-        }
-
-        for (int i = 0; i < parent.childCount; i++)
-        {
-            CardController sibling = parent.GetChild(i).GetComponent<CardController>();
-            if (sibling == null || sibling.Data == null || !sibling.Data.IsUnitLike() || sibling.CurrentHp <= 0)
-            {
-                continue;
-            }
-
-            zone.Add(sibling);
-        }
-
-        return zone;
     }
 }

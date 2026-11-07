@@ -84,6 +84,9 @@ public sealed class EffectActivationContext
     /// <summary>このターン中、相手ユニットが1度以上アタック宣言したか。</summary>
     public bool OpponentUnitsHaveAttackedThisTurn { get; }
 
+    /// <summary>相手のシールド枚数。未設定は -1。</summary>
+    public int OpponentShieldCount { get; }
+
     /// <summary>OnAttack 時、攻撃先が敵ユニット（シールド攻撃ではない）。</summary>
     public bool SourceAttackingEnemyUnit { get; }
 
@@ -98,6 +101,12 @@ public sealed class EffectActivationContext
     /// （パイロット切り離し前に確定した値）。
     /// </summary>
     public bool DestroyedUnitWasLinked { get; }
+
+    /// <summary>
+    /// OnEnemyUnitDestroyed 時、破壊されたユニットにセットされていたパイロットの CardData
+    /// （切り離し・トラッシュ送付後も ScriptableObject として参照できる）。
+    /// </summary>
+    public CardData DestroyedUnitMountedPilotData { get; }
 
     public EffectActivationContext(
         BattleGameMain.PlayerType ownerType,
@@ -132,7 +141,9 @@ public sealed class EffectActivationContext
         int ownerPaidUnitEffectCostThisTurn = -1,
         bool ownerDrewWithEffectThisTurn = false,
         CardController ownerDeployedBase = null,
-        bool opponentUnitsHaveAttackedThisTurn = false)
+        bool opponentUnitsHaveAttackedThisTurn = false,
+        int opponentShieldCount = -1,
+        CardData destroyedUnitMountedPilotData = null)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -167,6 +178,8 @@ public sealed class EffectActivationContext
         OwnerDrewWithEffectThisTurn = ownerDrewWithEffectThisTurn;
         OwnerDeployedBase = ownerDeployedBase;
         OpponentUnitsHaveAttackedThisTurn = opponentUnitsHaveAttackedThisTurn;
+        OpponentShieldCount = opponentShieldCount;
+        DestroyedUnitMountedPilotData = destroyedUnitMountedPilotData;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -240,7 +253,9 @@ public sealed class EffectActivationContext
             OwnerPaidUnitEffectCostThisTurn,
             OwnerDrewWithEffectThisTurn,
             OwnerDeployedBase,
-            OpponentUnitsHaveAttackedThisTurn);
+            OpponentUnitsHaveAttackedThisTurn,
+            OpponentShieldCount,
+            DestroyedUnitMountedPilotData);
     }
 }
 
@@ -469,6 +484,11 @@ public static class EffectActivationEvaluator
             return EvaluateOwnerHandCount(c, ctx);
         }
 
+        if (c.checkKind == EffectActivationCheckKind.OpponentShieldCount)
+        {
+            return EvaluateOpponentShieldCount(c, ctx);
+        }
+
         if (c.checkKind == EffectActivationCheckKind.OwnerHasLinkedUnit)
         {
             return EvaluateOwnerHasLinkedUnit(c, ctx, excludeSource: false);
@@ -482,6 +502,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.OwnerHasOtherUnitWithFeature)
         {
             return EvaluateOwnerHasOtherUnitWithFeature(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OwnerHasMountedPilotWithFeature)
+        {
+            return EvaluateOwnerHasMountedPilotWithFeature(c, ctx);
         }
 
         if (c.checkKind == EffectActivationCheckKind.OwnerTotalLevel)
@@ -556,9 +581,22 @@ public static class EffectActivationEvaluator
 
         if (c.checkKind == EffectActivationCheckKind.OwnerHasDeployedBase)
         {
-            if (ctx == null || !ctx.OwnerHasDeployedBase)
+            CardController deployedBase = ctx != null ? ctx.OwnerDeployedBase : null;
+            bool hasBase = ctx != null
+                && (ctx.OwnerHasDeployedBase
+                    || (deployedBase != null && deployedBase.Data != null && deployedBase.CurrentHp > 0));
+            if (!hasBase)
             {
                 return false;
+            }
+
+            if (c.compareOp == EffectCompareOperator.Equal)
+            {
+                if (deployedBase?.Data == null
+                    || !deployedBase.Data.HasColor((CardColor)c.compareValue))
+                {
+                    return false;
+                }
             }
 
             if (!c.HasActivationFeatureFilter())
@@ -566,7 +604,7 @@ public static class EffectActivationEvaluator
                 return true;
             }
 
-            return UnitMatchesActivationFeature(ctx.OwnerDeployedBase, c);
+            return UnitMatchesActivationFeature(deployedBase, c);
         }
 
         if (c.checkKind == EffectActivationCheckKind.SourceDeployedFromTrash)
@@ -635,6 +673,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.DestroyedUnitIsLinked)
         {
             return ctx != null && ctx.DestroyedUnitWasLinked;
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.DestroyedUnitHasMountedPilotWithFeature)
+        {
+            return EvaluateDestroyedUnitHasMountedPilotWithFeature(c, ctx);
         }
 
         if (c.checkKind == EffectActivationCheckKind.PriorChainDealtDamage)
@@ -792,14 +835,23 @@ public static class EffectActivationEvaluator
         for (int i = 0; i < observed.Count; i++)
         {
             CardData data = observed[i];
-            if (data != null && data.type == c.observedCardType)
+            if (data == null)
             {
-                matched++;
+                continue;
             }
-            // Command 指定時は CommandPilot もコマンド扱い
-            else if (data != null
-                && c.observedCardType == Type.Command
-                && data.IsCommand())
+
+            if (c.observedCardType == Type.Command || c.observedCardType == Type.CommandPilot)
+            {
+                if (data.IsCommand())
+                {
+                    matched++;
+                }
+
+                continue;
+            }
+
+            if (data.type == c.observedCardType
+                || CardTypeExtensions.MatchesTypeFilter(c.observedCardType, data.type))
             {
                 matched++;
             }
@@ -869,6 +921,11 @@ public static class EffectActivationEvaluator
 
         IReadOnlyList<int> trashIds = ResolveTrashZone(ctx, c.boardSide);
         int need = Mathf.Max(1, c.minimumCount);
+        if (c.observedCardType == Type.Command || c.observedCardType == Type.CommandPilot)
+        {
+            return TrashCardQuery.CountCommands(trashIds) >= need;
+        }
+
         return TrashCardQuery.HasCardTypeAtLeast(trashIds, c.observedCardType, need);
     }
 
@@ -1167,7 +1224,9 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
-            if (card.HasFeature(feature) || card.HasFeatureId(feature.id))
+            if (card.HasFeature(feature)
+                || card.HasFeatureId(feature.id)
+                || card.HasFeatureKey(feature.featureKey))
             {
                 return true;
             }
@@ -1326,6 +1385,157 @@ public static class EffectActivationEvaluator
         }
 
         return enemy.CurrentHp < enemy.GetRepairHpCap();
+    }
+
+    /// <summary>
+    /// 指定 Feature を持つ搭乗パイロットがオーナーのバトルゾーンにいるか。
+    /// </summary>
+    private static bool EvaluateOwnerHasMountedPilotWithFeature(
+        EffectActivationCondition c,
+        EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CardController> zone = ctx.OwnerType == BattleGameMain.PlayerType.Player
+            ? ctx.PlayerBattleZone
+            : ctx.EnemyBattleZone;
+        if (zone == null || zone.Count == 0)
+        {
+            return false;
+        }
+
+        int need = Mathf.Max(1, c.minimumCount);
+        int matched = 0;
+        for (int i = 0; i < zone.Count; i++)
+        {
+            CardController unit = zone[i];
+            if (!IsAliveUnit(unit))
+            {
+                continue;
+            }
+
+            CardController pilot = unit.MountedPilot;
+            if (pilot == null || pilot.Data == null || !pilot.Data.IsPilot())
+            {
+                continue;
+            }
+
+            if (!UnitMatchesActivationFeature(pilot, c))
+            {
+                continue;
+            }
+
+            matched++;
+            if (matched >= need)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 破壊されたユニットにセットされていたパイロットが指定 Feature を持つか。
+    /// Feature 未指定なら、パイロットがセットされていたこと自体を見る。
+    /// </summary>
+    private static bool EvaluateDestroyedUnitHasMountedPilotWithFeature(
+        EffectActivationCondition c,
+        EffectActivationContext ctx)
+    {
+        if (ctx == null)
+        {
+            return false;
+        }
+
+        CardData pilotData = ctx.DestroyedUnitMountedPilotData;
+        if (pilotData == null)
+        {
+            return false;
+        }
+
+        return PilotDataMatchesActivationFeatures(pilotData, c);
+    }
+
+    /// <summary>
+    /// 破壊時スナップショットのパイロット CardData が条件 Feature を持つか。
+    /// id 不一致でも featureKey（Newtype 等）で一致させる。
+    /// </summary>
+    private static bool PilotDataMatchesActivationFeatures(
+        CardData pilotData,
+        EffectActivationCondition c)
+    {
+        if (pilotData == null || c == null)
+        {
+            return false;
+        }
+
+        pilotData.EnsureFeaturesResolved();
+
+        IReadOnlyList<CardFeatureData> required = c.GetActivationFeatures();
+        bool hasFeatureFilter = (required != null && required.Count > 0)
+            || c.featureId > 0
+            || (c.featureIds != null && c.featureIds.Length > 0);
+        if (!hasFeatureFilter)
+        {
+            return pilotData.IsPilot();
+        }
+
+        if (required != null && required.Count > 0 && pilotData.HasAnyFeature(required))
+        {
+            return true;
+        }
+
+        if (c.featureId > 0
+            && (pilotData.HasFeatureId(c.featureId)
+                || CardMatchesFeatureIdOrKey(pilotData, c.featureId)))
+        {
+            return true;
+        }
+
+        if (c.featureIds != null)
+        {
+            for (int i = 0; i < c.featureIds.Length; i++)
+            {
+                int id = c.featureIds[i];
+                if (id > 0
+                    && (pilotData.HasFeatureId(id) || CardMatchesFeatureIdOrKey(pilotData, id)))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool CardMatchesFeatureIdOrKey(CardData card, int featureId)
+    {
+        if (card == null || featureId <= 0)
+        {
+            return false;
+        }
+
+        if (card.HasFeatureId(featureId))
+        {
+            return true;
+        }
+
+        CardFeatureData byId = CardFeatureRegistry.GetById(featureId);
+        if (byId != null && card.HasFeatureKey(byId.featureKey))
+        {
+            return true;
+        }
+
+        if (featureId == 19 && card.HasFeatureKey("Newtype"))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1609,8 +1819,8 @@ public static class EffectActivationEvaluator
                 continue;
             }
 
-            if (c.HasActivationFeatureFilter()
-                && !CardMatchesAnyActivationFeature(unit.Data, c.GetActivationFeatures()))
+            if ((c.HasActivationFeatureFilter() || c.featureId > 0)
+                && !UnitMatchesActivationFeature(unit, c))
             {
                 continue;
             }
@@ -1753,6 +1963,16 @@ public static class EffectActivationEvaluator
         }
 
         return CompareInts(count, c.unitCountThreshold, c.unitCountCompareOp);
+    }
+
+    private static bool EvaluateOpponentShieldCount(EffectActivationCondition c, EffectActivationContext ctx)
+    {
+        if (c == null || ctx == null || ctx.OpponentShieldCount < 0)
+        {
+            return false;
+        }
+
+        return CompareInts(ctx.OpponentShieldCount, c.unitCountThreshold, c.unitCountCompareOp);
     }
 
     private static bool EvaluateMountHostIsSelfOrOwnerWhiteUnit(EffectActivationContext ctx)

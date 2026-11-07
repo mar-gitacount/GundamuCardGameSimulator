@@ -34,7 +34,35 @@ MonoBehaviour:
   type: 0
   battleZones: 3
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 0
+    activationConditions:
+    - boardSide: -1
+      checkKind: 29
+      turnCheck: -1
+      feature: {fileID: 0}
+      featureId: 0
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 2
+      compareValue: 5
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: OnPlayed_MountAeugPilotFromHand_IfWhiteBase_Optional
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
   pilotIds: []
@@ -53,7 +81,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

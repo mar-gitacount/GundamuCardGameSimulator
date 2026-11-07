@@ -130,6 +130,14 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 9
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Damage1_EnemyLv4OrLess_SelectSingle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 317345dfce5a1094f81b13aac287c8ef, type: 2}
   - {fileID: 11400000, guid: 3bc2529d809148c287cb66fe282be91a, type: 2}
@@ -143,7 +151,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

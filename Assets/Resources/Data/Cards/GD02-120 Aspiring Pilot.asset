@@ -31,19 +31,19 @@ MonoBehaviour:
   sourceTitle: 2
   filterType: 0
   color: 5
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
   timedEffects:
   - timing: 8
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: OnAction_RecoverHp2_AllyAeugUnitOrBase_SelectSingle
     effects:
     - type: 32
       value: 2
-      target: 0
-      selectionMode: -1
+      target: 1
+      selectionMode: 1
       statTarget: 0
       duration: 0
       valueMode: 0
@@ -55,8 +55,8 @@ MonoBehaviour:
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
-      targetFeature: {fileID: 0}
-      targetFeatureId: 0
+      targetFeature: {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
+      targetFeatureId: 41
       targetFeatures: []
       targetFeatureIds: 
       targetUnitFilterStat: -1
@@ -72,6 +72,7 @@ MonoBehaviour:
       filterByTargetCardType: 0
       targetCardType: 0
       filterTargetAsUnitOrPilot: 0
+      allowFriendlyDeployedBaseTarget: 1
       deployUnitSource: 0
       deployCardId: 0
       filterByDeployCardId: 0
@@ -116,7 +117,8 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: dba2ce6ae0ba486a984dd5e5fdfbf47d, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
@@ -126,7 +128,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

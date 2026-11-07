@@ -59,7 +59,76 @@ public partial class BattleGameMain
             return true;
         }
 
+        if (HasFirstStrikeGrantedByBattlingEnemyDuringOpponentTurn(unit, battleOpponent))
+        {
+            return true;
+        }
+
         return HasOnAttackFirstStrikeEffectActive(unit, battleOpponent);
+    }
+
+    /// <summary>
+    /// GD02-073 等：相手ターン中、このユニットとバトルしている相手ユニットへ《先制攻撃》を与える。
+    /// </summary>
+    private bool HasFirstStrikeGrantedByBattlingEnemyDuringOpponentTurn(
+        CardController unit,
+        CardController battleOpponent)
+    {
+        if (unit == null || battleOpponent == null || battleOpponent.Data == null)
+        {
+            return false;
+        }
+
+        PlayerType grantOwner = ResolveCardOwner(battleOpponent.transform);
+        PlayerType unitOwner = ResolveCardOwner(unit.transform);
+        if (grantOwner == unitOwner)
+        {
+            return false;
+        }
+
+        if (currentPlayerType == grantOwner)
+        {
+            return false;
+        }
+
+        if (CardDeclaresGrantFirstStrikeToBattlingEnemyDuringOpponentTurn(battleOpponent.Data))
+        {
+            return true;
+        }
+
+        CardController grantPilot = battleOpponent.MountedPilot;
+        return grantPilot?.Data != null
+            && CardDeclaresGrantFirstStrikeToBattlingEnemyDuringOpponentTurn(grantPilot.Data);
+    }
+
+    private static bool CardDeclaresGrantFirstStrikeToBattlingEnemyDuringOpponentTurn(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            IReadOnlyList<EffectData> effects = timed.GetResolvedEffects();
+            for (int j = 0; j < effects.Count; j++)
+            {
+                EffectData effect = effects[j];
+                if (effect != null
+                    && effect.type == EffectType.GrantFirstStrikeToBattlingEnemyDuringOpponentTurn)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
