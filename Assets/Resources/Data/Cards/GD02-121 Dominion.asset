@@ -46,7 +46,7 @@ MonoBehaviour:
   - timing: 6
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: AddShield1_OnBaseDeployed
+    effectsName: AddShield1_ThenRecoverHp2_AllyUnit_OnBaseDeployed
     effects: []
     activationCost: 0
     oncePerTurn: 0
@@ -64,7 +64,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

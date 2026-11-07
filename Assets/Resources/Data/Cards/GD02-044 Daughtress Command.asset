@@ -34,7 +34,35 @@ MonoBehaviour:
   type: 0
   battleZones: 3
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 9
+    activationConditions:
+    - boardSide: -1
+      checkKind: 54
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: ddc9561ef30e4d1686d10cc49993933d, type: 2}
+      featureId: 52
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: OnDestroyed_DeployDaughtressToken1_Rested_IfOwnerHasOtherNewUne
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: ddc9561ef30e4d1686d10cc49993933d, type: 2}
   pilotIds: []
@@ -47,7 +75,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

@@ -106,17 +106,60 @@ public partial class BattleGameMain
         return grantingUnit != null ? grantingUnit.MakePilotMountFieldAuraSourceKey() : null;
     }
 
+    /// <summary>同一カード複数枚のターン終了 Debuff などを加算するための連番。</summary>
+    private int _stackableStatModifierSerial;
+
     /// <summary>
-    /// 永続オーラのみ UnitGranted キーを使う。UntilEndOfTurn の一発 Buff/Debuff は
-    /// 場パッシブ再計算で消えないようキーなし（手札コマンドと同じ）。
+    /// 場ユニットの永続オーラのみ UnitGranted キーを使う。
+    /// ベース配備時の AP-2 など一発 Buff/Debuff は毎回ユニークキーで加算する
+    /// （2枚目の GD02-130 が上書き／未適用にならないようにする）。
     /// </summary>
     private string ResolveStatModifierSourceKeyForEffect(CardController sourceCard, EffectData effect)
     {
-        if (effect == null || effect.duration != EffectDuration.Permanent)
+        if (effect == null)
         {
             return null;
         }
 
-        return ResolveUnitStatModifierSourceKey(sourceCard);
+        if (effect.duration == EffectDuration.Permanent)
+        {
+            string unitAuraKey = ResolveUnitStatModifierSourceKey(sourceCard);
+            if (!string.IsNullOrEmpty(unitAuraKey))
+            {
+                return unitAuraKey;
+            }
+        }
+
+        if (effect.type == EffectType.Buff || effect.type == EffectType.Debuff)
+        {
+            return MakeStackableStatModifierSourceKey(sourceCard);
+        }
+
+        return null;
+    }
+
+    private string MakeStackableStatModifierSourceKey(CardController sourceCard)
+    {
+        _stackableStatModifierSerial++;
+        int cardId = sourceCard != null && sourceCard.Data != null ? sourceCard.Data.id : 0;
+        return sourceCard != null
+            ? $"TimedStack:{cardId}:{sourceCard.GetEntityId()}:{_stackableStatModifierSerial}"
+            : $"TimedStack:{cardId}:0:{_stackableStatModifierSerial}";
+    }
+
+    /// <summary>場パッシブ／ユニット永続オーラだけ同一キーの二重適用を抑止する。</summary>
+    private static bool IsNonStackableStatModifierSourceKey(string sourceKey)
+    {
+        if (string.IsNullOrEmpty(sourceKey))
+        {
+            return false;
+        }
+
+        return sourceKey.StartsWith("UnitGranted:")
+            || sourceKey.StartsWith("OwnerTurnField:")
+            || sourceKey.StartsWith("DuringLink")
+            || sourceKey.StartsWith("FieldConditionalSelfStat:")
+            || sourceKey.StartsWith("MountedPilotHostAp:")
+            || sourceKey.StartsWith("GymGhingnhamOppTurnAp:");
     }
 }

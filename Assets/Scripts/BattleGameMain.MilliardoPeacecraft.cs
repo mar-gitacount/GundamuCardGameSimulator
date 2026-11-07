@@ -275,7 +275,7 @@ public partial class BattleGameMain
         }
 
         int damageAmount = effect.value > 0 ? effect.value : 2;
-        damageAmount = ResolveEffectDamageAmount(damageAmount, target, side);
+        damageAmount = ResolveEffectDamageAmount(damageAmount, target, side, milliardoSource);
         if (damageAmount <= 0)
         {
             return false;

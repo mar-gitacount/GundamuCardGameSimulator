@@ -681,6 +681,7 @@ public partial class BattleGameMain
                 }
 
                 IReadOnlyList<EffectData> resolved = timed.GetResolvedEffects();
+                bool deferRemainingInBlock = false;
                 for (int j = 0; j < resolved.Count; j++)
                 {
                     EffectData effect = resolved[j];
@@ -720,6 +721,20 @@ public partial class BattleGameMain
 
                     if (!ShouldApplyChainedEffect(effect, activationContext, "TimedEffect"))
                     {
+                        continue;
+                    }
+
+                    if (deferRemainingInBlock)
+                    {
+                        pendingManualEffects.Add(effect);
+                        continue;
+                    }
+
+                    // 手札捨て（任意の赤1枚等）は UI 待ち。同一ブロックの後続（ドロー）もチェーンに載せる。
+                    if (EffectRequiresManualHandSelection(effect))
+                    {
+                        pendingManualEffects.Add(effect);
+                        deferRemainingInBlock = true;
                         continue;
                     }
 
@@ -860,6 +875,46 @@ public partial class BattleGameMain
                 bool lookDone = false;
                 ApplyEffectRespectingLookAsync(sourceCard, ownerType, effect, () => lookDone = true);
                 yield return new WaitUntil(() => lookDone);
+                continue;
+            }
+
+            if (EffectRequiresManualHandSelection(effect))
+            {
+                List<CardController> handCandidates = CollectSelectableHandCards(
+                    ResolveHandDiscardOwner(ownerType, effect),
+                    excludeSource: sourceCard);
+                FilterHandCandidatesByEffect(handCandidates, effect);
+                if (handCandidates.Count == 0)
+                {
+                    Debug.Log(
+                        $"[TimedEffect] 捨てる手札がありません (timing:{timing} cardId:{sourceCard?.Data?.id})");
+                    if (effect.abortRemainingChainOnSkip)
+                    {
+                        yield break;
+                    }
+
+                    continue;
+                }
+
+                bool handDone = false;
+                bool handSucceeded = false;
+                TryExecuteManualHandSelectionEffect(
+                    sourceCard,
+                    ownerType,
+                    effect,
+                    succeeded =>
+                    {
+                        handSucceeded = succeeded;
+                        handDone = true;
+                    });
+                yield return new WaitUntil(() => handDone);
+                if (!handSucceeded && effect.abortRemainingChainOnSkip)
+                {
+                    Debug.Log(
+                        $"[TimedEffect] DiscardFromHand 未完了のため後続を打ち切り (cardId:{sourceCard?.Data?.id})");
+                    yield break;
+                }
+
                 continue;
             }
 

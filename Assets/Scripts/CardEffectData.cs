@@ -316,6 +316,7 @@ public enum EffectType
     /// または UntilEndOfTurn / UntilEndOfBattle で対象ユニットへ解決時付与（ST03-014 等）。
     /// statTarget=AP（既定）: AP が value 以下の敵からの戦闘ダメージを無効。
     /// statTarget=Level: Lv が value 以下の敵からの戦闘ダメージを無効。
+    /// value&lt;0: 閾値なし（相手ユニットからのバトルダメージをすべて無効。GD02-105 等）。
     /// compareTargetStatToSource=true のとき閾値は効果源ユニットの実効 AP（「これの AP 以下」）。
     /// timed.activationConditions に MountedPilot（セット中）等を指定する。
     /// timed.oncePerTurn でターン1回に制限できる（印刷パッシブのみ）。
@@ -384,6 +385,8 @@ public enum EffectType
     /// 場のユニット常時パッシブ（効果ダメージ判定）。
     /// 条件を満たす味方ユニットが受ける「敵からの効果ダメージ」を無効化する（ST11-002 アッガイ等）。
     /// targetFeature / targetUnitFilterStat（例: HP≤2）で保護対象を絞る。
+    /// target=Self かつ対象フィルタなしなら発動元自身のみ（GD02-064 レオパルド等）。
+    /// requireDamageSourceIsCommand なら相手コマンド由来の効果ダメージに限る。
     /// timed.activationConditions に turnCheck:NotOwnerTurn + SourceUnitIsRest 等を指定する。
     /// ApplyEffect では何もしない（マーカー）。
     /// </summary>
@@ -482,7 +485,18 @@ public enum EffectType
     /// timed.activationConditions（例: OwnerHasLinkedUnitWithFeature 〔ZAFT〕）を満たすときのみ。
     /// コスト支払い配備の判定・消費で参照する。ApplyEffect はマーカーのみ。
     /// </summary>
-    ModifyTrashPrintedCostAndLevel
+    ModifyTrashPrintedCostAndLevel,
+    /// <summary>
+    /// 【配備時】等。手札のパイロットを value 枚まで発動元ユニットへセットしてもよい。
+    /// filterByTargetCardType / targetFeature で絞り込み。キャンセル可（してもよい）。
+    /// 搭乗コストは支払わない。
+    /// </summary>
+    MountPilotFromHand,
+    /// <summary>
+    /// 常時。相手のターン中、このユニットとバトルしている相手ユニットは《先制攻撃》を得る
+    /// （GD02-073 等）。ApplyEffect はマーカーのみ。戦闘時に再評価する。
+    /// </summary>
+    GrantFirstStrikeToBattlingEnemyDuringOpponentTurn
 }
 
 /// <summary><see cref="EffectType.ChooseOne"/> の選択肢1本。</summary>
@@ -616,6 +630,7 @@ public static class EffectTypeExtensions
             || type == EffectType.MarkObservedUnit
             || type == EffectType.EffectBattle
             || type == EffectType.FirstStrike
+            || type == EffectType.HighMobility
             || type == EffectType.GrantBreach
             || type == EffectType.GrantTurnEndRepair
             || type == EffectType.BattleDamageImmunityFromLowApEnemy
@@ -632,7 +647,8 @@ public static class EffectTypeExtensions
     public static bool RequiresManualHandSelection(this EffectType type)
     {
         return type == EffectType.DiscardFromHand
-            || type == EffectType.ReturnFromHandToDeckBottom;
+            || type == EffectType.ReturnFromHandToDeckBottom
+            || type == EffectType.MountPilotFromHand;
     }
 }
 
@@ -925,7 +941,10 @@ public enum EffectActivationCheckKind
     /// minimumCount 枚以上ある。
     /// </summary>
     TrashHasColor,
-    /// <summary>オーナーの配備ベースが場にあり、HP が 1 以上。</summary>
+    /// <summary>
+    /// オーナーの配備ベースが場にあり、HP が 1 以上。
+    /// compareOp が Equal のとき compareValue を CardColor として色を限定する（白ベースなら White=5）。
+    /// </summary>
     OwnerHasDeployedBase,
     /// <summary>発動元ユニットが今回トラッシュから配備された。</summary>
     SourceDeployedFromTrash,
@@ -1087,7 +1106,24 @@ public enum EffectActivationCheckKind
     /// <summary>
     /// このターン中、相手ユニットが1度もアタックしていない（GD06-102 A Miracle 等）。
     /// </summary>
-    EnemyUnitsHaveNotAttackedThisTurn
+    EnemyUnitsHaveNotAttackedThisTurn,
+    /// <summary>
+    /// オーナーのバトルゾーンに、指定 Feature を持つ搭乗パイロットが minimumCount 体以上いる。
+    /// GD02-104 「〔ニュータイプ〕の自分のパイロットがいるなら」。
+    /// </summary>
+    OwnerHasMountedPilotWithFeature,
+    /// <summary>
+    /// 相手のシールド枚数を unitCountThreshold と unitCountCompareOp で比較。
+    /// シールドエリアのベース／EX は含まない。
+    /// GD02-037 「相手のシールドが3つ以下なら」→ threshold 3 + LessOrEqual。
+    /// </summary>
+    OpponentShieldCount,
+    /// <summary>
+    /// OnEnemyUnitDestroyed 時、破壊されたユニットに指定 Feature のパイロットがセットされていた。
+    /// EffectActivationContext.DestroyedUnitMountedPilotData を参照（切り離し前の CardData）。
+    /// GD02-093 「〔ニュータイプ〕のパイロットがセットされている相手のユニット」→ featureId 19。
+    /// </summary>
+    DestroyedUnitHasMountedPilotWithFeature
 }
 
 public enum EffectTurnCheckKind
@@ -1527,6 +1563,11 @@ public class EffectData
         + " filterByTargetCardType より優先（勝敗を分ける道など「ユニット/パイロット」表記用）。")]
     public bool filterTargetAsUnitOrPilot;
 
+    [Tooltip(
+        "true のとき味方の配備ベースもバトルゾーン対象に含める（ユニット1つ／ベース1つ。GD02-120 等）。"
+        + " Feature 条件があればベースにも適用する。")]
+    public bool allowFriendlyDeployedBaseTarget;
+
     [Tooltip("DeployUnit / DeployBase: 配備するカードの出所（Token=トークン生成 / Hand / Trash）。DeployBase は Trash 時にトラッシュから Base を配備。")]
     public DeployUnitSource deployUnitSource = DeployUnitSource.Token;
 
@@ -1697,6 +1738,19 @@ public class EffectData
     [Tooltip("true のときリンク中（Link 条件を満たすパイロット搭乗中）のユニットのみ対象。")]
     public bool requireTargetIsLinked;
 
+    [Tooltip("true のときリンクユニット以外のみ対象（GD02-107 オールレンジ攻撃等）。")]
+    public bool requireTargetIsNotLinked;
+
+    [Tooltip(
+        "Damage: true のときこのダメージはキャンセルできない。"
+        + "効果ダメージ無効化・味方プロテクト・配備ベースの無効化を無視する（GD02-058 流星号等）。軽減は通す。")]
+    public bool cannotCancelDamage;
+
+    [Tooltip(
+        "AllyEnemyEffectDamageImmunity: true のとき、相手のコマンド（Command / CommandPilot）から受けた"
+        + "効果ダメージのみ無効化する（GD02-064 レオパルド等）。ユニット効果・戦闘ダメージは通す。")]
+    public bool requireDamageSourceIsCommand;
+
     [Tooltip("true のとき REST 状態のユニットのみ対象（武力介入等）。ACTIVE は候補にしない。")]
     public bool requireTargetIsRest;
 
@@ -1713,6 +1767,11 @@ public class EffectData
         "true のとき、味方の targetFeature（未指定時は targetFeatureId）ユニットと"
         + "現在バトル中の相手ユニットのみ対象（GD06-112 等）。")]
     public bool requireTargetBattlingFriendlyFeature;
+
+    [Tooltip(
+        "true のとき、《ブロッカー》を持つ味方ユニットと現在バトル中の相手ユニットのみ対象"
+        + "（GD02-118 等）。")]
+    public bool requireTargetBattlingFriendlyBlocker;
 
     [Tooltip(
         "true のとき OnAttack の攻撃対象限定効果を戦闘前ではなく、"
@@ -1866,6 +1925,16 @@ public static class EffectDataExtensions
         return effect != null && effect.GetTargetFeatures().Count > 0;
     }
 
+    /// <summary>
+    /// 相手ユニットからのバトルダメージを閾値なしで無効化する付与（value&lt;0）。
+    /// </summary>
+    public static bool GrantsBattleDamageImmunityFromAnyEnemyUnit(this EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.BattleDamageImmunityFromLowApEnemy
+            && effect.value < 0;
+    }
+
     public static bool MatchesTargetFeatureFilter(this EffectData effect, CardData card)
     {
         if (effect == null || !effect.HasTargetFeatureFilter())
@@ -1899,6 +1968,21 @@ public static class EffectDataExtensions
         }
 
         return CardTypeExtensions.MatchesTypeFilter(effect.targetCardType, card.type);
+    }
+
+    /// <summary>味方の配備ベース1枚を REST する効果（GD02-069 等）。</summary>
+    public static bool IsRestFriendlyDeployedBaseTarget(this EffectData effect)
+    {
+        return effect != null
+            && effect.type == EffectType.Rest
+            && effect.filterByTargetCardType
+            && effect.targetCardType == Type.Base;
+    }
+
+    /// <summary>味方ユニットに加え配備ベースも選べる（回復など）。</summary>
+    public static bool AllowsFriendlyDeployedBaseAsBattleTarget(this EffectData effect)
+    {
+        return effect != null && effect.allowFriendlyDeployedBaseTarget;
     }
 
     /// <summary>UI 用。Unit/Pilot OR・単一種・未指定の表示ラベル。</summary>
@@ -2103,6 +2187,7 @@ public static class EffectDataExtensions
                 || effect.requireTargetHasNoPilot
                 || effect.requireTargetDamaged
                 || effect.requireTargetIsLinked
+                || effect.requireTargetIsNotLinked
                 || effect.requireTargetIsRest
                 || effect.requireTargetHasHighMobility
                 || effect.requireTargetLacksHighMobility);
@@ -2344,7 +2429,28 @@ public static class EffectDataExtensions
         bool ownerHasLinkedUnit = false,
         CardController statCompareReference = null)
     {
-        if (effect == null || unit == null || unit.Data == null || !unit.Data.IsUnitLike())
+        if (effect == null || unit == null || unit.Data == null)
+        {
+            return false;
+        }
+
+        if (effect.AllowsFriendlyDeployedBaseAsBattleTarget()
+            && unit.Data.type == Type.Base)
+        {
+            if (unit.CurrentHp <= 0)
+            {
+                return false;
+            }
+
+            if (effect.HasTargetFeatureFilter() && !unit.HasAnyFeature(effect.GetTargetFeatures()))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!unit.Data.IsUnitLike())
         {
             return false;
         }
@@ -2388,6 +2494,12 @@ public static class EffectDataExtensions
 
         if (effect.requireTargetIsLinked
             && !UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+        {
+            return false;
+        }
+
+        if (effect.requireTargetIsNotLinked
+            && UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
         {
             return false;
         }
@@ -2582,6 +2694,16 @@ public static class EffectDataExtensions
             }
 
             sb.Append(GameLocale.T("リンク中", "Linked"));
+        }
+
+        if (effect.requireTargetIsNotLinked)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("リンクユニット以外", "non-Linked"));
         }
 
         if (effect.requireTargetIsRest)
@@ -2901,6 +3023,36 @@ public static class EffectDataExtensions
             return true;
         }
 
+        // GD02-069 等: アクティブの味方配備ベースを REST する。
+        // GD02-120 等: 味方ユニット／ベースの回復。
+        if ((effect.IsRestFriendlyDeployedBaseTarget() || effect.AllowsFriendlyDeployedBaseAsBattleTarget())
+            && unit.Data.type == Type.Base
+            && unit.CurrentHp > 0)
+        {
+            if (effect.requireTargetIsRest && !unit.IsRestState)
+            {
+                return false;
+            }
+
+            if (effect.requireTargetIsNotRest && unit.IsRestState)
+            {
+                return false;
+            }
+
+            if (effect.filterTargetUnitColor
+                && unit.Data.color != (CardColor)effect.filterTargetUnitColorValue)
+            {
+                return false;
+            }
+
+            if (effect.HasTargetFeatureFilter() && !unit.HasAnyFeature(effect.GetTargetFeatures()))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         if (!unit.Data.IsUnitLike())
         {
             return false;
@@ -2932,6 +3084,12 @@ public static class EffectDataExtensions
 
         if (effect.requireTargetIsLinked
             && !UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
+        {
+            return false;
+        }
+
+        if (effect.requireTargetIsNotLinked
+            && UnitLinkExtensions.HasValidLinkPilot(unit.Data, unit.MountedPilot))
         {
             return false;
         }
@@ -2970,6 +3128,11 @@ public static class EffectDataExtensions
     public static bool MatchesHandDiscardCandidate(this EffectData effect, CardData card)
     {
         if (effect == null || card == null)
+        {
+            return false;
+        }
+
+        if (effect.type == EffectType.MountPilotFromHand && !card.IsPilot())
         {
             return false;
         }
@@ -3396,6 +3559,15 @@ public static class TimedEffectDataExtensions
 
     public static bool HasTrashHasFeatureActivationRequirement(this TimedEffectData timed)
     {
+        return timed.HasTrashZoneActivationRequirement();
+    }
+
+    /// <summary>
+    /// トラッシュ枚数・中身を参照する条件（CompareTrashCardCount / TrashHasFeature 等）。
+    /// 枚数が変わるたびに Refresh で張り直す。
+    /// </summary>
+    public static bool HasTrashZoneActivationRequirement(this TimedEffectData timed)
+    {
         if (timed?.activationConditions == null)
         {
             return false;
@@ -3404,7 +3576,37 @@ public static class TimedEffectDataExtensions
         for (int i = 0; i < timed.activationConditions.Count; i++)
         {
             EffectActivationCondition c = timed.activationConditions[i];
-            if (c != null && c.checkKind == EffectActivationCheckKind.TrashHasFeature)
+            if (c == null)
+            {
+                continue;
+            }
+
+            if (c.checkKind == EffectActivationCheckKind.TrashHasFeature
+                || c.checkKind == EffectActivationCheckKind.TrashHasCardId
+                || c.checkKind == EffectActivationCheckKind.TrashLacksCardId
+                || c.checkKind == EffectActivationCheckKind.TrashHasCardType
+                || c.checkKind == EffectActivationCheckKind.TrashHasColor
+                || c.checkKind == EffectActivationCheckKind.CompareTrashCardCount)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>味方配備ベースが場にいる間の Self パッシブ（カミユ／メッサー等）。</summary>
+    public static bool HasOwnerHasDeployedBaseActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.OwnerHasDeployedBase)
             {
                 return true;
             }
@@ -3523,8 +3725,9 @@ public static class TimedEffectDataExtensions
             && (timed.HasSourceUnitIsLinkedActivationRequirement()
                 || timed.HasOwnerTotalLevelActivationRequirement()
                 || timed.HasMountedPilotActivationRequirement()
-                || timed.HasTrashHasFeatureActivationRequirement()
-                || timed.HasUnitStatOnFieldActivationRequirement()))
+                || timed.HasTrashZoneActivationRequirement()
+                || timed.HasUnitStatOnFieldActivationRequirement()
+                || timed.HasOwnerHasDeployedBaseActivationRequirement()))
         {
             return false;
         }

@@ -6,6 +6,60 @@ using UnityEngine;
 /// </summary>
 public partial class BattleGameMain
 {
+    private bool _trashFieldPassiveWatchersRegistered;
+    private int _trashFieldPassiveRefreshSuppressDepth;
+
+    /// <summary>トラッシュ増減で【リンク中】／トラッシュ条件バフを張り直す。</summary>
+    private void RegisterTrashFieldPassiveWatchers()
+    {
+        if (_trashFieldPassiveWatchersRegistered)
+        {
+            return;
+        }
+
+        if (cardGameRule != null)
+        {
+            cardGameRule.OnTrashChanged += OnTrashChangedRefreshFieldPassives;
+        }
+
+        if (enemyCardGameRule != null)
+        {
+            enemyCardGameRule.OnTrashChanged += OnTrashChangedRefreshFieldPassives;
+        }
+
+        _trashFieldPassiveWatchersRegistered = true;
+    }
+
+    private void UnregisterTrashFieldPassiveWatchers()
+    {
+        if (!_trashFieldPassiveWatchersRegistered)
+        {
+            return;
+        }
+
+        if (cardGameRule != null)
+        {
+            cardGameRule.OnTrashChanged -= OnTrashChangedRefreshFieldPassives;
+        }
+
+        if (enemyCardGameRule != null)
+        {
+            enemyCardGameRule.OnTrashChanged -= OnTrashChangedRefreshFieldPassives;
+        }
+
+        _trashFieldPassiveWatchersRegistered = false;
+    }
+
+    private void OnTrashChangedRefreshFieldPassives()
+    {
+        if (_trashFieldPassiveRefreshSuppressDepth > 0)
+        {
+            return;
+        }
+
+        RefreshAllFieldOwnerTurnPassives();
+    }
+
     private static bool IsOwnerTurnFieldPassiveTimedBlock(TimedEffectData timed)
     {
         return timed != null
@@ -60,30 +114,38 @@ public partial class BattleGameMain
     private void RefreshAllFieldOwnerTurnPassives()
     {
         bool nestedBatch = _onlineEffectSyncActive;
-        if (!nestedBatch)
+        _trashFieldPassiveRefreshSuppressDepth++;
+        try
         {
-            BeginOnlineEffectSyncBatch(currentPlayerType);
-        }
+            if (!nestedBatch)
+            {
+                BeginOnlineEffectSyncBatch(currentPlayerType);
+            }
 
-        ClearAllOwnerTurnFieldPassiveModifiers();
-        RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
-        RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
-        RefreshConditionalBlockerAbilities();
-        RefreshDuringLinkFeatureGrants();
-        RefreshDuringLinkSelfStatPassives();
-        RefreshDuringLinkAllyFieldStatPassives();
-        RefreshGymGhingnhamOpponentTurnApBuff();
+            ClearAllOwnerTurnFieldPassiveModifiers();
+            RefreshFieldOwnerTurnPassivesForSide(PlayerType.Player, syncOnlineBatch: false);
+            RefreshFieldOwnerTurnPassivesForSide(PlayerType.Enemy, syncOnlineBatch: false);
+            RefreshConditionalBlockerAbilities();
+            RefreshDuringLinkFeatureGrants();
+            RefreshDuringLinkSelfStatPassives();
+            RefreshDuringLinkAllyFieldStatPassives();
+            RefreshGymGhingnhamOpponentTurnApBuff();
 
-        // 個別 Stat は送らない。相手には「同じ再計算をして」とだけ伝える。
-        // ネスト中でも外側バッチに載せる（Flush は外側に任せる）。
-        // Begin がスキップされた受信側・Enemy ターンでは active のままなので Queue しない。
-        if (_onlineEffectSyncActive)
-        {
-            QueueOnlineRefreshOwnerTurnFieldPassives();
+            // 個別 Stat は送らない。相手には「同じ再計算をして」とだけ伝える。
+            // ネスト中でも外側バッチに載せる（Flush は外側に任せる）。
+            // Begin がスキップされた受信側・Enemy ターンでは active のままなので Queue しない。
+            if (_onlineEffectSyncActive)
+            {
+                QueueOnlineRefreshOwnerTurnFieldPassives();
+            }
+            if (!nestedBatch)
+            {
+                FlushOnlineEffectSyncBatch();
+            }
         }
-        if (!nestedBatch)
+        finally
         {
-            FlushOnlineEffectSyncBatch();
+            _trashFieldPassiveRefreshSuppressDepth = Mathf.Max(0, _trashFieldPassiveRefreshSuppressDepth - 1);
         }
     }
 
@@ -182,6 +244,28 @@ public partial class BattleGameMain
             && TimedHasSourceMountHostHasRepairCondition(timed);
     }
 
+    /// <summary>搭乗パイロット：味方配備ベースがある間のホスト Self AP（カミユ GD02-097）。</summary>
+    private static bool IsMountedPilotOwnerHasDeployedBaseSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasOwnerHasDeployedBaseActivationRequirement();
+    }
+
+    /// <summary>ユニット自身：味方配備ベースがある間の Self AP（メッサー等）。</summary>
+    private static bool IsFieldUnitOwnerHasDeployedBaseSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasOwnerHasDeployedBaseActivationRequirement();
+    }
+
     /// <summary>ユニット自身の自ターン条件付き Self stat（キュリオス等）。</summary>
     private static bool IsFieldUnitOwnerTurnSelfStatPassive(TimedEffectData timed, bool isPilotSource)
     {
@@ -211,7 +295,7 @@ public partial class BattleGameMain
             && !timed.HasOwnerTurnActivationRequirement();
     }
 
-    /// <summary>トラッシュ特徴枚数条件の Self AP（ザクⅡF2型等）。自ターン限定ではない。</summary>
+    /// <summary>トラッシュ枚数・中身条件の Self AP（ザクⅡF2型、トラッシュ7枚以上等）。自ターン限定ではない。</summary>
     private static bool IsFieldUnitTrashFeatureSelfStatPassive(TimedEffectData timed, bool isPilotSource)
     {
         return !isPilotSource
@@ -219,7 +303,7 @@ public partial class BattleGameMain
             && timed.HasResolvedEffects()
             && timed.HasActivationConditions()
             && timed.ContainsOnlySelfStatBuffDebuffEffects()
-            && timed.HasTrashHasFeatureActivationRequirement();
+            && timed.HasTrashZoneActivationRequirement();
     }
 
     /// <summary>相手盤面のユニット Lv 等条件の Self AP（アルトロン EW 等）。自ターン限定ではない。</summary>
@@ -269,13 +353,15 @@ public partial class BattleGameMain
         {
             TimedEffectData timed = blocks[bi];
             if (!IsMountedPilotWhileHostHasRepairSelfStatPassive(timed, isPilotSource)
+                && !IsMountedPilotOwnerHasDeployedBaseSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOnEnemyAttackSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOwnerTurnSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitMountedPilotSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOwnerLevelSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitTrashFeatureSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitHandCountSelfStatPassive(timed, isPilotSource)
-                && !IsFieldUnitOpponentUnitStatSelfStatPassive(timed, isPilotSource))
+                && !IsFieldUnitOpponentUnitStatSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitOwnerHasDeployedBaseSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }
@@ -954,6 +1040,10 @@ public partial class BattleGameMain
         HashSet<string> keys = new HashSet<string>();
         CollectOwnerTurnFieldPassiveSourceKeys(playerBattleZoneCards, keys);
         CollectOwnerTurnFieldPassiveSourceKeys(enemyBattleZoneCards, keys);
+        CollectOwnerTurnFieldPassiveSourceKeysFromHost(
+            GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Player), keys);
+        CollectOwnerTurnFieldPassiveSourceKeysFromHost(
+            GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Enemy), keys);
 
         foreach (string key in keys)
         {
@@ -1034,13 +1124,23 @@ public partial class BattleGameMain
                 continue;
             }
 
-            CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(unit, unit.Data?.timedEffects, 0, keys);
-            CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(
-                unit,
-                unit.MountedPilot?.Data?.timedEffects,
-                1000,
-                keys);
+            CollectOwnerTurnFieldPassiveSourceKeysFromHost(unit, keys);
         }
+    }
+
+    private static void CollectOwnerTurnFieldPassiveSourceKeysFromHost(CardController host, HashSet<string> keys)
+    {
+        if (host == null || keys == null)
+        {
+            return;
+        }
+
+        CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(host, host.Data?.timedEffects, 0, keys);
+        CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(
+            host,
+            host.MountedPilot?.Data?.timedEffects,
+            1000,
+            keys);
     }
 
     private static void CollectOwnerTurnFieldPassiveSourceKeysFromTimedList(
@@ -1097,22 +1197,34 @@ public partial class BattleGameMain
         // 自ターン限定はターンプレイヤー側、相手ターン限定（GD06-085 等）は非ターン側を再付与する。
 
         List<CardController> zone = side == PlayerType.Player ? playerBattleZoneCards : enemyBattleZoneCards;
-        if (zone == null)
+        if (zone != null)
         {
-            return;
+            for (int ui = 0; ui < zone.Count; ui++)
+            {
+                RefreshOwnerTurnFieldPassivesOnHost(zone[ui], side, syncOnlineBatch);
+            }
         }
 
-        for (int ui = 0; ui < zone.Count; ui++)
+        CardController deployedBase = GetDeployedBaseForRuleSide(ToRuleSide(side));
+        if (deployedBase != null && (zone == null || !zone.Contains(deployedBase)))
         {
-            CardController unit = zone[ui];
+            RefreshOwnerTurnFieldPassivesOnHost(deployedBase, side, syncOnlineBatch);
+        }
+    }
+
+    private void RefreshOwnerTurnFieldPassivesOnHost(
+        CardController unit,
+        PlayerType side,
+        bool syncOnlineBatch)
+    {
             if (unit == null || unit.Data == null)
             {
-                continue;
+            return;
             }
 
             if (ResolveBattleZoneUnitOwner(unit) != side)
             {
-                continue;
+            return;
             }
 
             AssignBattleInstanceIdIfNeeded(unit);
@@ -1226,7 +1338,6 @@ public partial class BattleGameMain
 
                 ApplyOwnerTurnFieldStatPassiveBlock(unit, side, timed, 1000 + bi, syncOnlineBatch);
             }
-        }
     }
 
     /// <summary>

@@ -51,6 +51,14 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
+  - timing: 9
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: MillTop2_SelfDeck_OnDestroyed
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 0181ba0978224109a14526f94b37301b, type: 2}
   - {fileID: 11400000, guid: 5a47f8b7e2c445e4b40e8767fd088d44, type: 2}
@@ -64,7 +72,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

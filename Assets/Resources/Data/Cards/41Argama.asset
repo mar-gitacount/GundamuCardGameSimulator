@@ -59,7 +59,9 @@ MonoBehaviour:
     activationCost: 0
     oncePerTurn: 0
     observedUnitTriggerKind: -1
-  features: []
+  features:
+  - {fileID: 11400000, guid: 9289e5a6db1c4fe6b8a7e5ad927aee1e, type: 2}
+  - {fileID: 11400000, guid: 5a47f8b7e2c445e4b40e8767fd088d44, type: 2}
   pilotIds: []
   link:
   - pilotCardId: 0

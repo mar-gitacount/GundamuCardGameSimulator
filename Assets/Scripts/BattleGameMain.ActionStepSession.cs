@@ -169,6 +169,11 @@ public partial class BattleGameMain
 
         Debug.Log($"[ActionStep] Session complete id:{_actionStepSession.SessionId}");
         bool wasTurnEndActionStep = !_actionStepSession.IsAttackContext;
+        if (wasTurnEndActionStep)
+        {
+            FlushPendingPostCombatRecovers();
+        }
+
         System.Action complete = _actionStepSession.OnComplete;
         _actionStepSession = null;
         _onlineOnActionActiveContext = null;

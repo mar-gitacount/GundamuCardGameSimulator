@@ -18,9 +18,15 @@ public partial class BattleGameMain
     /// <summary>
     /// 攻撃アクション中の RecoverHp はダメージステップ後まで遅延する。
     /// （満タン時に先に回復すると 0 になり、ダメージ後に効いていないように見える）
+    /// 配備ベースはユニット交換に参加しないため遅延しない。
     /// </summary>
-    private bool ShouldDeferRecoverHpUntilAfterCombatDamage()
+    private bool ShouldDeferRecoverHpUntilAfterCombatDamage(IReadOnlyList<CardController> targets)
     {
+        if (AreAllRecoverHpTargetsDeployedBases(targets))
+        {
+            return false;
+        }
+
         if (_actionStepSession != null && _actionStepSession.IsAttackContext)
         {
             return true;
@@ -28,6 +34,65 @@ public partial class BattleGameMain
 
         return attackFlowAttackerUnit != null
             || attackFlowStrikeKind != AttackFlowStrikeKind.None;
+    }
+
+    private static bool AreAllRecoverHpTargetsDeployedBases(IReadOnlyList<CardController> targets)
+    {
+        if (targets == null || targets.Count == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            CardController unit = targets[i];
+            if (unit == null || unit.Data == null || unit.Data.type != Type.Base)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>選択 UI のプレビュークローンではなく、場の配備ベース本体へ解決する。</summary>
+    private CardController ResolveRecoverHpLiveTarget(CardController unit)
+    {
+        if (unit == null || unit.Data == null)
+        {
+            return unit;
+        }
+
+        if (unit.Data.type == Type.Base)
+        {
+            if (IsCardInBaseSlot(unit) && unit.CurrentHp > 0)
+            {
+                return unit;
+            }
+
+            PlayerType owner = ResolveDeployedBaseOwner(unit);
+            CardController deployed = GetDeployedBaseForRuleSide(ToRuleSide(owner));
+            if (deployed != null && deployed.Data != null && deployed.Data.id == unit.Data.id)
+            {
+                return deployed;
+            }
+
+            CardController playerBase = GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Player);
+            if (playerBase != null && playerBase.Data != null && playerBase.Data.id == unit.Data.id)
+            {
+                return playerBase;
+            }
+
+            CardController enemyBase = GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Enemy);
+            if (enemyBase != null && enemyBase.Data != null && enemyBase.Data.id == unit.Data.id)
+            {
+                return enemyBase;
+            }
+
+            return unit;
+        }
+
+        return ResolveLiveBattleZoneUnit(unit);
     }
 
     private void QueuePostCombatRecover(IReadOnlyList<CardController> targets, int amount)
@@ -102,7 +167,7 @@ public partial class BattleGameMain
         int amount,
         CardController sourceCard = null)
     {
-        if (ShouldDeferRecoverHpUntilAfterCombatDamage() && !IsKouUrakiCard(sourceCard))
+        if (ShouldDeferRecoverHpUntilAfterCombatDamage(targets) && !IsKouUrakiCard(sourceCard))
         {
             QueuePostCombatRecover(targets, amount);
             return;
@@ -121,7 +186,7 @@ public partial class BattleGameMain
         List<CardController> healedUnits = new List<CardController>();
         for (int i = 0; i < targets.Count; i++)
         {
-            CardController unit = targets[i];
+            CardController unit = ResolveRecoverHpLiveTarget(targets[i]);
             if (unit == null || !unit.IsRepairEligibleUnit())
             {
                 continue;
@@ -129,6 +194,17 @@ public partial class BattleGameMain
 
             int before = unit.CurrentHp;
             int healed = unit.TryApplyRepair(amount);
+            if (unit.Data != null && unit.Data.type == Type.Base)
+            {
+                RefreshDeployedBaseHpOverlay(unit);
+                if (healed > 0)
+                {
+                    PlayerType baseOwner = ResolveDeployedBaseOwner(unit);
+                    MarkPendingDefenderDeployedBaseHpForOnlineSync(unit.CurrentHp);
+                    SyncBaseZoneHeaderDisplay(ToRuleSide(baseOwner));
+                }
+            }
+
             if (healed <= 0)
             {
                 continue;

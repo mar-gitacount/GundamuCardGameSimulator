@@ -117,6 +117,32 @@
             ]
         },
         {
+            "effectSetName": "OnBaseDeployed_OptionalDiscard1Red_ThenDraw1",
+            "displayName": "自分のターンなら手札の赤1枚を捨ててもよい。そうしたなら1枚ドロー",
+            "effects": [
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "filterTargetUnitColor": true,
+                    "filterTargetUnitColorValue": 0,
+                    "abortRemainingChainOnSkip": true,
+                    "forbidSkipHandDiscard": false
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                }
+            ]
+        },
+        {
             "effectSetName": "AddShield1_OnBaseDeployed",
             "displayName": "ベース配備：シールド1枚を手札に",
             "effects": [
@@ -1289,6 +1315,83 @@
             ]
         },
         {
+            "effectSetName": "OnAttack_RestActiveAllyBase_ThenDebuffEnemyLv4OrLessAp2_UntilEndOfBattle",
+            "displayName": "アタック時：アクティブの味方ベースをREST。そうしたならLv.4以下の敵1体をこのバトル中AP-2",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 3,
+                    "requireTargetIsNotRest": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnMain_RestActiveAllyBase_ActivateSelf_NotDirectAttack",
+            "displayName": "起動・メイン：アクティブの味方ベース1枚をREST→自身をACTIVE化＋ターン中相手プレイヤーへアタック不可",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 3,
+                    "requireTargetIsNotRest": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 25,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                },
+                {
+                    "type": 26,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAp2_Self_WhileOwnerHasWhiteBase",
+            "displayName": "味方の白ベースが場にある間、このユニットはAP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                }
+            ]
+        },
+        {
             "effectSetName": "OnMain_DestroyOtherAlly_ActivateSelf_NotDirectAttack",
             "displayName": "起動・メイン：自身以外の味方1体を破壊→自身をACTIVE化＋ターン中相手プレイヤーへアタック不可",
             "effects": [
@@ -1816,6 +1919,57 @@
                     "targetUnitStatCompareValue": 4,
                     "relaxTargetUnitStatFilterWhenTrashHasSourceCopies": true,
                     "trashRelaxFilterMinCopies": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnPilotMounted_OptionalDiscard1_ThenLookTop3",
+            "displayName": "【セット時】手札1枚を捨ててもよい。そうしたなら山札上3枚を見る",
+            "effects": [
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "abortRemainingChainOnSkip": true,
+                    "forbidSkipHandDiscard": false
+                },
+                {
+                    "type": 13,
+                    "value": 3,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLook_AddVultureUnit1_Reveal_Optional_ThenShuffleRemainderBottom",
+            "displayName": "OnLook：〔バルチャー〕ユニット1枚を公開して手札へ加えてもよい→残りを無作為に下へ",
+            "effects": [
+                {
+                    "type": 14,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetFeatureId": 66,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "revealDiscardedToOpponent": true,
+                    "optionalPlayerConfirm": true
+                },
+                {
+                    "type": 16,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
                 }
             ]
         },
@@ -2787,6 +2941,20 @@
             ]
         },
         {
+            "effectSetName": "GrantSuppress2_Self_UntilEOT",
+            "displayName": "このユニットは《制圧》を得る（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 5,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1
+                }
+            ]
+        },
+        {
             "effectSetName": "GrantSuppress2_Self_UntilEOT_OnSpecialMoveCommand",
             "displayName": "必殺技コマンド発動時：このユニットに制圧2（ターン終了まで）",
             "effects": [
@@ -3199,6 +3367,56 @@
             ]
         },
         {
+            "effectSetName": "OnPlayed_Damage2_EnemyTokenUnit1",
+            "displayName": "【配備時】相手のユニットトークン1つに2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 10,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnPlayed_DeployDaughtressToken1_Rested_IfOwnerHasOtherNewUne",
+            "displayName": "【配備時】他の〔新連邦〕味方がいるなら「ドートレス」トークン1体をレストで配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001012,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnDestroyed_DeployDaughtressToken1_Rested_IfOwnerHasOtherNewUne",
+            "displayName": "【破壊時】他の〔新連邦〕味方がいるなら「ドートレス」トークン1体をレストで配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001012,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
             "effectSetName": "DeployZeongHeadToken1_Rested_OnDestroyed",
             "displayName": "【破壊時】ジオング(ヘッド)・ユニットトークン1体をレストで配備",
             "effects": [
@@ -3381,6 +3599,21 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAllyHighMobility1_UntilEndOfTurn_NewUne",
+            "displayName": "【配備時】〔新連邦〕の自分のユニット1つを選び、《高機動》を得る（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 11,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "targetFeatureId": 52
                 }
             ]
         },
@@ -4022,6 +4255,21 @@
             ]
         },
         {
+            "effectSetName": "OnPlayed_GrantAllyOtherNewUneBattleDmgImmunity_FromEnemyHp2OrLess_UntilEOT",
+            "displayName": "【配備時】他の〔新連邦〕味方1体を選ぶ。このターン中、HP2以下の相手ユニットからバトルダメージを受けない",
+            "effects": [
+                {
+                    "type": 52,
+                    "value": 2,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "statTarget": 1,
+                    "duration": 1,
+                    "targetFeatureId": 52
+                }
+            ]
+        },
+        {
             "effectSetName": "Support2_RestSelf_BuffAllyOtherAp2_OnMain",
             "displayName": "起動・メイン：《サポート2》（自身REST→他の味方1体AP+2・ターン終了まで）",
             "effects": [
@@ -4291,6 +4539,35 @@
                     "targetUnitFilterStat": 3,
                     "targetUnitStatCompareOp": 3,
                     "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "SelfEnemyCommandEffectDamageImmunity_OwnerTurn_Trash7",
+            "displayName": "自分ターン中、トラッシュ7枚以上なら相手コマンドの効果ダメージを受けない",
+            "effects": [
+                {
+                    "type": 63,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "requireDamageSourceIsCommand": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": -1,
+                            "turnCheck": 0
+                        },
+                        {
+                            "boardSide": 4,
+                            "checkKind": 50,
+                            "turnCheck": -1,
+                            "unitCountCompareOp": 0,
+                            "unitCountThreshold": 7
+                        }
+                    ]
                 }
             ]
         },
@@ -4684,6 +4961,39 @@
                             "effectsName": "TwoUnicorns_Damage2AllyAndEnemyLv5Plus"
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnMain_RestSelf_DestroySelf_Damage1EnemyLv5OrLess",
+            "displayName": "【起動・メイン】このユニットをレストにする：これを破壊し、Lv.5以下の相手ユニット1つに1ダメージ",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
+                },
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                },
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
                 }
             ]
         },
@@ -5332,6 +5642,22 @@
             ]
         },
         {
+            "effectSetName": "OnAction_RecoverHp2_AllyAeugUnitOrBase_SelectSingle",
+            "displayName": "アクション：〔エゥーゴ〕の自分のユニット1つ／ベース1つを2回復",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetFeatureId": 41,
+                    "allowFriendlyDeployedBaseTarget": true
+                }
+            ]
+        },
+        {
             "effectSetName": "RecoverHp2_AllyUnit_SelectSingle",
             "displayName": "自分のユニット1つを選び、2回復する",
             "effects": [
@@ -5348,6 +5674,29 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "RecoverHp2_DamagedAllyUnit_SelectSingle_ThenDraw1",
+            "displayName": "ダメージを受けている味方ユニット1つを2回復し、1枚ドローする",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "requireTargetDamaged": true
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0
                 }
             ]
         },
@@ -5696,6 +6045,20 @@
                     "deployUnitSource": 0,
                     "deployCardId": 1000808,
                     "filterByDeployCardId": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp3_UntilEndOfBattle_SelectSingle",
+            "displayName": "敵ユニット1体を選び、このバトル中 AP-3",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2
                 }
             ]
         },
@@ -6108,6 +6471,21 @@
                     "statTarget": 0,
                     "duration": 0,
                     "targetFeatureId": 41
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyOtherVultureAp2_WhileLinked_OwnerTurn_Trash7",
+            "displayName": "【リンク中】自分ターンかつトラッシュ7枚以上、他の味方〔バルチャー〕ユニットすべてをAP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 8,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetFeatureId": 66
                 }
             ]
         },
@@ -7187,6 +7565,21 @@
             ]
         },
         {
+            "effectSetName": "OnMain_Damage1_AllUnlinkedEnemyUnits",
+            "displayName": "【メイン】リンクユニット以外の相手ユニットすべてに1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "requireTargetIsNotLinked": true
+                }
+            ]
+        },
+        {
             "effectSetName": "Damage1_EnemyUnit_SelectSingle",
             "displayName": "敵ユニット1体に1ダメージ",
             "effects": [
@@ -7719,5 +8112,385 @@
                 }
             ]
         }
+        ,
+        {
+            "effectSetName": "OnLook_OptionalDeployClanUnitLv4OrLess_ThenShuffleRemainderBottom",
+            "displayName": "OnLook：見た中のLv.4以下〔クラン〕ユニット1枚を配備してもよい→残りを山札下へ",
+            "effects": [
+                {
+                    "type": 51,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "targetFeatureId": 7,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4,
+                    "optionalPlayerConfirm": true
+                },
+                {
+                    "type": 16,
+                    "value": 0,
+                    "target": 5,
+                    "selectionMode": -1
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAttackActiveEnemy_AllyClan_EnemyLv4OrLess_UntilEOT",
+            "displayName": "〔クラン〕味方1体に、Lv.4以下のACTIVE敵ユニットへの攻撃許可（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "targetFeatureId": 7,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAttackActiveEnemy_AllyVulture_EnemyLv4OrLess_UntilEOT",
+            "displayName": "〔バルチャー〕味方1体に、Lv.4以下のACTIVE敵ユニットへの攻撃許可（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "targetFeatureId": 66,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenRecoverHp2_AllyUnit_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ→味方ユニット1つを2回復",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenDamage1_RestedEnemyLv4OrLess_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ→レストのLv.4以下敵1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 7,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenGrantAttackActive_AllyToken_EnemyAp5OrLess_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ→味方トークンにAP5以下ACTIVE敵への攻撃許可",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 12,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 5,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenDebuffEnemyAp2_IfGjallarhorn_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ。〔ギャラルホルン〕味方がいるなら敵1体AP-2（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "duration": 1,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": 0,
+                            "checkKind": 0,
+                            "featureId": 43,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenDestroyEnemyAp2OrLess_IfTeiwazLink_OnBaseDeployed",
+            "displayName": "ベース配備：シールド1枚を手札へ。〔テイワズ〕リンクがいればAP2以下の敵1体を破壊",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 0
+                },
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": 0,
+                            "checkKind": 27,
+                            "featureId": 27,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_EnemyLv4OrLess_SelectSingle",
+            "displayName": "Lv.4以下の敵ユニット1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddFromTrashToHand_VultureUnit_Lv5OrMore",
+            "displayName": "トラッシュのLv.5以上〔バルチャー〕ユニット1枚を手札へ",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "targetFeatureId": 66,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 0,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp2_UntilEOT_IfWhiteBase_OnPlayed",
+            "displayName": "【配備時】白い味方が配備ベースなら、敵1体AP-2（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "ActivateAllyGjallarhorn_SelectSingle",
+            "displayName": "〔ギャラルホルン〕味方1体をアクティブにする",
+            "effects": [
+                {
+                    "type": 25,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "targetFeatureId": 43
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnPilotMounted_DebuffEnemyAp2_UntilEOT_IfTrashGjallarhorn4",
+            "displayName": "【セット時】トラッシュに〔ギャラルホルン〕が4枚以上なら、敵1体AP-2（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantFirstStrikeToBattlingEnemy_DuringOpponentTurn",
+            "displayName": "相手のターン中、このユニットとバトルしている相手ユニットは《先制攻撃》を得る",
+            "effects": [
+                {
+                    "type": 82,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "duration": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnPlayed_MountAeugPilotFromHand_IfWhiteBase_Optional",
+            "displayName": "配備時：白の味方ベースがあるなら、手札の〔エゥーゴ〕パイロット1枚をこのユニットにセットしてもよい",
+            "effects": [
+                {
+                    "type": 81,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 1,
+                    "targetFeatureId": 41
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantShieldAreaImmunity_FromEnemyUnitLv3OrLess_UntilEndOfBattle",
+            "displayName": "このバトル中：シールドエリアは相手Lv.3以下ユニットからダメージを受けない",
+            "effects": [
+                {
+                    "type": 78,
+                    "value": 3,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 3,
+                    "duration": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "OwnerTurn_BuffGreenEarthFederationAlliesAp1",
+            "displayName": "自分のターン中：緑の〔地球連邦〕味方ユニットすべて AP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 3,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "filterTargetUnitColor": true,
+                    "filterTargetUnitColorValue": 1,
+                    "targetFeatureId": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "LookTop3_ThenDraw1_IfOwnerHasNewtypePilot",
+            "displayName": "【メイン】山札上3枚を見る。その後〔ニュータイプ〕パイロットがいれば1枚ドロー",
+            "effects": [
+                {
+                    "type": 13,
+                    "value": 3,
+                    "target": 5,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 64,
+                            "turnCheck": -1,
+                            "featureId": 19,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_AllyUnit_CannotCancel_ThenDraw1_ThenDiscard1_OnPlayed",
+            "displayName": "配備時：味方ユニット1つに1ダメージ（キャンセル不可）。そうしたなら1ドロー。その後手札1枚捨て",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "cannotCancelDamage": true,
+                    "forbidSkipUnitPick": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5
+                },
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "forbidSkipHandDiscard": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnAction_GrantAllyTokenBattleDmgImmunityFromEnemyUnits_UntilEndOfBattle",
+            "displayName": "【アクション】味方ユニットトークン1つ：このバトル中、相手ユニットからバトルダメージを受けない",
+            "effects": [
+                {
+                    "type": 52,
+                    "value": -1,
+                    "target": 9,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 2
+                }
+            ]
+        }
+
     ]
 }

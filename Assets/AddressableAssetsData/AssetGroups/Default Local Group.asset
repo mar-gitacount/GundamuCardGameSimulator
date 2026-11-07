@@ -3097,6 +3097,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a012d047d00000000000000000000013
+    m_Address: Data/Images/T-012_Daughtress
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a0136d06000000000000000000000083
     m_Address: Data/Images/GD06-013_Zaku II F2 (EFSF)
     m_ReadOnly: 0

@@ -48,6 +48,9 @@ public class CardController : MonoBehaviour,IPointerClickHandler
     /// <summary>ユニットの現在 HP（配備・ドロー時に Data.hp で初期化）。</summary>
     public int CurrentHp { get; private set; }
 
+    /// <summary>配備時の印刷 HP。共有 CardData.hp が後から変わっても回復上限を保つ。</summary>
+    private int _runtimePrintedHp;
+
     /// <summary>バトル中のユニット識別子（オンライン同期用）。0 は未割当。</summary>
     public int BattleInstanceId { get; private set; }
     public int CurrentPower
@@ -672,7 +675,14 @@ public class CardController : MonoBehaviour,IPointerClickHandler
 
     private void RaiseGrantedMaxEnemyApImmunity(EffectData effect, bool untilEndOfBattle)
     {
-        if (effect != null && effect.statTarget == EffectStatTarget.Level)
+        if (effect != null
+            && (effect.statTarget == EffectStatTarget.Level
+                || effect.statTarget == EffectStatTarget.HP))
+        {
+            return;
+        }
+
+        if (effect != null && effect.GrantsBattleDamageImmunityFromAnyEnemyUnit())
         {
             return;
         }
@@ -1086,7 +1096,8 @@ public class CardController : MonoBehaviour,IPointerClickHandler
             return CurrentHp;
         }
 
-        int cap = Data.hp + SumModifierValues(hpModifiers);
+        int printed = _runtimePrintedHp > 0 ? _runtimePrintedHp : Mathf.Max(0, Data.hp);
+        int cap = printed + SumModifierValues(hpModifiers);
         if (MountedPilot?.Data != null)
         {
             cap += MountedPilot.Data.hp;
@@ -1106,11 +1117,13 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         int cap = GetRepairHpCap();
         if (CurrentHp >= cap)
         {
+            RefreshBattleStatOverlay(force: true);
             return 0;
         }
 
         int before = CurrentHp;
         CurrentHp = Mathf.Min(cap, CurrentHp + amount);
+        RefreshBattleStatOverlay(force: true);
         return CurrentHp - before;
     }
 
@@ -1120,10 +1133,12 @@ public class CardController : MonoBehaviour,IPointerClickHandler
         if (Data == null)
         {
             CurrentHp = 0;
+            _runtimePrintedHp = 0;
             return;
         }
 
-        CurrentHp = Mathf.Max(0, Data.hp);
+        _runtimePrintedHp = Mathf.Max(0, Data.hp);
+        CurrentHp = _runtimePrintedHp;
         pilotPowerBonus = 0;
         powerModifiers.Clear();
         hpModifiers.Clear();

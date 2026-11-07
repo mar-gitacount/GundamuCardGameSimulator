@@ -1682,6 +1682,15 @@ public partial class BattleGameMain
 
             if (bottomIds.Count > 0)
             {
+                // 公式「無作為に下に戻す」（GD02-104）。順序指定のない ST02-015 も同様に無作為。
+                for (int i = bottomIds.Count - 1; i > 0; i--)
+                {
+                    int j = UnityEngine.Random.Range(0, i + 1);
+                    int tmp = bottomIds[i];
+                    bottomIds[i] = bottomIds[j];
+                    bottomIds[j] = tmp;
+                }
+
                 context.DeckRule.AppendCardsToBottom(bottomIds);
             }
         });

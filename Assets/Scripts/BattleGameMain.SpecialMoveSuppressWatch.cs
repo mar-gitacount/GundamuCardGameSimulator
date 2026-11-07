@@ -92,7 +92,9 @@ public partial class BattleGameMain
                 continue;
             }
 
-            if (!IsCardOnBattleZone(unit))
+            if (!IsCardOnBattleZone(unit)
+                && !ReferenceEquals(unit, _pilotMountEffectHostUnit)
+                && !ReferenceEquals(unit, ResolveEffectSourceBattleHost(sourceCard)))
             {
                 continue;
             }

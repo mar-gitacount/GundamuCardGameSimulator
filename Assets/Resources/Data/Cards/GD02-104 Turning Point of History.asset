@@ -38,7 +38,15 @@ MonoBehaviour:
   - timing: 12
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: LookTop3_SelfDeck
+    effectsName: LookTop3_ThenDraw1_IfOwnerHasNewtypePilot
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
+  - timing: 17
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: ChooseLooked1ToDeckTop_RemainderToBottom
     effects: []
     activationCost: 0
     oncePerTurn: 0
@@ -54,7 +62,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

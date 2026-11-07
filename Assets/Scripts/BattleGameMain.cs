@@ -926,6 +926,7 @@ public partial class BattleGameMain : MonoBehaviour
 
     private void OnDestroy()
     {
+        UnregisterTrashFieldPassiveWatchers();
         if (gundamRule != null)
         {
             gundamRule.OnShieldDamaged -= OnGundamShieldDamaged;
@@ -1060,6 +1061,7 @@ public partial class BattleGameMain : MonoBehaviour
             OpenDiscardZoneInspectionPanel(enemyCardGameRule);
         });
         RegisterOnlineZoneSyncObservers();
+        RegisterTrashFieldPassiveWatchers();
 
         if (!IsTestPlayBattle())
         {
@@ -4780,12 +4782,19 @@ public partial class BattleGameMain : MonoBehaviour
 
         CardController detachedPilot = null;
         bool destroyedUnitWasLinked = false;
+        CardData destroyedUnitMountedPilotData = null;
         if (cardController.Data.IsUnitLike() && cardController.MountedPilot != null)
         {
-            // パイロット切り離し前にリンク状態を確定（OnEnemyUnitDestroyed 条件用）
+            // パイロット切り離し前にリンク状態と搭乗パイロットを確定（OnEnemyUnitDestroyed 条件用）
             destroyedUnitWasLinked = UnitLinkExtensions.HasValidLinkPilot(
                 cardController.Data,
                 cardController.MountedPilot);
+            destroyedUnitMountedPilotData = cardController.MountedPilot.Data;
+            if (destroyedUnitMountedPilotData != null)
+            {
+                destroyedUnitMountedPilotData.EnsureFeaturesResolved();
+            }
+
             detachedPilot = cardController.DetachMountedPilotWithoutDestroy();
             _onDestroyedPendingDetachedPilot = detachedPilot;
         }
@@ -4808,20 +4817,10 @@ public partial class BattleGameMain : MonoBehaviour
 
         void ContinueAfterOwnerOnDestroyed()
         {
-            // 破壊時効果解決後に搭乗パイロットを墓地へ（OnDestroyed は再実行しない）
-            if (detachedPilot != null)
+            if (destroyedUnitMountedPilotData == null && detachedPilot != null && detachedPilot.Data != null)
             {
-                if (IsCardInOwnerHand(detachedPilot, ownerType))
-                {
-                    _onDestroyedPendingDetachedPilot = null;
-                }
-                else
-                {
-                    FinishSendCardToTrash(detachedPilot, ownerType);
-                    _onDestroyedPendingDetachedPilot = null;
-                }
-
-                detachedPilot = null;
+                destroyedUnitMountedPilotData = detachedPilot.Data;
+                destroyedUnitMountedPilotData.EnsureFeaturesResolved();
             }
 
             TriggerOnEnemyUnitDestroyedEffects(
@@ -4831,8 +4830,25 @@ public partial class BattleGameMain : MonoBehaviour
                 destroyedByBattleDamage,
                 destroyedByEffectDamage,
                 destroyedUnitWasLinked,
+                destroyedUnitMountedPilotData,
                 () =>
             {
+                // 撃破時ドロー判定のあとで搭乗パイロットを墓地へ（OnDestroyed は再実行しない）
+                if (detachedPilot != null)
+                {
+                    if (IsCardInOwnerHand(detachedPilot, ownerType))
+                    {
+                        _onDestroyedPendingDetachedPilot = null;
+                    }
+                    else
+                    {
+                        FinishSendCardToTrash(detachedPilot, ownerType);
+                        _onDestroyedPendingDetachedPilot = null;
+                    }
+
+                    detachedPilot = null;
+                }
+
                 TriggerWhileAttackingEffectDamageDestroyWatch(
                     cardController,
                     ownerType,
@@ -7950,7 +7966,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         int magnitude = ResolveEffectMagnitude(effect, attackerOwner, magnitudeSource);
-        int damage = ResolveEffectDamageAmount(magnitude, target, attackerOwner);
+        int damage = ResolveEffectDamageAmount(magnitude, target, attackerOwner, magnitudeSource, effect);
         if (damage > 0)
         {
             damage += ResolveAllyFeatureOutgoingDamageBonus(attackerOwner, magnitudeSource, target);
@@ -8465,7 +8481,7 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 case EffectType.Damage:
                 {
-                    int damageAmount = ResolveEffectDamageAmount(magnitude, t, ownerType);
+                    int damageAmount = ResolveEffectDamageAmount(magnitude, t, ownerType, sourceCard, effect);
                     if (damageAmount > 0)
                     {
                         damageAmount += ResolveAllyFeatureOutgoingDamageBonus(ownerType, sourceCard, t);
@@ -13449,6 +13465,7 @@ public partial class BattleGameMain : MonoBehaviour
         bool destroyedByBattleDamage,
         bool destroyedByEffectDamage,
         bool destroyedUnitWasLinked,
+        CardData destroyedUnitMountedPilotData,
         System.Action onComplete)
     {
         if (!TryResolveEnemyUnitKillContext(destroyedUnit, destroyedOwner, destroyedBy, out CardController killer, out PlayerType killerOwner))
@@ -13468,6 +13485,7 @@ public partial class BattleGameMain : MonoBehaviour
                 destroyedByBattleDamage,
                 destroyedByEffectDamage,
                 destroyedUnitWasLinked,
+                destroyedUnitMountedPilotData,
                 onComplete)))
         {
             return;
@@ -13522,7 +13540,8 @@ public partial class BattleGameMain : MonoBehaviour
             destroyedByEffectDamage: destroyedByEffectDamage,
             sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(killer, allowDestroyedDefender: true),
             destroyedUnitWasLinked: destroyedUnitWasLinked,
-            sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(killer));
+            sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(killer),
+            destroyedUnitMountedPilotData: destroyedUnitMountedPilotData);
         List<TimedEffectData> unitBlocks = new List<TimedEffectData>();
         List<TimedEffectData> pilotBlocks = new List<TimedEffectData>();
         AppendOnEnemyUnitDestroyedBlocks(killer, activationContext, unitBlocks);
@@ -13891,7 +13910,20 @@ public partial class BattleGameMain : MonoBehaviour
                 sourceCard,
                 ownerType,
                 effect,
-                () => TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone));
+                succeeded =>
+                {
+                    // 「そうしたなら」：捨て札スキップ時は Look 等の後続を打ち切る（GD02-094 等）
+                    if (!succeeded && effect.abortRemainingChainOnSkip)
+                    {
+                        Debug.Log(
+                            "[OnPlayed] DiscardFromHand 未完了のため後続を打ち切り "
+                            + $"(cardId:{sourceCard?.Data?.id})");
+                        onDone?.Invoke();
+                        return;
+                    }
+
+                    TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+                });
             return;
         }
 
@@ -15948,7 +15980,7 @@ public partial class BattleGameMain : MonoBehaviour
                 for (int i = 0; i < targets.Count; i++)
                 {
                     CardController targetUnit = targets[i];
-                    int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit, ownerType);
+                    int damageAmount = ResolveEffectDamageAmount(magnitude, targetUnit, ownerType, sourceCard, effect);
                     int hpBefore = targetUnit.CurrentHp;
                     bool isCloseCombat = IsCloseCombatCard(sourceCard);
                     Debug.Log(
@@ -16406,9 +16438,12 @@ public partial class BattleGameMain : MonoBehaviour
     private int ResolveEffectDamageAmount(
         int baseMagnitude,
         CardController effectDamageTarget = null,
-        PlayerType? effectSourceOwner = null)
+        PlayerType? effectSourceOwner = null,
+        CardController effectSourceCard = null,
+        EffectData effect = null)
     {
-        if (effectDamageTarget != null && effectDamageTarget.HasEffectDamageImmunity)
+        bool cannotCancel = effect != null && effect.cannotCancelDamage;
+        if (!cannotCancel && effectDamageTarget != null && effectDamageTarget.HasEffectDamageImmunity)
         {
             return 0;
         }
@@ -16424,6 +16459,11 @@ public partial class BattleGameMain : MonoBehaviour
             return amount;
         }
 
+        if (cannotCancel)
+        {
+            return amount;
+        }
+
         if (ShouldIgnoreEnemyEffectDamageByDeployedBase(
                 effectDamageTarget,
                 effectSourceOwner.Value,
@@ -16434,7 +16474,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         if (ShouldIgnoreEnemyEffectDamageByAllyProtector(
                 effectDamageTarget,
-                effectSourceOwner.Value))
+                effectSourceOwner.Value,
+                effectSourceCard))
         {
             return 0;
         }
@@ -16485,7 +16526,8 @@ public partial class BattleGameMain : MonoBehaviour
     /// </summary>
     private bool ShouldIgnoreEnemyEffectDamageByAllyProtector(
         CardController effectDamageTarget,
-        PlayerType effectSourceOwner)
+        PlayerType effectSourceOwner,
+        CardController effectSourceCard = null)
     {
         if (effectDamageTarget == null || effectDamageTarget.Data == null || !effectDamageTarget.Data.IsUnitLike())
         {
@@ -16507,21 +16549,27 @@ public partial class BattleGameMain : MonoBehaviour
             allies,
             targetOwner,
             effectSourceOwner,
-            isTargetOwnerTurn);
+            isTargetOwnerTurn,
+            cardGameRule != null ? cardGameRule.GetTrashCardIds() : null,
+            enemyCardGameRule != null ? enemyCardGameRule.GetTrashCardIds() : null,
+            effectSourceCard);
     }
 
     private int ResolveEffectDamageAmountForVirtualPlayerLog(
         int baseMagnitude,
         List<VirtualPlayerUnitSnap> workingPlayerOverrides,
         CardController effectDamageTarget = null,
-        PlayerType? effectSourceOwner = null)
+        PlayerType? effectSourceOwner = null,
+        EffectData effect = null)
     {
+        bool cannotCancel = effect != null && effect.cannotCancelDamage;
         if (effectDamageTarget != null)
         {
             VirtualPlayerUnitSnap snap = workingPlayerOverrides != null
                 ? FindPlayerVirtualSnap(workingPlayerOverrides, effectDamageTarget)
                 : null;
-            if (snap != null ? snap.EffectDamageImmunityCount > 0 : effectDamageTarget.HasEffectDamageImmunity)
+            if (!cannotCancel
+                && (snap != null ? snap.EffectDamageImmunityCount > 0 : effectDamageTarget.HasEffectDamageImmunity))
             {
                 return 0;
             }
@@ -16530,7 +16578,8 @@ public partial class BattleGameMain : MonoBehaviour
             PlayerType? targetOwner = ResolveBattleZoneUnitOwner(effectDamageTarget);
             int modifier = ResolveEffectiveEffectDamageModifier(rawModifier, targetOwner, effectSourceOwner);
             int amount = Mathf.Max(0, baseMagnitude + modifier);
-            if (amount > 0
+            if (!cannotCancel
+                && amount > 0
                 && effectSourceOwner.HasValue
                 && (ShouldIgnoreEnemyEffectDamageByDeployedBase(
                         effectDamageTarget,
@@ -16538,7 +16587,8 @@ public partial class BattleGameMain : MonoBehaviour
                         amount)
                     || ShouldIgnoreEnemyEffectDamageByAllyProtector(
                         effectDamageTarget,
-                        effectSourceOwner.Value)))
+                        effectSourceOwner.Value,
+                        null)))
             {
                 return 0;
             }
@@ -18471,7 +18521,8 @@ public partial class BattleGameMain : MonoBehaviour
                                 magnitude,
                                 working,
                                 dmgTarget,
-                                commandOwner);
+                                commandOwner,
+                                effect);
                             snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                         }
                     }
@@ -18659,7 +18710,8 @@ public partial class BattleGameMain : MonoBehaviour
                                 magnitude,
                                 working,
                                 focusUnit,
-                                commandOwner);
+                                commandOwner,
+                                effect);
                             snap.Hp = Mathf.Max(0, snap.Hp - damageAmount);
                         }
                     }

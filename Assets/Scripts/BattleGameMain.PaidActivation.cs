@@ -956,6 +956,15 @@ public partial class BattleGameMain
             return false;
         }
 
+        // 手札からの【メイン】はコマンド／コマンドパイロットのみ。
+        // ユニット・ベースの【起動・メイン】（ガザC 等）は場からのみ起動する。
+        if (IsOnMainActivatedFromHand(source, side)
+            && source.Data != null
+            && !source.Data.IsCommand())
+        {
+            return false;
+        }
+
         // 手札コマンドはタイミング・レベル・支払い可否でプレイ可能。
         // 対象不足は解決時に処理し、場の起動効果だけ候補を事前確認する。
         if (!IsOnMainActivatedFromHand(source, side)

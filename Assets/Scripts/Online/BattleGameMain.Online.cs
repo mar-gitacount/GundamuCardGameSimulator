@@ -149,6 +149,11 @@ public partial class BattleGameMain
             return PlayerType.Player;
         }
 
+        if (unit.Data != null && unit.Data.type == Type.Base)
+        {
+            return ResolveDeployedBaseOwner(unit);
+        }
+
         if (playerBattleZoneCards != null && playerBattleZoneCards.Contains(unit))
         {
             return PlayerType.Player;
@@ -211,6 +216,24 @@ public partial class BattleGameMain
                     + FormatOnlineEffectSyncChange(change));
                 return byInstanceEither;
             }
+
+            CardController byBaseInstance = FindDeployedBaseForEffectSync(change);
+            if (byBaseInstance != null)
+            {
+                Debug.Log(
+                    $"[EffectSync][FindByDeployedBase][OK] unit={FormatOnlineEffectSyncUnit(byBaseInstance)} "
+                    + FormatOnlineEffectSyncChange(change));
+                return byBaseInstance;
+            }
+        }
+
+        CardController deployedBase = FindDeployedBaseForEffectSync(change);
+        if (deployedBase != null)
+        {
+            Debug.Log(
+                $"[EffectSync][FindByDeployedBase][OK] unit={FormatOnlineEffectSyncUnit(deployedBase)} "
+                + FormatOnlineEffectSyncChange(change));
+            return deployedBase;
         }
 
         return FindEffectSyncTargetUnitBySlot(change, hasZoneOwner);
@@ -248,6 +271,60 @@ public partial class BattleGameMain
 
         return $"{unit.Data.cardName}(cardId:{unit.Data.id} inst:{unit.BattleInstanceId} "
             + $"HP:{unit.CurrentHp} AP:{unit.CurrentPower} {(unit.IsRestState ? "REST" : "ACTIVE")})";
+    }
+
+    private CardController FindDeployedBaseForEffectSync(OnlineBattleUnitEffectChange change)
+    {
+        if (change == null)
+        {
+            return null;
+        }
+
+        bool TryMatch(CardController baseCard)
+        {
+            if (baseCard == null || baseCard.Data == null || baseCard.Data.type != Type.Base)
+            {
+                return false;
+            }
+
+            if (change.targetCardId > 0 && baseCard.Data.id != change.targetCardId)
+            {
+                return false;
+            }
+
+            if (change.targetInstanceId > 0 && baseCard.BattleInstanceId > 0
+                && baseCard.BattleInstanceId != change.targetInstanceId)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (change.targetZoneOwnerSide == (int)PlayerType.Player
+            || change.targetZoneOwnerSide == (int)PlayerType.Enemy)
+        {
+            PlayerType localZone = MirrorOnlineZoneOwner((PlayerType)change.targetZoneOwnerSide);
+            CardController sided = GetDeployedBaseForRuleSide(ToRuleSide(localZone));
+            if (TryMatch(sided))
+            {
+                return sided;
+            }
+        }
+
+        CardController playerBase = GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Player);
+        if (TryMatch(playerBase))
+        {
+            return playerBase;
+        }
+
+        CardController enemyBase = GetDeployedBaseForRuleSide(Gundam2024RuleScript.PlayerSide.Enemy);
+        if (TryMatch(enemyBase))
+        {
+            return enemyBase;
+        }
+
+        return null;
     }
 
     private CardController FindEffectSyncTargetUnitBySlot(OnlineBattleUnitEffectChange change, bool hasZoneOwner)
@@ -426,7 +503,9 @@ public partial class BattleGameMain
 
     private void AssignBattleInstanceIdIfNeeded(CardController controller)
     {
-        if (controller == null || controller.Data == null || !controller.Data.IsUnitLike())
+        if (controller == null
+            || controller.Data == null
+            || (!controller.Data.IsUnitLike() && controller.Data.type != Type.Base))
         {
             return;
         }
@@ -3250,6 +3329,11 @@ public partial class BattleGameMain
                     // 二重送信の温床になっている？
                     int beforeHp = unit.CurrentHp;
                     unit.SetCurrentHpForSync(change.hpAfter);
+                    if (unit.Data != null && unit.Data.type == Type.Base)
+                    {
+                        RefreshDeployedBaseHpOverlay(unit);
+                    }
+
                     Debug.Log(
                         $"ターンプレイヤー:" + currentPlayerType + "[EffectSync][ApplyRepair] #{i} {FormatOnlineEffectSyncUnit(unit)} "
                         + $"HP:{beforeHp}->{unit.CurrentHp}");
@@ -3259,7 +3343,10 @@ public partial class BattleGameMain
                 {
                     EffectStatTarget statTarget = (EffectStatTarget)change.statTarget;
                     string statKey = change.statModifierSourceKey;
+                    // 永続オーラ（UnitGranted / OwnerTurnField）だけ重複スキップ。
+                    // TimedStack の一発 Debuff は加算する（GD02-130 の2枚目など）。
                     if (!string.IsNullOrEmpty(statKey)
+                        && IsNonStackableStatModifierSourceKey(statKey)
                         && unit.HasStatModifierFromSource(statKey, statTarget))
                     {
                         Debug.Log(

@@ -38,14 +38,14 @@ MonoBehaviour:
   - timing: 0
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: GrantAllyHighMobility1_UntilEndOfTurn_NewUne
     effects:
     - type: 11
       value: 1
-      target: 0
-      selectionMode: -1
+      target: 1
+      selectionMode: 1
       statTarget: 0
-      duration: 0
+      duration: 1
       valueMode: 0
       valueCountBoardSide: 0
       valueCountKind: 0
@@ -55,8 +55,8 @@ MonoBehaviour:
       valueScaleMaximum: 0
       shieldTokenCardId: 0
       valueCountExcludeSource: 0
-      targetFeature: {fileID: 0}
-      targetFeatureId: 0
+      targetFeature: {fileID: 11400000, guid: ddc9561ef30e4d1686d10cc49993933d, type: 2}
+      targetFeatureId: 52
       targetFeatures: []
       targetFeatureIds: 
       targetUnitFilterStat: -1
@@ -132,7 +132,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

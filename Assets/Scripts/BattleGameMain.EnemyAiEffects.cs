@@ -357,6 +357,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitLevelOrLess
                 || eff.type == EffectType.GrantShieldAreaImmunityFromEnemyUnitApOrLess
                 || eff.type == EffectType.PreventEnemyActivateByEnemyEffectsDuringPair
+                || eff.type == EffectType.GrantFirstStrikeToBattlingEnemyDuringOpponentTurn
                 || eff.type == EffectType.ModifyTrashPrintedCostAndLevel
                 || eff.type == EffectType.AllyEnemyEffectDamageImmunity
                 || eff.type == EffectType.ThisDeployedBaseImmunityFromEnemyNonTokenUnitLevelOrLess
@@ -384,6 +385,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.RestResource
                 || eff.type == EffectType.AddFromTrashToHand
                 || eff.type == EffectType.MountSelfFromTrashAsPilot
+                || eff.type == EffectType.MountPilotFromHand
                 || eff.type == EffectType.ActivateMountedCardOnMain
                 || eff.type == EffectType.ActivateMountedCardOnAction
                 || eff.type == EffectType.ActivateObservedSpecialMoveCommandOnMain
