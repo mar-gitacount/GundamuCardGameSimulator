@@ -7416,8 +7416,25 @@ public partial class BattleGameMain : MonoBehaviour
                             sourceCard,
                             attackerOwner,
                             effect);
+                        OnAttackEnemyEffectCursor skipRestOfTimed =
+                            new OnAttackEnemyEffectCursor(sourceIndex, i, j).AfterCurrentTimed();
+                        System.Action skipRemainingIfAbort = effect.abortRemainingChainOnSkip
+                            ? () => ContinueOnAttackEnemyEffectResolution(
+                                attacker,
+                                attackerOwner,
+                                attackedTarget,
+                                onResolved,
+                                skipRestOfTimed)
+                            : null;
                         if (bounceCandidates.Count == 0)
                         {
+                            // 「そうしたなら」：破壊対象が無ければ後続ダメージ等は解決しない
+                            if (effect.abortRemainingChainOnSkip)
+                            {
+                                skipRemainingIfAbort();
+                                return true;
+                            }
+
                             continue;
                         }
 
@@ -7429,8 +7446,15 @@ public partial class BattleGameMain : MonoBehaviour
                             bounceCandidates,
                             stepResolved,
                             onResolved,
-                            attackedTarget))
+                            attackedTarget,
+                            skipRemainingIfAbort))
                         {
+                            return true;
+                        }
+
+                        if (effect.abortRemainingChainOnSkip)
+                        {
+                            skipRemainingIfAbort();
                             return true;
                         }
 
@@ -7512,7 +7536,8 @@ public partial class BattleGameMain : MonoBehaviour
         List<CardController> candidates,
         System.Action stepResolved,
         System.Action onAllComplete = null,
-        CardController attackedTarget = null)
+        CardController attackedTarget = null,
+        System.Action onSkipRemainingEffects = null)
     {
         if (sourceCard == null || effect == null || candidates == null)
         {
@@ -7555,7 +7580,7 @@ public partial class BattleGameMain : MonoBehaviour
             effect,
             selectable,
             stepResolved,
-            onAllComplete,
+            onSkipRemainingEffects,
             chooser,
             blocked);
         return true;
@@ -12103,8 +12128,21 @@ public partial class BattleGameMain : MonoBehaviour
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
             ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
             ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
-            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType),
+            opponentShieldCount: ResolveOpponentShieldCount(ownerType));
         return true;
+    }
+
+    /// <summary>相手プレイヤーのシールド枚数。未解決時は -1。</summary>
+    private int ResolveOpponentShieldCount(PlayerType ownerType)
+    {
+        CardGameRule opponentRule = ownerType == PlayerType.Player ? enemyCardGameRule : cardGameRule;
+        if (opponentRule == null)
+        {
+            return -1;
+        }
+
+        return opponentRule.GetShieldZoneCardCount();
     }
 
     private EffectActivationContext BuildActivationContext(PlayerType ownerType, CardController sourceCard)
@@ -12133,7 +12171,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
             ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
             ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
-            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType),
+            opponentShieldCount: ResolveOpponentShieldCount(ownerType));
     }
 
     /// <summary>
@@ -12190,7 +12229,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
             ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
             ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
-            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType),
+            opponentShieldCount: ResolveOpponentShieldCount(ownerType));
     }
 
     /// <summary>OnAttack 効果の発動条件（搭乗パイロット等）評価用。攻撃ユニットの Mount 情報を明示する。</summary>
@@ -12232,7 +12272,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerPaidUnitEffectCostThisTurn: GetPaidUnitEffectCostThisTurn(ownerType),
             ownerDrewWithEffectThisTurn: HasOwnerDrewWithEffectThisTurn(ownerType),
             ownerDeployedBase: GetDeployedBaseForRuleSide(ToRuleSide(ownerType)),
-            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType));
+            opponentUnitsHaveAttackedThisTurn: HasOpponentUnitsAttackedThisTurn(ownerType),
+            opponentShieldCount: ResolveOpponentShieldCount(ownerType));
     }
 
     /// <summary>現在の攻撃フローがシールドではなく敵ユニットを対象にしているか。</summary>
@@ -14663,6 +14704,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         DestroyActiveOnActionPopupIfAny();
+        CloseResourcePaymentOverlay(_activeResourcePaymentOverlay);
         GameObject root = new GameObject(
             "ManualMultiUnitTargetSelect",
             typeof(RectTransform),
@@ -14673,7 +14715,8 @@ public partial class BattleGameMain : MonoBehaviour
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
-        EnsureOnActionPopupOverlayCanvas(root);
+        // 支払い overlay(540) より前面。閉じた直後のレイキャスト残りを避ける
+        EnsureOnActionPopupOverlayCanvas(root, 560);
         Image dim = root.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.55f);
         dim.raycastTarget = true;
@@ -14730,6 +14773,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         GameObject scrollGo = root.CreateGridScrollView(680, 360, UIAnchor.TopCenter);
         RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
+        // 下端の OK と重ならないよう、画面下 100px を空ける
+        scrollRt.anchorMin = new Vector2(0.5f, 0f);
+        scrollRt.anchorMax = new Vector2(0.5f, 1f);
+        scrollRt.pivot = new Vector2(0.5f, 1f);
+        scrollRt.sizeDelta = new Vector2(680f, -390f);
         scrollRt.anchoredPosition = new Vector2(0f, -290f);
         scrollGo.ConfigureGridCellFromViewportHeight(0.78f, 56f);
         ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
@@ -14748,6 +14796,7 @@ public partial class BattleGameMain : MonoBehaviour
         Button okBtn = null;
         TextMeshProUGUI okLabel = null;
 
+        bool pickInputReady = false;
         void RefreshOkButton()
         {
             if (okBtn == null)
@@ -14755,13 +14804,7 @@ public partial class BattleGameMain : MonoBehaviour
                 return;
             }
 
-            bool ready = selected.Count >= selectMin;
-            if (!forbidSkip)
-            {
-                okBtn.interactable = true;
-                return;
-            }
-
+            bool ready = pickInputReady && selected.Count >= selectMin;
             okBtn.interactable = ready;
             if (okLabel != null)
             {
@@ -14866,9 +14909,10 @@ public partial class BattleGameMain : MonoBehaviour
             okLabel.text = "OK";
         }
 
+        okBtn.interactable = false;
         okBtn.onClick.AddListener(() =>
         {
-            if (selected.Count < selectMin)
+            if (!pickInputReady || selected.Count < selectMin)
             {
                 Debug.Log($"効果対象を{selectMin}体以上選択してください。");
                 return;
@@ -14877,6 +14921,11 @@ public partial class BattleGameMain : MonoBehaviour
             CloseWithSelection(new List<CardController>(selected));
         });
         RefreshOkButton();
+        StartCoroutine(CoEnableManualUnitPickButtonsAfterOpen(null, () =>
+        {
+            pickInputReady = true;
+            RefreshOkButton();
+        }));
 
         if (forbidSkip)
         {
@@ -22398,6 +22447,17 @@ public partial class BattleGameMain : MonoBehaviour
         if (effect.type == EffectType.DeployUnit && effect.RequiresDeployUnitZoneSelection())
         {
             ApplyDeployUnitEffect(
+                source,
+                side,
+                effect,
+                () => TryExecuteOnMainEffectChain(
+                    side, source, effects, index + 1, activationCostAlreadyPaid, chainActivationContext, onDone));
+            return;
+        }
+
+        if (effect.type == EffectType.AddFromTrashToHand)
+        {
+            ApplyAddFromTrashToHandEffect(
                 source,
                 side,
                 effect,

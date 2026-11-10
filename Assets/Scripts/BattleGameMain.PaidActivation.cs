@@ -320,6 +320,12 @@ public partial class BattleGameMain
             return false;
         }
 
+        // コマンドは手札スクロール上の実体で判定する（Data 参照比較だと手札扱い漏れで【メイン】だけ落ちる）。
+        if (card.Data.IsCommand() && host.IsCardInOwnerHandScroll(card, ownerType))
+        {
+            return true;
+        }
+
         // 場のユニット／ベース【メイン】は手札コスト・レベル要件を課さない
         // 手札リストに同名 CardData があるだけでは手札扱いしない（別コピーが場にいる）
         if (card.Data.IsUnitLike()
@@ -965,9 +971,10 @@ public partial class BattleGameMain
             return false;
         }
 
-        // 手札コマンドはタイミング・レベル・支払い可否でプレイ可能。
-        // 対象不足は解決時に処理し、場の起動効果だけ候補を事前確認する。
-        if (!IsOnMainActivatedFromHand(source, side)
+        // 手札コマンドは【アクション】と同じく対象不足を事前ゲートしない。
+        // 場のユニット起動【メイン】と PoorlyPlanned だけ候補を事前確認する。
+        bool isHandCommand = source.Data != null && source.Data.IsCommand();
+        if ((!IsOnMainActivatedFromHand(source, side) && !isHandCommand)
             || source.Data.id == PoorlyPlannedOffensiveCardId)
         {
             IReadOnlyList<EffectData> resolvedOnMain = timed.GetResolvedEffects();
@@ -1011,6 +1018,11 @@ public partial class BattleGameMain
         }
 
         if (!HasOnMainDeployZoneCandidatesIfRequired(side, timed))
+        {
+            return false;
+        }
+
+        if (!HasOnMainExactTrashExileCandidatesIfRequired(side, timed))
         {
             return false;
         }
@@ -1091,6 +1103,44 @@ public partial class BattleGameMain
         }
 
         return !hasHandDeploySelect && !hasTrashDeploySelect;
+    }
+
+    /// <summary>
+    /// 正確枚数のトラッシュ除外（決戦の切り札等）は、候補が足りないときは【メイン】発動不可。
+    /// </summary>
+    private bool HasOnMainExactTrashExileCandidatesIfRequired(PlayerType side, TimedEffectData timed)
+    {
+        IReadOnlyList<EffectData> effects = timed?.GetResolvedEffects();
+        if (effects == null)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < effects.Count; i++)
+        {
+            EffectData effect = effects[i];
+            if (effect == null
+                || effect.type != EffectType.ExileFromTrash
+                || !effect.requireExactExileCount)
+            {
+                continue;
+            }
+
+            int need = Mathf.Max(1, effect.value);
+            CardGameRule trashRule = ResolveTrashRuleForEffect(side, effect);
+            if (trashRule == null)
+            {
+                return false;
+            }
+
+            List<TrashExileCandidate> candidates = CollectTrashExileCandidates(trashRule, effect);
+            if (candidates.Count < need)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private List<OnMainExecutableBlock> CollectExecutableOnMainBlocks(PlayerType side, CardController source)

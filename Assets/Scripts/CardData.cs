@@ -97,6 +97,9 @@ public class CardData : ScriptableObject
     [Tooltip("true のときオンライン対戦では使用不可（デッキへの追加は可能）。デフォルト false＝オンライン可。")]
     public bool notUsedOnline;
 
+    [Tooltip("true のときリリース前。デベロッパーのみカタログ表示・デッキ利用可。デフォルト false＝一般公開。")]
+    public bool preRelease;
+
     [Tooltip("true のときカード一覧（カタログ／検索結果）に表示しない。FindById 等の参照・既存デッキ内表示には影響しない。")]
     public bool hideFromCardList;
 
@@ -137,6 +140,12 @@ public class CardData : ScriptableObject
         }
 
         return string.IsNullOrWhiteSpace(gcgOfficialId) ? string.Empty : gcgOfficialId.Trim();
+    }
+
+    /// <summary>リリース前カードは許可端末／Editor のデベロッパーだけ使える。</summary>
+    public bool IsAvailableToCurrentUser()
+    {
+        return !preRelease || DeveloperModeAccess.IsAuthorized;
     }
 
     /// <summary>主色または第2色が query と一致するか。</summary>
@@ -404,6 +413,7 @@ public class CardJson
     public bool isRepair;
     public int repairAmount;
     public bool notUsedOnline;
+    public bool preRelease;
     public bool hideFromCardList;
     public bool cannotMountPilot;
 }

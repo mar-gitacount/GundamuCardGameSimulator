@@ -1842,6 +1842,20 @@ public List<CardData> GetSelectedCards(List<CardData> cards)
             return;
         }
 
+        if (compact.Equals("StardustTrails", StringComparison.OrdinalIgnoreCase))
+        {
+            ja = "Stardust Trails";
+            en = "Stardust Trails";
+            return;
+        }
+
+        if (compact.Equals("BlazingFist", StringComparison.OrdinalIgnoreCase))
+        {
+            ja = "ブレイジングフィスト";
+            en = "Blazing Fist";
+            return;
+        }
+
         ja = name;
         en = name;
     }

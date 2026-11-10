@@ -364,6 +364,60 @@ public class DeckSettinObject : MonoBehaviour
         return CollectNotUsedOnlineCardsInSelectedDeck().Count > 0;
     }
 
+    /// <summary>デベロッパーはオンライン・プレイテストでも notUsedOnline を使える。</summary>
+    public bool SelectedDeckContainsNotUsedOnlineCardsBlockedForCurrentUser()
+    {
+        if (DeveloperModeAccess.IsAuthorized)
+        {
+            return false;
+        }
+
+        return SelectedDeckContainsNotUsedOnlineCards();
+    }
+
+    /// <summary>選択中デッキ内のリリース前カード。非デベロッパーは利用不可。</summary>
+    public List<CardData> CollectPreReleaseCardsInSelectedDeck()
+    {
+        return CollectPreReleaseCards(cardData);
+    }
+
+    public static List<CardData> CollectPreReleaseCards(Dictionary<int, int> deckCards)
+    {
+        List<CardData> found = new List<CardData>();
+        if (deckCards == null || deckCards.Count == 0 || CardDatabase.Instance == null)
+        {
+            return found;
+        }
+
+        HashSet<int> seen = new HashSet<int>();
+        foreach (KeyValuePair<int, int> entry in deckCards)
+        {
+            if (entry.Value <= 0 || !seen.Add(entry.Key))
+            {
+                continue;
+            }
+
+            CardData data = CardDatabase.Instance.FindById(entry.Key);
+            if (data != null && data.preRelease)
+            {
+                found.Add(data);
+            }
+        }
+
+        found.Sort((a, b) => a.id.CompareTo(b.id));
+        return found;
+    }
+
+    public bool SelectedDeckContainsPreReleaseCardsUnavailableToCurrentUser()
+    {
+        if (DeveloperModeAccess.IsAuthorized)
+        {
+            return false;
+        }
+
+        return CollectPreReleaseCardsInSelectedDeck().Count > 0;
+    }
+
     /// <summary>選択中デッキのオンライン・レギュレーション検証（50枚・2色以内）。</summary>
     public OnlineDeckRegulation.ValidationResult ValidateSelectedDeckForOnline()
     {
@@ -1311,18 +1365,29 @@ public void battleStart()
 public CardData GetCardDataById(int id)
 {
     CardFeatureRegistry.EnsureLoaded();
-    var cardTable = Resources.LoadAll<CardData>("Data/Cards").ToDictionary(data => data.id);
-    if (cardTable.TryGetValue(id, out CardData card))
+    if (CardDatabase.Instance != null)
     {
-        card?.EnsureFeaturesResolved();
-        Debug.Log($"ID:{id} のカードデータを取得しました。カード名: {card.cardName}");
-        return card;
+        CardData fromDb = CardDatabase.Instance.FindById(id);
+        if (fromDb != null)
+        {
+            fromDb.EnsureFeaturesResolved();
+            return fromDb;
+        }
     }
-    else
+
+    CardData[] all = Resources.LoadAll<CardData>("Data/Cards");
+    for (int i = 0; i < all.Length; i++)
     {
-        Debug.LogError($"ID {id} のカードデータが見つかりません！");
-        return null;
+        CardData card = all[i];
+        if (card != null && card.id == id)
+        {
+            card.EnsureFeaturesResolved();
+            return card;
+        }
     }
+
+    Debug.LogError($"ID {id} のカードデータが見つかりません！");
+    return null;
 }
 public void DeleteJsonFile()
 {

@@ -3067,6 +3067,31 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007017d000000000000000000000001
+    m_Address: Data/Images/G007-017_Messer Type-F01 (Gawman Custom)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007038d000000000000000000000001
+    m_Address: Data/Images/T-038_Shield Funnel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007053d000000000000000000000001
+    m_Address: Data/Images/G007-053_Daughtress Neo
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007075d000000000000000000000001
+    m_Address: Data/Images/G007-075_Unicorn Gundam (Awakened)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007123d000000000000000000000001
+    m_Address: Data/Images/G007-123_Unexplained Phenomenon
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a0076d06000000000000000000000080
     m_Address: Data/Images/GD06-007_Kikeroga (MS Mode) (GQ)
     m_ReadOnly: 0

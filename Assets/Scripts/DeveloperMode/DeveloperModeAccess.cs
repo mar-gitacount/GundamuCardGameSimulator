@@ -14,6 +14,8 @@ public static class DeveloperModeAccess
 
     private static bool _loaded;
     private static bool _authorized;
+    private static bool _authorizedByAllowList;
+    private static bool _forceAuthorizeFromJson;
     private static string _resolvedDeviceId = string.Empty;
     private static readonly HashSet<string> AllowedIds =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -60,6 +62,22 @@ public static class DeveloperModeAccess
 
     public static bool ShouldAllowUnlimitedMulligan => IsAuthorized && UnlimitedMulligan;
 
+    /// <summary>
+    /// カード上の Inspector Id 表示。Editor または許可端末のみ（forceAuthorize／デバッグビルドだけでは出さない）。
+    /// </summary>
+    public static bool ShouldShowCardIdOverlay
+    {
+        get
+        {
+            EnsureLoaded();
+#if UNITY_EDITOR
+            return true;
+#else
+            return _authorizedByAllowList;
+#endif
+        }
+    }
+
     public static void ApplyStartingLevelOverride(Gundam2024RuleScript rule)
     {
         if (rule == null || !ShouldApplyStartAtLevel10)
@@ -101,6 +119,7 @@ public static class DeveloperModeAccess
         }
 
         _loaded = true;
+        _authorizedByAllowList = false;
         _resolvedDeviceId = string.IsNullOrEmpty(SystemInfo.deviceUniqueIdentifier)
             ? "unknown"
             : SystemInfo.deviceUniqueIdentifier.Trim();
@@ -115,23 +134,25 @@ public static class DeveloperModeAccess
         }
 #endif
 
-#if UNITY_EDITOR
-        _authorized = true;
-#else
-        _authorized = false;
         for (int i = 0; i < candidates.Count; i++)
         {
             if (!string.IsNullOrEmpty(candidates[i]) && AllowedIds.Contains(candidates[i]))
             {
-                _authorized = true;
+                _authorizedByAllowList = true;
                 _resolvedDeviceId = candidates[i];
                 break;
             }
         }
+
+#if UNITY_EDITOR
+        _authorized = true;
+#else
+        _authorized = Debug.isDebugBuild || _forceAuthorizeFromJson || _authorizedByAllowList;
 #endif
 
         Debug.Log(
             $"[DeveloperMode] deviceId='{_resolvedDeviceId}' authorized={_authorized} "
+            + $"debugBuild={Debug.isDebugBuild} forceJson={_forceAuthorizeFromJson} "
             + $"allowedCount={AllowedIds.Count}");
     }
 
@@ -145,7 +166,13 @@ public static class DeveloperModeAccess
         }
 
         DeveloperModeDeviceListJson list = JsonUtility.FromJson<DeveloperModeDeviceListJson>(asset.text);
-        if (list?.devices == null)
+        if (list == null)
+        {
+            return;
+        }
+
+        _forceAuthorizeFromJson = list.forceAuthorize;
+        if (list.devices == null)
         {
             return;
         }

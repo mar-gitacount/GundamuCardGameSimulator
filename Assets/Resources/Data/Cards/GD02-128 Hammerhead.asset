@@ -32,7 +32,7 @@ MonoBehaviour:
   filterType: 0
   color: 6
   type: 3
-  battleZones: 0
+  battleZones: 1
   attackFlg: 0
   timedEffects:
   - timing: 5

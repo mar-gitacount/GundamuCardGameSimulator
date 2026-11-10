@@ -80,7 +80,7 @@ public class CardDatabase : MonoBehaviour
 
     private static bool IsVisibleInCardList(CardData card)
     {
-        return card != null && card.id > 0 && !card.hideFromCardList;
+        return card != null && card.id > 0 && !card.hideFromCardList && card.IsAvailableToCurrentUser();
     }
 
     public int LoadCardsCount()
@@ -134,6 +134,7 @@ public class CardDatabase : MonoBehaviour
         isRepair = card.isRepair,
         repairAmount = card.repairAmount,
         notUsedOnline = card.notUsedOnline,
+        preRelease = card.preRelease,
         hideFromCardList = card.hideFromCardList,
         cannotMountPilot = card.cannotMountPilot,
     };
@@ -196,6 +197,7 @@ CardData ConvertToCardData(CardJson json)
     card.isRepair = json.isRepair;
     card.repairAmount = json.repairAmount;
     card.notUsedOnline = json.notUsedOnline;
+    card.preRelease = json.preRelease;
     card.hideFromCardList = json.hideFromCardList;
     card.cannotMountPilot = json.cannotMountPilot;
     card.SetFeaturesFromIds(json.featureIds);

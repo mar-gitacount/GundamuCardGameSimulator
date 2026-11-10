@@ -89,6 +89,7 @@ public static class CardImportEditor
         card.isRepair = entry.isRepair;
         card.repairAmount = entry.repairAmount;
         card.notUsedOnline = entry.notUsedOnline;
+        card.preRelease = entry.preRelease;
         card.cannotMountPilot = entry.cannotMountPilot;
 
         Sprite sprite = LoadCardSprite(entry.imageName);
@@ -302,6 +303,7 @@ public class CardImportJsonEntry
     public bool isRepair;
     public int repairAmount;
     public bool notUsedOnline;
+    public bool preRelease;
     public bool cannotMountPilot;
     public int[] linkFeatureIds;
     public int[] linkPilotIdIds;

@@ -792,7 +792,10 @@ public partial class BattleGameMain
                     continue;
                 }
 
-                if (ResolveSelectableEffectTargets(source, side, effect).Count > 0)
+                // 手札コマンドは【アクション】と同様、対象確認は解決時。ボタンは出す。
+                if ((source.Data != null && source.Data.IsCommand())
+                    || IsOnMainActivatedFromHand(source, side)
+                    || ResolveSelectableEffectTargets(source, side, effect).Count > 0)
                 {
                     hasAny = true;
                 }
@@ -1250,6 +1253,34 @@ public partial class BattleGameMain
         }
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        if (effect.filterTargetUnitColor)
+        {
+            switch ((CardColor)effect.filterTargetUnitColorValue)
+            {
+                case CardColor.Red:
+                    sb.Append(GameLocale.T("赤の", "Red "));
+                    break;
+                case CardColor.Green:
+                    sb.Append(GameLocale.T("緑の", "Green "));
+                    break;
+                case CardColor.Blue:
+                    sb.Append(GameLocale.T("青の", "Blue "));
+                    break;
+                case CardColor.Yellow:
+                    sb.Append(GameLocale.T("黄の", "Yellow "));
+                    break;
+                case CardColor.White:
+                    sb.Append(GameLocale.T("白の", "White "));
+                    break;
+                case CardColor.Purple:
+                    sb.Append(GameLocale.T("紫の", "Purple "));
+                    break;
+                case CardColor.Colorless:
+                    sb.Append(GameLocale.T("無色の", "Colorless "));
+                    break;
+            }
+        }
+
         if (effect.filterByTargetCardType)
         {
             sb.Append(CardTypeExtensions.GetDisplayName(effect.targetCardType));

@@ -2449,6 +2449,25 @@
             ]
         },
         {
+            "effectSetName": "AddFromTrashToHand_PurplePilot",
+            "displayName": "自分のトラッシュの紫パイロット1枚を手札へ",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 1,
+                    "filterTargetUnitColor": true,
+                    "filterTargetUnitColorValue": 6
+                }
+            ]
+        },
+        {
             "effectSetName": "AddTrashPilotLv5ToHand",
             "displayName": "トラッシュのLv5以上パイロット1枚を手札へ",
             "effects": [
@@ -3161,7 +3180,8 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0,
-                    "revealDiscardedToOpponent": false
+                    "revealDiscardedToOpponent": false,
+                    "forbidSkipHandDiscard": true
                 },
                 {
                     "type": 45,
@@ -3880,6 +3900,37 @@
                     "valueCountMinUnitLevel": 0,
                     "valueScaleMaximum": 0,
                     "valueCountExcludeSource": 0,
+                    "requireChainObservationContext": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Exile6_OwnTrashPurpleUnits_ThenDestroy_Enemy",
+            "displayName": "自分のトラッシュの紫ユニット6枚除外→そうしたなら敵ユニット1体を破壊",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 6,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "filterTargetUnitColor": true,
+                    "filterTargetUnitColorValue": 6,
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
                     "requireChainObservationContext": true
                 }
             ]
@@ -5538,6 +5589,56 @@
             ]
         },
         {
+            "effectSetName": "DestroyEnemyAp2OrLess_SelectSingle",
+            "displayName": "AP2以下の相手ユニット1つを破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffDamagedAllyAp2_UntilEOT_SelectSingle",
+            "displayName": "ダメージを受けている味方ユニット1つを、このターン中 AP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "requireTargetDamaged": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyVultureAp2_UntilEOT_SelectSingle",
+            "displayName": "〔バルチャー〕の味方ユニット1つを、このターン中 AP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "targetFeatureId": 66
+                }
+            ]
+        },
+        {
             "effectSetName": "BuffAllyAp2_UntilEOT_SelectSingle",
             "displayName": "味方ユニット1体を選び、このターン中 AP+2",
             "effects": [
@@ -6812,6 +6913,22 @@
                     "statTarget": 0,
                     "duration": 0,
                     "valueMode": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAp1_AllAllyDaughtress_UntilEOT_IfOpponentShields3OrLess",
+            "displayName": "【アタック時】相手シールド3枚以下なら、カード名にドートレスを含む味方ユニットすべて AP+1（ターン終了まで）",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "targetCardNameContains": "Daughtress"
                 }
             ]
         },
@@ -8285,7 +8402,8 @@
                             "boardSide": 0,
                             "checkKind": 27,
                             "featureId": 27,
-                            "minimumCount": 1
+                            "minimumCount": 1,
+                            "turnCheck": 0
                         }
                     ]
                 }
@@ -8488,6 +8606,108 @@
                     "selectionMode": 1,
                     "statTarget": 0,
                     "duration": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnLink_OptionalPayDeployTrashVaganUnitLv2OrLess",
+            "displayName": "リンク時：自分のトラッシュのLv.2以下〔ヴェイガン〕ユニット1枚をコストを支払って配備してもよい",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitSource": 2,
+                    "filterDeployCandidateByFeature": true,
+                    "targetFeatureId": 65,
+                    "deployUnitTriggerOnPlayed": true,
+                    "deployUnitPayCost": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyAllyOtherOptional_ThenDamage2_EnemyLv4OrLess_OnAttackPaired",
+            "displayName": "セット中・アタック時：このユニット以外の味方1つを破壊してもよい。そうしたならLv.4以下の敵1つに2ダメージ",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp2_UntilEOT_ActiveSelect1to2",
+            "displayName": "アクティブの相手ユニット1〜2つを選び、このターン中AP-2する",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 5,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "selectMinCount": 1,
+                    "selectMaxCount": 2,
+                    "requireTargetIsNotRest": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "RecoverHp2_AllyMaftyUnit_SelectSingle",
+            "displayName": "〈マフティー〉の自分のユニット1つを選び、2回復する",
+            "effects": [
+                {
+                    "type": 32,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "targetFeatureId": 35
+                }
+            ]
+        },
+        {
+            "effectSetName": "OnPilotMounted_DeployShieldFunnelToken1",
+            "displayName": "【セット時】「シールド・ファンネル」トークン1つを配備する",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001038,
+                    "deployUnitTriggerOnPlayed": false,
+                    "deployUnitAsRested": false
                 }
             ]
         }

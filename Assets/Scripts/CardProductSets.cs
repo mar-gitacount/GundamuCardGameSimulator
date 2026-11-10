@@ -50,6 +50,8 @@ public enum BoosterProductSet
     FreedomAscension = 5,
     [InspectorName("6. Stardust Trails")]
     StardustTrails = 6,
+    [InspectorName("7. Blazing Fist")]
+    BlazingFist = 7,
 }
 
 /// <summary>スターター作品（プルダウン用）。</summary>

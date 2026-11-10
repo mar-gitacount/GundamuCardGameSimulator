@@ -4,6 +4,9 @@ using System;
 [Serializable]
 public class DeveloperModeDeviceListJson
 {
+    /// <summary>true のとき端末リストに関係なく開発者扱い。公開ビルドでは必ず false。</summary>
+    public bool forceAuthorize;
+
     public DeveloperModeDeviceEntryJson[] devices = Array.Empty<DeveloperModeDeviceEntryJson>();
 }
 

@@ -35,6 +35,7 @@ public partial class BattleGameMain
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsLastSibling();
         root.SetFullSize();
+        EnsureOnActionPopupOverlayCanvas(root, 560);
         Image dim = root.GetComponent<Image>();
         dim.color = new Color(0f, 0f, 0f, 0.6f);
         dim.raycastTarget = true;
@@ -138,6 +139,7 @@ public partial class BattleGameMain
         }
 
         bool acknowledged = false;
+        bool ackInputReady = false;
         Button okBtn = root.CreateChildButton("OK");
         RectTransform okRt = okBtn.GetComponent<RectTransform>();
         okRt.sizeDelta = new Vector2(200f, 52f);
@@ -145,8 +147,14 @@ public partial class BattleGameMain
         okRt.anchorMax = new Vector2(0.5f, 0f);
         okRt.pivot = new Vector2(0.5f, 0f);
         okRt.anchoredPosition = new Vector2(0f, 42f);
+        okBtn.interactable = false;
         okBtn.onClick.AddListener(() =>
         {
+            if (!ackInputReady)
+            {
+                return;
+            }
+
             acknowledged = true;
             Destroy(root);
             if (activeOnActionPopupRoot == root)
@@ -159,6 +167,14 @@ public partial class BattleGameMain
                 || _isActionStepCommandResolving
                 || _activeResourcePaymentOverlay != null;
         });
+        StartCoroutine(CoEnableManualUnitPickButtonsAfterOpen(null, () =>
+        {
+            ackInputReady = true;
+            if (okBtn != null)
+            {
+                okBtn.interactable = true;
+            }
+        }));
 
         // Look／破壊時 UI が DestroyActiveOnActionPopupIfAny でこのパネルを潰しても待機解除する
         yield return new WaitUntil(() => acknowledged || root == null);

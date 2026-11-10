@@ -58,11 +58,11 @@ MonoBehaviour:
       destroyedByOwnerRelation: 0
       cardNameContains: 
     requireChainObservationContext: 0
-    effectsName: 
+    effectsName: DestroyAllyOtherOptional_ThenDamage2_EnemyLv4OrLess_OnAttackPaired
     effects:
-    - type: 0
-      value: 2
-      target: 2
+    - type: 18
+      value: 1
+      target: 8
       selectionMode: 1
       statTarget: 0
       duration: 0
@@ -79,13 +79,13 @@ MonoBehaviour:
       targetFeatureId: 0
       targetFeatures: []
       targetFeatureIds: 
-      targetUnitFilterStat: 3
+      targetUnitFilterStat: -1
       targetUnitStatCompareOp: 3
-      targetUnitStatCompareValue: 4
+      targetUnitStatCompareValue: 0
       compareTargetStatToSource: 0
       compareTargetStatToMountHostUnit: 0
       compareTargetStatToPriorChainPicked: 0
-      abortRemainingChainOnSkip: 0
+      abortRemainingChainOnSkip: 1
       requireChainObservationContext: 0
       effectActivationConditions: []
       filterTargetUnitLevel: 0
@@ -126,13 +126,13 @@ MonoBehaviour:
       requireTargetHasNoPilot: 0
       requireTargetDamaged: 0
       resolveAfterDealtBattleDamage: 0
-      optionalPlayerConfirm: 0
+      optionalPlayerConfirm: 1
       opponentChoosesTarget: 0
       choiceBranches: []
       choicePromptJa: 
       choicePromptEn: 
-    - type: 18
-      value: 1
+    - type: 0
+      value: 2
       target: 2
       selectionMode: 1
       statTarget: 0

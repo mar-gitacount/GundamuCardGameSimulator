@@ -455,7 +455,13 @@ public class EosOnlinePlaytestController : MonoBehaviour
             return;
         }
 
-        if (DeckSettinObject.Instance.SelectedDeckContainsNotUsedOnlineCards())
+        if (DeckSettinObject.Instance.SelectedDeckContainsPreReleaseCardsUnavailableToCurrentUser())
+        {
+            AppendLog("Start failed: Pre-release cards are developer-only.");
+            return;
+        }
+
+        if (DeckSettinObject.Instance.SelectedDeckContainsNotUsedOnlineCardsBlockedForCurrentUser())
         {
             AppendLog("Start failed: Not used card online.");
             return;

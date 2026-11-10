@@ -308,6 +308,12 @@ public partial class BattleGameMain
                 continue;
             }
 
+            if (effect.filterTargetUnitColor
+                && (data == null || data.color != (CardColor)effect.filterTargetUnitColorValue))
+            {
+                continue;
+            }
+
             // 除外するカード一覧に追加
             candidates.Add(new TrashExileCandidate(i, cardId, data));
         }
@@ -328,14 +334,57 @@ public partial class BattleGameMain
             return featureLabel;
         }
 
+        string colorPrefixJa = string.Empty;
+        string colorPrefixEn = string.Empty;
+        if (effect.filterTargetUnitColor)
+        {
+            switch ((CardColor)effect.filterTargetUnitColorValue)
+            {
+                case CardColor.Red:
+                    colorPrefixJa = "赤の";
+                    colorPrefixEn = " red";
+                    break;
+                case CardColor.Green:
+                    colorPrefixJa = "緑の";
+                    colorPrefixEn = " green";
+                    break;
+                case CardColor.Blue:
+                    colorPrefixJa = "青の";
+                    colorPrefixEn = " blue";
+                    break;
+                case CardColor.Yellow:
+                    colorPrefixJa = "黄の";
+                    colorPrefixEn = " yellow";
+                    break;
+                case CardColor.White:
+                    colorPrefixJa = "白の";
+                    colorPrefixEn = " white";
+                    break;
+                case CardColor.Purple:
+                    colorPrefixJa = "紫の";
+                    colorPrefixEn = " purple";
+                    break;
+                case CardColor.Colorless:
+                    colorPrefixJa = "無色の";
+                    colorPrefixEn = " colorless";
+                    break;
+            }
+        }
+
         if (effect.filterByTargetCardType)
         {
-            if (effect.targetCardType == Type.Unit)
+            string typeJaEn = CardTypeExtensions.GetDisplayName(effect.targetCardType);
+            if (string.IsNullOrEmpty(colorPrefixJa))
             {
-                return GameLocale.T("ユニット", "Unit");
+                return typeJaEn;
             }
 
-            return effect.targetCardType.ToString();
+            return GameLocale.T($"{colorPrefixJa}{typeJaEn}", $"{colorPrefixEn.TrimStart()} {typeJaEn}".Trim());
+        }
+
+        if (!string.IsNullOrEmpty(colorPrefixJa))
+        {
+            return GameLocale.T($"{colorPrefixJa}カード", $"{colorPrefixEn.TrimStart()} card".Trim());
         }
 
         return GameLocale.T("カード", "card");

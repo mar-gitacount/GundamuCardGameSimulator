@@ -1,4 +1,5 @@
 {
+  "forceAuthorize": true,
   "devices": [
     {
       "label": "Redmi Note 9S (M2010J19SG) USB",

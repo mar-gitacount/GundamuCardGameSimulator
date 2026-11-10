@@ -99,7 +99,12 @@ public class Card : MonoBehaviour
 
         // デッキに枚数を追加するパネルを追加する。
         // ユニットトークンはデッキに入れられないため、+/- カウンターを出さない。
-        if (DeckSettinObject.Instance.isDeckEditing && !IsUnitTokenCard(CardId))
+        // リリース前カードはデベロッパー以外デッキ編集不可。
+        CardData clickedData = CardDatabase.Instance != null
+            ? CardDatabase.Instance.FindById(CardId)
+            : null;
+        bool allowDeckEditCounters = clickedData == null || clickedData.IsAvailableToCurrentUser();
+        if (DeckSettinObject.Instance.isDeckEditing && !IsUnitTokenCard(CardId) && allowDeckEditCounters)
         {
             // RectTransform DeckEditPanel = Instantiate(DeckEditPrefab,canvas.transform);
             DeckEditPanel = Instantiate(DeckEditPrefab,canvas.transform);
@@ -281,6 +286,8 @@ public class Card : MonoBehaviour
             return;
         }
 
+        EnsurePreReleaseLabel(cardObject, data);
+
         Transform existing = cardObject.transform.Find(NotUsedOnlineLabelName);
         if (data == null || !data.notUsedOnline)
         {
@@ -331,6 +338,72 @@ public class Card : MonoBehaviour
         rt.anchorMin = new Vector2(0f, 1f);
         rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(0.5f, 1f);
+        float y = (data != null && data.preRelease) ? -32f : -4f;
+        rt.anchoredPosition = new Vector2(0f, y);
+        rt.sizeDelta = new Vector2(0f, 28f);
+        label.transform.SetAsLastSibling();
+    }
+
+    private const string PreReleaseLabelName = "PreReleaseLabel";
+
+    /// <summary>リリース前カードに Pre-Release ラベル（Not Used Online と同じ形式）。</summary>
+    public static void EnsurePreReleaseLabel(GameObject cardObject, CardData data)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        Transform existing = cardObject.transform.Find(PreReleaseLabelName);
+        if (data == null || !data.preRelease)
+        {
+            if (existing != null)
+            {
+                existing.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        TextMeshProUGUI label;
+        if (existing != null)
+        {
+            label = existing.GetComponent<TextMeshProUGUI>();
+            if (label == null)
+            {
+                existing.gameObject.SetActive(true);
+                return;
+            }
+        }
+        else
+        {
+            GameObject labelGo = new GameObject(
+                PreReleaseLabelName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI));
+            labelGo.transform.SetParent(cardObject.transform, false);
+            label = labelGo.GetComponent<TextMeshProUGUI>();
+        }
+
+        label.gameObject.SetActive(true);
+        label.SetLocalizedText("リリース前", "Pre-Release");
+        label.fontSize = 14f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color32(255, 176, 40, 255);
+        label.enableWordWrapping = true;
+        label.raycastTarget = false;
+
+        if (TMP_Settings.defaultFontAsset != null)
+        {
+            label.font = TMP_Settings.defaultFontAsset;
+        }
+
+        RectTransform rt = label.rectTransform;
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
         rt.anchoredPosition = new Vector2(0f, -4f);
         rt.sizeDelta = new Vector2(0f, 28f);
         label.transform.SetAsLastSibling();
@@ -338,7 +411,7 @@ public class Card : MonoBehaviour
 
     /// <summary>
     /// Not Used Online と同じ形式で、Inspector の Id（CardData.id。例: 1000884）をカード上部に出す。
-    /// 公式ID（GD06-113）は出さない。Editor および許可端末の開発者モード時のみ表示する。
+    /// 公式ID（GD06-113）は出さない。Editor または許可端末の開発者のみ表示する。
     /// </summary>
     public static void EnsureCardIdLabel(GameObject cardObject, CardData data)
     {
@@ -347,7 +420,7 @@ public class Card : MonoBehaviour
             return;
         }
 
-        if (!DeveloperModeAccess.IsAuthorized)
+        if (!DeveloperModeAccess.ShouldShowCardIdOverlay)
         {
             Transform hidden = cardObject.transform.Find(CardIdLabelName);
             if (hidden != null)

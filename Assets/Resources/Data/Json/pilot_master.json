@@ -923,6 +923,18 @@
             "pilotKey": "Schwarz_Bruder",
             "displayName": "シュバルツ・ブルーダー",
             "description": ""
+        },
+        {
+            "id": 155,
+            "pilotKey": "Amida_Arca",
+            "displayName": "アミダ・アルカ",
+            "description": ""
+        },
+        {
+            "id": 156,
+            "pilotKey": "Norba_Shino",
+            "displayName": "ノルバ・シノ",
+            "description": ""
         }
     ]
 }

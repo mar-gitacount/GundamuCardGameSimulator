@@ -175,10 +175,15 @@ public class NewDeckMaking : MonoBehaviour
             return;
         }
 
-        List<CardData> bannedCards = deckSettings.CollectNotUsedOnlineCardsInSelectedDeck();
-        if (bannedCards != null && bannedCards.Count > 0)
+        if (deckSettings.SelectedDeckContainsPreReleaseCardsUnavailableToCurrentUser())
         {
-            ShowNotUsedOnlineAlert(bannedCards);
+            ShowPreReleaseAlert(deckSettings.CollectPreReleaseCardsInSelectedDeck());
+            return;
+        }
+
+        if (deckSettings.SelectedDeckContainsNotUsedOnlineCardsBlockedForCurrentUser())
+        {
+            ShowNotUsedOnlineAlert(deckSettings.CollectNotUsedOnlineCardsInSelectedDeck());
             return;
         }
 
@@ -206,6 +211,12 @@ public class NewDeckMaking : MonoBehaviour
         if (!deckSettings.HasSelectedPlayerDeck())
         {
             Debug.LogWarning("[TestPlay] Select your deck from the list first, then press TestPlay, then select the enemy deck.");
+            return;
+        }
+
+        if (deckSettings.SelectedDeckContainsPreReleaseCardsUnavailableToCurrentUser())
+        {
+            ShowPreReleaseAlert(deckSettings.CollectPreReleaseCardsInSelectedDeck());
             return;
         }
 
@@ -284,6 +295,18 @@ public class NewDeckMaking : MonoBehaviour
 
         TestPlayDeckPick player = _testPlaySelectPanel.PlayerPick;
         TestPlayDeckPick enemy = _testPlaySelectPanel.EnemyPick;
+        if (!DeveloperModeAccess.IsAuthorized)
+        {
+            List<CardData> preRelease = new List<CardData>();
+            preRelease.AddRange(DeckSettinObject.CollectPreReleaseCards(player != null ? player.Cards : null));
+            preRelease.AddRange(DeckSettinObject.CollectPreReleaseCards(enemy != null ? enemy.Cards : null));
+            if (preRelease.Count > 0)
+            {
+                ShowPreReleaseAlert(preRelease);
+                return;
+            }
+        }
+
         CloseTestPlayOpponentSelectUi();
         deckSettings.ApplyTestPlayDecksAndStart(player, enemy);
     }
@@ -554,7 +577,25 @@ public class NewDeckMaking : MonoBehaviour
         RefreshOnlineLockedDeckEditButton();
     }
 
+    private void ShowPreReleaseAlert(List<CardData> bannedCards)
+    {
+        ShowDeckBanAlert(
+            bannedCards,
+            GameLocale.T("リリース前のカード", "Pre-release cards"),
+            GameLocale.T(
+                "このカードはデベロッパーのみ利用できます。",
+                "These cards are available to developers only."));
+    }
+
     private void ShowNotUsedOnlineAlert(List<CardData> bannedCards)
+    {
+        ShowDeckBanAlert(
+            bannedCards,
+            "Not used card online",
+            "These cards cannot be used in Online Battle.");
+    }
+
+    private void ShowDeckBanAlert(List<CardData> bannedCards, string titleText, string subtitleText)
     {
         CloseNotUsedOnlineAlert();
 
@@ -588,7 +629,7 @@ public class NewDeckMaking : MonoBehaviour
             UIAnchor.TopCenter,
             720,
             48);
-        title.text = "Not used card online";
+        title.text = titleText;
         title.fontSize = 30;
         title.fontStyle = FontStyles.Bold;
         title.alignment = TextAlignmentOptions.Center;
@@ -601,7 +642,7 @@ public class NewDeckMaking : MonoBehaviour
             UIAnchor.TopCenter,
             720,
             36);
-        subtitle.text = "These cards cannot be used in Online Battle.";
+        subtitle.text = subtitleText;
         subtitle.fontSize = 18;
         subtitle.alignment = TextAlignmentOptions.Center;
         subtitle.color = new Color(0.9f, 0.9f, 0.9f);

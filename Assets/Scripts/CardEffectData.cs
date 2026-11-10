@@ -1325,6 +1325,12 @@ public static class CardNameContainsMatcher
             return IsShinAsukaCardName(unitName);
         }
 
+        if (IsDaughtressNeedle(needle))
+        {
+            return unitName.IndexOf("Daughtress", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || unitName.IndexOf("ドートレス", System.StringComparison.Ordinal) >= 0;
+        }
+
         return false;
     }
 
@@ -1370,6 +1376,12 @@ public static class CardNameContainsMatcher
     {
         return needle.IndexOf("Force Impulse Gundam", System.StringComparison.OrdinalIgnoreCase) >= 0
             || needle.IndexOf("フォースインパルスガンダム", System.StringComparison.Ordinal) >= 0;
+    }
+
+    private static bool IsDaughtressNeedle(string needle)
+    {
+        return needle.IndexOf("Daughtress", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || needle.IndexOf("ドートレス", System.StringComparison.Ordinal) >= 0;
     }
 
     private static bool IsShinAsukaNeedle(string needle)

@@ -162,7 +162,13 @@ public sealed class EosRandomMatchService : MonoBehaviour
             return;
         }
 
-        if (DeckSettinObject.Instance.SelectedDeckContainsNotUsedOnlineCards())
+        if (DeckSettinObject.Instance.SelectedDeckContainsPreReleaseCardsUnavailableToCurrentUser())
+        {
+            SetStatus(MatchPhase.Idle, "Deck contains pre-release cards.");
+            return;
+        }
+
+        if (DeckSettinObject.Instance.SelectedDeckContainsNotUsedOnlineCardsBlockedForCurrentUser())
         {
             SetStatus(MatchPhase.Idle, "Deck contains cards not allowed online.");
             return;

@@ -287,6 +287,20 @@ public partial class BattleGameMain
 
         if (overlay != null)
         {
+            // Destroy はフレーム末まで残るため、直後の対象選択 UI がクリックを吸われないよう即無効化
+            overlay.SetActive(false);
+            GraphicRaycaster leftoverRaycaster = overlay.GetComponent<GraphicRaycaster>();
+            if (leftoverRaycaster != null)
+            {
+                leftoverRaycaster.enabled = false;
+            }
+
+            Image leftoverDim = overlay.GetComponent<Image>();
+            if (leftoverDim != null)
+            {
+                leftoverDim.raycastTarget = false;
+            }
+
             Destroy(overlay);
         }
 
@@ -322,6 +336,22 @@ public partial class BattleGameMain
     {
         int selectedNormal = 0;
         int selectedEx = 0;
+        // 通常リソース優先でコストちょうどになる組み合わせを初期選択し、OK をすぐ押せるようにする
+        for (int ex = 0; ex <= Mathf.Min(availableEx, cost); ex++)
+        {
+            int normal = cost - ex;
+            if (normal < 0 || normal > availableNormal)
+            {
+                continue;
+            }
+
+            if (gundamRule != null && gundamRule.CanPlayCard(ruleSide, requiredLevel, cost, ex))
+            {
+                selectedNormal = normal;
+                selectedEx = ex;
+                break;
+            }
+        }
 
         float topY = asOverlayRoot ? 150f : anchorY;
         TextMeshProUGUI title = parent.CreateChildTextCustom("PayTitle", UIAnchor.TopCenter, 480, 36);

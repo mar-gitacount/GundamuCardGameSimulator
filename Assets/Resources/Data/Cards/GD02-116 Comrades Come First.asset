@@ -31,7 +31,7 @@ MonoBehaviour:
   sourceTitle: 8
   filterType: 0
   color: 6
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
   timedEffects:
@@ -65,7 +65,8 @@ MonoBehaviour:
     observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 0181ba0978224109a14526f94b37301b, type: 2}
-  pilotIds: []
+  pilotIds:
+  - {fileID: 11400000, guid: b7dea52c487448daaf8972f1bcf9f2f6, type: 2}
   link: []
   pilotMountOnPilotMountedSource: 0
   pilotMountOnPilotMountedOrder: 1
