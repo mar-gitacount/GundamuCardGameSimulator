@@ -113,6 +113,11 @@ public enum EffectTiming
     /// ターン1回は timed.oncePerTurn。
     /// </summary>
     OnBlockerActivated = 35,
+    /// <summary>
+    /// 相手のターン中、自分のユニットが相手の効果（コマンド／ユニット効果）でレストになったとき。
+    /// 配備ベース等の場の監視カードが解決する（GD03-128 ドリテア）。ターン1回は timed.oncePerTurn。
+    /// </summary>
+    OnAllyUnitRestedByOpponentEffect = 36,
 }
 
 public enum EffectType
@@ -1123,7 +1128,12 @@ public enum EffectActivationCheckKind
     /// EffectActivationContext.DestroyedUnitMountedPilotData を参照（切り離し前の CardData）。
     /// GD02-093 「〔ニュータイプ〕のパイロットがセットされている相手のユニット」→ featureId 19。
     /// </summary>
-    DestroyedUnitHasMountedPilotWithFeature
+    DestroyedUnitHasMountedPilotWithFeature,
+    /// <summary>
+    /// 相手のシールドエリアに配備ベースカードがない。EXベースは対象外。
+    /// GD03-093 キャリス・ノーティラス「相手のベースがいない間、AP+1」。
+    /// </summary>
+    OpponentHasNoBase
 }
 
 public enum EffectTurnCheckKind
@@ -1580,6 +1590,9 @@ public class EffectData
         + " Feature 条件があればベースにも適用する。")]
     public bool allowFriendlyDeployedBaseTarget;
 
+    [Tooltip("true のとき双方の配備ベースと EX ベースにダメージ（GD03-041 パトゥーリア等）。シールドには波及しない。")]
+    public bool damageAllDeployedBases;
+
     [Tooltip("DeployUnit / DeployBase: 配備するカードの出所（Token=トークン生成 / Hand / Trash）。DeployBase は Trash 時にトラッシュから Base を配備。")]
     public DeployUnitSource deployUnitSource = DeployUnitSource.Token;
 
@@ -1743,6 +1756,9 @@ public class EffectData
 
     [Tooltip("true のときパイロットがセットされていないユニットのみ対象。")]
     public bool requireTargetHasNoPilot;
+
+    [Tooltip("true のときパイロットがセットされているユニットのみ対象（セット中パイロット破壊など）。")]
+    public bool requireTargetHasPilot;
 
     [Tooltip("true のときダメージを受けている（現在 HP < 最大 HP）ユニットのみ対象。")]
     public bool requireTargetDamaged;
@@ -2197,6 +2213,7 @@ public static class EffectDataExtensions
                 || !string.IsNullOrWhiteSpace(effect.targetCardNameExcludes)
                 || effect.requireTargetLacksBreach
                 || effect.requireTargetHasNoPilot
+                || effect.requireTargetHasPilot
                 || effect.requireTargetDamaged
                 || effect.requireTargetIsLinked
                 || effect.requireTargetIsNotLinked
@@ -2496,6 +2513,12 @@ public static class EffectDataExtensions
             return false;
         }
 
+        if (effect.requireTargetHasPilot && (unit.MountedPilot == null || unit.MountedPilot.Data == null
+            || !unit.MountedPilot.Data.IsPilot()))
+        {
+            return false;
+        }
+
         // AttackActiveEnemy の味方付与では、ダメージ中は「攻撃できる敵」の条件。付与先には使わない。
         if (effect.requireTargetDamaged
             && !effect.IsAttackActiveEnemyAllyGrant()
@@ -2676,6 +2699,16 @@ public static class EffectDataExtensions
             }
 
             sb.Append(GameLocale.T("パイロット未セット", "no pilot"));
+        }
+
+        if (effect.requireTargetHasPilot)
+        {
+            if (sb.Length > 0)
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(GameLocale.T("パイロットセット中", "paired pilot"));
         }
 
         if (effect.requireTargetLacksBreach)
@@ -3112,6 +3145,12 @@ public static class EffectDataExtensions
         }
 
         if (effect.requireTargetIsNotRest && unit.IsRestState)
+        {
+            return false;
+        }
+
+        if (effect.requireTargetHasPilot && (unit.MountedPilot == null || unit.MountedPilot.Data == null
+            || !unit.MountedPilot.Data.IsPilot()))
         {
             return false;
         }
@@ -3607,6 +3646,26 @@ public static class TimedEffectDataExtensions
         return false;
     }
 
+    /// <summary>相手のベースがいない間の Self パッシブ（キャリス・ノーティラス等）。</summary>
+    public static bool HasOpponentHasNoBaseActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.OpponentHasNoBase)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>味方配備ベースが場にいる間の Self パッシブ（カミユ／メッサー等）。</summary>
     public static bool HasOwnerHasDeployedBaseActivationRequirement(this TimedEffectData timed)
     {
@@ -3619,6 +3678,29 @@ public static class TimedEffectDataExtensions
         {
             EffectActivationCondition c = timed.activationConditions[i];
             if (c != null && c.checkKind == EffectActivationCheckKind.OwnerHasDeployedBase)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 自分のユニットトークン体数条件（GD03-045 バリエント等）。
+    /// トークン増減のたびに RefreshConditionalFieldSelfStatPassives で張り直す。
+    /// </summary>
+    public static bool HasCompareFieldUnitTokenCountActivationRequirement(this TimedEffectData timed)
+    {
+        if (timed?.activationConditions == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < timed.activationConditions.Count; i++)
+        {
+            EffectActivationCondition c = timed.activationConditions[i];
+            if (c != null && c.checkKind == EffectActivationCheckKind.CompareFieldUnitTokenCount)
             {
                 return true;
             }
@@ -3739,7 +3821,9 @@ public static class TimedEffectDataExtensions
                 || timed.HasMountedPilotActivationRequirement()
                 || timed.HasTrashZoneActivationRequirement()
                 || timed.HasUnitStatOnFieldActivationRequirement()
-                || timed.HasOwnerHasDeployedBaseActivationRequirement()))
+                || timed.HasCompareFieldUnitTokenCountActivationRequirement()
+                || timed.HasOwnerHasDeployedBaseActivationRequirement()
+                || timed.HasOpponentHasNoBaseActivationRequirement()))
         {
             return false;
         }
@@ -4100,6 +4184,21 @@ public static class TimedEffectDataExtensions
     {
         if (timed == null
             || timed.timing != EffectTiming.OnAllyUnitAttack
+            || !timed.HasResolvedEffects())
+        {
+            return false;
+        }
+
+        return !timed.IsHandConditionalPassiveBlock();
+    }
+
+    /// <summary>
+    /// 相手のターン中、味方ユニットが相手の効果でレストになったとき（OnAllyUnitRestedByOpponentEffect）。
+    /// </summary>
+    public static bool IsOnAllyUnitRestedByOpponentEffectResolutionBlock(this TimedEffectData timed)
+    {
+        if (timed == null
+            || timed.timing != EffectTiming.OnAllyUnitRestedByOpponentEffect
             || !timed.HasResolvedEffects())
         {
             return false;

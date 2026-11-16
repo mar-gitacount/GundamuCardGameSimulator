@@ -1268,6 +1268,40 @@ public partial class BattleGameMain
         });
     }
 
+    /// <summary>セット中パイロット破壊を、ホストユニットの instanceId で同期する。</summary>
+    private void QueueOnlineDestroyPairedPilot(CardController hostUnit, CardController destroyer = null)
+    {
+        if (hostUnit == null || hostUnit.Data == null)
+        {
+            return;
+        }
+
+        AssignBattleInstanceIdIfNeeded(hostUnit);
+        if (destroyer != null)
+        {
+            AssignBattleInstanceIdIfNeeded(destroyer);
+        }
+
+        OnlineBattleUnitEffectChange change = new OnlineBattleUnitEffectChange
+        {
+            changeKind = OnlineBattleEffectSyncPayload.ChangeKindDestroyPairedPilot,
+            hpAfter = hostUnit.CurrentHp,
+            destroyerInstanceId = destroyer != null ? destroyer.BattleInstanceId : 0
+        };
+        bool queued = TryQueueOnlineUnitTargetChange(hostUnit, change);
+        if (!queued)
+        {
+            Debug.LogWarning(
+                $"[EffectSync][QueueDestroyPairedPilotFail] host={FormatOnlineEffectSyncUnit(hostUnit)}");
+        }
+        else
+        {
+            Debug.Log(
+                $"[EffectSync][QueueDestroyPairedPilot] host={FormatOnlineEffectSyncUnit(hostUnit)} "
+                + $"hpAfter:{hostUnit.CurrentHp}");
+        }
+    }
+
     private void QueueOnlineUnitDestroy(
         CardController target,
         CardController destroyer = null,
@@ -3301,8 +3335,21 @@ public partial class BattleGameMain
                             change.effectDamageTakenWatchRequestId);
                     }
 
+                    if (unit.Data != null && unit.Data.type == Type.Base)
+                    {
+                        RefreshDeployedBaseHpOverlay(unit);
+                    }
+
                     if (change.hpAfter <= 0)
                     {
+                        if (unit.Data != null && unit.Data.type == Type.Base)
+                        {
+                            Debug.Log(
+                                $"[EffectSync][DamageSkipBaseUnitTrash] #{i} "
+                                + $"unit={FormatOnlineEffectSyncUnit(unit)}");
+                            break;
+                        }
+
                         Debug.Log($"[EffectSync][DamageToTrash] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
                         NotifyAttackFlowParticipantRemovedDuringOnAction(unit);
                         // 相手の効果ダメージ（G-fred の全体ダメージ等）で破壊された場合も
@@ -3374,7 +3421,11 @@ public partial class BattleGameMain
 
                 case OnlineBattleEffectSyncPayload.ChangeKindRest:
                     Debug.Log($"[EffectSync][ApplyRest] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
-                    TryApplyRestToUnit(unit);
+                    if (TryApplyRestToUnit(unit))
+                    {
+                        NotifyLocalAllyUnitRestedByRemoteOpponentEffect(unit);
+                    }
+
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindActivate:
@@ -3413,6 +3464,11 @@ public partial class BattleGameMain
                     Debug.Log(
                         $"[EffectSync][ApplySkipNextStartPhaseActive] #{i} "
                         + $"unit={FormatOnlineEffectSyncUnit(unit)}");
+                    break;
+
+                case OnlineBattleEffectSyncPayload.ChangeKindDestroyPairedPilot:
+                    Debug.Log($"[EffectSync][ApplyDestroyPairedPilot] #{i} unit={FormatOnlineEffectSyncUnit(unit)}");
+                    ApplyRemoteDestroyPairedPilot(unit);
                     break;
 
                 case OnlineBattleEffectSyncPayload.ChangeKindDestroy:
@@ -3466,6 +3522,30 @@ public partial class BattleGameMain
         // ユニット変更が適用された後のユニットの状ユニット
         Debug.Log($"[OnlineBattle] Remote effect sync applied. changes={changes.Length}");
         Debug.Log($"--------------------------------");
+    }
+
+    /// <summary>受信側：ホストユニットからセット中パイロットだけを外して場から除く。</summary>
+    private void ApplyRemoteDestroyPairedPilot(CardController hostUnit)
+    {
+        if (hostUnit == null || hostUnit.Data == null || !hostUnit.Data.IsUnitLike())
+        {
+            return;
+        }
+
+        CardController detached = hostUnit.DetachMountedPilotWithoutDestroy();
+        if (detached == null)
+        {
+            Debug.LogWarning(
+                $"[EffectSync][ApplyDestroyPairedPilot] no paired pilot host={FormatOnlineEffectSyncUnit(hostUnit)}");
+            return;
+        }
+
+        ApplyRemoteUnitRemovedFromField(detached);
+        hostUnit.SetBattleStatOverlayVisible(true);
+        RefreshAllFieldOwnerTurnPassives();
+        Debug.Log(
+            $"[EffectSync][ApplyDestroyPairedPilot] removed {FormatOnlineEffectSyncUnit(detached)} "
+            + $"from host={FormatOnlineEffectSyncUnit(hostUnit)} hp:{hostUnit.CurrentHp}");
     }
 
     /// <summary>リモート破壊時効果用に、破壊元ユニットを instanceId から探す。</summary>

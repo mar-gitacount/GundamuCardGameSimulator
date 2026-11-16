@@ -31,10 +31,18 @@ MonoBehaviour:
   sourceTitle: 4
   filterType: 0
   color: 1
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DamageEnemyLv5OrLess_ByOwnerTokenCount_SelectSingle
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   - {fileID: 11400000, guid: f2d0e1bc726e466bad36bdba65b24915, type: 2}
@@ -48,7 +56,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

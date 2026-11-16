@@ -341,6 +341,7 @@ public partial class BattleGameMain
                 || eff.type == EffectType.ShuffleLookedRemainderToDeckBottom
                 || eff.type == EffectType.TrashLookedRemainder
                 || eff.type == EffectType.DestroyEnemyDeployedBase
+                || (eff.type == EffectType.Damage && eff.damageAllDeployedBases)
                 || eff.type == EffectType.ChooseLookedRemainderDisposition
                 || eff.type == EffectType.ChooseLookedToDeckTopThenTrashRemainder
                 || eff.type == EffectType.ChooseLookedToDeckTopThenBottomRemainder

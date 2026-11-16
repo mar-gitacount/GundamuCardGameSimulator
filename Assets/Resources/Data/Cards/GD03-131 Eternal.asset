@@ -44,9 +44,29 @@ MonoBehaviour:
     oncePerTurn: 0
     observedUnitTriggerKind: -1
   - timing: 6
-    activationConditions: []
+    activationConditions:
+    - boardSide: 0
+      checkKind: 0
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: 8f2a1b3c4d5e6f708192a3b4c5d6e7f8, type: 2}
+      featureId: 8
+      features: []
+      featureIds: 
+      minimumCount: 2
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
     requireChainObservationContext: 0
-    effectsName: AddShield1_OnBaseDeployed
+    effectsName: AddShield1_ThenBounceEnemyLv4OrLess_IfTripleShip2
     effects: []
     activationCost: 0
     oncePerTurn: 0
@@ -64,7 +84,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

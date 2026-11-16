@@ -10,33 +10,33 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb320e6489da1ee42a0daff0b0f579e0, type: 3}
-  m_Name: 44KenpFar
-  m_EditorClassIdentifier: 
-  id: 44
-  gcgOfficialId: GD03-017
-  cardName: KenpFar
-  cost: 3
-  level: 4
-  power: 4
-  hp: 3
+  m_Name: T-041 CGS Mobile Worker
+  m_EditorClassIdentifier:
+  id: 1001041
+  gcgOfficialId: T-041
+  cardName: CGS Mobile Worker
+  cost: 0
+  level: 0
+  power: 1
+  hp: 1
   imageName: {fileID: 0}
   image: {fileID: 0}
-  imageAddress: Data/Images/44_KenpFar
+  imageAddress: Data/Images/ST05-003_CGS Mobile Worker
   version: 3
   sourceType: 1
   productLine: 1
   boosterSet: 3
   starterSet: 0
   eternalBoosterSet: 0
-  sourceTitle: 4
+  sourceTitle: 0
   filterType: 0
-  color: 1
-  type: 0
-  battleZones: 0
+  color: 6
+  type: 5
+  battleZones: 2
   attackFlg: 0
   timedEffects: []
   features:
-  - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
+  - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
   pilotIds: []
   link: []
   pilotMountOnPilotMountedSource: 0
@@ -47,9 +47,10 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
-  cannotMountPilot: 0
+  notUsedOnline: 0
+  hideFromCardList: 1
+  cannotMountPilot: 1
   gcgId:
-    setKind: 2
-    setNumber: 3
-    cardNumber: 17
+    setKind: 4
+    setNumber: 0
+    cardNumber: 41

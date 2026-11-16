@@ -34,7 +34,35 @@ MonoBehaviour:
   type: 0
   battleZones: 3
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 13
+    activationConditions:
+    - boardSide: 0
+      checkKind: 27
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: 374064caad5947b0bb2b44e5adee549a, type: 2}
+      featureId: 25
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: DebuffSelfCost1_Permanent
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 374064caad5947b0bb2b44e5adee549a, type: 2}
   - {fileID: 11400000, guid: 361fd0a9743146c985079a7eeffbe53e, type: 2}
@@ -55,7 +83,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

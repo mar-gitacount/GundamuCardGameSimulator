@@ -38,7 +38,7 @@ MonoBehaviour:
   - timing: 0
     activationConditions: []
     requireChainObservationContext: 0
-    effectsName: HighMobility
+    effectsName: HighMobility_Self_Permanent
     effects: []
     activationCost: 0
     oncePerTurn: 0
@@ -61,7 +61,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

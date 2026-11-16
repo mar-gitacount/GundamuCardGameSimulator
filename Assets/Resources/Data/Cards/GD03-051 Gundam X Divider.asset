@@ -34,7 +34,15 @@ MonoBehaviour:
   type: 0
   battleZones: 3
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 18
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployTrashUnit_Lv4OrLess_PayCost_Optional_OnLink
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 0181ba0978224109a14526f94b37301b, type: 2}
   pilotIds: []
@@ -54,7 +62,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

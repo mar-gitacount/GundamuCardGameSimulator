@@ -119,6 +119,9 @@ public class CardData : ScriptableObject
     [Tooltip("true のとき、搭乗先ユニットの Link 条件がこのパイロットと一致する場合のみコスト減（GD06-086 Mashymre Cello）。")]
     public bool pairFromHandRequireLinkMatch;
 
+    [Tooltip("pairFromHandCostReduction 用。搭乗先カード名がこの文字列を含むときのみコスト減（例: Gundam NT-1）。空なら名前条件なし。")]
+    public string pairFromHandHostNameContains;
+
     [Header("公式カード番号（GCG）")]
     [Tooltip("種別・セット番号・カード番号。1 と 1 なら ST01-001。入力した数値がそのまま使われる。")]
     public GcgIdParts gcgId = new GcgIdParts();

@@ -1035,6 +1035,120 @@ public partial class BattleGameMain
         }
     }
 
+    /// <summary>
+    /// 両方の配備ベースと EX ベースに効果ダメージ（GD03-041 パトゥーリア）。
+    /// シールドには波及しない。配備ベースと EX はそれぞれ別対象として同量を受ける。
+    /// </summary>
+    private bool TryApplyDamageAllDeployedBases(
+        EffectData effect,
+        CardController sourceCard,
+        PlayerType ownerType)
+    {
+        if (effect == null || !effect.damageAllDeployedBases)
+        {
+            return false;
+        }
+
+        int amount = effect.value > 0 ? effect.value : 3;
+        ApplyDamageToAllBasesOnSide(Gundam2024RuleScript.PlayerSide.Player, amount, sourceCard);
+        ApplyDamageToAllBasesOnSide(Gundam2024RuleScript.PlayerSide.Enemy, amount, sourceCard);
+        Debug.Log(
+            $"[Effect] DamageAllDeployedBases amount:{amount} by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+        return true;
+    }
+
+    private void ApplyDamageToAllBasesOnSide(
+        Gundam2024RuleScript.PlayerSide targetSide,
+        int amount,
+        CardController sourceCard)
+    {
+        if (amount <= 0 || gundamRule == null)
+        {
+            return;
+        }
+
+        if (ShouldIgnoreShieldAreaDamageFromEnemyUnit(targetSide, sourceCard))
+        {
+            Debug.Log(
+                $"[EffectDamage] Base/EX immune to unit damage (side:{targetSide}, source:"
+                + $"{(sourceCard?.Data != null ? sourceCard.Data.cardName : "-")}).");
+            return;
+        }
+
+        PlayerType owner = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? PlayerType.Player
+            : PlayerType.Enemy;
+        Gundam2024RuleScript.PlayerState targetState = targetSide == Gundam2024RuleScript.PlayerSide.Player
+            ? gundamRule.Player
+            : gundamRule.Enemy;
+        int shieldBefore = targetState != null ? targetState.shield : 0;
+        int exBefore = targetState != null ? targetState.exBase : 0;
+
+        CardController defenderBase = GetDeployedBaseForRuleSide(targetSide);
+        if (defenderBase != null && defenderBase.Data != null && defenderBase.CurrentHp > 0)
+        {
+            AssignBattleInstanceIdIfNeeded(defenderBase);
+            if (TryApplyEffectDamageToDeployedBase(
+                    targetSide,
+                    amount,
+                    out string logMessage,
+                    out bool destroyed,
+                    sourceCard))
+            {
+                if (!string.IsNullOrEmpty(logMessage))
+                {
+                    Debug.Log(logMessage);
+                }
+
+                if (destroyed)
+                {
+                    QueueOnlineDestroyDeployedBase(owner);
+                }
+                else
+                {
+                    CardController live = GetDeployedBaseForRuleSide(targetSide);
+                    if (live != null)
+                    {
+                        QueueOnlineUnitDamage(live, sourceCard);
+                        live.SetBattleStatOverlayVisible(true);
+                        RefreshDeployedBaseHpOverlay(live);
+                    }
+                }
+            }
+        }
+
+        if (ShouldIgnoreFriendlyBaseDamageFromLinkedRestedUnitLevelOrLess(
+                null,
+                sourceCard,
+                targetSide))
+        {
+            Debug.Log(
+                $"[EffectDamage] EX Base immune to unit damage (side:{targetSide}, source:"
+                + $"{(sourceCard?.Data != null ? sourceCard.Data.cardName : "-")}).");
+        }
+        else
+        {
+            int exDamage = ResolveEffectDamageAmount(amount);
+            if (targetState != null && targetState.exBase > 0 && exDamage > 0)
+            {
+                gundamRule.DamageExBaseOnly(targetSide, exDamage);
+                RefreshConditionalFieldSelfStatPassives();
+                Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {targetState.exBase}).");
+                SyncResourceViewsFromRule(targetSide);
+                SyncBaseZoneHeaderDisplay(targetSide);
+            }
+        }
+
+        if (targetSide == Gundam2024RuleScript.PlayerSide.Enemy)
+        {
+            TryNotifyOnlineDefenderAreaStateAfterEffectDamage(targetSide, shieldBefore, exBefore);
+        }
+        else if (targetState != null && targetState.exBase != exBefore)
+        {
+            NotifyLocalDeployExBaseSynced(PlayerType.Player);
+        }
+    }
+
     /// <summary>相手プレイヤーの配備ベース／EX ベース層を破壊する（GD06-049 等）。</summary>
     private bool TryApplyDestroyEnemyDeployedBase(EffectData effect, PlayerType ownerType)
     {
@@ -1282,6 +1396,7 @@ public partial class BattleGameMain
         }
 
         gundamRule.DamageExBaseOnly(targetSide, exDamage);
+        RefreshConditionalFieldSelfStatPassives();
         Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {target.exBase}).");
         SyncResourceViewsFromRule(targetSide);
         SyncBaseZoneHeaderDisplay(targetSide);
@@ -1460,6 +1575,7 @@ public partial class BattleGameMain
             }
 
             gundamRule.DamageExBaseOnly(targetSide, exDamage);
+            RefreshConditionalFieldSelfStatPassives();
             Debug.Log($"[EffectDamage] Dealt {exDamage} to EX Base (now {target.exBase}).");
             destroyedShieldAreaCard = exBaseBefore > 0 && target.exBase <= 0;
             SyncResourceViewsFromRule(targetSide);

@@ -34,7 +34,15 @@ MonoBehaviour:
   type: 0
   battleZones: 1
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 18
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: BounceEnemyHp3OrLess_Select1to3_OnLink
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 8f2a1b3c4d5e6f708192a3b4c5d6e7f8, type: 2}
   pilotIds: []
@@ -53,7 +61,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

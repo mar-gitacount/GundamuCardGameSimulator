@@ -4506,6 +4506,7 @@ public partial class BattleGameMain : MonoBehaviour
         Debug.Log(
             $"[Effect] DeployExBase fill-to-cap:{cap} exBase:{before}->{after} to:{targetPlayer} "
             + $"replacedBase:{replacedBaseLayer} by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
+        RefreshAllFieldOwnerTurnPassives();
     }
 
     /// <summary>SendCardToTrash の非同期パイプライン（OnDestroyed / Look UI 等）が未完了の件数。</summary>
@@ -5118,7 +5119,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
     }
 
-    private void ApplyRestEffect(EffectData effect, List<CardController> targets)
+    private void ApplyRestEffect(
+        EffectData effect,
+        List<CardController> targets,
+        CardController sourceCard = null,
+        PlayerType sourceOwner = PlayerType.Player)
     {
         if (effect == null || targets == null || targets.Count == 0)
         {
@@ -5127,6 +5132,8 @@ public partial class BattleGameMain : MonoBehaviour
 
         int limit = ResolveRestEffectApplyLimit(effect, targets.Count);
         int applied = 0;
+        bool notifyPlayerAllyRestedByOpponent = false;
+        bool notifyEnemyAllyRestedByOpponent = false;
         for (int i = 0; i < targets.Count && applied < limit; i++)
         {
             CardController liveTarget = ResolveLiveBattleZoneUnit(targets[i]);
@@ -5142,12 +5149,35 @@ public partial class BattleGameMain : MonoBehaviour
             {
                 QueueOnlineUnitRest(liveTarget);
                 applied++;
+                PlayerType restOwner = ResolveCardOwner(liveTarget.transform);
+                StartCoroutine(CoNotifyUnitRestedByEffect(liveTarget, restOwner));
+                if (ShouldNotifyAllyUnitRestedByOpponentEffect(sourceOwner, restOwner))
+                {
+                    if (restOwner == PlayerType.Player)
+                    {
+                        notifyPlayerAllyRestedByOpponent = true;
+                    }
+                    else
+                    {
+                        notifyEnemyAllyRestedByOpponent = true;
+                    }
+                }
             }
         }
 
         if (applied > 0)
         {
-            Debug.Log($"[Effect] Rest applied:{applied} target:{effect.target}");
+            Debug.Log($"[Effect] Rest applied:{applied} target:{effect.target} by cardId:{sourceCard?.Data?.id} owner:{sourceOwner}");
+        }
+
+        if (notifyPlayerAllyRestedByOpponent)
+        {
+            NotifyAllyUnitRestedByOpponentEffect(PlayerType.Player);
+        }
+
+        if (notifyEnemyAllyRestedByOpponent)
+        {
+            NotifyAllyUnitRestedByOpponentEffect(PlayerType.Enemy);
         }
     }
 
@@ -5282,6 +5312,16 @@ public partial class BattleGameMain : MonoBehaviour
             }
 
             PlayerType targetOwner = ResolveCardOwner(target.transform);
+            if (effect.requireTargetHasPilot)
+            {
+                if (TryDestroyPairedPilotOnUnit(target, sourceCard, ownerType, effect))
+                {
+                    applied++;
+                }
+
+                continue;
+            }
+
             if (TryPreventEnemyEffectDestroy(target, ownerType))
             {
                 continue;
@@ -5317,6 +5357,53 @@ public partial class BattleGameMain : MonoBehaviour
             Debug.Log(
                 $"[Effect] Destroy applied:{applied} target:{effect.target} by cardId:{sourceCard?.Data?.id} owner:{ownerType}");
         }
+    }
+
+    /// <summary>
+    /// 対象ユニットにセットされたパイロットだけを破壊する（ユニット本体は残す）。
+    /// </summary>
+    private bool TryDestroyPairedPilotOnUnit(
+        CardController hostUnit,
+        CardController sourceCard,
+        PlayerType ownerType,
+        EffectData effect)
+    {
+        if (hostUnit == null || hostUnit.Data == null || !hostUnit.Data.IsUnitLike())
+        {
+            return false;
+        }
+
+        CardController pilot = hostUnit.MountedPilot;
+        if (pilot == null || pilot.Data == null || !pilot.Data.IsPilot())
+        {
+            return false;
+        }
+
+        PlayerType targetOwner = ResolveCardOwner(hostUnit.transform);
+        CardController destroyedBy = ResolveUnitKillSourceForTrash(sourceCard, hostUnit);
+        if (destroyedBy == null
+            && sourceCard != null
+            && sourceCard.Data != null
+            && sourceCard.Data.IsUnitLike())
+        {
+            destroyedBy = sourceCard;
+        }
+
+        CardController detached = hostUnit.DetachMountedPilotWithoutDestroy();
+        if (detached == null)
+        {
+            return false;
+        }
+
+        hostUnit.SetBattleStatOverlayVisible(true);
+        QueueOnlineDestroyPairedPilot(hostUnit, destroyedBy);
+        SendCardToTrash(detached, targetOwner, destroyedBy);
+        RefreshAllFieldOwnerTurnPassives();
+        Debug.Log(
+            $"[Effect] Destroy paired pilot:{detached.Data.cardName}(id:{detached.Data.id}) "
+            + $"host:{hostUnit.Data.cardName}(id:{hostUnit.Data.id}) by cardId:{sourceCard?.Data?.id} owner:{ownerType} "
+            + $"target:{effect?.target}");
+        return true;
     }
 
     private static bool TryApplyRestToUnit(CardController unit)
@@ -7992,10 +8079,6 @@ public partial class BattleGameMain : MonoBehaviour
 
         int magnitude = ResolveEffectMagnitude(effect, attackerOwner, magnitudeSource);
         int damage = ResolveEffectDamageAmount(magnitude, target, attackerOwner, magnitudeSource, effect);
-        if (damage > 0)
-        {
-            damage += ResolveAllyFeatureOutgoingDamageBonus(attackerOwner, magnitudeSource, target);
-        }
 
         if (damage <= 0)
         {
@@ -8326,6 +8409,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect != null && effect.damageAllDeployedBases)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            TryApplyDamageAllDeployedBases(effect, sourceCard, ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         if (effect.type == EffectType.MarkObservedUnit)
         {
             RegisterObservedUnitWatch(sourceCard, ownerType, effect, targets);
@@ -8507,10 +8599,6 @@ public partial class BattleGameMain : MonoBehaviour
                 case EffectType.Damage:
                 {
                     int damageAmount = ResolveEffectDamageAmount(magnitude, t, ownerType, sourceCard, effect);
-                    if (damageAmount > 0)
-                    {
-                        damageAmount += ResolveAllyFeatureOutgoingDamageBonus(ownerType, sourceCard, t);
-                    }
 
                     int hpBefore = t.CurrentHp;
                     bool isCloseCombat = IsCloseCombatCard(sourceCard);
@@ -8692,7 +8780,7 @@ public partial class BattleGameMain : MonoBehaviour
         }
         else if (effect.type == EffectType.Rest)
         {
-            ApplyRestEffect(effect, targets);
+            ApplyRestEffect(effect, targets, sourceCard, ownerType);
         }
         else if (effect.type == EffectType.Destroy)
         {
@@ -9863,7 +9951,78 @@ public partial class BattleGameMain : MonoBehaviour
             return false;
         }
 
-        return HasEffectTiming(source.Data, EffectTiming.OnRest);
+        return HasVoluntaryOnRestAbility(source.Data);
+    }
+
+    /// <summary>条件なしの OnRest は能動レスト起動。条件付き（自分ターン中・効果レスト時）は誘発専用。</summary>
+    private static bool HasVoluntaryOnRestAbility(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnRest || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (!timed.HasActivationConditions())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasTriggeredOnRestAbility(CardData data)
+    {
+        if (data?.timedEffects == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < data.timedEffects.Count; i++)
+        {
+            TimedEffectData timed = data.timedEffects[i];
+            if (timed == null || timed.timing != EffectTiming.OnRest || !timed.HasResolvedEffects())
+            {
+                continue;
+            }
+
+            if (timed.HasActivationConditions())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>効果で REST したとき、自分ターン中なら OnRest 誘発を解決して完了まで待つ。</summary>
+    private IEnumerator CoNotifyUnitRestedByEffect(CardController unit, PlayerType ownerType)
+    {
+        if (unit == null || unit.Data == null || !HasTriggeredOnRestAbility(unit.Data))
+        {
+            yield break;
+        }
+
+        if (ownerType != currentPlayerType)
+        {
+            yield break;
+        }
+
+        bool done = false;
+        TriggerTimedEffectsForCard(
+            unit,
+            ownerType,
+            EffectTiming.OnRest,
+            onComplete: () => done = true);
+        yield return new WaitUntil(() => done);
     }
 
     private bool TryActivateOnRestBySelf(PlayerType ownerType, CardController source)
@@ -12122,6 +12281,7 @@ public partial class BattleGameMain : MonoBehaviour
             opponentTrashCardIds: opponentRule != null ? opponentRule.GetTrashCardIds() : null,
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentHasDeployedBase: HasOpponentActiveBaseLayer(ownerType),
             ownerTotalLevel: ownerStateForHm != null ? ownerStateForHm.TotalLevel : -1,
             ownerExResource: ownerStateForHm != null ? ownerStateForHm.exResource : -1,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
@@ -12145,6 +12305,16 @@ public partial class BattleGameMain : MonoBehaviour
         return opponentRule.GetShieldZoneCardCount();
     }
 
+    /// <summary>
+    /// 相手のシールドエリアに配備ベースカードがある。
+    /// EXベースは「ベース」カードではないので見ない（開始時から EX があるため、見ると常に不発になる）。
+    /// </summary>
+    private bool HasOpponentActiveBaseLayer(PlayerType ownerType)
+    {
+        PlayerType opponent = ownerType == PlayerType.Player ? PlayerType.Enemy : PlayerType.Player;
+        return HasActiveDeployedBaseForRuleSide(ToRuleSide(opponent));
+    }
+
     private EffectActivationContext BuildActivationContext(PlayerType ownerType, CardController sourceCard)
     {
         Gundam2024RuleScript.PlayerState ownerState = ownerType == PlayerType.Player
@@ -12165,6 +12335,7 @@ public partial class BattleGameMain : MonoBehaviour
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentHasDeployedBase: HasOpponentActiveBaseLayer(ownerType),
             ownerTotalLevel: ownerState.TotalLevel,
             ownerExResource: ownerState.exResource,
             ownerActivatedResourceByEffectThisTurn: HasOwnerActivatedResourceByEffectThisTurn(ownerType),
@@ -12220,6 +12391,7 @@ public partial class BattleGameMain : MonoBehaviour
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentHasDeployedBase: HasOpponentActiveBaseLayer(ownerType),
             sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(mountHost),
             sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(mountHost),
             battlingEnemyUnit: ResolveBattlingEnemyUnitFor(mountHost),
@@ -12263,6 +12435,7 @@ public partial class BattleGameMain : MonoBehaviour
             priorChainDealtDamage: GetEffectChainDealtDamage(),
             ownerActivatedSpecialMoveCommandThisTurn: HasOwnerActivatedSpecialMoveCommandThisTurn(ownerType),
             ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentHasDeployedBase: HasOpponentActiveBaseLayer(ownerType),
             sourceAttackingEnemyUnit: IsSourceAttackingEnemyUnit(attacker),
             sourceAttackingEnemyPlayer: IsSourceAttackingEnemyPlayer(attacker),
             battlingEnemyUnit: battlingEnemy,
@@ -12521,7 +12694,8 @@ public partial class BattleGameMain : MonoBehaviour
             ownerTrashCardIds: cardGameRule.GetTrashCardIds(),
             opponentTrashCardIds: enemyCardGameRule.GetTrashCardIds(),
             priorChainDealtDamage: GetEffectChainDealtDamage(),
-            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)));
+            ownerHasDeployedBase: HasActiveDeployedBaseForRuleSide(ToRuleSide(ownerType)),
+            opponentHasDeployedBase: HasOpponentActiveBaseLayer(ownerType));
     }
 
     private void RefreshAllHandsConditionalOnHandAuto()
@@ -12637,6 +12811,11 @@ public partial class BattleGameMain : MonoBehaviour
         }
 
         if (timing == EffectTiming.OnPilotMounted || timing == EffectTiming.OnLink)
+        {
+            return;
+        }
+
+        if (timing == EffectTiming.OnAllyUnitRestedByOpponentEffect)
         {
             return;
         }
@@ -13994,6 +14173,16 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.damageAllDeployedBases)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            TryApplyDamageAllDeployedBases(effect, sourceCard, ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            TryExecuteOnPlayedEffectChain(sourceCard, ownerType, effects, index + 1, onDone);
+            return;
+        }
+
         if (EffectRequiresManualUnitSelection(effect))
         {
             bool abortRemainingOnSkip = ShouldAbortRemainingOnPlayedEffectsWhenSkipped(sourceCard, effect);
@@ -14608,6 +14797,7 @@ public partial class BattleGameMain : MonoBehaviour
 
             btn.interactable = false;
             ApplyUnitPickCardGrayedOut(go, isBlocked);
+            TryAttachPairedPilotPickThumbnail(go, candidate, effect);
             if (isBlocked)
             {
                 continue;
@@ -14847,6 +15037,7 @@ public partial class BattleGameMain : MonoBehaviour
             GameObject go = Instantiate(CardImagePrefab, content);
             CardController cc = go.GetComponent<CardController>();
             cc?.SetUp(candidate.Data, _ => { });
+            TryAttachPairedPilotPickThumbnail(go, candidate, effect);
 
             TextMeshProUGUI statLabel = go.CreateChildTextCustom(
                 "TargetStat",
@@ -15060,6 +15251,11 @@ public partial class BattleGameMain : MonoBehaviour
 
         // Self は選択 UI 不要（Gyunei の Activate Self / NotDirectAttack Self など）
         if (effect.target == TargetType.Self)
+        {
+            return false;
+        }
+
+        if (effect.damageAllDeployedBases)
         {
             return false;
         }
@@ -15901,6 +16097,15 @@ public partial class BattleGameMain : MonoBehaviour
             return;
         }
 
+        if (effect.damageAllDeployedBases)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            TryApplyDamageAllDeployedBases(effect, sourceCard, ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            return;
+        }
+
         int magnitude = ResolveEffectMagnitude(effect, ownerType, sourceCard);
         if (magnitude == 0
             && !effect.type.UsesTargetCountValue()
@@ -16312,7 +16517,7 @@ public partial class BattleGameMain : MonoBehaviour
                 ApplyReturnUnitToDeckBottomEffect(effect, targets);
                 break;
             case EffectType.Rest:
-                ApplyRestEffect(effect, targets);
+                ApplyRestEffect(effect, targets, sourceCard, ownerType);
                 break;
             case EffectType.Activate:
                 ApplyActivateEffect(effect, ownerType, targets);
@@ -16503,6 +16708,19 @@ public partial class BattleGameMain : MonoBehaviour
             : (PlayerType?)null;
         int modifier = ResolveEffectiveEffectDamageModifier(rawModifier, targetOwner, effectSourceOwner);
         int amount = Mathf.Max(0, baseMagnitude + modifier);
+        // GD06-033：味方〔エゥーゴ〕が敵ユニットへ与えるダメージ+1 等。無効化判定より先に加算する
+        // （自身の【配備時】2ダメージも、自身が〔エゥーゴ〕なら3になる）。
+        if (amount > 0
+            && effectSourceCard != null
+            && effectDamageTarget != null
+            && effectSourceOwner.HasValue)
+        {
+            amount += ResolveAllyFeatureOutgoingDamageBonus(
+                effectSourceOwner.Value,
+                effectSourceCard,
+                effectDamageTarget);
+        }
+
         if (amount <= 0 || effectDamageTarget == null || !effectSourceOwner.HasValue)
         {
             return amount;
@@ -21046,7 +21264,10 @@ public partial class BattleGameMain : MonoBehaviour
             "OnAction",
             null);
 
-        TryApplyOnActionRestSelfCostIfPresent(command, side);
+        if (TryApplyOnActionRestSelfCostIfPresent(command, side))
+        {
+            yield return CoNotifyUnitRestedByEffect(command, side);
+        }
 
         for (int i = startIndex; i < onActionEffects.Count; i++)
         {
@@ -22290,7 +22511,10 @@ public partial class BattleGameMain : MonoBehaviour
         _chooseOneCancelled = false;
         BeginEffectChainObservationScope();
         EffectActivationContext chainActivationContext = BuildOnMainChainActivationContext(side, source);
-        TryApplyOnMainRestSelfCostIfPresent(source, side, timed);
+        if (TryApplyOnMainRestSelfCostIfPresent(source, side, timed))
+        {
+            yield return CoNotifyUnitRestedByEffect(source, side);
+        }
         IReadOnlyList<EffectData> resolvedMainEffects = timed.GetResolvedEffects();
         int mainEffectStartIndex = TimedStartsWithRestSelf(timed) ? 1 : 0;
         TryExecuteOnMainEffectChain(
@@ -22943,11 +23167,61 @@ public partial class BattleGameMain : MonoBehaviour
             && ResolveCardOwner(target.transform) != effectOwner;
     }
 
+    /// <summary>パイロット破壊など、セット中パイロットをユニット右下サムネで見せる。</summary>
+    private static void TryAttachPairedPilotPickThumbnail(
+        GameObject pickCard,
+        CardController sourceUnit,
+        EffectData effect)
+    {
+        if (pickCard == null
+            || effect == null
+            || !effect.requireTargetHasPilot
+            || sourceUnit == null
+            || sourceUnit.MountedPilot == null)
+        {
+            return;
+        }
+
+        Image sourceImg = sourceUnit.MountedPilot.GetComponent<Image>();
+        Sprite sprite = sourceImg != null ? sourceImg.sprite : null;
+        if (sprite == null)
+        {
+            return;
+        }
+
+        GameObject thumb = new GameObject(
+            "PairedPilotThumb",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+        RectTransform rt = thumb.GetComponent<RectTransform>();
+        rt.SetParent(pickCard.transform, false);
+        rt.anchorMin = new Vector2(0.58f, 0f);
+        rt.anchorMax = new Vector2(1f, 0.42f);
+        rt.pivot = new Vector2(1f, 0f);
+        rt.offsetMin = new Vector2(2f, 2f);
+        rt.offsetMax = new Vector2(-2f, -2f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.localScale = Vector3.one;
+        Image img = thumb.GetComponent<Image>();
+        img.sprite = sprite;
+        img.preserveAspect = true;
+        img.raycastTarget = false;
+        rt.SetAsLastSibling();
+    }
+
     private static string FormatManualUnitSelectionTitle(EffectData effect, CardController attackingUnitInAttackFlow)
     {
         if (effect == null)
         {
             return GameLocale.T("対象を選択", "Select a target");
+        }
+
+        if (effect.requireTargetHasPilot && effect.type == EffectType.Destroy)
+        {
+            return GameLocale.T(
+                "破壊する相手のパイロットを選択",
+                "Choose an enemy Pilot to destroy");
         }
 
         bool isAttackContext = attackingUnitInAttackFlow != null && attackingUnitInAttackFlow.Data != null;
@@ -23602,64 +23876,71 @@ public partial class BattleGameMain : MonoBehaviour
     /// <summary>
     /// OnMain 先頭が「自身を REST」のコストなら、本効果適用前にソースをレストする（サイド7等）。
     /// </summary>
-    private void TryApplyOnMainRestSelfCostIfPresent(
+    private bool TryApplyOnMainRestSelfCostIfPresent(
         CardController source,
         PlayerType side,
         TimedEffectData timed)
     {
         if (source == null || timed == null)
         {
-            return;
+            return false;
         }
 
         if (!TimedStartsWithRestSelf(timed) || source.IsRestState)
         {
-            return;
+            return false;
         }
 
-        if (TryApplyRestToUnit(source))
+        if (!TryApplyRestToUnit(source))
         {
-            bool ownedBatch = !_onlineEffectSyncActive;
-            QueueOnlineUnitRest(source);
-            if (ownedBatch)
-            {
-                FlushOnlineEffectSyncBatch();
-            }
-
-            if (source.Data?.id == 1000669)
-            {
-                ArmLibraAfterRest(source, side);
-            }
-            Debug.Log(
-                $"[OnMain] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+            return false;
         }
+
+        bool ownedBatch = !_onlineEffectSyncActive;
+        QueueOnlineUnitRest(source);
+        if (ownedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
+
+        if (source.Data?.id == 1000669)
+        {
+            ArmLibraAfterRest(source, side);
+        }
+
+        Debug.Log(
+            $"[OnMain] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+        return true;
     }
 
-    private void TryApplyOnActionRestSelfCostIfPresent(CardController source, PlayerType side)
+    private bool TryApplyOnActionRestSelfCostIfPresent(CardController source, PlayerType side)
     {
         if (source == null)
         {
-            return;
+            return false;
         }
 
         TimedEffectData timed = FindFirstOnActionTimedBlock(source, out _);
         if (!TimedStartsWithRestSelf(timed) || source.IsRestState)
         {
-            return;
+            return false;
         }
 
-        if (TryApplyRestToUnit(source))
+        if (!TryApplyRestToUnit(source))
         {
-            bool ownedBatch = !_onlineEffectSyncActive;
-            QueueOnlineUnitRest(source);
-            if (ownedBatch)
-            {
-                FlushOnlineEffectSyncBatch();
-            }
-
-            Debug.Log(
-                $"[OnAction] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+            return false;
         }
+
+        bool ownedBatch = !_onlineEffectSyncActive;
+        QueueOnlineUnitRest(source);
+        if (ownedBatch)
+        {
+            FlushOnlineEffectSyncBatch();
+        }
+
+        Debug.Log(
+            $"[OnAction] Rest Self cost: {source.Data?.cardName}(id:{source.Data?.id}) side:{side}");
+        return true;
     }
 
     /// <summary>

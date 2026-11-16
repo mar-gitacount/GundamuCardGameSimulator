@@ -12,17 +12,73 @@ using UnityEngine;
 public static class AndroidReleaseBuildMenu
 {
     private const string OutputRoot = "Builds/Android";
+    private const string PendingApkFileName = "pending-android-release-apk";
+    private const string PendingAabFileName = "pending-android-release-aab";
+    private const string SwitchAndroidFileName = "switch-android";
+
+    private static bool _polling;
+
+    [InitializeOnLoadMethod]
+    private static void ResumePendingAndroidBuild()
+    {
+        if (_polling)
+        {
+            return;
+        }
+
+        _polling = true;
+        EditorApplication.update += PollPending;
+    }
+
+    private static void PollPending()
+    {
+        if (EditorApplication.isCompiling || EditorApplication.isUpdating || EditorApplication.isPlaying)
+        {
+            return;
+        }
+
+        string switchPath = GetTempPath(SwitchAndroidFileName);
+        if (File.Exists(switchPath))
+        {
+            TryDelete(switchPath);
+            EnsureAndroidTarget();
+            return;
+        }
+
+        if (File.Exists(GetTempPath(PendingApkFileName)))
+        {
+            if (!EnsureAndroidTarget())
+            {
+                return;
+            }
+
+            TryDelete(GetTempPath(PendingApkFileName));
+            BuildAndroidRelease(appBundle: false);
+            return;
+        }
+
+        if (File.Exists(GetTempPath(PendingAabFileName)))
+        {
+            if (!EnsureAndroidTarget())
+            {
+                return;
+            }
+
+            TryDelete(GetTempPath(PendingAabFileName));
+            BuildAndroidRelease(appBundle: true);
+        }
+    }
 
     [MenuItem("Build/Android/Release APK (実機へ入れない)", false, 100)]
     public static void BuildReleaseApk()
     {
-        BuildAndroidRelease(appBundle: false);
+        QueueAndroidRelease(appBundle: false);
     }
 
     [MenuItem("Build/Android/Release AAB (実機へ入れない・Play提出用)", false, 101)]
     public static void BuildReleaseAab()
     {
-        BuildAndroidRelease(appBundle: true);
+        QueueAndroidRelease(appBundle: true);
     }
 
     [MenuItem("Build/Android/出力フォルダを開く", false, 150)]
@@ -33,23 +89,49 @@ public static class AndroidReleaseBuildMenu
         EditorUtility.RevealInFinder(absolute);
     }
 
-    private static void BuildAndroidRelease(bool appBundle)
+    /// <summary>
+    /// プラットフォーム切替後はドメインリロードが走るため、同じ呼び出しでは BuildPlayer しない。
+    /// </summary>
+    private static void QueueAndroidRelease(bool appBundle)
     {
-        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
+        string pendingName = appBundle ? PendingAabFileName : PendingApkFileName;
+        Directory.CreateDirectory(Path.GetDirectoryName(GetTempPath(pendingName)) ?? "Temp");
+        File.WriteAllText(GetTempPath(pendingName), DateTime.Now.ToString("o"));
+        if (!EnsureAndroidTarget())
         {
-            bool switched = EditorUserBuildSettings.SwitchActiveBuildTarget(
-                BuildTargetGroup.Android,
-                BuildTarget.Android);
-            if (!switched)
-            {
-                EditorUtility.DisplayDialog(
-                    "Android ビルド",
-                    "Build Target を Android に切り替えられませんでした。\nFile > Build Profiles で Android を確認してください。",
-                    "OK");
-                return;
-            }
+            Debug.Log("[AndroidRelease] Android へ切替中。完了後にビルドを再開します。");
+            return;
         }
 
+        TryDelete(GetTempPath(pendingName));
+        BuildAndroidRelease(appBundle);
+    }
+
+    private static bool EnsureAndroidTarget()
+    {
+        if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android)
+        {
+            return true;
+        }
+
+        bool switched = EditorUserBuildSettings.SwitchActiveBuildTarget(
+            BuildTargetGroup.Android,
+            BuildTarget.Android);
+        if (!switched)
+        {
+            EditorUtility.DisplayDialog(
+                "Android ビルド",
+                "Build Target を Android に切り替えられませんでした。\nFile > Build Profiles で Android を確認してください。",
+                "OK");
+            return false;
+        }
+
+        // 切替成功時はドメインリロード後に PollPending が再開する。
+        return false;
+    }
+
+    private static void BuildAndroidRelease(bool appBundle)
+    {
         string packageName = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.Android);
         if (string.IsNullOrWhiteSpace(packageName) || packageName == "com.Company.ProductName")
         {
@@ -110,7 +192,6 @@ public static class AndroidReleaseBuildMenu
             locationPathName = outputPath,
             target = BuildTarget.Android,
             targetGroup = BuildTargetGroup.Android,
-            // AutoRunPlayer を付けない＝実機へインストールしない
             options = BuildOptions.None,
         };
 
@@ -133,6 +214,27 @@ public static class AndroidReleaseBuildMenu
             "Android リリース失敗",
             $"ビルドに失敗しました。\nConsole を確認してください。\n結果: {summary.result}",
             "OK");
+    }
+
+    private static string GetTempPath(string fileName)
+    {
+        string projectRoot = Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath;
+        return Path.Combine(projectRoot, "Temp", fileName);
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[AndroidRelease] 一時ファイル削除に失敗: " + ex.Message);
+        }
     }
 
     private static string SanitizeFileName(string name)
