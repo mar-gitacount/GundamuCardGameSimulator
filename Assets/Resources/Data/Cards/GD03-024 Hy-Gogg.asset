@@ -34,7 +34,35 @@ MonoBehaviour:
   type: 0
   battleZones: 2
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 18
+    activationConditions:
+    - boardSide: 0
+      checkKind: 54
+      turnCheck: -1
+      feature: {fileID: 11400000, guid: f2d0e1bc726e466bad36bdba65b24915, type: 2}
+      featureId: 47
+      features: []
+      featureIds: 
+      minimumCount: 1
+      levelAggregate: 0
+      compareOp: 0
+      compareValue: 0
+      unitCountCompareOp: 0
+      unitCountThreshold: 0
+      pilotCardId: 0
+      trashCardId: 0
+      pilotLevelThreshold: 0
+      activationStatTarget: -1
+      observedCardType: 0
+      destroyedByOwnerRelation: 0
+      cardNameContains: 
+    requireChainObservationContext: 0
+    effectsName: DeployHyGoggToken1_Rested
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e0793995189d51249b8e6616badc53d3, type: 2}
   - {fileID: 11400000, guid: f2d0e1bc726e466bad36bdba65b24915, type: 2}
@@ -54,7 +82,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

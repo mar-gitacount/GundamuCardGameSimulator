@@ -255,6 +255,39 @@ public partial class BattleGameMain
             && timed.HasOwnerHasDeployedBaseActivationRequirement();
     }
 
+    /// <summary>搭乗パイロット：相手ベースがいない間のホスト Self AP（キャリス GD03-093）。</summary>
+    private static bool IsMountedPilotOpponentHasNoBaseSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasOpponentHasNoBaseActivationRequirement();
+    }
+
+    /// <summary>ユニット自身：相手ベースがいない間の Self AP。</summary>
+    private static bool IsFieldUnitOpponentHasNoBaseSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasOpponentHasNoBaseActivationRequirement();
+    }
+
+    /// <summary>ユニット自身：味方ユニットトークンがいる間の Self AP（バリエント等）。</summary>
+    private static bool IsFieldUnitOwnerTokenCountSelfStatPassive(TimedEffectData timed, bool isPilotSource)
+    {
+        return !isPilotSource
+            && timed != null
+            && timed.HasResolvedEffects()
+            && timed.HasActivationConditions()
+            && timed.ContainsOnlySelfStatBuffDebuffEffects()
+            && timed.HasCompareFieldUnitTokenCountActivationRequirement();
+    }
+
     /// <summary>ユニット自身：味方配備ベースがある間の Self AP（メッサー等）。</summary>
     private static bool IsFieldUnitOwnerHasDeployedBaseSelfStatPassive(TimedEffectData timed, bool isPilotSource)
     {
@@ -354,6 +387,7 @@ public partial class BattleGameMain
             TimedEffectData timed = blocks[bi];
             if (!IsMountedPilotWhileHostHasRepairSelfStatPassive(timed, isPilotSource)
                 && !IsMountedPilotOwnerHasDeployedBaseSelfStatPassive(timed, isPilotSource)
+                && !IsMountedPilotOpponentHasNoBaseSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOnEnemyAttackSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOwnerTurnSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitMountedPilotSelfStatPassive(timed, isPilotSource)
@@ -361,7 +395,9 @@ public partial class BattleGameMain
                 && !IsFieldUnitTrashFeatureSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitHandCountSelfStatPassive(timed, isPilotSource)
                 && !IsFieldUnitOpponentUnitStatSelfStatPassive(timed, isPilotSource)
-                && !IsFieldUnitOwnerHasDeployedBaseSelfStatPassive(timed, isPilotSource))
+                && !IsFieldUnitOwnerHasDeployedBaseSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitOpponentHasNoBaseSelfStatPassive(timed, isPilotSource)
+                && !IsFieldUnitOwnerTokenCountSelfStatPassive(timed, isPilotSource))
             {
                 continue;
             }

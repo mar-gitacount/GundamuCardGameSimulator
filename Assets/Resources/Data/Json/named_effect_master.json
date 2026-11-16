@@ -1472,7 +1472,10 @@
                     "filterDeployCandidateByFeature": true,
                     "filterByTargetCardType": true,
                     "targetCardType": 0,
-                    "targetFeatureIds": [5, 6],
+                    "targetFeatureIds": [
+                        5,
+                        6
+                    ],
                     "targetUnitFilterStat": 3,
                     "targetUnitStatCompareOp": 3,
                     "targetUnitStatCompareValue": 4,
@@ -7044,7 +7047,10 @@
                             "checkKind": 54,
                             "turnCheck": -1,
                             "featureId": 0,
-                            "featureIds": [37, 55],
+                            "featureIds": [
+                                37,
+                                55
+                            ],
                             "minimumCount": 1,
                             "compareOp": 0,
                             "compareValue": 0
@@ -7841,7 +7847,10 @@
                         {
                             "boardSide": -1,
                             "checkKind": 7,
-                            "featureIds": [5, 78],
+                            "featureIds": [
+                                5,
+                                78
+                            ],
                             "minimumCount": 1
                         }
                     ]
@@ -7979,7 +7988,10 @@
                     "value": 1,
                     "target": 5,
                     "selectionMode": 1,
-                    "targetFeatureIds": [83, 79],
+                    "targetFeatureIds": [
+                        83,
+                        79
+                    ],
                     "filterByTargetCardType": true,
                     "targetCardType": 0,
                     "revealDiscardedToOpponent": true,
@@ -8228,8 +8240,7 @@
                     ]
                 }
             ]
-        }
-        ,
+        },
         {
             "effectSetName": "OnLook_OptionalDeployClanUnitLv4OrLess_ThenShuffleRemainderBottom",
             "displayName": "OnLook：見た中のLv.4以下〔クラン〕ユニット1枚を配備してもよい→残りを山札下へ",
@@ -8710,7 +8721,2152 @@
                     "deployUnitAsRested": false
                 }
             ]
+        },
+        {
+            "effectSetName": "DebuffSelfCost1_Permanent",
+            "displayName": "自身のコスト-1（常時）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 2,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Exile3_TitansTrash_ThenGrantBreach4_Self_UntilEOT",
+            "displayName": "トラッシュの〔ティターンズ〕3枚を除外し、自身に突破4をターン終了まで付与",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 3,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 21,
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 48,
+                    "value": 4,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddFromTrashToHand_CyclopsTeamPilot",
+            "displayName": "トラッシュの〔サイクロプス隊〕パイロット1枚を手札へ",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 47,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 1,
+                    "optionalPlayerConfirm": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAttackActiveEnemy_AllAllyCyclops_EnemyAp5OrLess_UntilEOT",
+            "displayName": "味方〔サイクロプス隊〕全体に、AP5以下のアクティブ敵を攻撃可能にする（ターン終了）",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 0,
+                    "target": 3,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 47,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddExResource1_OnLink",
+            "displayName": "【リンク時】EXリソース1",
+            "effects": [
+                {
+                    "type": 33,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_EnemyAllUnits_OnLink",
+            "displayName": "【リンク時】敵ユニット全体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "HighMobility_Self_Permanent",
+            "displayName": "高機動（常時）",
+            "effects": [
+                {
+                    "type": 11,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "ForceEnemyAttackTarget_Self_Permanent",
+            "displayName": "可能ならこのユニットを攻撃対象にする",
+            "effects": [
+                {
+                    "type": 35,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantHighMobility_AllyAgeSystem_SelectSingle_UntilEOT",
+            "displayName": "味方〔AGEシステム〕1体に高機動をターン終了まで",
+            "effects": [
+                {
+                    "type": 11,
+                    "value": 0,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 44
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployHyGoggToken1_Rested",
+            "displayName": "「ハイゴッグ」トークン1体をレスト配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001039,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "ForceEnemyAttackTarget_AllyRestedMaganac_Permanent",
+            "displayName": "レストの味方〔マハナク隊〕を可能なら攻撃対象にする",
+            "effects": [
+                {
+                    "type": 35,
+                    "value": 0,
+                    "target": 3,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 34
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelfAp2_UntilEndOfBattle_OnAttackVsUnit",
+            "displayName": "敵ユニット攻撃時、このバトル中AP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyAllBlockers_OnEnemyUnitDestroyed",
+            "displayName": "敵ユニット破壊時、ブロッカー全体に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "filterTargetIsBlocker": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_AllEnemyUnits_OnEnemyUnitDestroyed_IfLinked_Lv3OrLess",
+            "displayName": "リンク中に戦闘破壊したとき、Lv.3以下の敵全体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestOtherAllyClan_ThenDamage2_EnemyAp2OrLess_OnPlayed",
+            "displayName": "他のアクティブ〔クラン〕をレストし、AP2以下の敵に2ダメージ",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 8,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 7,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage3_AllBases_OnPlayed",
+            "displayName": "配備時、すべてのベースに3ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 3,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "damageAllDeployedBases": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "AttackActiveEnemy_Self_EnemyLv5OrLess_WhileSelfAp5OrMore",
+            "displayName": "自身AP5以上の間、Lv.5以下のアクティブ敵を攻撃可能",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_EnemyUnit_SelectSingle_OnPilotMounted",
+            "displayName": "【セット時】敵1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployDaughtressToken1_Rested_OnPlayed",
+            "displayName": "ドートレストークン1体をレスト配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001012,
+                    "deployUnitAsRested": true,
+                    "deployUnitOverrideAp": 0,
+                    "deployUnitOverrideHp": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelfAp1_WhileOwnerHasToken",
+            "displayName": "ユニットトークンがいる間、自身AP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployGFreDToken1_Rested_OnBurst",
+            "displayName": "バースト：GFreDトークンをレスト配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001040,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyLowestHpEnemy_OnShieldAreaDestroyed_IfTrashCb10",
+            "displayName": "シールドエリア破壊時、CBがトラッシュ10枚以上なら最もHPが低い敵を破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "autoSelectLowestUnitStat": true,
+                    "targetUnitFilterStat": 1
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployTrashUnit_Lv4OrLess_PayCost_Optional_OnLink",
+            "displayName": "リンク時、トラッシュのLv.4以下ユニットをコスト支払い配備してよい",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 2,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitPayCost": true,
+                    "optionalPlayerConfirm": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyLv2OrLess_OnPilotMounted_PurplePilot",
+            "displayName": "紫パイロットセット時、Lv.2以下の敵を破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "Exile1_VaganTrash_ThenBuffAllyVaganAp2_UntilEOT_OnAttack",
+            "displayName": "攻撃時、トラッシュのヴァガン1枚を除外し味方ヴァガンAP+2",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 65,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 65
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployCgsMwToken1_Rested",
+            "displayName": "CGSモービルワーカートークン1体をレスト配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001041,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_EnemyAp4OrLess_SelectSingle_OnPlayedFromTrash",
+            "displayName": "トラッシュから配備したとき、AP4以下の敵に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 0,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddFromTrashToHand_XRounder_ThenDiscard1_Optional_OnPlayed",
+            "displayName": "配備時、トラッシュのXラウンダーを手札へ加えてよい。加えたなら1枚捨てる",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 67,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_AllyUnit_SelectSingle_ThenBuffThatAp1_UntilEOT_Optional_OnPlayed",
+            "displayName": "配備時、味方1体に1ダメージしAP+1してよい",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 0,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "compareTargetStatToPriorChainPicked": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantBlocker_Self_Permanent",
+            "displayName": "ブロッカーを得る",
+            "effects": [
+                {
+                    "type": 4,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp1_PerAeugUnitInTrash_UntilEOT_SelectSingle_OnPlayed",
+            "displayName": "配備時、敵1体のAPをトラッシュのAEUGユニット数だけ下げる",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 4,
+                    "valueCountKind": 1,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "valueCountFeatureId": 41
+                }
+            ]
+        },
+        {
+            "effectSetName": "Draw1_ThenDiscard1_OnPlayed",
+            "displayName": "配備時、1枚引き1枚捨てる",
+            "effects": [
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffBattlingEnemyAp3_UntilEndOfBattle_OnAction",
+            "displayName": "アクション：バトル中の敵AP-3（このバトル中）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyNoPilotAp2_UntilEOT_SelectSingle_OnAttack",
+            "displayName": "攻撃時、パイロット未セットの敵AP-2",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "requireTargetHasNoPilot": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyHp3OrLess_Select1to3_OnLink",
+            "displayName": "リンク時、HP3以下の敵1〜3体を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "selectMinCount": 1,
+                    "selectMaxCount": 3,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "ReturnMountedPilotToHand_OnDestroyed",
+            "displayName": "破壊時、セットされていたカードを手札へ",
+            "effects": [
+                {
+                    "type": 54,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddFromTrashToHand_GjallarhornCommand_OnLink",
+            "displayName": "リンク時、トラッシュのギャラルホルンコマンドを手札へ",
+            "effects": [
+                {
+                    "type": 40,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 43,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyTitansAp1_UntilEOT_LvLeSelf_SelectSingle_OnAttack",
+            "displayName": "攻撃時、このユニット以下Lvの味方ティターンズAP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 21,
+                    "compareTargetStatToSource": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyLv3OrLess_SelectSingle_OnLink",
+            "displayName": "リンク時、Lv.3以下の敵をレスト",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantBreach1_AndBuffAp1_Self_IfAgeSystem_DuringLink",
+            "displayName": "リンク中かつAGEシステムならAP+1と突破1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 48,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantBreach1_AllyCyclops_SelectSingle_UntilEOT_OnAttack",
+            "displayName": "攻撃時、味方サイクロプス隊1体に突破1",
+            "effects": [
+                {
+                    "type": 48,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 47
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffSelfAp1_WhileNoEnemyBase",
+            "displayName": "相手のベースがいない間、自身AP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "MillTop2_ThenDebuffEnemyAp2_UntilEOT_IfObservedVagan_OnPilotMounted",
+            "displayName": "セット時、山札上2枚をトラッシュ。ヴァガンなら敵AP-2",
+            "effects": [
+                {
+                    "type": 19,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 3,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DebuffEnemyAp1_UntilEOT_SelectSingle",
+            "displayName": "敵1体のAP-1（ターン終了）",
+            "effects": [
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "OptionalDiscard1_ThenDraw1_OnAttack",
+            "displayName": "攻撃時、1枚捨ててよい。捨てたなら1枚引く",
+            "effects": [
+                {
+                    "type": 24,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "optionalPlayerConfirm": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 1,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "LookTop2_Choose1Top_TrashRemainder",
+            "displayName": "山札上2枚を見て1枚を上に戻し残りをトラッシュ",
+            "effects": [
+                {
+                    "type": 13,
+                    "value": 2,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "ChooseLooked1ToDeckTop_RemainderToTrash",
+            "displayName": "見た1枚を山札上へ、残りをトラッシュ",
+            "effects": [
+                {
+                    "type": 50,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyHp3OrLess_SelectSingle",
+            "displayName": "HP3以下の敵を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyLvLeSelf_SelectSingle",
+            "displayName": "このユニット以下Lvの敵を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "compareTargetStatToSource": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyHp2OrLess_SelectSingle",
+            "displayName": "HP2以下の敵をレスト",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_RestEnemy_SelectSingle",
+            "displayName": "レストの敵に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 7,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyHp3OrLess_SelectSingle",
+            "displayName": "HP3以下の敵をレスト",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyHp3OrLess_Select1to2",
+            "displayName": "HP3以下の敵1〜2体をレスト",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "selectMinCount": 1,
+                    "selectMaxCount": 2,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantAttackActiveEnemy_AllyUnit_NoPilotEnemy_UntilEOT_SelectSingle",
+            "displayName": "味方1体に、パイロット未セットのアクティブ敵を攻撃可能にする",
+            "effects": [
+                {
+                    "type": 12,
+                    "value": 0,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "requireTargetHasNoPilot": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployGquxOmegaToken_And_RedGundamToken_Rested",
+            "displayName": "GQuuuuuuX(オメガ)とレッドガンダムのトークンをレスト配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001042,
+                    "deployUnitAsRested": true
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001043,
+                    "deployUnitAsRested": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DamageEnemyLv5OrLess_ByOwnerTokenCount_SelectSingle",
+            "displayName": "Lv.5以下の敵に、味方トークン数のダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 1,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5,
+                    "filterByTargetCardType": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyPairedPilot_EnemyLv5OrLess_SelectSingle",
+            "displayName": "Lv.5以下の敵ユニットにセットされたパイロットを破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "requireTargetHasPilot": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 5
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyMaftyAp3_UntilEOT_SelectSingle",
+            "displayName": "味方マフティー1体AP+3",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 3,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 35
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllPairedUnitsAp2_UntilEOT",
+            "displayName": "パイロットがセットされている味方・相手ユニットすべてAP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 3,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "requireTargetHasPilot": true
+                },
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "requireTargetHasPilot": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestActiveAlly_ThenDamage3_EnemyLvLeRested_SelectSingle",
+            "displayName": "アクティブな味方をレストし、そのLv以下の敵に3ダメージ",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 0,
+                    "value": 3,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "compareTargetStatToPriorChainPicked": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyActiveEnemyLv2OrLess_OrLv4IfTrash10",
+            "displayName": "アクティブなLv.2以下（トラッシュ10枚以上ならLv.4以下）の敵を破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 2,
+                    "relaxTargetUnitStatFilterWhenTrashHasSourceCopies": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage2_AllyVagan_And_Enemy_SelectEach",
+            "displayName": "味方ヴァガン1体と敵1体に2ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 65
+                },
+                {
+                    "type": 0,
+                    "value": 2,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployGrazeCustomToken_IfEnemyUnits1to4",
+            "displayName": "敵が1〜4体ならグレイズカスタムトークン配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001044,
+                    "deployUnitAsRested": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "DeployBarbatos4thToken_IfEnemyUnits5OrMore",
+            "displayName": "敵が5体以上ならバルバトス第4形態トークン配備",
+            "effects": [
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 0,
+                    "deployCardId": 1001045,
+                    "deployUnitAsRested": false
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceRestEnemyLv4OrLess_SelectSingle",
+            "displayName": "レストのLv.4以下の敵を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 7,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantBlocker_Ally_SelectSingle_UntilEOT",
+            "displayName": "味方1体にブロッカーをターン終了まで",
+            "effects": [
+                {
+                    "type": 4,
+                    "value": 0,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "ActivateAllyBase_SelectSingle_ThenDebuffAllEnemyAp1_UntilEOT",
+            "displayName": "レストの味方ベースをアクティブにし、敵全体AP-1",
+            "effects": [
+                {
+                    "type": 25,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 3,
+                    "value": 1,
+                    "target": 4,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestAllyBase_And_RestEnemyHp3OrLess",
+            "displayName": "味方ベース1つとHP3以下の敵1体をレスト",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceEnemyLv3OrLess_SelectSingle",
+            "displayName": "Lv.3以下の敵を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenRestEnemyLv3OrLess_IfJupitrisUnit",
+            "displayName": "シールド1枚手札へ。味方ジュピターリスユニットがいればLv.3以下の敵をレスト",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyHp3OrLess_SelectSingle_OnAllyPilotMountedLv3OrLess",
+            "displayName": "Lv.3以下パイロットセット時、HP3以下の敵をレスト",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllAllyTokensAp1_NotOwnerTurn",
+            "displayName": "相手ターン中、味方トークン全体AP+1",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 9,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "Damage1_Enemy_SelectSingle",
+            "displayName": "敵1体に1ダメージ",
+            "effects": [
+                {
+                    "type": 0,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenOptionalDeployTrashVaganLv4OrLess_PayCost_IfOwnerTurn",
+            "displayName": "シールド1枚手札へ。自分ターンならトラッシュのヴァガンLv.4以下をコスト支払い配備してよい",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 22,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "deployUnitSource": 2,
+                    "targetFeatureId": 65,
+                    "filterByTargetCardType": true,
+                    "targetCardType": 0,
+                    "deployUnitPayCost": true,
+                    "optionalPlayerConfirm": true,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "AddShield1_ThenBounceEnemyLv4OrLess_IfTripleShip2",
+            "displayName": "シールド1枚手札へ。三隻同盟が2体以上ならLv.4以下の敵を手札に戻す",
+            "effects": [
+                {
+                    "type": 6,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                },
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "RestEnemyHp4OrLess_SelectSingle_OnDestroyed",
+            "displayName": "破壊時、HP4以下の敵をレスト",
+            "effects": [
+                {
+                    "type": 10,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 1,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "Exile4_VaganTrash_ThenDestroyEnemyLv4OrLess_Optional_OnPilotMounted",
+            "displayName": "セット時、トラッシュのヴァガン4枚を除外してよい。除外したならLv.4以下の敵を破壊",
+            "effects": [
+                {
+                    "type": 21,
+                    "value": 4,
+                    "target": 5,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetFeatureId": 65,
+                    "optionalPlayerConfirm": true,
+                    "requireExactExileCount": true,
+                    "abortRemainingChainOnSkip": true
+                },
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "targetUnitFilterStat": 3,
+                    "targetUnitStatCompareOp": 3,
+                    "targetUnitStatCompareValue": 4
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyLv5OrLess_WhenBattleDamage_IfCbPilot",
+            "displayName": "CBパイロットがいるとき、Lv.5以下へ戦闘ダメージで破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantBreach4_Self_UntilEOT",
+            "displayName": "自身に突破4をターン終了まで",
+            "effects": [
+                {
+                    "type": 48,
+                    "value": 4,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "FirstStrike_Self_UntilEndOfBattle",
+            "displayName": "このバトル中、先制攻撃",
+            "effects": [
+                {
+                    "type": 47,
+                    "value": 0,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 2,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "GrantTurnEndRepair3_Self",
+            "displayName": "自身にリペア3を付与",
+            "effects": [
+                {
+                    "type": 55,
+                    "value": 3,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0
+                }
+            ]
+        },
+        {
+            "effectSetName": "BuffAllyZaftAp2_UntilEOT_SelectSingle",
+            "displayName": "〔ザフト〕の自分のユニット1つを選び、このターン中 AP+2",
+            "effects": [
+                {
+                    "type": 2,
+                    "value": 2,
+                    "target": 1,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "targetFeatureId": 3
+                }
+            ]
+        },
+        {
+            "effectSetName": "MillTop1_ThenBuffSelfAp1_UntilEOT_IfMilledZeonUnit",
+            "displayName": "攻撃時、山札上1枚トラッシュ。〔ジオン〕ユニットならこのターン中自身AP+1",
+            "effects": [
+                {
+                    "type": 19,
+                    "value": 1,
+                    "target": 5,
+                    "selectionMode": -1
+                },
+                {
+                    "type": 2,
+                    "value": 1,
+                    "target": 0,
+                    "selectionMode": -1,
+                    "statTarget": 0,
+                    "duration": 1,
+                    "requireChainObservationContext": true,
+                    "effectActivationConditions": [
+                        {
+                            "boardSide": -1,
+                            "checkKind": 7,
+                            "featureId": 5,
+                            "minimumCount": 1
+                        },
+                        {
+                            "boardSide": -1,
+                            "checkKind": 8,
+                            "observedCardType": 0,
+                            "minimumCount": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "effectSetName": "BounceRestEnemyUnit_SelectSingle",
+            "displayName": "レストの敵ユニット1体を手札に戻す",
+            "effects": [
+                {
+                    "type": 9,
+                    "value": 1,
+                    "target": 7,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "valueMode": 0,
+                    "valueCountBoardSide": 0,
+                    "valueCountKind": 0,
+                    "valueCountMinUnitLevel": 0,
+                    "valueScaleMaximum": 0,
+                    "valueCountExcludeSource": 0,
+                    "requireTargetIsRest": true
+                }
+            ]
+        },
+        {
+            "effectSetName": "DestroyEnemyPairedPilot_SelectSingle",
+            "displayName": "相手のセットされたパイロット1つを破壊",
+            "effects": [
+                {
+                    "type": 18,
+                    "value": 1,
+                    "target": 2,
+                    "selectionMode": 1,
+                    "statTarget": 0,
+                    "duration": 0,
+                    "requireTargetHasPilot": true
+                }
+            ]
         }
-
     ]
 }

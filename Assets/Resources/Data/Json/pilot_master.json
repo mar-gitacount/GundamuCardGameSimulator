@@ -935,6 +935,24 @@
             "pilotKey": "Norba_Shino",
             "displayName": "ノルバ・シノ",
             "description": ""
+        },
+        {
+            "id": 157,
+            "pilotKey": "Sai_Saici",
+            "displayName": "サイ・サイシー",
+            "description": ""
+        },
+        {
+            "id": 158,
+            "pilotKey": "Argo_Gulskii",
+            "displayName": "アルゴ・ガルスキー",
+            "description": ""
+        },
+        {
+            "id": 159,
+            "pilotKey": "Esmeralda_Zubin",
+            "displayName": "エメラルダ・ズービン",
+            "description": ""
         }
     ]
 }

@@ -34,7 +34,15 @@ MonoBehaviour:
   type: 0
   battleZones: 3
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 13
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DebuffSelfCost1_Permanent
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: b221c4e96ee849f08741fb5fc4d863df, type: 2}
   - {fileID: 11400000, guid: 22d7bcbae97d46c88689c8046d5f8f88, type: 2}

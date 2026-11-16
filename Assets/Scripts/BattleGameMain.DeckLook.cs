@@ -301,6 +301,16 @@ public partial class BattleGameMain
             return;
         }
 
+        if (effect != null && effect.damageAllDeployedBases)
+        {
+            BeginOnlineEffectSyncBatch(ownerType);
+            TryApplyDamageAllDeployedBases(effect, sourceCard, ownerType);
+            FlushOnlineEffectSyncBatch();
+            SyncAllResourceViewsFromRule();
+            onChainContinue?.Invoke();
+            return;
+        }
+
         if (effect != null && effect.type == EffectType.AddFromTrashToHand)
         {
             ApplyAddFromTrashToHandEffect(sourceCard, ownerType, effect, onChainContinue);

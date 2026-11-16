@@ -34,7 +34,15 @@ MonoBehaviour:
   type: 0
   battleZones: 3
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 12
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: Support2_RestSelf_BuffAllyOtherAp2_OnMain
+    effects: []
+    activationCost: 0
+    oncePerTurn: 0
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: 374064caad5947b0bb2b44e5adee549a, type: 2}
   - {fileID: 11400000, guid: 361fd0a9743146c985079a7eeffbe53e, type: 2}
@@ -54,7 +62,7 @@ MonoBehaviour:
   isShieldToken: 0
   isRepair: 0
   repairAmount: 0
-  notUsedOnline: 1
+  notUsedOnline: 0
   cannotMountPilot: 0
   gcgId:
     setKind: 2

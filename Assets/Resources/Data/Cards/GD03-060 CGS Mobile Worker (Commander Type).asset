@@ -34,7 +34,15 @@ MonoBehaviour:
   type: 0
   battleZones: 2
   attackFlg: 0
-  timedEffects: []
+  timedEffects:
+  - timing: 0
+    activationConditions: []
+    requireChainObservationContext: 0
+    effectsName: DeployCgsMwToken1_Rested
+    effects: []
+    activationCost: 0
+    oncePerTurn: 1
+    observedUnitTriggerKind: -1
   features:
   - {fileID: 11400000, guid: e8b1c2d3f4a54607b9c0d1e2f3a4b5c6, type: 2}
   pilotIds: []

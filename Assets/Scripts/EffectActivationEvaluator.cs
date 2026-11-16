@@ -64,6 +64,9 @@ public sealed class EffectActivationContext
     /// <summary>オーナーの配備ベースが生存している。</summary>
     public bool OwnerHasDeployedBase { get; }
 
+    /// <summary>相手のシールドエリアに配備ベースカードがある（EXベースは含まない）。</summary>
+    public bool OpponentHasDeployedBase { get; }
+
     /// <summary>オーナーの配備ベース本体（特徴判定用。未配備なら null）。</summary>
     public CardController OwnerDeployedBase { get; }
 
@@ -143,7 +146,8 @@ public sealed class EffectActivationContext
         CardController ownerDeployedBase = null,
         bool opponentUnitsHaveAttackedThisTurn = false,
         int opponentShieldCount = -1,
-        CardData destroyedUnitMountedPilotData = null)
+        CardData destroyedUnitMountedPilotData = null,
+        bool opponentHasDeployedBase = false)
     {
         OwnerType = ownerType;
         SourceCard = sourceCard;
@@ -180,6 +184,7 @@ public sealed class EffectActivationContext
         OpponentUnitsHaveAttackedThisTurn = opponentUnitsHaveAttackedThisTurn;
         OpponentShieldCount = opponentShieldCount;
         DestroyedUnitMountedPilotData = destroyedUnitMountedPilotData;
+        OpponentHasDeployedBase = opponentHasDeployedBase;
     }
 
     public EffectActivationContext WithFrozenOwnerBattleAliveUnitCount(int count)
@@ -255,7 +260,8 @@ public sealed class EffectActivationContext
             OwnerDeployedBase,
             OpponentUnitsHaveAttackedThisTurn,
             OpponentShieldCount,
-            DestroyedUnitMountedPilotData);
+            DestroyedUnitMountedPilotData,
+            OpponentHasDeployedBase);
     }
 }
 
@@ -577,6 +583,11 @@ public static class EffectActivationEvaluator
         if (c.checkKind == EffectActivationCheckKind.TrashHasColor)
         {
             return EvaluateTrashHasColor(c, ctx);
+        }
+
+        if (c.checkKind == EffectActivationCheckKind.OpponentHasNoBase)
+        {
+            return ctx != null && !ctx.OpponentHasDeployedBase;
         }
 
         if (c.checkKind == EffectActivationCheckKind.OwnerHasDeployedBase)

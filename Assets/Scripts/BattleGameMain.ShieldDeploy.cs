@@ -647,15 +647,18 @@ public partial class BattleGameMain
         CardController sourceCard,
         PlayerType ownerType,
         EffectTiming timing,
-        bool skipDeployShieldFromHandOnBaseReplace = false)
+        bool skipDeployShieldFromHandOnBaseReplace = false,
+        System.Action onComplete = null)
     {
         if (ShouldSkipAutomaticEffectsInTestPlay())
         {
+            onComplete?.Invoke();
             return;
         }
 
         if (sourceCard == null || sourceCard.Data == null || sourceCard.Data.timedEffects == null)
         {
+            onComplete?.Invoke();
             return;
         }
 
@@ -773,13 +776,19 @@ public partial class BattleGameMain
                     sourceCard,
                     ownerType,
                     timing,
-                    pendingManualEffects));
+                    pendingManualEffects,
+                    onComplete));
             }
-            else if (timing == EffectTiming.OnBaseDeployed
-                || timing == EffectTiming.OnShieldDeployed
-                || timing == EffectTiming.OnRest)
+            else
             {
-                SyncAllResourceViewsFromRule();
+                if (timing == EffectTiming.OnBaseDeployed
+                    || timing == EffectTiming.OnShieldDeployed
+                    || timing == EffectTiming.OnRest)
+                {
+                    SyncAllResourceViewsFromRule();
+                }
+
+                onComplete?.Invoke();
             }
         }
         finally
@@ -795,7 +804,8 @@ public partial class BattleGameMain
         CardController sourceCard,
         PlayerType ownerType,
         EffectTiming timing,
-        List<EffectData> effects)
+        List<EffectData> effects,
+        System.Action onComplete = null)
     {
         try
         {
@@ -804,6 +814,7 @@ public partial class BattleGameMain
         finally
         {
             EndEffectChainObservationScope();
+            onComplete?.Invoke();
         }
     }
 

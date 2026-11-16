@@ -39,6 +39,14 @@ public static class CardPairFromHandCost
             return false;
         }
 
+        if (!string.IsNullOrWhiteSpace(pilot.pairFromHandHostNameContains)
+            && !CardNameContainsMatcher.Matches(
+                host.Data.cardName,
+                pilot.pairFromHandHostNameContains.Trim()))
+        {
+            return false;
+        }
+
         return true;
     }
 

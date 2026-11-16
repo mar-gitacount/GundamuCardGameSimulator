@@ -3077,13 +3077,38 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007041d000000000000000000000001
+    m_Address: Data/Images/G007-041_Bolt Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007050d000000000000000000000001
+    m_Address: Data/Images/G007-050
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a007053d000000000000000000000001
     m_Address: Data/Images/G007-053_Daughtress Neo
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007062d000000000000000000000001
+    m_Address: Data/Images/G007-062_Anavel Gato's Gelgoog
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a007075d000000000000000000000001
     m_Address: Data/Images/G007-075_Unicorn Gundam (Awakened)
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007080d000000000000000000000001
+    m_Address: Data/Images/G007-080_Dragon Gundam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a007109d000000000000000000000001
+    m_Address: Data/Images/G007-109_Power of the People
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -4298,6 +4323,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: be4745e190bb9234fb9e7e16c082ae54
     m_Address: Data/Images/Auel Neider
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: be65c4092f5a4777b087725d5b19c2ef
+    m_Address: "Data/Images/GD03-017_K\xE4mpfer"
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

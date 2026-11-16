@@ -131,6 +131,8 @@ public class OnlineBattleEffectSyncPayload
     public const string ChangeKindShieldAreaUnitDamageImmunityAp = "ShieldAreaUnitDamageImmunityAp";
     /// <summary>GD06-049 等：送信側視点の配備ベース層（カード／EX）を破壊する。</summary>
     public const string ChangeKindDestroyDeployedBase = "DestroyDeployedBase";
+    /// <summary>G007-050 等：対象ユニットにセットされたパイロットだけを破壊する。</summary>
+    public const string ChangeKindDestroyPairedPilot = "DestroyPairedPilot";
 
     public static string ToJson(OnlineBattleUnitEffectChange[] changes)
     {

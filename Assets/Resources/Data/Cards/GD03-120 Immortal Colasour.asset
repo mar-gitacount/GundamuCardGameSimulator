@@ -31,7 +31,7 @@ MonoBehaviour:
   sourceTitle: 13
   filterType: 0
   color: 5
-  type: 2
+  type: 6
   battleZones: 0
   attackFlg: 0
   timedEffects: []
